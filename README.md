@@ -2,9 +2,14 @@
 
 Example applications built with the [Nightshade](https://github.com/matthewjberger/nightshade) game engine.
 
+<img width="2124" height="1440" alt="demo" src="https://github.com/user-attachments/assets/b476d112-c10e-40c3-8dd3-2816153c2a32" />
+<img width="2560" height="1440" alt="Screenshot 2025-12-28 121420" src="https://github.com/user-attachments/assets/5ac1e414-a615-4ceb-ac58-0e209cba60f1" />
+
 ## Gallery
 
-[View the live demos here](https://matthewberger.dev/nightshade)
+[View the gallery here](https://matthewberger.dev/nightshade) 🔎
+ 
+<img width="1238" height="1346" alt="image" src="https://github.com/user-attachments/assets/dcfab536-f067-4988-b3f5-d8839444aaea" />
 
 ## Quickstart
 

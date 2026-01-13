@@ -65,3 +65,29 @@ test:
     rustc --version
     cargo fmt -- --version
     cargo clippy -- --version
+
+# Creates a redistributable bundle for an example (Windows)
+[windows]
+bundle $example:
+    cargo build -r -p {{example}}
+    $ErrorActionPreference = "Stop"; $bundleDir = "dist/{{example}}"; $zipFile = "dist/{{example}}.zip"; Write-Host "Creating bundle directory: $bundleDir" -ForegroundColor Cyan; if (Test-Path $bundleDir) { Remove-Item -Recurse -Force $bundleDir }; if (Test-Path $zipFile) { Remove-Item -Force $zipFile }; New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null; Write-Host "Copying executable..." -ForegroundColor Cyan; Copy-Item "target/release/{{example}}.exe" "$bundleDir/"; Write-Host "Creating zip archive: $zipFile" -ForegroundColor Cyan; Compress-Archive -Path "$bundleDir/*" -DestinationPath $zipFile -Force; Write-Host ""; Write-Host "Bundle created successfully!" -ForegroundColor Green; Write-Host "  Directory: $bundleDir" -ForegroundColor Green; Write-Host "  Archive:   $zipFile" -ForegroundColor Green
+
+# Creates a redistributable bundle for an example (Unix)
+[unix]
+bundle $example:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build -r -p {{example}}
+    bundle_dir="dist/{{example}}"
+    zip_file="dist/{{example}}.zip"
+    echo -e "\033[36mCreating bundle directory: $bundle_dir\033[0m"
+    rm -rf "$bundle_dir" "$zip_file"
+    mkdir -p "$bundle_dir"
+    echo -e "\033[36mCopying executable...\033[0m"
+    cp "target/release/{{example}}" "$bundle_dir/"
+    echo -e "\033[36mCreating zip archive: $zip_file\033[0m"
+    cd dist && zip -r "{{example}}.zip" "{{example}}" && cd ..
+    echo ""
+    echo -e "\033[32mBundle created successfully!\033[0m"
+    echo -e "\033[32m  Directory: $bundle_dir\033[0m"
+    echo -e "\033[32m  Archive:   $zip_file\033[0m"

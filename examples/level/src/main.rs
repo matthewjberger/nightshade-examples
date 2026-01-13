@@ -27,7 +27,7 @@ const GAMEMAP_MODEL: &[u8] = include_bytes!("../../../assets/models/gamemap.glb"
 const VIEW_MODEL: &[u8] = include_bytes!("../../../assets/models/view_model.glb");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    set_asset_search_paths(vec!["examples/level/".to_string()]);
+    set_asset_search_paths(vec!["".to_string()]);
     launch(LevelDemo::default())?;
     Ok(())
 }

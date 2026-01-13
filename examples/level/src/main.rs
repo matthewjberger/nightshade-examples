@@ -23,11 +23,11 @@ use nightshade::prelude::*;
 use state::{GameScreen, LevelDemo};
 use systems::props::PropShape;
 
-const GAMEMAP_MODEL: &[u8] = include_bytes!("../assets/models/gamemap.glb");
-const VIEW_MODEL: &[u8] = include_bytes!("../assets/models/view_model/view_model.glb");
+const GAMEMAP_MODEL: &[u8] = include_bytes!("../../../assets/models/gamemap.glb");
+const VIEW_MODEL: &[u8] = include_bytes!("../../../assets/models/view_model.glb");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    set_asset_search_paths(vec!["apps/level/".to_string()]);
+    set_asset_search_paths(vec!["examples/level/".to_string()]);
     launch(LevelDemo::default())?;
     Ok(())
 }

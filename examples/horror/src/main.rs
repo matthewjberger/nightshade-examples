@@ -111,7 +111,7 @@ impl State for HorrorDemo {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let map_path = Path::new("apps/horror/assets/horror_map.json");
+            let map_path = Path::new("assets/maps/horror_map.json");
             if !map_path.exists() {
                 let map = build_horror_map();
                 if let Err(error) = save_map(&map, map_path) {

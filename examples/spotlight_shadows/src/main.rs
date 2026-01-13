@@ -3,7 +3,7 @@ use nightshade::ecs::camera::systems::fly_camera_system;
 use nightshade::ecs::light::components::{Light, LightType};
 #[cfg(not(target_arch = "wasm32"))]
 use nightshade::ecs::map::save_map;
-use nightshade::ecs::map::{Map, MapLight, MapMaterial, MapNode, NodeIndex, spawn_map};
+use nightshade::ecs::map::{spawn_map, Map, MapLight, MapMaterial, MapNode, NodeIndex};
 use nightshade::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -363,7 +363,7 @@ impl State for DecalsDemo {
 }
 
 fn load_awesomeface_texture(world: &mut World) {
-    let png_data = include_bytes!("../assets/awesomeface.png");
+    let png_data = include_bytes!("../../../assets/textures/awesomeface.png");
     if let Ok(img) = image::load_from_memory(png_data) {
         let rgba = img.to_rgba8();
         let (width, height) = rgba.dimensions();

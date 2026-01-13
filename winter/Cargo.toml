@@ -1,0 +1,14 @@
+[package]
+name = "winter"
+version = "0.1.0"
+authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
+edition = "2024"
+default-run = "winter"
+publish = false
+
+[features]
+openxr = ["nightshade/openxr"]
+
+[dependencies]
+nightshade = { version = "0.6.46", features = ["physics", "tracing"] }
+tracing = "0.1"

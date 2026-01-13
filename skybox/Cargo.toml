@@ -1,0 +1,8 @@
+[package]
+name = "skybox"
+version = "0.6.7"
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[dependencies]
+nightshade = { version = "0.6.46", features = ["egui", "tracing"] }

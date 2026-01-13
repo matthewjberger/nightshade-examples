@@ -1,0 +1,10 @@
+[package]
+name = "render_layers"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+default-run = "render_layers"
+publish = false
+
+[dependencies]
+nightshade = { version = "0.6.46", features = ["egui", "tracing"] }

@@ -1,0 +1,17 @@
+[package]
+name = "doom"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+default-run = "doom"
+publish = false
+
+[dependencies]
+nightshade = { version = "0.6.46", features = ["egui", "tracing"] }
+tracing = "0.1"
+bytemuck = "1.24.0"
+wgpu = { version = "27.0.1", default-features = false }
+bincode = "1.3"
+indexmap = "2"
+serde = { version = "1.0.228", features = ["derive"] }
+winit = { version = "0.30.12", features = ["serde"] }

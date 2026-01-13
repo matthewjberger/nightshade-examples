@@ -1,0 +1,32 @@
+default: build-all run
+
+build-all: build-plugins build-host
+
+build-plugins: build-engine-plugin build-app-plugin
+
+build-engine-plugin:
+    cargo build -p engine-plugin --target wasm32-wasip1 --release
+    mkdir -p plugins/engine
+    cp target/wasm32-wasip1/release/engine_plugin.wasm plugins/engine/
+
+build-app-plugin:
+    cargo build -p game-plugin --target wasm32-wasip1 --release
+    mkdir -p plugins/app
+    cp target/wasm32-wasip1/release/game_plugin.wasm plugins/app/
+
+build-host:
+    cargo build -p plugins-demo --release
+
+run: build-plugins
+    cargo run -p plugins-demo --release
+
+lint:
+    cargo clippy --all --tests -- -D warnings
+
+clean:
+    cargo clean
+    rm -rf plugins/engine/*.wasm
+    rm -rf plugins/app/*.wasm
+
+setup:
+    rustup target add wasm32-wasip1

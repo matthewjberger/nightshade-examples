@@ -1,0 +1,6343 @@
+{
+  "engine_version": "0.6.35",
+  "name": "Horror Demo",
+  "atmosphere": "None",
+  "textures": {
+    "horror_wall": {
+      "Png": {
+        "png_data": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAABb2lDQ1BpY2MAACiRdZE7SwNBFIW/JGp8YqGFiEUKFYsIoiCWEsE0apFE8NUkm2wSyK7LboIEW8HGImAh2vgq/AfaCrYKgqAIIlb+AF+NhPWOK0QkzjJ7P87MucycAf9MQTOchhEwzKIdi0ZCC4tLoeAzLfQQZJimpOZYs/HpBP+Oj1t8qt4Mq17/76s72tIZRwNfs/C4ZtlF4UnhmbWipXhLuFvLJdPCB8JhWw4ofKn0lMdPirMevym2E7Ep8KueoewvTv1iLWcbwkPC/UahpP2cR92kPWPOx6X2yuzDIUaUCCFSlMhToCi55DEls/q+kW/fHKvi0eRvUcYWR5aceMOilqRrRqoueka+AmWV+988HX1s1OveHoHGR9d9HYDgNlQrrvt56LrVIwg8wLlZ869KThPvoldqWv8+dG7A6UVNS+3A2Sb03FtJO/ktBWT6dR1eTqBjEbquoXXZy+pnneM7SKzLE13B7h4Myv7OlS/ufWgCKKWSjQAAAAlwSFlzAAAPYQAAD2EBqD+naQAAAG5JREFUSEvtlbENwCAMBEPEbF7LYi0v4LEIaYAqL5I4SvEnIbl46fjGTrXWLZLcXikFxQYiYmYoNdhR4Cm5T6ra56VO13zY4MVfz4Q3oABCAYQCSGr3wN1R7D7nLlra77+7BxRAKIBQAKEAEi44AJY6Fsp7fQFkAAAAAElFTkSuQmCC"
+      }
+    },
+    "horror_door": {
+      "Png": {
+        "png_data": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAABb2lDQ1BpY2MAACiRdZE7SwNBFIW/JGp8YqGFiEUKFYsIoiCWEsE0apFE8NUkm2wSyK7LboIEW8HGImAh2vgq/AfaCrYKgqAIIlb+AF+NhPWOK0QkzjJ7P87MucycAf9MQTOchhEwzKIdi0ZCC4tLoeAzLfQQZJimpOZYs/HpBP+Oj1t8qt4Mq17/76s72tIZRwNfs/C4ZtlF4UnhmbWipXhLuFvLJdPCB8JhWw4ofKn0lMdPirMevym2E7Ep8KueoewvTv1iLWcbwkPC/UahpP2cR92kPWPOx6X2yuzDIUaUCCFSlMhToCi55DEls/q+kW/fHKvi0eRvUcYWR5aceMOilqRrRqoueka+AmWV+988HX1s1OveHoHGR9d9HYDgNlQrrvt56LrVIwg8wLlZ869KThPvoldqWv8+dG7A6UVNS+3A2Sb03FtJO/ktBWT6dR1eTqBjEbquoXXZy+pnneM7SKzLE13B7h4Myv7OlS/ufWgCKKWSjQAAAAlwSFlzAAAPYQAAD2EBqD+naQAAAHBJREFUSEtj/P//PwMtAQsQn6qSIqQMAcTMYl6dWkJIFQIwEVJAKWCBs8zansHZJPkJP6CjD6joamRAcx+MWkAQjFpAEIxaQBAwAuuDBxvKCCkjH4DKIpLK90FXH4xaQBCMWkAQjFpAEIxaQBDQ3AIAfnsWWx4ZDHAAAAAASUVORK5CYII="
+      }
+    },
+    "horror_ceiling": {
+      "Png": {
+        "png_data": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAABb2lDQ1BpY2MAACiRdZE7SwNBFIW/JGp8YqGFiEUKFYsIoiCWEsE0apFE8NUkm2wSyK7LboIEW8HGImAh2vgq/AfaCrYKgqAIIlb+AF+NhPWOK0QkzjJ7P87MucycAf9MQTOchhEwzKIdi0ZCC4tLoeAzLfQQZJimpOZYs/HpBP+Oj1t8qt4Mq17/76s72tIZRwNfs/C4ZtlF4UnhmbWipXhLuFvLJdPCB8JhWw4ofKn0lMdPirMevym2E7Ep8KueoewvTv1iLWcbwkPC/UahpP2cR92kPWPOx6X2yuzDIUaUCCFSlMhToCi55DEls/q+kW/fHKvi0eRvUcYWR5aceMOilqRrRqoueka+AmWV+988HX1s1OveHoHGR9d9HYDgNlQrrvt56LrVIwg8wLlZ869KThPvoldqWv8+dG7A6UVNS+3A2Sb03FtJO/ktBWT6dR1eTqBjEbquoXXZy+pnneM7SKzLE13B7h4Myv7OlS/ufWgCKKWSjQAAAAlwSFlzAAAPYQAAD2EBqD+naQAAAFxJREFUSEvt1UEKgDAMBVEjvXdy89iVVBAGWyMI/626CEyzaS0zt1JPA+5OIxc7Daxq52lcxczuhmd8uMGLtx6Vb6AAUgApgKy/cRFBYwt+/x8ogBRACiAFUHngAFPxE7C7optIAAAAAElFTkSuQmCC"
+      }
+    },
+    "horror_floor": {
+      "Png": {
+        "png_data": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAABb2lDQ1BpY2MAACiRdZE7SwNBFIW/JGp8YqGFiEUKFYsIoiCWEsE0apFE8NUkm2wSyK7LboIEW8HGImAh2vgq/AfaCrYKgqAIIlb+AF+NhPWOK0QkzjJ7P87MucycAf9MQTOchhEwzKIdi0ZCC4tLoeAzLfQQZJimpOZYs/HpBP+Oj1t8qt4Mq17/76s72tIZRwNfs/C4ZtlF4UnhmbWipXhLuFvLJdPCB8JhWw4ofKn0lMdPirMevym2E7Ep8KueoewvTv1iLWcbwkPC/UahpP2cR92kPWPOx6X2yuzDIUaUCCFSlMhToCi55DEls/q+kW/fHKvi0eRvUcYWR5aceMOilqRrRqoueka+AmWV+988HX1s1OveHoHGR9d9HYDgNlQrrvt56LrVIwg8wLlZ869KThPvoldqWv8+dG7A6UVNS+3A2Sb03FtJO/ktBWT6dR1eTqBjEbquoXXZy+pnneM7SKzLE13B7h4Myv7OlS/ufWgCKKWSjQAAAAlwSFlzAAAPYQAAD2EBqD+naQAAAG5JREFUSEvtlbENwCAMBEPEYh7HE7GDl/BohDRAlRdJHKX4k5BcvHR8Y6da6xZJbk9EUGygqqUUlBrsKPCU3Cd37/NSp2s+bPDir2fCG1AAoQBCASS1e2BmKHafU7C0hX53DyiAUAChAEIBJFxwAADKFoJI6OsKAAAAAElFTkSuQmCC"
+      }
+    },
+    "horror_note": {
+      "Png": {
+        "png_data": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAABb2lDQ1BpY2MAACiRdZE7SwNBFIW/JGp8YqGFiEUKFYsIoiCWEsE0apFE8NUkm2wSyK7LboIEW8HGImAh2vgq/AfaCrYKgqAIIlb+AF+NhPWOK0QkzjJ7P87MucycAf9MQTOchhEwzKIdi0ZCC4tLoeAzLfQQZJimpOZYs/HpBP+Oj1t8qt4Mq17/76s72tIZRwNfs/C4ZtlF4UnhmbWipXhLuFvLJdPCB8JhWw4ofKn0lMdPirMevym2E7Ep8KueoewvTv1iLWcbwkPC/UahpP2cR92kPWPOx6X2yuzDIUaUCCFSlMhToCi55DEls/q+kW/fHKvi0eRvUcYWR5aceMOilqRrRqoueka+AmWV+988HX1s1OveHoHGR9d9HYDgNlQrrvt56LrVIwg8wLlZ869KThPvoldqWv8+dG7A6UVNS+3A2Sb03FtJO/ktBWT6dR1eTqBjEbquoXXZy+pnneM7SKzLE13B7h4Myv7OlS/ufWgCKKWSjQAAAAlwSFlzAAAPYQAAD2EBqD+naQAAAHBJREFUSEtj/P//PwMtAQsQX9yqQ0gZAoirZr28PY2QKgRgIqSAUsACZ+l7X4GzSfITfkBHH1DR1ciA5j4YtYAgGLWAIBi1gCBgBNYHL26RUPySCkBlEUnl+6CrD0YtIAhGLSAIRi0gCEYtIAhobgEApocXVwilJKoAAAAASUVORK5CYII="
+      }
+    },
+    "horror_lever": {
+      "Png": {
+        "png_data": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAABb2lDQ1BpY2MAACiRdZE7SwNBFIW/JGp8YqGFiEUKFYsIoiCWEsE0apFE8NUkm2wSyK7LboIEW8HGImAh2vgq/AfaCrYKgqAIIlb+AF+NhPWOK0QkzjJ7P87MucycAf9MQTOchhEwzKIdi0ZCC4tLoeAzLfQQZJimpOZYs/HpBP+Oj1t8qt4Mq17/76s72tIZRwNfs/C4ZtlF4UnhmbWipXhLuFvLJdPCB8JhWw4ofKn0lMdPirMevym2E7Ep8KueoewvTv1iLWcbwkPC/UahpP2cR92kPWPOx6X2yuzDIUaUCCFSlMhToCi55DEls/q+kW/fHKvi0eRvUcYWR5aceMOilqRrRqoueka+AmWV+988HX1s1OveHoHGR9d9HYDgNlQrrvt56LrVIwg8wLlZ869KThPvoldqWv8+dG7A6UVNS+3A2Sb03FtJO/ktBWT6dR1eTqBjEbquoXXZy+pnneM7SKzLE13B7h4Myv7OlS/ufWgCKKWSjQAAAAlwSFlzAAAPYQAAD2EBqD+naQAAAF5JREFUSEvtlbEKwCAMBZvS/9/1Z1PqYsDhUJtC4R0ZMjy4xMGYux+peDNMVCmcCXXSALtcvY1vZTZG1/hyg/emjqRvIAEiASIBYs9vXSvFNvj9PZAAkQCRAJEASRfcDS1PjzDG5RMAAAAASUVORK5CYII="
+      }
+    }
+  },
+  "prefabs": {},
+  "graph": {
+    "nodes": [
+      {
+        "Entity": {
+          "name": "Rooms",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Floor",
+          "transform": {
+            "translation": [
+              0.0,
+              -0.15,
+              4.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              8.0,
+              0.3,
+              8.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.3,
+              0.3,
+              0.3,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_floor",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              8.0,
+              8.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Ceiling",
+          "transform": {
+            "translation": [
+              0.0,
+              3.15,
+              4.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              8.0,
+              0.3,
+              8.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.2,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_ceiling",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              8.0,
+              8.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Corridor_Floor",
+          "transform": {
+            "translation": [
+              0.0,
+              -0.15,
+              -5.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.6,
+              0.3,
+              10.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.3,
+              0.3,
+              0.3,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_floor",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.6,
+              10.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Corridor_Ceiling",
+          "transform": {
+            "translation": [
+              0.0,
+              3.15,
+              -5.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.6,
+              0.3,
+              10.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.2,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_ceiling",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.6,
+              10.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_Floor",
+          "transform": {
+            "translation": [
+              0.0,
+              -0.15,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              12.0,
+              0.3,
+              12.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.3,
+              0.3,
+              0.3,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_floor",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              12.0,
+              12.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_Ceiling",
+          "transform": {
+            "translation": [
+              0.0,
+              3.15,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              12.0,
+              0.3,
+              12.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.2,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_ceiling",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              12.0,
+              12.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Floor",
+          "transform": {
+            "translation": [
+              9.0,
+              -0.15,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              6.0,
+              0.3,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.3,
+              0.3,
+              0.3,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_floor",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              6.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Ceiling",
+          "transform": {
+            "translation": [
+              9.0,
+              3.15,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              6.0,
+              0.3,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.2,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_ceiling",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              6.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Floor",
+          "transform": {
+            "translation": [
+              -9.0,
+              -0.15,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              6.0,
+              0.3,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.3,
+              0.3,
+              0.3,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_floor",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              6.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Ceiling",
+          "transform": {
+            "translation": [
+              -9.0,
+              3.15,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              6.0,
+              0.3,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.2,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_ceiling",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              6.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Exit_Floor",
+          "transform": {
+            "translation": [
+              0.0,
+              -0.15,
+              -26.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.6,
+              0.3,
+              8.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.3,
+              0.3,
+              0.3,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_floor",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.6,
+              8.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Exit_Ceiling",
+          "transform": {
+            "translation": [
+              0.0,
+              3.15,
+              -26.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.6,
+              0.3,
+              8.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.2,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_ceiling",
+            "emissive_texture": null,
+            "roughness": 0.95,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.6,
+              8.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "EntryRoom",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Wall_Left",
+          "transform": {
+            "translation": [
+              -4.15,
+              1.5,
+              4.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              8.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              8.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Wall_Right",
+          "transform": {
+            "translation": [
+              4.15,
+              1.5,
+              4.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              8.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              8.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Wall_Back",
+          "transform": {
+            "translation": [
+              0.0,
+              1.5,
+              8.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              8.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              8.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Door_Left_Side",
+          "transform": {
+            "translation": [
+              -3.0,
+              1.5,
+              0.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              2.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              2.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Door_Right_Side",
+          "transform": {
+            "translation": [
+              3.0,
+              1.5,
+              0.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              2.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              2.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Door_Header",
+          "transform": {
+            "translation": [
+              0.0,
+              2.6,
+              0.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.0,
+              0.79999995,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.0,
+              0.79999995
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Door_Frame_Left",
+          "transform": {
+            "translation": [
+              -1.3,
+              1.1,
+              0.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.4,
+              2.2,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Door_Frame_Right",
+          "transform": {
+            "translation": [
+              1.3,
+              1.1,
+              0.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.4,
+              2.2,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Desk",
+          "transform": {
+            "translation": [
+              2.5,
+              0.4,
+              5.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.6,
+              0.8,
+              0.8
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.28,
+              0.2,
+              0.12,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.85,
+            "metallic": 0.1,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Entry_Chair",
+          "transform": {
+            "translation": [
+              2.5,
+              0.3,
+              4.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.45,
+              0.6,
+              0.45
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.25,
+              0.18,
+              0.1,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.05,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Corridor",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Corridor_Wall_Left",
+          "transform": {
+            "translation": [
+              -2.15,
+              1.5,
+              -5.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              10.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              10.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Corridor_Wall_Right",
+          "transform": {
+            "translation": [
+              2.15,
+              1.5,
+              -5.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              10.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              10.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_North_Left",
+          "transform": {
+            "translation": [
+              -4.0,
+              1.5,
+              -9.85
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_North_Right",
+          "transform": {
+            "translation": [
+              4.0,
+              1.5,
+              -9.85
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_North_Header",
+          "transform": {
+            "translation": [
+              0.0,
+              2.6,
+              -9.85
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.0,
+              0.79999995,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.0,
+              0.79999995
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_North_Frame_Left",
+          "transform": {
+            "translation": [
+              -1.3,
+              1.1,
+              -9.85
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.4,
+              2.2,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_North_Frame_Right",
+          "transform": {
+            "translation": [
+              1.3,
+              1.1,
+              -9.85
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.4,
+              2.2,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_South_Left",
+          "transform": {
+            "translation": [
+              -4.0,
+              1.5,
+              -22.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_South_Right",
+          "transform": {
+            "translation": [
+              4.0,
+              1.5,
+              -22.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_South_Header",
+          "transform": {
+            "translation": [
+              0.0,
+              2.6,
+              -22.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.0,
+              0.79999995,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.0,
+              0.79999995
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_South_Frame_Left",
+          "transform": {
+            "translation": [
+              -1.3,
+              1.1,
+              -22.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.4,
+              2.2,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_South_Frame_Right",
+          "transform": {
+            "translation": [
+              1.3,
+              1.1,
+              -22.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.4,
+              2.2,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_East_Top",
+          "transform": {
+            "translation": [
+              6.15,
+              1.5,
+              -11.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              3.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              3.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_East_Bottom",
+          "transform": {
+            "translation": [
+              6.15,
+              1.5,
+              -20.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              3.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              3.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_East_Header",
+          "transform": {
+            "translation": [
+              6.15,
+              2.6,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              0.79999995,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              0.79999995
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_East_Frame_Top",
+          "transform": {
+            "translation": [
+              6.15,
+              1.1,
+              -14.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              2.2,
+              2.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              2.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_East_Frame_Bottom",
+          "transform": {
+            "translation": [
+              6.15,
+              1.1,
+              -17.8
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              2.2,
+              2.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              2.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_West_Top",
+          "transform": {
+            "translation": [
+              -6.15,
+              1.5,
+              -11.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              3.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              3.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_West_Bottom",
+          "transform": {
+            "translation": [
+              -6.15,
+              1.5,
+              -20.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              3.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              3.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_West_Header",
+          "transform": {
+            "translation": [
+              -6.15,
+              2.6,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              0.79999995,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              0.79999995
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_West_Frame_Top",
+          "transform": {
+            "translation": [
+              -6.15,
+              1.1,
+              -14.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              2.2,
+              2.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              2.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_West_Frame_Bottom",
+          "transform": {
+            "translation": [
+              -6.15,
+              1.1,
+              -17.8
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              2.2,
+              2.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              2.4,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_Pillar_NW",
+          "transform": {
+            "translation": [
+              -4.0,
+              1.5,
+              -12.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.5,
+              3.0,
+              0.5
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.35,
+              0.38,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.8,
+            "metallic": 0.2,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_Pillar_NE",
+          "transform": {
+            "translation": [
+              4.0,
+              1.5,
+              -12.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.5,
+              3.0,
+              0.5
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.35,
+              0.38,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.8,
+            "metallic": 0.2,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_Pillar_SW",
+          "transform": {
+            "translation": [
+              -4.0,
+              1.5,
+              -20.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.5,
+              3.0,
+              0.5
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.35,
+              0.38,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.8,
+            "metallic": 0.2,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_Pillar_SE",
+          "transform": {
+            "translation": [
+              4.0,
+              1.5,
+              -20.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.5,
+              3.0,
+              0.5
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.35,
+              0.38,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.8,
+            "metallic": 0.2,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_Table_Center",
+          "transform": {
+            "translation": [
+              0.0,
+              0.4,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.8,
+              0.8,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.3,
+              0.22,
+              0.15,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.85,
+            "metallic": 0.1,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "MainHall_Table_Side",
+          "transform": {
+            "translation": [
+              -3.0,
+              0.35,
+              -19.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.2,
+              0.7,
+              0.8
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.3,
+              0.22,
+              0.15,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.85,
+            "metallic": 0.1,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "StorageRoom",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Wall_East",
+          "transform": {
+            "translation": [
+              12.15,
+              1.5,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Wall_North",
+          "transform": {
+            "translation": [
+              9.0,
+              1.5,
+              -12.85
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              6.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Wall_South",
+          "transform": {
+            "translation": [
+              9.0,
+              1.5,
+              -19.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              6.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Shelf_1",
+          "transform": {
+            "translation": [
+              11.2,
+              1.0,
+              -14.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.8,
+              2.0,
+              0.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.25,
+              0.15,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.85,
+            "metallic": 0.1,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Shelf_2",
+          "transform": {
+            "translation": [
+              11.2,
+              1.0,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.8,
+              2.0,
+              0.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.25,
+              0.15,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.85,
+            "metallic": 0.1,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Shelf_3",
+          "transform": {
+            "translation": [
+              11.2,
+              1.0,
+              -18.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.8,
+              2.0,
+              0.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.25,
+              0.15,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.85,
+            "metallic": 0.1,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Crate_1",
+          "transform": {
+            "translation": [
+              9.0,
+              0.25,
+              -14.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.5,
+              0.5,
+              0.5
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.3,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Crate_2",
+          "transform": {
+            "translation": [
+              9.3,
+              0.25,
+              -15.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.4,
+              0.5,
+              0.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.3,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Crate_3",
+          "transform": {
+            "translation": [
+              8.8,
+              0.75,
+              -14.7
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.35,
+              0.35,
+              0.35
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.3,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Storage_Crate_4",
+          "transform": {
+            "translation": [
+              7.5,
+              0.3,
+              -17.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.6,
+              0.6,
+              0.6
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.3,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "GeneratorRoom",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Wall_West",
+          "transform": {
+            "translation": [
+              -12.15,
+              1.5,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Wall_North",
+          "transform": {
+            "translation": [
+              -9.0,
+              1.5,
+              -12.85
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              6.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Wall_South",
+          "transform": {
+            "translation": [
+              -9.0,
+              1.5,
+              -19.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              6.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              6.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Main",
+          "transform": {
+            "translation": [
+              -10.5,
+              0.6,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.8,
+              1.2,
+              1.2
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.22,
+              0.25,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.6,
+            "metallic": 0.4,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Top",
+          "transform": {
+            "translation": [
+              -10.5,
+              1.4,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.4,
+              0.4,
+              0.8
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.22,
+              0.25,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.6,
+            "metallic": 0.4,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Pipe_1",
+          "transform": {
+            "translation": [
+              -11.5,
+              1.5,
+              -14.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.15,
+              1.5,
+              0.15
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.3,
+              0.25,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.5,
+            "metallic": 0.6,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Pipe_2",
+          "transform": {
+            "translation": [
+              -11.5,
+              2.2,
+              -15.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.15,
+              0.15,
+              2.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.3,
+              0.25,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.5,
+            "metallic": 0.6,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Pipe_3",
+          "transform": {
+            "translation": [
+              -11.5,
+              1.5,
+              -17.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.15,
+              1.5,
+              0.15
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.35,
+              0.3,
+              0.25,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.5,
+            "metallic": 0.6,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Panel_1",
+          "transform": {
+            "translation": [
+              -7.2,
+              1.0,
+              -14.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.6,
+              1.4,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.15,
+              0.15,
+              0.18,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.4,
+            "metallic": 0.7,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Generator_Panel_2",
+          "transform": {
+            "translation": [
+              -7.2,
+              1.0,
+              -18.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.6,
+              1.4,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.15,
+              0.15,
+              0.18,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.4,
+            "metallic": 0.7,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "ExitCorridor",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Exit_Wall_Left",
+          "transform": {
+            "translation": [
+              -2.15,
+              1.5,
+              -26.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              8.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              8.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Exit_Wall_Right",
+          "transform": {
+            "translation": [
+              2.15,
+              1.5,
+              -26.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              3.0,
+              8.0
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              8.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Exit_Wall_End",
+          "transform": {
+            "translation": [
+              0.0,
+              1.5,
+              -30.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              4.0,
+              3.0,
+              0.3
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.4,
+              0.4,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_wall",
+            "emissive_texture": null,
+            "roughness": 0.9,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              4.0,
+              3.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Doors",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Door_Entry",
+          "transform": {
+            "translation": [
+              0.0,
+              1.1,
+              0.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.2,
+              2.2,
+              0.08
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.45,
+              0.32,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_door",
+            "emissive_texture": null,
+            "roughness": 0.8,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.2,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": {
+            "obb": {
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "half_extents": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "orientation": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            },
+            "sphere_radius": 0.8660254
+          },
+          "physics": {
+            "body_type": "Kinematic",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Door_Storage",
+          "transform": {
+            "translation": [
+              6.15,
+              1.1,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.08,
+              2.2,
+              1.2
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.45,
+              0.32,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_door",
+            "emissive_texture": null,
+            "roughness": 0.8,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.2,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": {
+            "obb": {
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "half_extents": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "orientation": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            },
+            "sphere_radius": 0.8660254
+          },
+          "physics": {
+            "body_type": "Kinematic",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Door_Generator",
+          "transform": {
+            "translation": [
+              -6.15,
+              1.1,
+              -16.0
+            ],
+            "rotation": [
+              0.0,
+              1.0,
+              0.0,
+              -4.371139e-8
+            ],
+            "scale": [
+              0.08,
+              2.2,
+              1.2
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.45,
+              0.32,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_door",
+            "emissive_texture": null,
+            "roughness": 0.8,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.2,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": {
+            "obb": {
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "half_extents": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "orientation": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            },
+            "sphere_radius": 0.8660254
+          },
+          "physics": {
+            "body_type": "Kinematic",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Door_Exit",
+          "transform": {
+            "translation": [
+              0.0,
+              1.1,
+              -22.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.2,
+              2.2,
+              0.08
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.45,
+              0.32,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": "horror_door",
+            "emissive_texture": null,
+            "roughness": 0.8,
+            "metallic": 0.0,
+            "unlit": false,
+            "uv_scale": [
+              1.2,
+              2.2
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": {
+            "obb": {
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "half_extents": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "orientation": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            },
+            "sphere_radius": 0.8660254
+          },
+          "physics": {
+            "body_type": "Kinematic",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Interactables",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_RestorePower_Base",
+          "transform": {
+            "translation": [
+              -8.0,
+              0.3,
+              -14.5
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              0.6,
+              0.15
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.25,
+              0.25,
+              0.28,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.85,
+            "metallic": 0.2,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_RestorePower_Pivot",
+          "transform": {
+            "translation": [
+              -8.0,
+              0.6,
+              -14.5
+            ],
+            "rotation": [
+              -0.38268346,
+              -0.0,
+              -0.0,
+              0.9238795
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_RestorePower_Arm",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.05,
+              0.05,
+              0.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.3,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.7,
+            "metallic": 0.3,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_RestorePower_Handle",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.44
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.08,
+              0.08,
+              0.08
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Sphere",
+          "material": {
+            "base_color": [
+              0.6,
+              0.1,
+              0.1,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.4,
+            "metallic": 0.6,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_RestorePower_Light",
+          "transform": {
+            "translation": [
+              -8.0,
+              1.0,
+              -14.65
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.1,
+              0.1,
+              0.1
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.1,
+              0.1,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.3,
+            "metallic": 0.8,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_UnlockExit_Base",
+          "transform": {
+            "translation": [
+              3.0,
+              0.3,
+              -18.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.3,
+              0.6,
+              0.15
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.25,
+              0.25,
+              0.28,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.85,
+            "metallic": 0.2,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null,
+          "physics": {
+            "body_type": "Static",
+            "collider": "FromMesh",
+            "friction": 0.8,
+            "restitution": 0.1
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_UnlockExit_Pivot",
+          "transform": {
+            "translation": [
+              3.0,
+              0.6,
+              -18.0
+            ],
+            "rotation": [
+              -0.38268346,
+              -0.0,
+              -0.0,
+              0.9238795
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_UnlockExit_Arm",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.05,
+              0.05,
+              0.4
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.4,
+              0.3,
+              0.2,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.7,
+            "metallic": 0.3,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_UnlockExit_Handle",
+          "transform": {
+            "translation": [
+              0.0,
+              0.0,
+              0.44
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.08,
+              0.08,
+              0.08
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Sphere",
+          "material": {
+            "base_color": [
+              0.6,
+              0.1,
+              0.1,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.4,
+            "metallic": 0.6,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null
+        }
+      },
+      {
+        "Entity": {
+          "name": "Lever_UnlockExit_Light",
+          "transform": {
+            "translation": [
+              3.0,
+              1.0,
+              -18.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "scale": [
+              0.1,
+              0.1,
+              0.1
+            ]
+          }
+        }
+      },
+      {
+        "Mesh": {
+          "mesh_name": "Cube",
+          "material": {
+            "base_color": [
+              0.2,
+              0.1,
+              0.1,
+              1.0
+            ],
+            "emissive_factor": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "alpha_mode": "Opaque",
+            "alpha_cutoff": 0.5,
+            "base_texture": null,
+            "emissive_texture": null,
+            "roughness": 0.3,
+            "metallic": 0.8,
+            "unlit": false,
+            "uv_scale": [
+              1.0,
+              1.0
+            ]
+          },
+          "casts_shadow": true,
+          "bounding_volume": null
+        }
+      }
+    ],
+    "node_holes": [],
+    "edge_property": "directed",
+    "edges": [
+      [
+        0,
+        1,
+        null
+      ],
+      [
+        1,
+        2,
+        null
+      ],
+      [
+        0,
+        3,
+        null
+      ],
+      [
+        3,
+        4,
+        null
+      ],
+      [
+        0,
+        5,
+        null
+      ],
+      [
+        5,
+        6,
+        null
+      ],
+      [
+        0,
+        7,
+        null
+      ],
+      [
+        7,
+        8,
+        null
+      ],
+      [
+        0,
+        9,
+        null
+      ],
+      [
+        9,
+        10,
+        null
+      ],
+      [
+        0,
+        11,
+        null
+      ],
+      [
+        11,
+        12,
+        null
+      ],
+      [
+        0,
+        13,
+        null
+      ],
+      [
+        13,
+        14,
+        null
+      ],
+      [
+        0,
+        15,
+        null
+      ],
+      [
+        15,
+        16,
+        null
+      ],
+      [
+        0,
+        17,
+        null
+      ],
+      [
+        17,
+        18,
+        null
+      ],
+      [
+        0,
+        19,
+        null
+      ],
+      [
+        19,
+        20,
+        null
+      ],
+      [
+        0,
+        21,
+        null
+      ],
+      [
+        21,
+        22,
+        null
+      ],
+      [
+        0,
+        23,
+        null
+      ],
+      [
+        23,
+        24,
+        null
+      ],
+      [
+        0,
+        25,
+        null
+      ],
+      [
+        25,
+        26,
+        null
+      ],
+      [
+        26,
+        27,
+        null
+      ],
+      [
+        25,
+        28,
+        null
+      ],
+      [
+        28,
+        29,
+        null
+      ],
+      [
+        25,
+        30,
+        null
+      ],
+      [
+        30,
+        31,
+        null
+      ],
+      [
+        25,
+        32,
+        null
+      ],
+      [
+        32,
+        33,
+        null
+      ],
+      [
+        25,
+        34,
+        null
+      ],
+      [
+        34,
+        35,
+        null
+      ],
+      [
+        25,
+        36,
+        null
+      ],
+      [
+        36,
+        37,
+        null
+      ],
+      [
+        25,
+        38,
+        null
+      ],
+      [
+        38,
+        39,
+        null
+      ],
+      [
+        25,
+        40,
+        null
+      ],
+      [
+        40,
+        41,
+        null
+      ],
+      [
+        25,
+        42,
+        null
+      ],
+      [
+        42,
+        43,
+        null
+      ],
+      [
+        25,
+        44,
+        null
+      ],
+      [
+        44,
+        45,
+        null
+      ],
+      [
+        0,
+        46,
+        null
+      ],
+      [
+        46,
+        47,
+        null
+      ],
+      [
+        47,
+        48,
+        null
+      ],
+      [
+        46,
+        49,
+        null
+      ],
+      [
+        49,
+        50,
+        null
+      ],
+      [
+        0,
+        51,
+        null
+      ],
+      [
+        51,
+        52,
+        null
+      ],
+      [
+        52,
+        53,
+        null
+      ],
+      [
+        51,
+        54,
+        null
+      ],
+      [
+        54,
+        55,
+        null
+      ],
+      [
+        51,
+        56,
+        null
+      ],
+      [
+        56,
+        57,
+        null
+      ],
+      [
+        51,
+        58,
+        null
+      ],
+      [
+        58,
+        59,
+        null
+      ],
+      [
+        51,
+        60,
+        null
+      ],
+      [
+        60,
+        61,
+        null
+      ],
+      [
+        51,
+        62,
+        null
+      ],
+      [
+        62,
+        63,
+        null
+      ],
+      [
+        51,
+        64,
+        null
+      ],
+      [
+        64,
+        65,
+        null
+      ],
+      [
+        51,
+        66,
+        null
+      ],
+      [
+        66,
+        67,
+        null
+      ],
+      [
+        51,
+        68,
+        null
+      ],
+      [
+        68,
+        69,
+        null
+      ],
+      [
+        51,
+        70,
+        null
+      ],
+      [
+        70,
+        71,
+        null
+      ],
+      [
+        51,
+        72,
+        null
+      ],
+      [
+        72,
+        73,
+        null
+      ],
+      [
+        51,
+        74,
+        null
+      ],
+      [
+        74,
+        75,
+        null
+      ],
+      [
+        51,
+        76,
+        null
+      ],
+      [
+        76,
+        77,
+        null
+      ],
+      [
+        51,
+        78,
+        null
+      ],
+      [
+        78,
+        79,
+        null
+      ],
+      [
+        51,
+        80,
+        null
+      ],
+      [
+        80,
+        81,
+        null
+      ],
+      [
+        51,
+        82,
+        null
+      ],
+      [
+        82,
+        83,
+        null
+      ],
+      [
+        51,
+        84,
+        null
+      ],
+      [
+        84,
+        85,
+        null
+      ],
+      [
+        51,
+        86,
+        null
+      ],
+      [
+        86,
+        87,
+        null
+      ],
+      [
+        51,
+        88,
+        null
+      ],
+      [
+        88,
+        89,
+        null
+      ],
+      [
+        51,
+        90,
+        null
+      ],
+      [
+        90,
+        91,
+        null
+      ],
+      [
+        51,
+        92,
+        null
+      ],
+      [
+        92,
+        93,
+        null
+      ],
+      [
+        51,
+        94,
+        null
+      ],
+      [
+        94,
+        95,
+        null
+      ],
+      [
+        51,
+        96,
+        null
+      ],
+      [
+        96,
+        97,
+        null
+      ],
+      [
+        51,
+        98,
+        null
+      ],
+      [
+        98,
+        99,
+        null
+      ],
+      [
+        51,
+        100,
+        null
+      ],
+      [
+        100,
+        101,
+        null
+      ],
+      [
+        51,
+        102,
+        null
+      ],
+      [
+        102,
+        103,
+        null
+      ],
+      [
+        0,
+        104,
+        null
+      ],
+      [
+        104,
+        105,
+        null
+      ],
+      [
+        105,
+        106,
+        null
+      ],
+      [
+        104,
+        107,
+        null
+      ],
+      [
+        107,
+        108,
+        null
+      ],
+      [
+        104,
+        109,
+        null
+      ],
+      [
+        109,
+        110,
+        null
+      ],
+      [
+        104,
+        111,
+        null
+      ],
+      [
+        111,
+        112,
+        null
+      ],
+      [
+        104,
+        113,
+        null
+      ],
+      [
+        113,
+        114,
+        null
+      ],
+      [
+        104,
+        115,
+        null
+      ],
+      [
+        115,
+        116,
+        null
+      ],
+      [
+        104,
+        117,
+        null
+      ],
+      [
+        117,
+        118,
+        null
+      ],
+      [
+        104,
+        119,
+        null
+      ],
+      [
+        119,
+        120,
+        null
+      ],
+      [
+        104,
+        121,
+        null
+      ],
+      [
+        121,
+        122,
+        null
+      ],
+      [
+        104,
+        123,
+        null
+      ],
+      [
+        123,
+        124,
+        null
+      ],
+      [
+        0,
+        125,
+        null
+      ],
+      [
+        125,
+        126,
+        null
+      ],
+      [
+        126,
+        127,
+        null
+      ],
+      [
+        125,
+        128,
+        null
+      ],
+      [
+        128,
+        129,
+        null
+      ],
+      [
+        125,
+        130,
+        null
+      ],
+      [
+        130,
+        131,
+        null
+      ],
+      [
+        125,
+        132,
+        null
+      ],
+      [
+        132,
+        133,
+        null
+      ],
+      [
+        125,
+        134,
+        null
+      ],
+      [
+        134,
+        135,
+        null
+      ],
+      [
+        125,
+        136,
+        null
+      ],
+      [
+        136,
+        137,
+        null
+      ],
+      [
+        125,
+        138,
+        null
+      ],
+      [
+        138,
+        139,
+        null
+      ],
+      [
+        125,
+        140,
+        null
+      ],
+      [
+        140,
+        141,
+        null
+      ],
+      [
+        125,
+        142,
+        null
+      ],
+      [
+        142,
+        143,
+        null
+      ],
+      [
+        125,
+        144,
+        null
+      ],
+      [
+        144,
+        145,
+        null
+      ],
+      [
+        0,
+        146,
+        null
+      ],
+      [
+        146,
+        147,
+        null
+      ],
+      [
+        147,
+        148,
+        null
+      ],
+      [
+        146,
+        149,
+        null
+      ],
+      [
+        149,
+        150,
+        null
+      ],
+      [
+        146,
+        151,
+        null
+      ],
+      [
+        151,
+        152,
+        null
+      ],
+      [
+        0,
+        153,
+        null
+      ],
+      [
+        153,
+        154,
+        null
+      ],
+      [
+        154,
+        155,
+        null
+      ],
+      [
+        153,
+        156,
+        null
+      ],
+      [
+        156,
+        157,
+        null
+      ],
+      [
+        153,
+        158,
+        null
+      ],
+      [
+        158,
+        159,
+        null
+      ],
+      [
+        153,
+        160,
+        null
+      ],
+      [
+        160,
+        161,
+        null
+      ],
+      [
+        0,
+        162,
+        null
+      ],
+      [
+        162,
+        163,
+        null
+      ],
+      [
+        163,
+        164,
+        null
+      ],
+      [
+        162,
+        165,
+        null
+      ],
+      [
+        165,
+        166,
+        null
+      ],
+      [
+        166,
+        167,
+        null
+      ],
+      [
+        165,
+        168,
+        null
+      ],
+      [
+        168,
+        169,
+        null
+      ],
+      [
+        162,
+        170,
+        null
+      ],
+      [
+        170,
+        171,
+        null
+      ],
+      [
+        162,
+        172,
+        null
+      ],
+      [
+        172,
+        173,
+        null
+      ],
+      [
+        162,
+        174,
+        null
+      ],
+      [
+        174,
+        175,
+        null
+      ],
+      [
+        175,
+        176,
+        null
+      ],
+      [
+        174,
+        177,
+        null
+      ],
+      [
+        177,
+        178,
+        null
+      ],
+      [
+        162,
+        179,
+        null
+      ],
+      [
+        179,
+        180,
+        null
+      ]
+    ]
+  }
+}

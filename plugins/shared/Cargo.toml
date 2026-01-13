@@ -1,0 +1,10 @@
+[package]
+name = "plugins-shared"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+
+[dependencies]
+nightshade = { version = "0.6.46", default-features = false, features = ["plugins"] }
+serde = { workspace = true }
+postcard = { version = "1.0", features = ["alloc"] }

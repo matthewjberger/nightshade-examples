@@ -1,0 +1,9 @@
+[package]
+name = "maps"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+
+[dependencies]
+nightshade = { version = "0.6.46", features = ["egui", "physics", "tracing"] }
+tracing = "0.1"

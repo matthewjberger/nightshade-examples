@@ -1,4 +1,2 @@
-*.glb filter=lfs diff=lfs merge=lfs -text
-*.hdr filter=lfs diff=lfs merge=lfs -text
 *.glb !text !filter !merge !diff
 *.hdr !text !filter !merge !diff

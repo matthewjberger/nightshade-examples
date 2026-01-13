@@ -56,6 +56,27 @@ build-wasm $example="alpha_blending":
 run-wasm $example="alpha_blending":
     trunk serve --release --open --config examples/{{example}}/Trunk.toml
 
+# Build all examples for WASM (Windows)
+[windows]
+build-all-wasm public_url_prefix="":
+    $ErrorActionPreference = "Stop"; $prefix = "{{public_url_prefix}}"; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
+
+# Build all examples for WASM (Unix)
+[unix]
+build-all-wasm public_url_prefix="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for trunk_file in examples/*/Trunk.toml; do
+        example=$(basename "$(dirname "$trunk_file")")
+        echo "Building $example for WASM..."
+        if [ -n "{{public_url_prefix}}" ]; then
+            trunk build --release --config "$trunk_file" --dist "dist/wasm/$example" --public-url "{{public_url_prefix}}$example/"
+        else
+            trunk build --release --config "$trunk_file" --dist "dist/wasm/$example"
+        fi
+    done
+    echo "All WASM builds complete! Output in dist/wasm/"
+
 # Runs all tests
 test:
     cargo test --workspace -- --nocapture

@@ -3,8 +3,6 @@ name = "psx"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 edition = "2024"
-default-run = "psx"
-publish = false
 
 [dependencies]
 nightshade = { workspace = true, features = ["egui", "physics", "tracing"] }

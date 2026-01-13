@@ -3,8 +3,6 @@ name = "morph"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 edition = "2024"
-default-run = "morph"
-publish = false
 
 [features]
 openxr = ["nightshade/openxr"]

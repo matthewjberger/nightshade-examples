@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["examples/*"]
+exclude = ["examples/plugins"]
+
+[workspace.dependencies]
+nightshade = "0.6.46"

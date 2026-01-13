@@ -1,0 +1,13 @@
+[package]
+name = "block_breaker_scripts"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+default-run = "block_breaker_scripts"
+publish = false
+
+[features]
+default = []
+
+[dependencies]
+nightshade = { workspace = true, features = ["tracy", "scripting"] }

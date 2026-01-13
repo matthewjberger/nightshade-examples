@@ -1,0 +1,14 @@
+[package]
+name = "audio"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+default-run = "audio"
+publish = false
+
+[features]
+openxr = ["nightshade/openxr"]
+
+[dependencies]
+nightshade = { workspace = true, features = ["tracing", "audio"] }
+tracing = "0.1"

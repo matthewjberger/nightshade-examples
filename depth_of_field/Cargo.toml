@@ -1,9 +1,0 @@
-[package]
-name = "depth_of_field"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-nightshade = { version = "0.6.46", features = ["egui"] }
-nalgebra-glm = { version = "0.20.0", features = ["convert-bytemuck"] }
-wgpu = { version = "27.0.1", default-features = false }

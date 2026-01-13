@@ -1,0 +1,13 @@
+[package]
+name = "water"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+default-run = "water"
+publish = false
+
+[dependencies]
+nightshade = { workspace = true, features = ["egui", "tracing", "physics"] }
+tracing = "0.1"
+bytemuck = "1.24.0"
+wgpu = { version = "27.0.1", default-features = false }

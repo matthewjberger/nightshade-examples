@@ -11,4 +11,3 @@ openxr = ["nightshade/openxr"]
 [dependencies]
 nightshade = { workspace = true, features = ["egui", "tracing"] }
 noise = "0.9"
-tracing = "0.1"

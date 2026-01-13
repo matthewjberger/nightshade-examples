@@ -8,6 +8,4 @@ publish = false
 
 [dependencies]
 nightshade = { workspace = true, features = ["egui", "physics", "tracing"] }
-tracing = "0.1"
 bytemuck = "1.24.0"
-wgpu = { version = "27.0.1", default-features = false }

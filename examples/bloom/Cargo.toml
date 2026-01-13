@@ -7,4 +7,3 @@ publish = false
 
 [dependencies]
 nightshade = { workspace = true, features = ["tracing"] }
-tracing = "0.1"

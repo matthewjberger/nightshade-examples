@@ -11,4 +11,3 @@ openxr = ["nightshade/openxr"]
 
 [dependencies]
 nightshade = { workspace = true, features = ["tracing", "audio"] }
-tracing = "0.1"

@@ -11,5 +11,3 @@ openxr = ["nightshade/openxr"]
 
 [dependencies]
 nightshade = { workspace = true, features = ["egui", "tracing", "physics", "lattice"] }
-tracing = "0.1"
-nalgebra-glm = { version = "0.20.0", features = ["convert-bytemuck"] }

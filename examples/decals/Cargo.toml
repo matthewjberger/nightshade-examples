@@ -7,6 +7,3 @@ publish = false
 
 [dependencies]
 nightshade = { workspace = true, features = ["tracing", "egui"] }
-tracing = "0.1"
-rand = "0.9"
-image = { version = "0.25", default-features = false, features = ["png", "hdr"] }

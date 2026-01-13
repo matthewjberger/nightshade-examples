@@ -8,10 +8,7 @@ publish = false
 
 [dependencies]
 nightshade = { workspace = true, features = ["egui", "tracing"] }
-tracing = "0.1"
 bytemuck = "1.24.0"
-wgpu = { version = "27.0.1", default-features = false }
 bincode = "1.3"
 indexmap = "2"
 serde = { version = "1.0.228", features = ["derive"] }
-winit = { version = "0.30.12", features = ["serde"] }

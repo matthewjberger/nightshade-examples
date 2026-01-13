@@ -1,4 +1,5 @@
 use crate::ecs::{BOARD_SQUARE, BoardSquare, ChessWorld, SQUARE_POSITION, SquarePosition};
+use nightshade::prelude::tracing;
 
 pub fn spawn_board_squares(chess_world: &mut ChessWorld) {
     for file in 0..8 {

@@ -2,7 +2,7 @@ use crate::chunk::{ChunkManager, PatchInput};
 use crate::config::TerrainConfig;
 use nightshade::ecs::camera::queries::query_active_camera_matrices;
 use nightshade::ecs::world::World;
-use nightshade::prelude::Vec3;
+use nightshade::prelude::{Vec3, wgpu};
 use nightshade::render::wgpu::rendergraph::{PassExecutionContext, PassNode};
 use std::sync::atomic::{AtomicBool, Ordering};
 use wgpu::util::DeviceExt;

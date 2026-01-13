@@ -143,10 +143,10 @@ fn doom_look_system(world: &mut World) {
         if !already_grabbed {
             if let Some(window_handle) = &world.resources.window.handle {
                 if window_handle
-                    .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+                    .set_cursor_grab(window::CursorGrabMode::Locked)
                     .is_err()
                 {
-                    let _ = window_handle.set_cursor_grab(winit::window::CursorGrabMode::Confined);
+                    let _ = window_handle.set_cursor_grab(window::CursorGrabMode::Confined);
                 }
                 window_handle.set_cursor_visible(false);
             }
@@ -177,7 +177,7 @@ fn doom_look_system(world: &mut World) {
         mark_local_transform_dirty(world, camera_entity);
     } else if CAMERA_HAS_CURSOR.load(Ordering::Relaxed) {
         if let Some(window_handle) = &world.resources.window.handle {
-            let _ = window_handle.set_cursor_grab(winit::window::CursorGrabMode::None);
+            let _ = window_handle.set_cursor_grab(window::CursorGrabMode::None);
             window_handle.set_cursor_visible(true);
         }
         CAMERA_HAS_CURSOR.store(false, Ordering::Relaxed);
@@ -204,15 +204,15 @@ fn doom_movement_system(world: &mut World) {
     ) = {
         let keyboard = &world.resources.input.keyboard;
         (
-            keyboard.is_key_pressed(winit::keyboard::KeyCode::KeyA),
-            keyboard.is_key_pressed(winit::keyboard::KeyCode::KeyD),
-            keyboard.is_key_pressed(winit::keyboard::KeyCode::KeyW),
-            keyboard.is_key_pressed(winit::keyboard::KeyCode::KeyS),
-            keyboard.is_key_pressed(winit::keyboard::KeyCode::Space),
-            keyboard.is_key_pressed(winit::keyboard::KeyCode::ShiftLeft)
-                || keyboard.is_key_pressed(winit::keyboard::KeyCode::ShiftRight),
-            keyboard.is_key_pressed(winit::keyboard::KeyCode::ControlLeft)
-                || keyboard.is_key_pressed(winit::keyboard::KeyCode::ControlRight),
+            keyboard.is_key_pressed(KeyCode::KeyA),
+            keyboard.is_key_pressed(KeyCode::KeyD),
+            keyboard.is_key_pressed(KeyCode::KeyW),
+            keyboard.is_key_pressed(KeyCode::KeyS),
+            keyboard.is_key_pressed(KeyCode::Space),
+            keyboard.is_key_pressed(KeyCode::ShiftLeft)
+                || keyboard.is_key_pressed(KeyCode::ShiftRight),
+            keyboard.is_key_pressed(KeyCode::ControlLeft)
+                || keyboard.is_key_pressed(KeyCode::ControlRight),
         )
     };
 

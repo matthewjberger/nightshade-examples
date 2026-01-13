@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["examples/*"]
-exclude = ["examples/plugins"]
+members = ["examples/*", "examples-native/*"]
+exclude = ["plugins"]
 
 [workspace.dependencies]
 nightshade = "0.6.46"

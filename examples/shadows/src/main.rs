@@ -1,7 +1,5 @@
 use nightshade::ecs::camera::commands::spawn_camera;
 use nightshade::ecs::camera::systems::fly_camera_system;
-#[cfg(not(target_arch = "wasm32"))]
-use nightshade::ecs::map::save_map;
 use nightshade::ecs::map::{spawn_map, Map, MapLight, MapMaterial, MapNode, NodeIndex};
 use nightshade::prelude::*;
 
@@ -195,19 +193,6 @@ impl State for ShadowsDemo {
         self.resources.spheres = Vec::new();
 
         let map = create_shadows_map();
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let map_path = std::path::Path::new("apps/shadows/shadows.json");
-            if let Some(parent) = map_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Err(error) = save_map(&map, map_path) {
-                tracing::error!("Failed to save shadows map: {}", error);
-            } else {
-                tracing::info!("Saved shadows map to {:?}", map_path);
-            }
-        }
 
         match spawn_map(world, &map) {
             Ok(result) => {

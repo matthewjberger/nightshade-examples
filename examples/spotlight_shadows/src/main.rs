@@ -1,8 +1,6 @@
 use nightshade::ecs::camera::commands::spawn_camera;
 use nightshade::ecs::camera::systems::fly_camera_system;
 use nightshade::ecs::light::components::{Light, LightType};
-#[cfg(not(target_arch = "wasm32"))]
-use nightshade::ecs::map::save_map;
 use nightshade::ecs::map::{spawn_map, Map, MapLight, MapMaterial, MapNode, NodeIndex};
 use nightshade::prelude::*;
 
@@ -317,19 +315,6 @@ impl State for SpotlightShadowsDemo {
         self.resources.flashlight_entity = None;
 
         let map = create_spotlight_shadows_map();
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let map_path = std::path::Path::new("apps/spotlight_shadows/spotlight_shadows.json");
-            if let Some(parent) = map_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Err(error) = save_map(&map, map_path) {
-                tracing::error!("Failed to save spotlight shadows map: {}", error);
-            } else {
-                tracing::info!("Saved spotlight shadows map to {:?}", map_path);
-            }
-        }
 
         match spawn_map(world, &map) {
             Ok(result) => {

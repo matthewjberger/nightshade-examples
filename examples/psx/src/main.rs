@@ -1,15 +1,9 @@
-#[cfg(not(target_arch = "wasm32"))]
-use nightshade::ecs::map::components::{Map, MapLight, MapMaterial, MapNode};
-#[cfg(not(target_arch = "wasm32"))]
-use nightshade::ecs::map::save_map;
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::physics::{look_camera_system, spawn_first_person_player};
 use nightshade::ecs::prefab::resources::mesh_cache_insert;
 use nightshade::ecs::world::commands::load_procedural_textures;
 use nightshade::prelude::*;
 use nightshade::render::wgpu::texture_cache::texture_cache_add_reference;
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
 
 const CAMERA_HEIGHT: f32 = 0.8;
 const DANCE_MODEL: &[u8] = include_bytes!("../../../assets/models/dance.glb");
@@ -49,20 +43,6 @@ impl State for PsxDemo {
         world.resources.graphics.fog = Some(Fog::default());
 
         load_procedural_textures(world);
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let map_path = Path::new("apps/psx/assets/psx_map.json");
-            if let Some(parent) = map_path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            let map = build_psx_map();
-            if let Err(error) = save_map(&map, map_path) {
-                tracing::error!("Failed to save PS1 map: {}", error);
-            } else {
-                tracing::info!("Saved PS1 map to {:?}", map_path);
-            }
-        }
 
         let sun = spawn_sun(world);
         if let Some(light) = world.get_light_mut(sun) {
@@ -468,143 +448,4 @@ impl State for PsxDemo {
                 ui.label("  ESC - Exit");
             });
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn build_psx_map() -> Map {
-    let mut map = Map::new("PS1 Demo");
-
-    let sun_entity = map.add_root_node(MapNode::entity_full(
-        Some("Sun".to_string()),
-        LocalTransform {
-            translation: Vec3::new(0.0, 10.0, 0.0),
-            rotation: nalgebra_glm::quat_angle_axis(-45.0_f32.to_radians(), &Vec3::x()),
-            scale: Vec3::new(1.0, 1.0, 1.0),
-        },
-    ));
-    map.add_child_node(
-        sun_entity,
-        MapNode::light(MapLight::directional([1.0, 0.98, 0.95], 1.5)),
-    );
-
-    let ground_entity = map.add_root_node(MapNode::entity_full(
-        Some("Ground".to_string()),
-        LocalTransform {
-            translation: Vec3::new(0.0, -0.5, 0.0),
-            rotation: Quat::identity(),
-            scale: Vec3::new(20.0, 1.0, 20.0),
-        },
-    ));
-    map.add_child_node(
-        ground_entity,
-        MapNode::mesh_with_material(
-            "SubdividedPlane",
-            MapMaterial {
-                base_color: [1.0, 1.0, 1.0, 1.0],
-                base_texture: Some("checkerboard".to_string()),
-                roughness: 1.0,
-                metallic: 0.0,
-                uv_scale: [20.0, 20.0],
-                ..Default::default()
-            },
-        ),
-    );
-
-    let cube_entity = map.add_root_node(MapNode::entity_full(
-        Some("Cube".to_string()),
-        LocalTransform {
-            translation: Vec3::new(0.0, 0.5, 0.0),
-            rotation: Quat::identity(),
-            scale: Vec3::new(1.0, 1.0, 1.0),
-        },
-    ));
-    map.add_child_node(
-        cube_entity,
-        MapNode::mesh_with_material(
-            "Cube",
-            MapMaterial {
-                base_color: [1.0, 1.0, 1.0, 1.0],
-                base_texture: Some("checkerboard".to_string()),
-                roughness: 0.5,
-                metallic: 0.0,
-                ..Default::default()
-            },
-        ),
-    );
-
-    let sphere_entity = map.add_root_node(MapNode::entity_full(
-        Some("Sphere".to_string()),
-        LocalTransform {
-            translation: Vec3::new(-2.5, 0.5, 0.0),
-            rotation: Quat::identity(),
-            scale: Vec3::new(1.0, 1.0, 1.0),
-        },
-    ));
-    map.add_child_node(
-        sphere_entity,
-        MapNode::mesh_with_material(
-            "Sphere",
-            MapMaterial {
-                base_color: [1.0, 1.0, 1.0, 1.0],
-                base_texture: Some("gradient".to_string()),
-                roughness: 0.3,
-                metallic: 0.0,
-                ..Default::default()
-            },
-        ),
-    );
-
-    let torus_entity = map.add_root_node(MapNode::entity_full(
-        Some("Torus".to_string()),
-        LocalTransform {
-            translation: Vec3::new(2.5, 0.5, 0.0),
-            rotation: Quat::identity(),
-            scale: Vec3::new(0.8, 0.8, 0.8),
-        },
-    ));
-    map.add_child_node(
-        torus_entity,
-        MapNode::mesh_with_material(
-            "Torus",
-            MapMaterial {
-                base_color: [1.0, 1.0, 1.0, 1.0],
-                base_texture: Some("uv_test".to_string()),
-                roughness: 0.4,
-                metallic: 0.0,
-                ..Default::default()
-            },
-        ),
-    );
-
-    for index in 0..8 {
-        let angle = (index as f32 / 8.0) * std::f32::consts::TAU;
-        let radius = 8.0;
-        let x = angle.cos() * radius;
-        let z = angle.sin() * radius;
-
-        let pillar_entity = map.add_root_node(MapNode::entity_full(
-            Some(format!("Pillar_{}", index)),
-            LocalTransform {
-                translation: Vec3::new(x, 0.5, z),
-                rotation: Quat::identity(),
-                scale: Vec3::new(0.5, 2.0, 0.5),
-            },
-        ));
-        map.add_child_node(
-            pillar_entity,
-            MapNode::mesh_with_material(
-                "Cylinder",
-                MapMaterial {
-                    base_color: [0.8, 0.7, 0.6, 1.0],
-                    base_texture: Some("checkerboard".to_string()),
-                    roughness: 0.8,
-                    metallic: 0.0,
-                    uv_scale: [2.0, 4.0],
-                    ..Default::default()
-                },
-            ),
-        );
-    }
-
-    map
 }

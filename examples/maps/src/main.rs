@@ -1,8 +1,6 @@
 use nightshade::ecs::camera::commands::spawn_camera;
 use nightshade::ecs::camera::systems::fly_camera_system;
 use nightshade::ecs::graphics::resources::Atmosphere;
-#[cfg(not(target_arch = "wasm32"))]
-use nightshade::ecs::map::save_map;
 use nightshade::ecs::map::{Map, MapLight, MapMaterial, MapNode, MeshInstance, NodeIndex};
 use nightshade::prelude::*;
 
@@ -725,22 +723,6 @@ impl State for MapDemo {
         ];
         self.resources.current_map_index = 0;
         self.resources.spawned_entities = Vec::new();
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let maps_dir = std::path::Path::new("apps/maps/maps");
-            if std::fs::create_dir_all(maps_dir).is_ok() {
-                for map in &self.resources.maps {
-                    let filename = map.name.to_lowercase().replace(' ', "_") + ".json";
-                    let path = maps_dir.join(&filename);
-                    if let Err(error) = save_map(map, &path) {
-                        tracing::error!("Failed to save map '{}': {}", map.name, error);
-                    } else {
-                        tracing::info!("Saved map '{}' to {:?}", map.name, path);
-                    }
-                }
-            }
-        }
 
         let camera_position = Vec3::new(0.0, 20.0, 40.0);
         let camera = spawn_camera(world, camera_position, "Main Camera".to_string());

@@ -8,14 +8,10 @@ use map_builder::build_horror_map;
 use nightshade::ecs::audio::systems::load_sound_from_bytes;
 use nightshade::ecs::camera::components::Projection;
 use nightshade::ecs::map::spawn_map;
-#[cfg(not(target_arch = "wasm32"))]
-use nightshade::ecs::map::{load_map, save_map};
 use nightshade::ecs::physics::spawn_first_person_player;
 use nightshade::ecs::texture_loader::set_asset_search_paths;
 use nightshade::prelude::*;
 use state::HorrorDemo;
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
 use systems::{
     camera_look_system, check_puzzle_state, crouch_camera_system, cutscene_system,
     detect_input_mode, interaction_system, lean_system, load_textures, monster_chase_system,
@@ -109,36 +105,9 @@ impl State for HorrorDemo {
 
         load_textures(world);
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let map_path = Path::new("assets/maps/horror_map.json");
-            if !map_path.exists() {
-                let map = build_horror_map();
-                if let Err(error) = save_map(&map, map_path) {
-                    tracing::error!("Failed to save horror map: {}", error);
-                } else {
-                    tracing::info!("Saved horror map to {:?}", map_path);
-                }
-            }
-
-            match load_map(map_path) {
-                Ok(map) => {
-                    if let Err(error) = spawn_map(world, &map) {
-                        tracing::error!("Failed to spawn horror map: {}", error);
-                    }
-                }
-                Err(error) => {
-                    tracing::error!("Failed to load horror map: {}", error);
-                }
-            }
-        }
-
-        #[cfg(target_arch = "wasm32")]
-        {
-            let map = build_horror_map();
-            if let Err(error) = spawn_map(world, &map) {
-                tracing::error!("Failed to spawn horror map: {}", error);
-            }
+        let map = build_horror_map();
+        if let Err(error) = spawn_map(world, &map) {
+            tracing::error!("Failed to spawn horror map: {}", error);
         }
 
         spawn_doors(self, world);

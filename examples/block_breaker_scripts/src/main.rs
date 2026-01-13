@@ -3,8 +3,6 @@ use nightshade::ecs::graphics::resources::Atmosphere;
 use nightshade::ecs::map::components::{
     Map, MapCamera, MapLight, MapMaterial, MapNode, MeshInstance,
 };
-#[cfg(not(target_arch = "wasm32"))]
-use nightshade::ecs::map::save_map;
 use nightshade::ecs::script::components::{Script, ScriptSource};
 use nightshade::ecs::text::commands::spawn_hud_text_with_properties;
 use nightshade::ecs::text::components::{HudAnchor, TextAlignment, TextProperties};
@@ -13,16 +11,6 @@ use nightshade::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let map = create_block_breaker_map();
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let map_path = std::path::Path::new("apps/block_breaker_scripts/block_breaker.json");
-        if let Some(parent) = map_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        save_map(&map, map_path)?;
-        println!("Saved map to {:?}", map_path);
-    }
 
     launch(BlockBreakerScripts {
         map: Some(map),

@@ -60,7 +60,7 @@ run-wasm $example="alpha_blending":
 # Build all examples for WASM (Windows)
 [windows]
 build-all-wasm:
-    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
+    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
 
 # Build all examples for WASM (Unix)
 [unix]
@@ -68,13 +68,14 @@ build-all-wasm:
     #!/usr/bin/env bash
     set -euo pipefail
     prefix="${PUBLIC_URL_PREFIX:-}"
+    root="$(pwd)"
     for trunk_file in examples/*/Trunk.toml; do
         example=$(basename "$(dirname "$trunk_file")")
         echo "Building $example for WASM..."
         if [ -n "$prefix" ]; then
-            trunk build --release --config "$trunk_file" --dist "dist/wasm/$example" --public-url "${prefix}$example/"
+            trunk build --release --config "$trunk_file" --dist "$root/dist/wasm/$example" --public-url "${prefix}$example/"
         else
-            trunk build --release --config "$trunk_file" --dist "dist/wasm/$example"
+            trunk build --release --config "$trunk_file" --dist "$root/dist/wasm/$example"
         fi
     done
     echo "All WASM builds complete! Output in dist/wasm/"

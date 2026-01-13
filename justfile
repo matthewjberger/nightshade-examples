@@ -41,19 +41,19 @@ lint-wasm:
     cargo clippy --workspace --target wasm32-unknown-unknown -- -D warnings
 
 # Runs the specified example
-run $example="doom":
+run $example="alpha_blending":
     cargo run -r -p {{example}}
 
 # Runs the specified example in OpenXR VR mode
-run-openxr $example="horror":
+run-openxr $example="prefabs":
     cargo run -r -p {{example}} --features openxr
 
 # Build an example for WASM
-build-wasm $example="doom":
+build-wasm $example="alpha_blending":
     trunk build --release --config examples/{{example}}/Trunk.toml
 
 # Serve an example in browser
-run-wasm $example="doom":
+run-wasm $example="alpha_blending":
     trunk serve --release --open --config examples/{{example}}/Trunk.toml
 
 # Runs all tests

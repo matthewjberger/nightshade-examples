@@ -10,13 +10,13 @@ Example applications built with the [Nightshade](https://github.com/matthewjberg
 
 ```bash
 # native
-just run doom
+just run alpha_blending
 
 # wasm (webgpu)
-just run-wasm doom
+just run-wasm alpha_blending
 
 # vr (openxr)
-just run-openxr horror
+just run-openxr prefabs
 ```
 
 > Run `just` with no arguments to list all commands
@@ -39,9 +39,9 @@ just init-wasm
 Build and run natively using cargo:
 
 ```bash
-just run doom       # run an example
-just run chess      # run another example
-just build          # release build all examples
+just run alpha_blending  # run an example
+just run picking         # run another example
+just build               # release build all examples
 ```
 
 ### WebAssembly (WASM)
@@ -49,8 +49,8 @@ just build          # release build all examples
 Build for web browsers with WebGPU support:
 
 ```bash
-just run-wasm doom        # serve in browser
-just build-wasm doom      # build only
+just run-wasm alpha_blending    # serve in browser
+just build-wasm alpha_blending  # build only
 ```
 
 > All chromium-based browsers like Brave, Vivaldi, Chrome, etc support WebGPU.
@@ -61,7 +61,7 @@ just build-wasm doom      # build only
 Run examples in VR with OpenXR support:
 
 ```bash
-just run-openxr horror
+just run-openxr prefabs
 ```
 
 ## Notes

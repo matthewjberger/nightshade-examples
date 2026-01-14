@@ -1,0 +1,9 @@
+{
+  "name": "leptos-example",
+  "version": "0.1.0",
+  "description": "A Leptos example static site",
+  "scripts": {},
+  "devDependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}

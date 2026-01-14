@@ -1,0 +1,76 @@
+name: Release to Github Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  Github-Pages-Release:
+
+    timeout-minutes: 15
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install nightly Rust
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy, rustfmt
+
+      - name: Add WASM target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Cache Trunk binary
+        id: cache-trunk
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/trunk
+          key: trunk-${{ runner.os }}-v0.21.14
+
+      - name: Download and install Trunk binary
+        if: steps.cache-trunk.outputs.cache-hit != 'true'
+        run: wget -qO- https://github.com/trunk-rs/trunk/releases/download/v0.21.14/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf- && mv trunk ~/.cargo/bin/
+
+      - name: lint
+        run: cargo clippy -- -D warnings && cargo fmt --check
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build Tailwind CSS
+        run: npx tailwindcss -i ./input.css -o ./public/styles.css --minify
+
+      - name: Build with Trunk
+        run: trunk build --release --public-url /leptos-example/
+
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist

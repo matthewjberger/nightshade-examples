@@ -1,0 +1,25 @@
+# Display available commands
+@just:
+    just --list
+
+# Formats the code using cargo fmt
+format:
+    cargo fmt --all
+
+# Runs linter and displays warnings
+lint:
+    cargo clippy --all -- -D warnings
+
+# Install dependencies
+install:
+    npm install
+
+# Build the site
+build: install
+    npx tailwindcss -i ./input.css -o ./public/styles.css --minify
+    trunk build --release
+
+# Serve the site locally
+serve: install
+    npx tailwindcss -i ./input.css -o ./public/styles.css --minify
+    trunk serve --open

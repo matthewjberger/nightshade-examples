@@ -3,7 +3,7 @@ members = ["shared", "engine-plugin", "game-plugin"]
 resolver = "2"
 
 [workspace.dependencies]
-nightshade = "0.6.47"
+nightshade = "0.6.53"
 postcard = { version = "1.0", features = ["alloc"] }
 
 [package]

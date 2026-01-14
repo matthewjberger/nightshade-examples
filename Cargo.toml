@@ -4,4 +4,4 @@ members = ["examples/*", "examples-native/*"]
 exclude = ["plugins"]
 
 [workspace.dependencies]
-nightshade = "0.6.47"
+nightshade = "0.6.53"

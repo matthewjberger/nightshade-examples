@@ -1,0 +1,13 @@
+[package]
+name = "web_host_protocol"
+version = "0.1.0"
+authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
+description = "Shared message types for web_host bidirectional communication"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.90"
+
+[dependencies]
+postcard = { version = "1.1", features = ["alloc"] }
+base64 = "0.22"
+serde = { version = "1.0", features = ["derive"] }

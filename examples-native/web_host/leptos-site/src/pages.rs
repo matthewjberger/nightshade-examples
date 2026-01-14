@@ -1,8 +1,0 @@
-pub mod about;
-pub mod article;
-pub mod articles;
-pub mod contact;
-pub mod experience;
-pub mod home;
-pub mod not_found;
-pub mod projects;

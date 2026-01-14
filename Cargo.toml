@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["examples/*", "examples-native/*"]
-exclude = ["plugins", "examples-native/web_host/leptos-site"]
+exclude = ["plugins", "examples-native/web_host/leptos-site", "examples-native/web_host/protocol"]
 
 [workspace.dependencies]
 nightshade = "0.6.55"

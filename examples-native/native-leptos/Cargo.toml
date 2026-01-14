@@ -1,5 +1,5 @@
 [package]
-name = "web_host"
+name = "native-leptos"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 description = "A minimal web host application for the Nightshade game engine"
@@ -8,7 +8,7 @@ edition = "2024"
 rust-version = "1.90"
 
 [[bin]]
-name = "web_host"
+name = "native_leptos"
 path = "src/main.rs"
 
 [dependencies]
@@ -18,5 +18,7 @@ nightshade = { workspace = true, features = ["egui"] }
 wry = "0.53.5"
 include_dir = "0.7.4"
 tiny_http = "0.12.0"
+web_host_protocol = { path = "protocol" }
+rand = "0.9"
 
 [build-dependencies]

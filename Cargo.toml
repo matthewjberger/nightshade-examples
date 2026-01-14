@@ -4,4 +4,8 @@ members = ["examples/*", "examples-native/*"]
 exclude = ["plugins"]
 
 [workspace.dependencies]
-nightshade = "0.6.53"
+nightshade = "0.6.55"
+
+# Uncomment to use local nightshade instead of crates.io version
+# [patch.crates-io]
+# nightshade = { path = "../nightshade/crates/nightshade" }

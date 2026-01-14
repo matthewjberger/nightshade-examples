@@ -3,7 +3,7 @@ members = ["shared", "engine-plugin", "game-plugin"]
 resolver = "2"
 
 [workspace.dependencies]
-nightshade = "0.6.53"
+nightshade = "0.6.55"
 postcard = { version = "1.0", features = ["alloc"] }
 
 [package]
@@ -15,3 +15,7 @@ edition = "2024"
 [dependencies]
 nightshade = { workspace = true, features = ["plugin_runtime"] }
 plugins-shared = { path = "shared" }
+
+# Uncomment to use local nightshade instead of crates.io version
+# [patch.crates-io]
+# nightshade = { path = "../nightshade/crates/nightshade" }

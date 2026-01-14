@@ -118,6 +118,7 @@ impl State for BloomDemo {
                 letter_spacing: 0.0,
                 vertical_alignment: VerticalAlignment::Middle,
                 monospace_width: None,
+                ..Default::default()
             },
         );
 

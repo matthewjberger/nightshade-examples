@@ -1,4 +1,5 @@
-use nightshade::ecs::camera::{pan_orbit_camera_system, spawn_pan_orbit_camera};
+use nightshade::ecs::camera::commands::spawn_pan_orbit_camera;
+use nightshade::ecs::camera::systems::pan_orbit_camera_system;
 use nightshade::ecs::world::commands::{spawn_material, spawn_sun_without_shadows};
 use nightshade::prelude::*;
 
@@ -105,13 +106,6 @@ impl State for SsaoDemo {
             .read("hdr", resources.scene_color)
             .read("bloom", bloom_texture)
             .read("ssao", resources.ssao)
-            .write("output", resources.compute_output);
-
-        let swapchain_blit_pass =
-            passes::BlitPass::new(device, surface_format).with_name("swapchain_blit_pass");
-        graph
-            .pass(Box::new(swapchain_blit_pass))
-            .read("input", resources.compute_output)
             .write("output", resources.swapchain);
     }
 }

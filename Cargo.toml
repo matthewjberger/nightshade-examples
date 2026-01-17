@@ -8,4 +8,4 @@ exclude = [
 ]
 
 [workspace.dependencies]
-nightshade = "0.6.59"
+nightshade = "0.6.60"

@@ -1373,6 +1373,7 @@ impl State for Survivors {
             .pass(Box::new(postprocess_pass))
             .read("hdr", resources.scene_color)
             .read("bloom", bloom_texture)
+            .read("ssao", resources.ssao)
             .write("output", resources.swapchain);
     }
 }

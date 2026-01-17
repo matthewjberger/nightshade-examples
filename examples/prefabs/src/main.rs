@@ -13,7 +13,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(PrefabsState::default())
 }
 
-#[derive(Default)]
 struct PrefabsState {
     model_entities: Vec<Entity>,
     camera_entity: Option<Entity>,
@@ -21,6 +20,21 @@ struct PrefabsState {
     loaded: bool,
     left_arrow_was_pressed: bool,
     right_arrow_was_pressed: bool,
+    previous_atmosphere: Atmosphere,
+}
+
+impl Default for PrefabsState {
+    fn default() -> Self {
+        Self {
+            model_entities: Vec::new(),
+            camera_entity: None,
+            rotation_speed: 0.0,
+            loaded: false,
+            left_arrow_was_pressed: false,
+            right_arrow_was_pressed: false,
+            previous_atmosphere: Atmosphere::Hdr,
+        }
+    }
 }
 
 impl State for PrefabsState {
@@ -52,11 +66,25 @@ impl State for PrefabsState {
             .read("hdr", resources.scene_color)
             .write("bloom", bloom_texture);
 
+        let ssao_pass = passes::SsaoPass::new(device);
+        graph
+            .pass(Box::new(ssao_pass))
+            .read("depth", resources.depth)
+            .read("view_normals", resources.view_normals)
+            .write("ssao_raw", resources.ssao_raw);
+
+        let ssao_blur_pass = passes::SsaoBlurPass::new(device);
+        graph
+            .pass(Box::new(ssao_blur_pass))
+            .read("ssao_raw", resources.ssao_raw)
+            .write("ssao", resources.ssao);
+
         let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.08);
         graph
             .pass(Box::new(postprocess_pass))
             .read("hdr", resources.scene_color)
             .read("bloom", bloom_texture)
+            .read("ssao", resources.ssao)
             .write("output", resources.swapchain);
     }
 
@@ -65,6 +93,10 @@ impl State for PrefabsState {
         world.resources.graphics.show_grid = false;
         world.resources.graphics.atmosphere = Atmosphere::Hdr;
         world.resources.graphics.use_fullscreen = true;
+        world.resources.graphics.ssao_enabled = true;
+        world.resources.graphics.ssao_radius = 0.5;
+        world.resources.graphics.ssao_bias = 0.025;
+        world.resources.graphics.ssao_intensity = 1.5;
 
         load_hdr_skybox(world, HDR_BYTES.to_vec());
 
@@ -319,6 +351,26 @@ impl State for PrefabsState {
                     ui.checkbox(&mut world.resources.graphics.bloom_enabled, "Enabled");
                 });
 
+                ui.horizontal(|ui| {
+                    ui.label("SSAO:");
+                    ui.checkbox(&mut world.resources.graphics.ssao_enabled, "Enabled");
+                });
+
+                if world.resources.graphics.ssao_enabled {
+                    ui.add(
+                        egui::Slider::new(&mut world.resources.graphics.ssao_radius, 0.1..=2.0)
+                            .text("Radius"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut world.resources.graphics.ssao_bias, 0.001..=0.1)
+                            .text("Bias"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut world.resources.graphics.ssao_intensity, 0.5..=3.0)
+                            .text("Intensity"),
+                    );
+                }
+
                 ui.separator();
 
                 ui.horizontal(|ui| {
@@ -361,5 +413,13 @@ impl PrefabsState {
 
         self.right_arrow_was_pressed = right_pressed;
         self.left_arrow_was_pressed = left_pressed;
+
+        let current_atmosphere = world.resources.graphics.atmosphere;
+        if current_atmosphere != self.previous_atmosphere {
+            if current_atmosphere.is_procedural() {
+                capture_procedural_atmosphere_ibl(world, current_atmosphere, 0.0);
+            }
+            self.previous_atmosphere = current_atmosphere;
+        }
     }
 }

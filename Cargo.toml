@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = ["examples/*", "examples-native/*"]
-exclude = ["plugins", "examples-native/web_host/leptos-site", "examples-native/web_host/protocol"]
+exclude = [
+    "plugins",
+    "examples-native/web_host/leptos-site",
+    "examples-native/web_host/protocol",
+]
 
 [workspace.dependencies]
-nightshade = "0.6.55"
-
-# Uncomment to use local nightshade instead of crates.io version
-# [patch.crates-io]
-# nightshade = { path = "../nightshade/crates/nightshade" }
+nightshade = "0.6.59"

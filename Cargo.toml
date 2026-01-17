@@ -9,3 +9,6 @@ exclude = [
 
 [workspace.dependencies]
 nightshade = "0.6.60"
+
+# [patch.crates-io]
+# nightshade = { path = "../nightshade/crates/nightshade" }

@@ -106,11 +106,25 @@ impl State for DanceState {
             .read("hdr", resources.scene_color)
             .write("bloom", bloom_texture);
 
+        let ssao_pass = passes::SsaoPass::new(device);
+        graph
+            .pass(Box::new(ssao_pass))
+            .read("depth", resources.depth)
+            .read("view_normals", resources.view_normals)
+            .write("ssao_raw", resources.ssao_raw);
+
+        let ssao_blur_pass = passes::SsaoBlurPass::new(device);
+        graph
+            .pass(Box::new(ssao_blur_pass))
+            .read("ssao_raw", resources.ssao_raw)
+            .write("ssao", resources.ssao);
+
         let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.08);
         graph
             .pass(Box::new(postprocess_pass))
             .read("hdr", resources.scene_color)
             .read("bloom", bloom_texture)
+            .read("ssao", resources.ssao)
             .write("output", resources.swapchain);
     }
 

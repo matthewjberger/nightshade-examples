@@ -1,5 +1,6 @@
 use nightshade::ecs::camera::commands::spawn_pan_orbit_camera;
 use nightshade::ecs::camera::systems::pan_orbit_camera_system;
+use nightshade::ecs::graphics::resources::PbrDebugMode;
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::prefab::resources::mesh_cache_insert;
 use nightshade::prelude::*;
@@ -386,6 +387,42 @@ impl State for PrefabsState {
                                 );
                             }
                         });
+                });
+
+                ui.separator();
+
+                ui.horizontal(|ui| {
+                    ui.label("PBR Debug:");
+                    egui::ComboBox::from_id_salt("pbr_debug")
+                        .selected_text(world.resources.graphics.pbr_debug_mode.name())
+                        .show_ui(ui, |ui| {
+                            for mode in PbrDebugMode::ALL {
+                                ui.selectable_value(
+                                    &mut world.resources.graphics.pbr_debug_mode,
+                                    *mode,
+                                    mode.name(),
+                                );
+                            }
+                        });
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Texture Stripes:");
+                    ui.checkbox(
+                        &mut world.resources.graphics.texture_debug_stripes,
+                        "Show texture map stripes",
+                    );
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Stripe Speed:");
+                    ui.add(
+                        egui::Slider::new(
+                            &mut world.resources.graphics.texture_debug_stripes_speed,
+                            0.0..=500.0,
+                        )
+                        .suffix(" px/s"),
+                    );
                 });
             });
     }

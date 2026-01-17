@@ -739,25 +739,33 @@ fn create_river_plane_mesh(width: f32, length: f32) -> nightshade::ecs::mesh::co
             position: [-half_width, 0.0, -half_length],
             normal: [0.0, 1.0, 0.0],
             tex_coords: [0.0, 0.0],
+            tex_coords_1: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         },
         Vertex {
             position: [half_width, 0.0, -half_length],
             normal: [0.0, 1.0, 0.0],
             tex_coords: [1.0, 0.0],
+            tex_coords_1: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         },
         Vertex {
             position: [half_width, 0.0, half_length],
             normal: [0.0, 1.0, 0.0],
             tex_coords: [1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         },
         Vertex {
             position: [-half_width, 0.0, half_length],
             normal: [0.0, 1.0, 0.0],
             tex_coords: [0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         },
     ];
 

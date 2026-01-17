@@ -371,24 +371,32 @@ fn add_cube_faces(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, params: Vo
             normal: [0.0, 1.0, 0.0],
             tex_coords: [0.0, 1.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y + 1.0, params.pos.z + 1.0],
             normal: [0.0, 1.0, 0.0],
             tex_coords: [1.0, 1.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y + 1.0, params.pos.z],
             normal: [0.0, 1.0, 0.0],
             tex_coords: [1.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x, params.pos.y + 1.0, params.pos.z],
             normal: [0.0, 1.0, 0.0],
             tex_coords: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         indices.extend_from_slice(&[
             base_index,
@@ -407,24 +415,32 @@ fn add_cube_faces(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, params: Vo
             normal: [0.0, -1.0, 0.0],
             tex_coords: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y, params.pos.z],
             normal: [0.0, -1.0, 0.0],
             tex_coords: [1.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y, params.pos.z + 1.0],
             normal: [0.0, -1.0, 0.0],
             tex_coords: [1.0, 1.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x, params.pos.y, params.pos.z + 1.0],
             normal: [0.0, -1.0, 0.0],
             tex_coords: [0.0, 1.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         indices.extend_from_slice(&[
             base_index,
@@ -443,24 +459,32 @@ fn add_cube_faces(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, params: Vo
             normal: [-1.0, 0.0, 0.0],
             tex_coords: [1.0, 0.0],
             tangent: [0.0, 0.0, -1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x, params.pos.y + 1.0, params.pos.z + 1.0],
             normal: [-1.0, 0.0, 0.0],
             tex_coords: [1.0, 1.0],
             tangent: [0.0, 0.0, -1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x, params.pos.y + 1.0, params.pos.z],
             normal: [-1.0, 0.0, 0.0],
             tex_coords: [0.0, 1.0],
             tangent: [0.0, 0.0, -1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x, params.pos.y, params.pos.z],
             normal: [-1.0, 0.0, 0.0],
             tex_coords: [0.0, 0.0],
             tangent: [0.0, 0.0, -1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         indices.extend_from_slice(&[
             base_index,
@@ -479,24 +503,32 @@ fn add_cube_faces(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, params: Vo
             normal: [1.0, 0.0, 0.0],
             tex_coords: [0.0, 0.0],
             tangent: [0.0, 0.0, 1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y + 1.0, params.pos.z],
             normal: [1.0, 0.0, 0.0],
             tex_coords: [0.0, 1.0],
             tangent: [0.0, 0.0, 1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y + 1.0, params.pos.z + 1.0],
             normal: [1.0, 0.0, 0.0],
             tex_coords: [1.0, 1.0],
             tangent: [0.0, 0.0, 1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y, params.pos.z + 1.0],
             normal: [1.0, 0.0, 0.0],
             tex_coords: [1.0, 0.0],
             tangent: [0.0, 0.0, 1.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         indices.extend_from_slice(&[
             base_index,
@@ -515,24 +547,32 @@ fn add_cube_faces(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, params: Vo
             normal: [0.0, 0.0, 1.0],
             tex_coords: [1.0, 0.0],
             tangent: [-1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y + 1.0, params.pos.z + 1.0],
             normal: [0.0, 0.0, 1.0],
             tex_coords: [1.0, 1.0],
             tangent: [-1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x, params.pos.y + 1.0, params.pos.z + 1.0],
             normal: [0.0, 0.0, 1.0],
             tex_coords: [0.0, 1.0],
             tangent: [-1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x, params.pos.y, params.pos.z + 1.0],
             normal: [0.0, 0.0, 1.0],
             tex_coords: [0.0, 0.0],
             tangent: [-1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         indices.extend_from_slice(&[
             base_index,
@@ -551,24 +591,32 @@ fn add_cube_faces(vertices: &mut Vec<Vertex>, indices: &mut Vec<u32>, params: Vo
             normal: [0.0, 0.0, -1.0],
             tex_coords: [0.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x, params.pos.y + 1.0, params.pos.z],
             normal: [0.0, 0.0, -1.0],
             tex_coords: [0.0, 1.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y + 1.0, params.pos.z],
             normal: [0.0, 0.0, -1.0],
             tex_coords: [1.0, 1.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         vertices.push(Vertex {
             position: [params.pos.x + 1.0, params.pos.y, params.pos.z],
             normal: [0.0, 0.0, -1.0],
             tex_coords: [1.0, 0.0],
             tangent: [1.0, 0.0, 0.0, 1.0],
+            tex_coords_1: [0.0, 0.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         });
         indices.extend_from_slice(&[
             base_index,

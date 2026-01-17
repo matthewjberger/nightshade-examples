@@ -5,7 +5,7 @@ license = "MIT OR Apache-2.0"
 edition = "2024"
 
 [dependencies]
-nightshade = { version = "0.6.60", default-features = false, features = [
+nightshade = { version = "0.6.61", default-features = false, features = [
     "plugins",
 ] }
 postcard = { version = "1.0", features = ["alloc"] }

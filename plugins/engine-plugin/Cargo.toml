@@ -8,6 +8,6 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-nightshade = { version = "0.6.60", default-features = false, features = [
+nightshade = { version = "0.6.61", default-features = false, features = [
     "plugins",
 ] }

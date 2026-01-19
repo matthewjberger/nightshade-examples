@@ -76,13 +76,6 @@ impl State for ChessGame {
         self.camera_entity = Some(camera_entity);
         world.resources.active_camera = Some(camera_entity);
 
-        if let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) {
-            pan_orbit.zoom_lower_limit = 0.002;
-            pan_orbit.zoom_upper_limit = Some(0.5);
-            pan_orbit.pitch_lower_limit = 0.3;
-            pan_orbit.pitch_upper_limit = std::f32::consts::FRAC_PI_2 - 0.1;
-        }
-
         tracing::info!("Loading chess GLTF model...");
         match import_gltf_from_bytes(CHESS_GLB) {
             Ok(result) => {

@@ -101,13 +101,6 @@ impl State for MorphState {
         world.resources.active_camera = Some(camera_entity);
         self.camera_entity = Some(camera_entity);
 
-        if let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) {
-            pan_orbit.zoom_lower_limit = 2.0;
-            pan_orbit.zoom_upper_limit = Some(20.0);
-            pan_orbit.pitch_lower_limit = -0.5;
-            pan_orbit.pitch_upper_limit = std::f32::consts::FRAC_PI_2 - 0.1;
-        }
-
         tracing::info!("Loading MorphPrimitivesTest model");
         match nightshade::ecs::prefab::import_gltf_from_bytes(MORPH_PRIMITIVES) {
             Ok(result) => {

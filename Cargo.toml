@@ -8,7 +8,4 @@ exclude = [
 ]
 
 [workspace.dependencies]
-nightshade = "0.6.63"
-
-[patch.crates-io]
-nightshade = { path = "../nightshade/crates/nightshade" }
+nightshade = { git = "https://github.com/matthewjberger/nightshade.git" }

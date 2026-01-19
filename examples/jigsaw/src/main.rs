@@ -151,13 +151,6 @@ impl State for JigsawGame {
         );
         world.resources.active_camera = Some(self.camera_entity);
 
-        if let Some(pan_orbit) = world.get_pan_orbit_camera_mut(self.camera_entity) {
-            pan_orbit.zoom_lower_limit = 3.0;
-            pan_orbit.zoom_upper_limit = Some(20.0);
-            pan_orbit.pitch_lower_limit = 0.1;
-            pan_orbit.pitch_upper_limit = std::f32::consts::FRAC_PI_2 - 0.01;
-        }
-
         if let Some((width, height)) = load_puzzle_texture(world, PUZZLE_IMAGE) {
             self.puzzle_world.resources.image_width = width;
             self.puzzle_world.resources.image_height = height;

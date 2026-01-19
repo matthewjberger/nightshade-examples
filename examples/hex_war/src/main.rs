@@ -317,12 +317,6 @@ impl State for HexWarGame {
         );
         world.resources.active_camera = Some(camera_entity);
 
-        if let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) {
-            pan_orbit.zoom_lower_limit = 500.0;
-            pan_orbit.zoom_upper_limit = Some(6000.0);
-            pan_orbit.pitch_lower_limit = 0.1;
-        }
-
         self.fps_entity = Some(spawn_fps_display(world));
         menu::setup_main_menu(&mut self.menu, world);
     }

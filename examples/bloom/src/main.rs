@@ -379,6 +379,7 @@ fn create_pastel_material(base_color: Vec3) -> Material {
         specular_color_texture: None,
         specular_color_texture_uv_set: 0,
         emissive_strength: 1.0,
+        double_sided: false,
     }
 }
 

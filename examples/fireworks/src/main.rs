@@ -274,6 +274,7 @@ impl State for FireworksDemo {
             .pass(Box::new(postprocess_pass))
             .read("hdr", resources.scene_color)
             .read("bloom", bloom_texture)
+            .read("ssao", resources.ssao)
             .write("output", resources.swapchain);
 
         self.particle_pass_configured = true;

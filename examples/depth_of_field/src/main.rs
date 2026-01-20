@@ -207,6 +207,7 @@ impl State for DepthOfFieldDemo {
             .pass(Box::new(postprocess_pass))
             .read("hdr", dof_texture)
             .read("bloom", bloom_texture)
+            .read("ssao", resources.ssao)
             .write("output", resources.swapchain);
     }
 }

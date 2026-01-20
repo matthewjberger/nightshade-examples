@@ -38,7 +38,7 @@ impl State for ManyLights {
 
         spawn_hud_text_with_properties(
             world,
-            &format!(
+            format!(
                 "{} point lights with clustered forward rendering\nWASD to move, Mouse to look, Escape to exit",
                 NUM_LIGHTS
             ),

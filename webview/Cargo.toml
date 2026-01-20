@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [".", "site", "protocol"]
+
+[package]
+name = "webview"
+version = "0.1.0"
+authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
+description = "Example app using nightshade-webview"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[[bin]]
+name = "webview"
+path = "src/main.rs"
+
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+nightshade = { git = "https://github.com/matthewjberger/nightshade.git", default-features = false, features = [
+    "runtime",
+    "wgpu",
+    "egui",
+    "webview",
+] }
+include_dir = "0.7"
+web_host_protocol = { path = "protocol" }
+rand = "0.9"
+
+[build-dependencies]
+
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = "abort"

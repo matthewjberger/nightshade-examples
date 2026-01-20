@@ -1,11 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["examples/*", "examples-native/*"]
-exclude = [
-    "plugins",
-    "examples-native/web_host/leptos-site",
-    "examples-native/web_host/protocol",
-]
+exclude = ["plugins", "examples-native/webview"]
 
 [workspace.dependencies]
 nightshade = { git = "https://github.com/matthewjberger/nightshade.git" }

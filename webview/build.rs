@@ -5,7 +5,6 @@ use std::process::Command;
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let leptos_site_dir = Path::new(&manifest_dir).join("site");
-    let dist_dir = leptos_site_dir.join("dist");
 
     println!("cargo:rerun-if-changed=site/src");
     println!("cargo:rerun-if-changed=site/index.html");
@@ -17,15 +16,11 @@ fn main() {
         panic!("site directory not found at {:?}", leptos_site_dir);
     }
 
-    if dist_dir.join("index.html").exists() {
-        return;
-    }
-
     let status = Command::new("trunk")
         .args(["build", "--release"])
         .current_dir(&leptos_site_dir)
         .status()
-        .expect("Failed to run trunk build. Install trunk: cargo install trunk");
+        .expect("Failed to run trunk build");
 
     if !status.success() {
         panic!("trunk build failed with status: {}", status);

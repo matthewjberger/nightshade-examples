@@ -39,7 +39,7 @@ lint:
 
 # Runs linter for wasm32 target (excludes native-only examples)
 lint-wasm:
-    cargo clippy --workspace --target wasm32-unknown-unknown --exclude multiplayer_pong --exclude steam --exclude native-leptos -- -D warnings
+    cargo clippy --workspace --target wasm32-unknown-unknown --exclude multiplayer_pong --exclude steam -- -D warnings
 
 # Runs the specified example
 run $example="alpha_blending":

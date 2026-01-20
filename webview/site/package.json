@@ -1,0 +1,7 @@
+{
+  "name": "site",
+  "private": true,
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

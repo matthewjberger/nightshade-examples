@@ -1,6 +1,11 @@
+use std::path::Path;
+
 use nightshade::ecs::camera::commands::spawn_camera;
 use nightshade::ecs::camera::systems::fly_camera_system;
-use nightshade::ecs::map::{spawn_map, Map, MapLight, MapMaterial, MapNode, NodeIndex};
+use nightshade::ecs::scene::{
+    save_scene, spawn_scene, Scene, SceneComponents, SceneEntity, SceneLight, SceneMaterial,
+    SceneMesh,
+};
 use nightshade::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,50 +28,47 @@ freecs::ecs! {
     }
 }
 
-fn add_entity_with_mesh(
-    map: &mut Map,
-    parent: Option<NodeIndex>,
+fn create_mesh_entity(
     name: &str,
     transform: LocalTransform,
     mesh_name: &str,
-    material: MapMaterial,
-) -> NodeIndex {
-    let entity_node = MapNode::entity_full(Some(name.to_string()), transform);
-    let entity_index = if let Some(parent_idx) = parent {
-        map.add_child_node(parent_idx, entity_node)
-    } else {
-        map.add_root_node(entity_node)
-    };
-    map.add_child_node(
-        entity_index,
-        MapNode::mesh_full(mesh_name, Some(material), true, None, None),
-    );
-    entity_index
+    base_color: [f32; 4],
+    roughness: f32,
+    metallic: f32,
+) -> SceneEntity {
+    SceneEntity::new()
+        .with_name(name)
+        .with_transform(transform)
+        .with_components(SceneComponents {
+            mesh: Some(
+                SceneMesh::from_name(mesh_name).with_material(SceneMaterial {
+                    base_color,
+                    roughness,
+                    metallic,
+                    ..Default::default()
+                }),
+            ),
+            casts_shadow: true,
+            visible: true,
+            ..Default::default()
+        })
 }
 
-fn add_entity_with_light(
-    map: &mut Map,
-    parent: Option<NodeIndex>,
-    name: &str,
-    transform: LocalTransform,
-    light: MapLight,
-) -> NodeIndex {
-    let entity_node = MapNode::entity_full(Some(name.to_string()), transform);
-    let entity_index = if let Some(parent_idx) = parent {
-        map.add_child_node(parent_idx, entity_node)
-    } else {
-        map.add_root_node(entity_node)
-    };
-    map.add_child_node(entity_index, MapNode::light(light));
-    entity_index
+fn create_light_entity(name: &str, transform: LocalTransform, light: SceneLight) -> SceneEntity {
+    SceneEntity::new()
+        .with_name(name)
+        .with_transform(transform)
+        .with_components(SceneComponents {
+            light: Some(light),
+            visible: true,
+            ..Default::default()
+        })
 }
 
-fn create_shadows_map() -> Map {
-    let mut map = Map::new("Shadows Demo");
+fn create_shadows_scene() -> Scene {
+    let mut scene = Scene::new("Shadows Demo");
 
-    add_entity_with_mesh(
-        &mut map,
-        None,
+    scene.add_entity(create_mesh_entity(
         "Floor",
         LocalTransform {
             translation: Vec3::new(0.0, -13.0, 0.0),
@@ -74,17 +76,12 @@ fn create_shadows_map() -> Map {
             scale: Vec3::new(30.0, 0.1, 20.0),
         },
         "Cube",
-        MapMaterial {
-            base_color: [0.5, 0.5, 0.7, 1.0],
-            roughness: 0.8,
-            metallic: 0.0,
-            ..Default::default()
-        },
-    );
+        [0.5, 0.5, 0.7, 1.0],
+        0.8,
+        0.0,
+    ));
 
-    add_entity_with_mesh(
-        &mut map,
-        None,
+    scene.add_entity(create_mesh_entity(
         "Torus",
         LocalTransform {
             translation: Vec3::new(0.0, -4.7, 0.0),
@@ -92,13 +89,10 @@ fn create_shadows_map() -> Map {
             scale: Vec3::new(4.0, 4.0, 4.0),
         },
         "Torus",
-        MapMaterial {
-            base_color: [0.8, 0.3, 0.5, 1.0],
-            roughness: 0.5,
-            metallic: 0.1,
-            ..Default::default()
-        },
-    );
+        [0.8, 0.3, 0.5, 1.0],
+        0.5,
+        0.1,
+    ));
 
     let sphere_positions = [
         ([-12.0, -8.0, -6.0], 1.2, [0.9, 0.2, 0.3, 1.0]),
@@ -122,9 +116,7 @@ fn create_shadows_map() -> Map {
     ];
 
     for (index, (pos, scale, color)) in sphere_positions.iter().enumerate() {
-        add_entity_with_mesh(
-            &mut map,
-            None,
+        scene.add_entity(create_mesh_entity(
             &format!("Sphere_{}", index),
             LocalTransform {
                 translation: Vec3::new(pos[0], pos[1], pos[2]),
@@ -132,51 +124,44 @@ fn create_shadows_map() -> Map {
                 scale: Vec3::new(*scale, *scale, *scale),
             },
             "Sphere",
-            MapMaterial {
-                base_color: *color,
-                roughness: 0.4,
-                metallic: 0.2,
-                ..Default::default()
-            },
-        );
+            *color,
+            0.4,
+            0.2,
+        ));
     }
 
-    add_entity_with_light(
-        &mut map,
-        None,
+    scene.add_entity(create_light_entity(
         "Sun",
         LocalTransform {
             translation: Vec3::new(0.0, 100.0, 0.0),
             rotation: nalgebra_glm::quat_angle_axis(-std::f32::consts::FRAC_PI_2, &Vec3::x_axis()),
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
-        MapLight::Directional {
+        SceneLight::Directional {
             color: [1.0, 1.0, 1.0],
             intensity: 3.0,
             cast_shadows: true,
             shadow_bias: 0.007,
         },
-    );
+    ));
 
-    add_entity_with_light(
-        &mut map,
-        None,
+    scene.add_entity(create_light_entity(
         "PointLight",
         LocalTransform {
             translation: Vec3::new(0.0, 0.0, 0.0),
             rotation: Quat::identity(),
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
-        MapLight::Point {
+        SceneLight::Point {
             color: [1.0, 0.8, 0.5],
             intensity: 5.0,
             range: 20.0,
             cast_shadows: true,
             shadow_bias: 0.005,
         },
-    );
+    ));
 
-    map
+    scene
 }
 
 fn find_entity_by_name(world: &World, name: &str) -> Option<Entity> {
@@ -192,17 +177,21 @@ impl State for ShadowsDemo {
         self.resources.torus_entity = None;
         self.resources.spheres = Vec::new();
 
-        let map = create_shadows_map();
+        let mut scene = create_shadows_scene();
 
-        match spawn_map(world, &map) {
+        if let Err(error) = save_scene(&mut scene, Path::new("shadows_demo.json")) {
+            tracing::error!("Failed to save scene: {}", error);
+        }
+
+        match spawn_scene(world, &scene, None) {
             Ok(result) => {
                 tracing::info!(
-                    "Loaded shadows map with {} entities",
-                    result.node_to_entity.len()
+                    "Loaded shadows scene with {} entities",
+                    result.uuid_to_entity.len()
                 );
             }
             Err(error) => {
-                tracing::error!("Failed to load shadows map: {}", error);
+                tracing::error!("Failed to load shadows scene: {}", error);
             }
         }
 

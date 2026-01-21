@@ -1,19 +1,25 @@
 use nightshade::ecs::camera::commands::spawn_camera;
 use nightshade::ecs::graphics::resources::Atmosphere;
-use nightshade::ecs::map::components::{
-    Map, MapCamera, MapLight, MapMaterial, MapNode, MeshInstance,
+use nightshade::ecs::scene::{
+    Scene, SceneCamera, SceneEntity, SceneInstancedMesh, SceneLight, SceneMaterial,
+    SceneMeshInstance, save_scene, spawn_scene,
 };
 use nightshade::ecs::script::components::{Script, ScriptSource};
 use nightshade::ecs::text::commands::spawn_hud_text_with_properties;
 use nightshade::ecs::text::components::{HudAnchor, TextAlignment, TextProperties};
 use nightshade::ecs::transform::LocalTransform;
 use nightshade::prelude::*;
+use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let map = create_block_breaker_map();
+    let mut scene = create_block_breaker_scene();
+
+    if let Err(error) = save_scene(&mut scene, Path::new("block_breaker_scripts.json")) {
+        tracing::error!("Failed to save scene: {}", error);
+    }
 
     launch(BlockBreakerScripts {
-        map: Some(map),
+        scene: Some(scene),
         score_text: None,
         lives_text: None,
         message_text: None,
@@ -24,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 struct BlockBreakerScripts {
-    map: Option<Map>,
+    scene: Option<Scene>,
     score_text: Option<Entity>,
     lives_text: Option<Entity>,
     message_text: Option<Entity>,
@@ -32,9 +38,9 @@ struct BlockBreakerScripts {
     combo_text: Option<Entity>,
 }
 
-fn create_block_breaker_map() -> Map {
-    let mut map = Map::new("Block Breaker Scripts");
-    map.atmosphere = Atmosphere::Nebula;
+fn create_block_breaker_scene() -> Scene {
+    let mut scene = Scene::new("Block Breaker Scripts");
+    scene.atmosphere = Atmosphere::Nebula;
 
     let camera_script = r#"
 let shake_time = if state.contains("shake_time") { state["shake_time"] } else { 0.0 };
@@ -50,27 +56,38 @@ if shake_time > 0.0 {
 }
 "#;
 
-    let camera_entity = map.add_root_node(MapNode::entity_with_script(
-        Some("Camera".to_string()),
-        LocalTransform {
+    let mut camera_parent = SceneEntity::new()
+        .with_name("Camera")
+        .with_transform(LocalTransform {
             translation: Vec3::new(0.0, 0.0, 18.0),
             ..Default::default()
+        })
+        .with_visible(true);
+    camera_parent.components.script = Some(Script {
+        source: ScriptSource::Embedded {
+            source: camera_script.to_string(),
         },
-        Script {
-            source: ScriptSource::Embedded {
-                source: camera_script.to_string(),
-            },
-            enabled: true,
-        },
-    ));
-    map.add_child_node(
-        camera_entity,
-        MapNode::camera(MapCamera::perspective(1.2, 0.01)),
+        enabled: true,
+    });
+    let camera_parent_uuid = camera_parent.uuid;
+    scene.add_entity(camera_parent);
+
+    scene.add_entity(
+        SceneEntity::new()
+            .with_name("Camera_Lens")
+            .with_camera(SceneCamera::Perspective {
+                aspect_ratio: None,
+                y_fov_rad: 1.2,
+                z_far: None,
+                z_near: 0.01,
+            })
+            .with_parent(camera_parent_uuid)
+            .with_visible(true),
     );
 
-    let sun_entity = map.add_root_node(MapNode::entity_full(
-        Some("Sun".to_string()),
-        LocalTransform {
+    let sun_entity = SceneEntity::new()
+        .with_name("Sun")
+        .with_transform(LocalTransform {
             translation: Vec3::new(5.0, 10.0, 5.0),
             rotation: nalgebra_glm::quat_angle_axis(
                 std::f32::consts::FRAC_PI_4,
@@ -80,51 +97,62 @@ if shake_time > 0.0 {
                 &Vec3::new(1.0, 0.0, 0.0),
             ),
             ..Default::default()
-        },
-    ));
-    map.add_child_node(
-        sun_entity,
-        MapNode::light(MapLight::directional([1.0, 0.95, 0.9], 3.0)),
+        })
+        .with_visible(true);
+    let sun_uuid = sun_entity.uuid;
+    scene.add_entity(sun_entity);
+
+    scene.add_entity(
+        SceneEntity::new()
+            .with_name("SunLight")
+            .with_light(SceneLight::Directional {
+                color: [1.0, 0.95, 0.9],
+                intensity: 3.0,
+                cast_shadows: false,
+                shadow_bias: 0.0,
+            })
+            .with_parent(sun_uuid)
+            .with_visible(true),
     );
 
-    let wall_material = MapMaterial {
+    let wall_material = SceneMaterial {
         base_color: [0.5, 0.5, 0.55, 1.0],
         roughness: 0.7,
         ..Default::default()
     };
 
     add_wall(
-        &mut map,
+        &mut scene,
         "Wall_Top",
         [0.0, 8.0, 0.0],
         [20.0, 0.5, 1.0],
         wall_material.clone(),
     );
     add_wall(
-        &mut map,
+        &mut scene,
         "Wall_Left",
         [-10.0, 0.0, 0.0],
         [0.5, 16.5, 1.0],
         wall_material.clone(),
     );
     add_wall(
-        &mut map,
+        &mut scene,
         "Wall_Right",
         [10.0, 0.0, 0.0],
         [0.5, 16.5, 1.0],
         wall_material.clone(),
     );
     add_wall(
-        &mut map,
+        &mut scene,
         "Wall_Bottom",
         [0.0, -8.0, 0.0],
         [20.0, 0.5, 1.0],
         wall_material,
     );
 
-    add_game_controller(&mut map);
-    add_paddle(&mut map);
-    add_ball(&mut map);
+    add_game_controller(&mut scene);
+    add_paddle(&mut scene);
+    add_ball(&mut scene);
 
     let brick_colors = [
         [1.0, 0.2, 0.2, 1.0],
@@ -139,14 +167,20 @@ if shake_time > 0.0 {
         for col in -8..=8 {
             let x = col as f32 * 1.05;
             let y = 6.0 - row as f32 * 1.05;
-            add_brick(&mut map, row, col, [x, y, 0.0], brick_colors[row as usize]);
+            add_brick(
+                &mut scene,
+                row,
+                col,
+                [x, y, 0.0],
+                brick_colors[row as usize],
+            );
         }
     }
 
-    map
+    scene
 }
 
-fn add_game_controller(map: &mut Map) {
+fn add_game_controller(scene: &mut Scene) {
     let controller_script = r#"
 if just_pressed_keys.contains("W") {
     let game_state = if state.contains("game_state") { state["game_state"] } else { 0.0 };
@@ -156,37 +190,43 @@ if just_pressed_keys.contains("W") {
 }
 "#;
 
-    map.add_root_node(MapNode::entity_with_script(
-        Some("GameController".to_string()),
-        LocalTransform::default(),
-        Script {
-            source: ScriptSource::Embedded {
-                source: controller_script.to_string(),
-            },
-            enabled: true,
+    let mut entity = SceneEntity::new()
+        .with_name("GameController")
+        .with_visible(true);
+    entity.components.script = Some(Script {
+        source: ScriptSource::Embedded {
+            source: controller_script.to_string(),
         },
-    ));
+        enabled: true,
+    });
+    scene.add_entity(entity);
 }
 
-fn add_wall(map: &mut Map, name: &str, position: [f32; 3], scale: [f32; 3], material: MapMaterial) {
-    let entity = map.add_root_node(MapNode::entity_full(
-        Some(name.to_string()),
-        LocalTransform {
+fn add_wall(
+    scene: &mut Scene,
+    name: &str,
+    position: [f32; 3],
+    scale: [f32; 3],
+    material: SceneMaterial,
+) {
+    let mut entity = SceneEntity::new()
+        .with_name(name)
+        .with_transform(LocalTransform {
             translation: Vec3::new(position[0], position[1], position[2]),
             ..Default::default()
-        },
-    ));
-    map.add_child_node(
-        entity,
-        MapNode::instanced_mesh_with_material(
+        })
+        .with_visible(true);
+    entity.components.instanced_mesh = Some(
+        SceneInstancedMesh::from_name(
             "Cube",
-            vec![MeshInstance::new([0.0, 0.0, 0.0]).with_scale(scale)],
-            material,
-        ),
+            vec![SceneMeshInstance::new([0.0, 0.0, 0.0]).with_scale(scale)],
+        )
+        .with_material(material),
     );
+    scene.add_entity(entity);
 }
 
-fn add_paddle(map: &mut Map) {
+fn add_paddle(scene: &mut Scene) {
     let paddle_script = r#"
 let game_state = if state.contains("game_state") { state["game_state"] } else { 0.0 };
 if game_state > 1.5 {
@@ -203,34 +243,34 @@ if pos_x > 8.0 { pos_x = 8.0; }
 state["paddle_x"] = pos_x;
 "#;
 
-    let entity = map.add_root_node(MapNode::entity_with_script(
-        Some("Paddle".to_string()),
-        LocalTransform {
+    let mut entity = SceneEntity::new()
+        .with_name("Paddle")
+        .with_transform(LocalTransform {
             translation: Vec3::new(0.0, -6.0, 0.0),
             ..Default::default()
+        })
+        .with_visible(true);
+    entity.components.script = Some(Script {
+        source: ScriptSource::Embedded {
+            source: paddle_script.to_string(),
         },
-        Script {
-            source: ScriptSource::Embedded {
-                source: paddle_script.to_string(),
-            },
-            enabled: true,
-        },
-    ));
-    map.add_child_node(
-        entity,
-        MapNode::instanced_mesh_with_material(
+        enabled: true,
+    });
+    entity.components.instanced_mesh = Some(
+        SceneInstancedMesh::from_name(
             "Cube",
-            vec![MeshInstance::new([0.0, 0.0, 0.0]).with_scale([3.0, 0.5, 0.5])],
-            MapMaterial {
-                base_color: [0.2, 0.6, 1.0, 1.0],
-                roughness: 0.3,
-                ..Default::default()
-            },
-        ),
+            vec![SceneMeshInstance::new([0.0, 0.0, 0.0]).with_scale([3.0, 0.5, 0.5])],
+        )
+        .with_material(SceneMaterial {
+            base_color: [0.2, 0.6, 1.0, 1.0],
+            roughness: 0.3,
+            ..Default::default()
+        }),
     );
+    scene.add_entity(entity);
 }
 
-fn add_ball(map: &mut Map) {
+fn add_ball(scene: &mut Scene) {
     let ball_script = r#"
 let game_state = if state.contains("game_state") { state["game_state"] } else { 0.0 };
 
@@ -320,34 +360,34 @@ state["ball_x"] = pos_x;
 state["ball_y"] = pos_y;
 "#;
 
-    let entity = map.add_root_node(MapNode::entity_with_script(
-        Some("Ball".to_string()),
-        LocalTransform {
+    let mut entity = SceneEntity::new()
+        .with_name("Ball")
+        .with_transform(LocalTransform {
             translation: Vec3::new(0.0, -5.0, 0.0),
             ..Default::default()
+        })
+        .with_visible(true);
+    entity.components.script = Some(Script {
+        source: ScriptSource::Embedded {
+            source: ball_script.to_string(),
         },
-        Script {
-            source: ScriptSource::Embedded {
-                source: ball_script.to_string(),
-            },
-            enabled: true,
-        },
-    ));
-    map.add_child_node(
-        entity,
-        MapNode::instanced_mesh_with_material(
+        enabled: true,
+    });
+    entity.components.instanced_mesh = Some(
+        SceneInstancedMesh::from_name(
             "Sphere",
-            vec![MeshInstance::new([0.0, 0.0, 0.0]).with_uniform_scale(0.4)],
-            MapMaterial {
-                base_color: [1.0, 1.0, 1.0, 1.0],
-                roughness: 0.2,
-                ..Default::default()
-            },
-        ),
+            vec![SceneMeshInstance::new([0.0, 0.0, 0.0]).with_uniform_scale(0.4)],
+        )
+        .with_material(SceneMaterial {
+            base_color: [1.0, 1.0, 1.0, 1.0],
+            roughness: 0.2,
+            ..Default::default()
+        }),
     );
+    scene.add_entity(entity);
 }
 
-fn add_brick(map: &mut Map, row: i32, col: i32, position: [f32; 3], color: [f32; 4]) {
+fn add_brick(scene: &mut Scene, row: i32, col: i32, position: [f32; 3], color: [f32; 4]) {
     let brick_script = r#"
 let game_state = if state.contains("game_state") { state["game_state"] } else { 0.0 };
 if game_state < 0.5 || game_state > 1.5 {
@@ -381,31 +421,31 @@ if abs_dx < 0.65 && abs_dy < 0.45 {
 }
 "#;
 
-    let entity = map.add_root_node(MapNode::entity_with_script(
-        Some(format!("Brick_{}_{}", row, col)),
-        LocalTransform {
+    let mut entity = SceneEntity::new()
+        .with_name(format!("Brick_{}_{}", row, col))
+        .with_transform(LocalTransform {
             translation: Vec3::new(position[0], position[1], position[2]),
             ..Default::default()
+        })
+        .with_visible(true);
+    entity.components.script = Some(Script {
+        source: ScriptSource::Embedded {
+            source: brick_script.to_string(),
         },
-        Script {
-            source: ScriptSource::Embedded {
-                source: brick_script.to_string(),
-            },
-            enabled: true,
-        },
-    ));
-    map.add_child_node(
-        entity,
-        MapNode::instanced_mesh_with_material(
+        enabled: true,
+    });
+    entity.components.instanced_mesh = Some(
+        SceneInstancedMesh::from_name(
             "Cube",
-            vec![MeshInstance::new([0.0, 0.0, 0.0]).with_scale([0.9, 0.4, 0.5])],
-            MapMaterial {
-                base_color: color,
-                roughness: 0.4,
-                ..Default::default()
-            },
-        ),
+            vec![SceneMeshInstance::new([0.0, 0.0, 0.0]).with_scale([0.9, 0.4, 0.5])],
+        )
+        .with_material(SceneMaterial {
+            base_color: color,
+            roughness: 0.4,
+            ..Default::default()
+        }),
     );
+    scene.add_entity(entity);
 }
 
 impl State for BlockBreakerScripts {
@@ -453,10 +493,10 @@ impl State for BlockBreakerScripts {
             .game_state
             .insert("ball_vy".to_string(), 6.0);
 
-        if let Some(map) = self.map.take() {
-            match spawn_map(world, &map) {
+        if let Some(scene) = self.scene.take() {
+            match spawn_scene(world, &scene, None) {
                 Ok(result) => {
-                    for &entity in result.node_to_entity.values() {
+                    for &entity in result.uuid_to_entity.values() {
                         if let Some(name) = world.get_name(entity)
                             && name.0 == "Camera"
                         {
@@ -464,10 +504,10 @@ impl State for BlockBreakerScripts {
                             break;
                         }
                     }
-                    println!("Loaded map with {} entities", result.node_to_entity.len());
+                    println!("Loaded scene with {} entities", result.uuid_to_entity.len());
                 }
                 Err(error) => {
-                    eprintln!("Failed to load map: {}", error);
+                    eprintln!("Failed to load scene: {}", error);
                     let camera =
                         spawn_camera(world, Vec3::new(0.0, 0.0, 18.0), "Camera".to_string());
                     world.resources.active_camera = Some(camera);

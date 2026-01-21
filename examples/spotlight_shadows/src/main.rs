@@ -1,7 +1,11 @@
+use std::path::Path;
+
 use nightshade::ecs::camera::commands::spawn_camera;
 use nightshade::ecs::camera::systems::fly_camera_system;
 use nightshade::ecs::light::components::{Light, LightType};
-use nightshade::ecs::map::{spawn_map, Map, MapLight, MapMaterial, MapNode, NodeIndex};
+use nightshade::ecs::scene::{
+    save_scene, spawn_scene, Scene, SceneEntity, SceneLight, SceneMaterial, SceneMesh,
+};
 use nightshade::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,50 +28,41 @@ freecs::ecs! {
     }
 }
 
-fn add_entity_with_mesh(
-    map: &mut Map,
-    parent: Option<NodeIndex>,
+fn create_mesh_entity(
     name: &str,
     transform: LocalTransform,
     mesh_name: &str,
-    material: MapMaterial,
-) -> NodeIndex {
-    let entity_node = MapNode::entity_full(Some(name.to_string()), transform);
-    let entity_index = if let Some(parent_idx) = parent {
-        map.add_child_node(parent_idx, entity_node)
-    } else {
-        map.add_root_node(entity_node)
-    };
-    map.add_child_node(
-        entity_index,
-        MapNode::mesh_full(mesh_name, Some(material), true, None, None),
-    );
-    entity_index
+    base_color: [f32; 4],
+    roughness: f32,
+    metallic: f32,
+) -> SceneEntity {
+    SceneEntity::new()
+        .with_name(name)
+        .with_transform(transform)
+        .with_mesh(
+            SceneMesh::from_name(mesh_name).with_material(SceneMaterial {
+                base_color,
+                roughness,
+                metallic,
+                ..Default::default()
+            }),
+        )
+        .with_casts_shadow(true)
+        .with_visible(true)
 }
 
-fn add_entity_with_light(
-    map: &mut Map,
-    parent: Option<NodeIndex>,
-    name: &str,
-    transform: LocalTransform,
-    light: MapLight,
-) -> NodeIndex {
-    let entity_node = MapNode::entity_full(Some(name.to_string()), transform);
-    let entity_index = if let Some(parent_idx) = parent {
-        map.add_child_node(parent_idx, entity_node)
-    } else {
-        map.add_root_node(entity_node)
-    };
-    map.add_child_node(entity_index, MapNode::light(light));
-    entity_index
+fn create_light_entity(name: &str, transform: LocalTransform, light: SceneLight) -> SceneEntity {
+    SceneEntity::new()
+        .with_name(name)
+        .with_transform(transform)
+        .with_light(light)
+        .with_visible(true)
 }
 
-fn create_spotlight_shadows_map() -> Map {
-    let mut map = Map::new("Spotlight Shadows Demo");
+fn create_spotlight_shadows_scene() -> Scene {
+    let mut scene = Scene::new("Spotlight Shadows Demo");
 
-    add_entity_with_mesh(
-        &mut map,
-        None,
+    scene.add_entity(create_mesh_entity(
         "Floor",
         LocalTransform {
             translation: Vec3::new(0.0, -1.0, 0.0),
@@ -75,17 +70,12 @@ fn create_spotlight_shadows_map() -> Map {
             scale: Vec3::new(40.0, 0.2, 40.0),
         },
         "Cube",
-        MapMaterial {
-            base_color: [0.3, 0.3, 0.35, 1.0],
-            roughness: 0.9,
-            metallic: 0.0,
-            ..Default::default()
-        },
-    );
+        [0.3, 0.3, 0.35, 1.0],
+        0.9,
+        0.0,
+    ));
 
-    add_entity_with_mesh(
-        &mut map,
-        None,
+    scene.add_entity(create_mesh_entity(
         "BackWall",
         LocalTransform {
             translation: Vec3::new(0.0, 4.0, -15.0),
@@ -93,13 +83,10 @@ fn create_spotlight_shadows_map() -> Map {
             scale: Vec3::new(40.0, 10.0, 0.2),
         },
         "Cube",
-        MapMaterial {
-            base_color: [0.4, 0.4, 0.45, 1.0],
-            roughness: 0.8,
-            metallic: 0.0,
-            ..Default::default()
-        },
-    );
+        [0.4, 0.4, 0.45, 1.0],
+        0.8,
+        0.0,
+    ));
 
     let pillar_positions = [
         ([-8.0, 2.5, -8.0], [0.7, 0.3, 0.3, 1.0]),
@@ -110,9 +97,7 @@ fn create_spotlight_shadows_map() -> Map {
     ];
 
     for (index, (pos, color)) in pillar_positions.iter().enumerate() {
-        add_entity_with_mesh(
-            &mut map,
-            None,
+        scene.add_entity(create_mesh_entity(
             &format!("Pillar_{}", index),
             LocalTransform {
                 translation: Vec3::new(pos[0], pos[1], pos[2]),
@@ -120,13 +105,10 @@ fn create_spotlight_shadows_map() -> Map {
                 scale: Vec3::new(1.0, 5.0, 1.0),
             },
             "Cube",
-            MapMaterial {
-                base_color: *color,
-                roughness: 0.5,
-                metallic: 0.1,
-                ..Default::default()
-            },
-        );
+            *color,
+            0.5,
+            0.1,
+        ));
     }
 
     let object_positions = [
@@ -144,9 +126,7 @@ fn create_spotlight_shadows_map() -> Map {
             Quat::identity()
         };
 
-        add_entity_with_mesh(
-            &mut map,
-            None,
+        scene.add_entity(create_mesh_entity(
             &format!("Object_{}", index),
             LocalTransform {
                 translation: Vec3::new(pos[0], pos[1], pos[2]),
@@ -154,13 +134,10 @@ fn create_spotlight_shadows_map() -> Map {
                 scale: Vec3::new(*scale, *scale, *scale),
             },
             mesh,
-            MapMaterial {
-                base_color: *color,
-                roughness: 0.4,
-                metallic: 0.2,
-                ..Default::default()
-            },
-        );
+            *color,
+            0.4,
+            0.2,
+        ));
     }
 
     let spotlight_configs = [
@@ -218,16 +195,14 @@ fn create_spotlight_shadows_map() -> Map {
         let rotation = nalgebra_glm::quat_angle_axis(yaw, &Vec3::y())
             * nalgebra_glm::quat_angle_axis(pitch, &Vec3::x());
 
-        add_entity_with_light(
-            &mut map,
-            None,
+        scene.add_entity(create_light_entity(
             name,
             LocalTransform {
                 translation: Vec3::new(pos[0], pos[1], pos[2]),
                 rotation,
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
-            MapLight::Spot {
+            SceneLight::Spot {
                 color,
                 intensity,
                 range: spotlight_range,
@@ -236,27 +211,25 @@ fn create_spotlight_shadows_map() -> Map {
                 cast_shadows,
                 shadow_bias: 0.0001,
             },
-        );
+        ));
     }
 
-    add_entity_with_light(
-        &mut map,
-        None,
+    scene.add_entity(create_light_entity(
         "AmbientFill",
         LocalTransform {
             translation: Vec3::new(0.0, 20.0, 0.0),
             rotation: nalgebra_glm::quat_angle_axis(-std::f32::consts::FRAC_PI_2, &Vec3::x_axis()),
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
-        MapLight::Directional {
+        SceneLight::Directional {
             color: [0.6, 0.6, 0.7],
             intensity: 1.0,
             cast_shadows: false,
             shadow_bias: 0.0,
         },
-    );
+    ));
 
-    map
+    scene
 }
 
 fn find_entities_starting_with(world: &World, prefix: &str) -> Vec<Entity> {
@@ -314,17 +287,21 @@ impl State for SpotlightShadowsDemo {
         self.resources.cube_entities = Vec::new();
         self.resources.flashlight_entity = None;
 
-        let map = create_spotlight_shadows_map();
+        let mut scene = create_spotlight_shadows_scene();
 
-        match spawn_map(world, &map) {
+        if let Err(error) = save_scene(&mut scene, Path::new("spotlight_shadows_demo.json")) {
+            tracing::error!("Failed to save scene: {}", error);
+        }
+
+        match spawn_scene(world, &scene, None) {
             Ok(result) => {
                 tracing::info!(
-                    "Loaded spotlight shadows map with {} entities",
-                    result.node_to_entity.len()
+                    "Loaded spotlight shadows scene with {} entities",
+                    result.uuid_to_entity.len()
                 );
             }
             Err(error) => {
-                tracing::error!("Failed to load spotlight shadows map: {}", error);
+                tracing::error!("Failed to load spotlight shadows scene: {}", error);
             }
         }
 

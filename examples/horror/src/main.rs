@@ -3,12 +3,14 @@ mod map_builder;
 mod state;
 mod systems;
 
+use std::path::Path;
+
 use constants::STANDING_CAMERA_HEIGHT;
-use map_builder::build_horror_map;
+use map_builder::build_horror_scene;
 use nightshade::ecs::audio::systems::load_sound_from_bytes;
 use nightshade::ecs::camera::components::Projection;
-use nightshade::ecs::map::spawn_map;
 use nightshade::ecs::physics::spawn_first_person_player;
+use nightshade::ecs::scene::{save_scene, spawn_scene};
 use nightshade::ecs::texture_loader::set_asset_search_paths;
 use nightshade::prelude::*;
 use state::HorrorDemo;
@@ -105,9 +107,14 @@ impl State for HorrorDemo {
 
         load_textures(world);
 
-        let map = build_horror_map();
-        if let Err(error) = spawn_map(world, &map) {
-            tracing::error!("Failed to spawn horror map: {}", error);
+        let mut scene = build_horror_scene();
+
+        if let Err(error) = save_scene(&mut scene, Path::new("horror_scene.json")) {
+            tracing::error!("Failed to save scene: {}", error);
+        }
+
+        if let Err(error) = spawn_scene(world, &scene, None) {
+            tracing::error!("Failed to spawn horror scene: {}", error);
         }
 
         spawn_doors(self, world);

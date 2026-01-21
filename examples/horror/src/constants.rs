@@ -5,13 +5,6 @@ pub const DOOR_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/
 pub const NOTE_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/note.png");
 pub const LEVER_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/lever.png");
 
-pub const ATMOSPHERE_AUDIO: &[u8] = include_bytes!("../../../assets/audio/horror/atmosphere.mp3");
-pub const GENERATOR_AUDIO: &[u8] = include_bytes!("../../../assets/audio/horror/generator.mp3");
-pub const RUBBLE_AUDIO: &[u8] = include_bytes!("../../../assets/audio/horror/rubble.mp3");
-pub const MONSTER_AUDIO: &[u8] = include_bytes!("../../../assets/audio/horror/monster.mp3");
-pub const FOOTSTEPS_AUDIO: &[u8] = include_bytes!("../../../assets/audio/horror/footsteps.mp3");
-pub const DOOR_CREAK_AUDIO: &[u8] = include_bytes!("../../../assets/audio/horror/door_creak.mp3");
-
 pub const GRAB_RANGE: f32 = 3.0;
 pub const INTERACT_RANGE: f32 = 2.5;
 pub const INTERACT_CONE_RADIUS: f32 = 40.0;

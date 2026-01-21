@@ -1,7 +1,8 @@
 use nightshade::ecs::camera::commands::spawn_camera;
 use nightshade::ecs::camera::systems::fly_camera_system;
 use nightshade::ecs::graphics::resources::Atmosphere;
-use nightshade::ecs::map::{Map, MapLight, MapMaterial, MapNode, MeshInstance, NodeIndex};
+use nightshade::ecs::map::{MapLight, MapMaterial, MeshInstance};
+use nightshade::ecs::world::commands::despawn_recursive_immediate;
 use nightshade::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -19,7 +20,7 @@ freecs::ecs! {
     MapDemoResources {
         maps: Vec<Map>,
         current_map_index: usize,
-        spawned_entities: Vec<Entity>,
+        root_entities: Vec<Entity>,
     }
 }
 
@@ -690,19 +691,14 @@ fn create_sprawling_world_map() -> Map {
     map
 }
 
-fn clear_spawned_entities(world: &mut World, entities: &mut Vec<Entity>) {
-    for entity in entities.drain(..) {
-        world.queue_command(WorldCommand::DespawnRecursive { entity });
-    }
-}
-
-fn load_map_into_world(world: &mut World, map: &Map, spawned_entities: &mut Vec<Entity>) {
+fn load_map_into_world(world: &mut World, map: &Map, root_entities: &mut Vec<Entity>) {
     match spawn_map(world, map) {
         Ok(result) => {
-            spawned_entities.extend(result.node_to_entity.values());
+            root_entities.extend(result.root_entities.iter().copied());
             tracing::info!(
-                "Loaded map '{}' with {} entities",
+                "Loaded map '{}' with {} root entities ({} total nodes)",
                 map.name,
+                result.root_entities.len(),
                 result.node_to_entity.len()
             );
         }
@@ -710,6 +706,13 @@ fn load_map_into_world(world: &mut World, map: &Map, spawned_entities: &mut Vec<
             tracing::error!("Failed to load map '{}': {}", map.name, error);
         }
     }
+}
+
+fn clear_map(world: &mut World, root_entities: &mut Vec<Entity>) {
+    for entity in root_entities.drain(..) {
+        despawn_recursive_immediate(world, entity);
+    }
+    world.resources.mesh_render_state.request_full_rebuild();
 }
 
 impl State for MapDemo {
@@ -722,14 +725,13 @@ impl State for MapDemo {
             create_sprawling_world_map(),
         ];
         self.resources.current_map_index = 0;
-        self.resources.spawned_entities = Vec::new();
 
         let camera_position = Vec3::new(0.0, 20.0, 40.0);
         let camera = spawn_camera(world, camera_position, "Main Camera".to_string());
         world.resources.active_camera = Some(camera);
 
         if let Some(map) = self.resources.maps.first() {
-            load_map_into_world(world, map, &mut self.resources.spawned_entities);
+            load_map_into_world(world, map, &mut self.resources.root_entities);
         }
     }
 
@@ -739,40 +741,58 @@ impl State for MapDemo {
     }
 
     fn ui(&mut self, world: &mut World, ctx: &egui::Context) {
-        egui::Window::new("Map Demo")
+        let current_index = self.resources.current_map_index;
+        let map_names: Vec<String> = self.resources.maps.iter().map(|m| m.name.clone()).collect();
+        let root_count = self.resources.root_entities.len();
+        let map_info = self.resources.maps.get(current_index).map(|map| {
+            (
+                map.prefabs.len(),
+                map.root_nodes().len(),
+                map.graph.node_count(),
+            )
+        });
+
+        let clicked_index = egui::Window::new("Map Demo")
             .default_pos([10.0, 10.0])
             .show(ctx, |ui| {
                 ui.heading("Available Maps");
                 ui.separator();
 
-                let current_index = self.resources.current_map_index;
+                let mut result: Option<usize> = None;
 
-                for (index, map) in self.resources.maps.iter().enumerate() {
+                for (index, name) in map_names.iter().enumerate() {
                     let is_selected = index == current_index;
                     let button_text = if is_selected {
-                        format!("* {} (loaded)", map.name)
+                        format!("* {} (loaded)", name)
                     } else {
-                        map.name.clone()
+                        name.clone()
                     };
 
                     if ui.button(&button_text).clicked() && !is_selected {
-                        clear_spawned_entities(world, &mut self.resources.spawned_entities);
-                        load_map_into_world(world, map, &mut self.resources.spawned_entities);
-                        self.resources.current_map_index = index;
+                        result = Some(index);
                     }
                 }
 
                 ui.separator();
-                ui.label(format!(
-                    "Spawned entities: {}",
-                    self.resources.spawned_entities.len()
-                ));
+                ui.label(format!("Root entities: {}", root_count));
 
-                if let Some(map) = self.resources.maps.get(current_index) {
-                    ui.label(format!("Prefabs in map: {}", map.prefabs.len()));
-                    ui.label(format!("Root nodes: {}", map.root_nodes().len()));
-                    ui.label(format!("Total nodes: {}", map.graph.node_count()));
+                if let Some((prefabs, roots, total)) = map_info {
+                    ui.label(format!("Prefabs in map: {}", prefabs));
+                    ui.label(format!("Root nodes: {}", roots));
+                    ui.label(format!("Total nodes: {}", total));
                 }
-            });
+
+                result
+            })
+            .and_then(|response| response.inner)
+            .flatten();
+
+        if let Some(new_index) = clicked_index {
+            clear_map(world, &mut self.resources.root_entities);
+            if let Some(map) = self.resources.maps.get(new_index) {
+                load_map_into_world(world, map, &mut self.resources.root_entities);
+            }
+            self.resources.current_map_index = new_index;
+        }
     }
 }

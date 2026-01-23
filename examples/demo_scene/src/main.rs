@@ -1,0 +1,4094 @@
+use nightshade::ecs::audio::systems::load_sound_from_bytes;
+use nightshade::ecs::material::material_registry_insert;
+use nightshade::prelude::*;
+use rand::Rng;
+use rustfft::{FftPlanner, num_complex::Complex};
+use std::path::PathBuf;
+use std::process::Command;
+use std::sync::{Arc, RwLock};
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsCast;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_futures::spawn_local;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    launch(DemoSceneState::default())
+}
+
+struct AudioAnalyzer {
+    samples: Vec<f32>,
+    sample_rate: u32,
+    fft_size: usize,
+    total_duration: f32,
+
+    sub_bass: f32,
+    bass: f32,
+    low_mids: f32,
+    mids: f32,
+    high_mids: f32,
+    highs: f32,
+
+    smoothed_sub_bass: f32,
+    smoothed_bass: f32,
+    smoothed_low_mids: f32,
+    smoothed_mids: f32,
+    smoothed_high_mids: f32,
+    smoothed_highs: f32,
+
+    current_spectrum: Vec<f32>,
+    prev_spectrum: Vec<f32>,
+    spectral_flux: f32,
+    spectral_flux_history: Vec<f32>,
+    flux_history_index: usize,
+
+    onset_detected: bool,
+    onset_decay: f32,
+    kick_decay: f32,
+    snare_decay: f32,
+    hat_decay: f32,
+
+    energy_history: Vec<f32>,
+    energy_history_index: usize,
+    average_energy: f32,
+    long_term_energy: f32,
+    intensity: f32,
+
+    fft_buffer: Vec<Complex<f32>>,
+    last_analysis_time: f32,
+
+    spectral_centroid: f32,
+    spectral_flatness: f32,
+    spectral_rolloff: f32,
+    smoothed_centroid: f32,
+    smoothed_flatness: f32,
+    smoothed_rolloff: f32,
+
+    is_breakdown: bool,
+    breakdown_intensity: f32,
+
+    kaleidoscope_blend: f32,
+
+    transient_energy: f32,
+    sustained_energy: f32,
+    transient_ratio: f32,
+
+    onset_times: Vec<f32>,
+    onset_times_index: usize,
+    estimated_bpm: f32,
+    beat_phase: f32,
+    time_since_last_beat: f32,
+    beat_confidence: f32,
+
+    section_energy_short: f32,
+    section_energy_long: f32,
+    is_building: bool,
+    is_dropping: bool,
+    drop_intensity: f32,
+    build_intensity: f32,
+
+    prev_low_energy: f32,
+    prev_mid_energy: f32,
+    prev_high_energy: f32,
+    low_transient: f32,
+    mid_transient: f32,
+    high_transient: f32,
+
+    harmonic_change: f32,
+    prev_spectral_centroid: f32,
+    brightness_delta: f32,
+
+    groove_sync: f32,
+    pocket_tightness: f32,
+}
+
+const ENERGY_HISTORY_SIZE: usize = 90;
+const FLUX_HISTORY_SIZE: usize = 20;
+const SPECTRUM_BINS: usize = 256;
+const FFT_SIZE: usize = 4096;
+const ONSET_HISTORY_SIZE: usize = 512;
+
+impl Default for AudioAnalyzer {
+    fn default() -> Self {
+        Self {
+            samples: Vec::new(),
+            sample_rate: 44100,
+            fft_size: FFT_SIZE,
+            total_duration: 0.0,
+
+            sub_bass: 0.0,
+            bass: 0.0,
+            low_mids: 0.0,
+            mids: 0.0,
+            high_mids: 0.0,
+            highs: 0.0,
+
+            smoothed_sub_bass: 0.0,
+            smoothed_bass: 0.0,
+            smoothed_low_mids: 0.0,
+            smoothed_mids: 0.0,
+            smoothed_high_mids: 0.0,
+            smoothed_highs: 0.0,
+
+            current_spectrum: vec![0.0; SPECTRUM_BINS],
+            prev_spectrum: vec![0.0; SPECTRUM_BINS],
+            spectral_flux: 0.0,
+            spectral_flux_history: vec![0.0; FLUX_HISTORY_SIZE],
+            flux_history_index: 0,
+
+            onset_detected: false,
+            onset_decay: 0.0,
+            kick_decay: 0.0,
+            snare_decay: 0.0,
+            hat_decay: 0.0,
+
+            energy_history: vec![0.0; ENERGY_HISTORY_SIZE],
+            energy_history_index: 0,
+            average_energy: 0.0,
+            long_term_energy: 0.0,
+            intensity: 0.0,
+
+            fft_buffer: vec![Complex::new(0.0, 0.0); FFT_SIZE],
+            last_analysis_time: -1.0,
+
+            spectral_centroid: 0.0,
+            spectral_flatness: 0.0,
+            spectral_rolloff: 0.0,
+            smoothed_centroid: 0.0,
+            smoothed_flatness: 0.0,
+            smoothed_rolloff: 0.0,
+
+            is_breakdown: false,
+            breakdown_intensity: 0.0,
+
+            kaleidoscope_blend: 0.0,
+
+            transient_energy: 0.0,
+            sustained_energy: 0.0,
+            transient_ratio: 0.0,
+
+            onset_times: vec![0.0; ONSET_HISTORY_SIZE],
+            onset_times_index: 0,
+            estimated_bpm: 120.0,
+            beat_phase: 0.0,
+            time_since_last_beat: 0.0,
+            beat_confidence: 0.0,
+
+            section_energy_short: 0.0,
+            section_energy_long: 0.0,
+            is_building: false,
+            is_dropping: false,
+            drop_intensity: 0.0,
+            build_intensity: 0.0,
+
+            prev_low_energy: 0.0,
+            prev_mid_energy: 0.0,
+            prev_high_energy: 0.0,
+            low_transient: 0.0,
+            mid_transient: 0.0,
+            high_transient: 0.0,
+
+            harmonic_change: 0.0,
+            prev_spectral_centroid: 0.0,
+            brightness_delta: 0.0,
+
+            groove_sync: 0.0,
+            pocket_tightness: 0.5,
+        }
+    }
+}
+
+impl AudioAnalyzer {
+    fn reset(&mut self) {
+        self.sub_bass = 0.0;
+        self.bass = 0.0;
+        self.low_mids = 0.0;
+        self.mids = 0.0;
+        self.high_mids = 0.0;
+        self.highs = 0.0;
+
+        self.smoothed_sub_bass = 0.0;
+        self.smoothed_bass = 0.0;
+        self.smoothed_low_mids = 0.0;
+        self.smoothed_mids = 0.0;
+        self.smoothed_high_mids = 0.0;
+        self.smoothed_highs = 0.0;
+
+        self.current_spectrum.fill(0.0);
+        self.prev_spectrum.fill(0.0);
+        self.spectral_flux = 0.0;
+        self.spectral_flux_history.fill(0.0);
+        self.flux_history_index = 0;
+
+        self.onset_detected = false;
+        self.onset_decay = 0.0;
+        self.kick_decay = 0.0;
+        self.snare_decay = 0.0;
+        self.hat_decay = 0.0;
+
+        self.energy_history.fill(0.0);
+        self.energy_history_index = 0;
+        self.average_energy = 0.0;
+        self.long_term_energy = 0.0;
+        self.intensity = 0.0;
+
+        self.last_analysis_time = -1.0;
+
+        self.spectral_centroid = 0.0;
+        self.spectral_flatness = 0.0;
+        self.spectral_rolloff = 0.0;
+        self.smoothed_centroid = 0.0;
+        self.smoothed_flatness = 0.0;
+        self.smoothed_rolloff = 0.0;
+
+        self.is_breakdown = false;
+        self.breakdown_intensity = 0.0;
+
+        self.kaleidoscope_blend = 0.0;
+
+        self.transient_energy = 0.0;
+        self.sustained_energy = 0.0;
+        self.transient_ratio = 0.0;
+
+        self.onset_times.fill(0.0);
+        self.onset_times_index = 0;
+        self.estimated_bpm = 120.0;
+        self.beat_phase = 0.0;
+        self.time_since_last_beat = 0.0;
+        self.beat_confidence = 0.0;
+
+        self.section_energy_short = 0.0;
+        self.section_energy_long = 0.0;
+        self.is_building = false;
+        self.is_dropping = false;
+        self.drop_intensity = 0.0;
+        self.build_intensity = 0.0;
+
+        self.prev_low_energy = 0.0;
+        self.prev_mid_energy = 0.0;
+        self.prev_high_energy = 0.0;
+        self.low_transient = 0.0;
+        self.mid_transient = 0.0;
+        self.high_transient = 0.0;
+
+        self.harmonic_change = 0.0;
+        self.prev_spectral_centroid = 0.0;
+        self.brightness_delta = 0.0;
+
+        self.groove_sync = 0.0;
+        self.pocket_tightness = 0.5;
+    }
+}
+
+impl AudioAnalyzer {
+    fn load_audio_file(&mut self, path: &PathBuf) -> Result<Vec<u8>, String> {
+        use symphonia::core::audio::SampleBuffer;
+        use symphonia::core::codecs::DecoderOptions;
+        use symphonia::core::formats::FormatOptions;
+        use symphonia::core::io::MediaSourceStream;
+        use symphonia::core::meta::MetadataOptions;
+        use symphonia::core::probe::Hint;
+
+        let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+        let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+        let hint = Hint::new();
+        let format_opts = FormatOptions::default();
+        let metadata_opts = MetadataOptions::default();
+        let decoder_opts = DecoderOptions::default();
+
+        let probed = symphonia::default::get_probe()
+            .format(&hint, mss, &format_opts, &metadata_opts)
+            .map_err(|e| e.to_string())?;
+
+        let mut format = probed.format;
+        let track = format.default_track().ok_or("No default track")?;
+        let track_id = track.id;
+        self.sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
+
+        let mut decoder = symphonia::default::get_codecs()
+            .make(&track.codec_params, &decoder_opts)
+            .map_err(|e| e.to_string())?;
+
+        let mut all_samples: Vec<f32> = Vec::new();
+
+        while let Ok(packet) = format.next_packet() {
+            if packet.track_id() != track_id {
+                continue;
+            }
+
+            let Ok(decoded) = decoder.decode(&packet) else {
+                continue;
+            };
+
+            let spec = *decoded.spec();
+            let duration = decoded.capacity() as u64;
+
+            let mut sample_buf = SampleBuffer::<f32>::new(duration, spec);
+            sample_buf.copy_interleaved_ref(decoded);
+
+            let samples = sample_buf.samples();
+            let channels = spec.channels.count();
+
+            for chunk in samples.chunks(channels) {
+                let mono: f32 = chunk.iter().sum::<f32>() / channels as f32;
+                all_samples.push(mono);
+            }
+        }
+
+        self.samples = all_samples;
+        self.total_duration = self.samples.len() as f32 / self.sample_rate as f32;
+        self.reset();
+
+        let audio_bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        Ok(audio_bytes)
+    }
+
+    fn song_progress(&self, time_seconds: f32) -> f32 {
+        if self.total_duration > 0.0 {
+            (time_seconds / self.total_duration).clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+
+    fn analyze_at_time(&mut self, time_seconds: f32) {
+        if self.samples.is_empty() {
+            return;
+        }
+
+        let sample_position = (time_seconds * self.sample_rate as f32) as usize;
+        if sample_position + self.fft_size > self.samples.len() {
+            return;
+        }
+
+        let delta_time = time_seconds - self.last_analysis_time;
+        if delta_time.abs() < 0.008 {
+            return;
+        }
+        self.last_analysis_time = time_seconds;
+
+        let pi = std::f32::consts::PI;
+        for (fft_index, fft_sample) in self.fft_buffer.iter_mut().enumerate() {
+            let sample = self.samples[sample_position + fft_index];
+            let window = 0.5 - 0.5 * (2.0 * pi * fft_index as f32 / self.fft_size as f32).cos();
+            *fft_sample = Complex::new(sample * window, 0.0);
+        }
+
+        let mut planner = FftPlanner::new();
+        let fft = planner.plan_fft_forward(self.fft_size);
+        fft.process(&mut self.fft_buffer);
+
+        let freq_resolution = self.sample_rate as f32 / self.fft_size as f32;
+        let half_fft = self.fft_size / 2;
+
+        let sub_bass_start = (20.0 / freq_resolution) as usize;
+        let sub_bass_end = (60.0 / freq_resolution) as usize;
+        let bass_end = (250.0 / freq_resolution) as usize;
+        let low_mids_end = (500.0 / freq_resolution) as usize;
+        let mids_end = (2000.0 / freq_resolution) as usize;
+        let high_mids_end = (4000.0 / freq_resolution) as usize;
+        let highs_end = (12000.0 / freq_resolution) as usize;
+
+        let band_rms = |buffer: &[Complex<f32>], start: usize, end: usize| -> f32 {
+            let start = start.max(1).min(half_fft);
+            let end = end.min(half_fft);
+            if start >= end {
+                return 0.0;
+            }
+            let sum: f32 = buffer[start..end].iter().map(|c| c.norm_sqr()).sum();
+            (sum / (end - start) as f32).sqrt() / FFT_SIZE as f32
+        };
+
+        let raw_sub_bass = band_rms(&self.fft_buffer, sub_bass_start, sub_bass_end);
+        let raw_bass = band_rms(&self.fft_buffer, sub_bass_end, bass_end);
+        let raw_low_mids = band_rms(&self.fft_buffer, bass_end, low_mids_end);
+        let raw_mids = band_rms(&self.fft_buffer, low_mids_end, mids_end);
+        let raw_high_mids = band_rms(&self.fft_buffer, mids_end, high_mids_end);
+        let raw_highs = band_rms(&self.fft_buffer, high_mids_end, highs_end);
+
+        let to_normalized = |amplitude: f32, floor: f32, ceiling: f32| -> f32 {
+            let db = 20.0 * (amplitude + 1e-10).log10();
+            ((db - floor) / (ceiling - floor)).clamp(0.0, 1.0)
+        };
+
+        self.sub_bass = to_normalized(raw_sub_bass, -75.0, -25.0);
+        self.bass = to_normalized(raw_bass, -70.0, -25.0);
+        self.low_mids = to_normalized(raw_low_mids, -65.0, -25.0);
+        self.mids = to_normalized(raw_mids, -60.0, -20.0);
+        self.high_mids = to_normalized(raw_high_mids, -60.0, -20.0);
+        self.highs = to_normalized(raw_highs, -65.0, -25.0);
+
+        let attack = 0.4;
+        let release = 0.08;
+
+        let smooth = |current: f32, target: f32| -> f32 {
+            let factor = if target > current { attack } else { release };
+            current + (target - current) * factor
+        };
+
+        self.smoothed_sub_bass = smooth(self.smoothed_sub_bass, self.sub_bass);
+        self.smoothed_bass = smooth(self.smoothed_bass, self.bass);
+        self.smoothed_low_mids = smooth(self.smoothed_low_mids, self.low_mids);
+        self.smoothed_mids = smooth(self.smoothed_mids, self.mids);
+        self.smoothed_high_mids = smooth(self.smoothed_high_mids, self.high_mids);
+        self.smoothed_highs = smooth(self.smoothed_highs, self.highs);
+
+        let mut weighted_freq_sum = 0.0_f32;
+        let mut magnitude_sum = 0.0_f32;
+        let mut geometric_sum = 0.0_f32;
+        let mut arithmetic_sum = 0.0_f32;
+        let mut cumulative_energy = 0.0_f32;
+        let total_energy_target = {
+            let mut total = 0.0_f32;
+            for bin_index in 1..half_fft {
+                total += self.fft_buffer[bin_index].norm_sqr();
+            }
+            total * 0.85
+        };
+        let mut rolloff_bin = half_fft;
+
+        for bin_index in 1..half_fft {
+            let magnitude = self.fft_buffer[bin_index].norm();
+            let frequency = bin_index as f32 * freq_resolution;
+
+            weighted_freq_sum += frequency * magnitude;
+            magnitude_sum += magnitude;
+
+            if magnitude > 1e-10 {
+                geometric_sum += magnitude.ln();
+            }
+            arithmetic_sum += magnitude;
+
+            cumulative_energy += self.fft_buffer[bin_index].norm_sqr();
+            if cumulative_energy < total_energy_target {
+                rolloff_bin = bin_index;
+            }
+        }
+
+        let bin_count = (half_fft - 1) as f32;
+        self.spectral_centroid = if magnitude_sum > 1e-10 {
+            (weighted_freq_sum / magnitude_sum) / (self.sample_rate as f32 / 2.0)
+        } else {
+            0.0
+        };
+
+        let geometric_mean = (geometric_sum / bin_count).exp();
+        let arithmetic_mean = arithmetic_sum / bin_count;
+        self.spectral_flatness = if arithmetic_mean > 1e-10 {
+            (geometric_mean / arithmetic_mean).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+
+        self.spectral_rolloff = rolloff_bin as f32 / half_fft as f32;
+
+        self.smoothed_centroid = self.smoothed_centroid * 0.85 + self.spectral_centroid * 0.15;
+        self.smoothed_flatness = self.smoothed_flatness * 0.9 + self.spectral_flatness * 0.1;
+
+        self.brightness_delta = self.spectral_centroid - self.prev_spectral_centroid;
+        self.prev_spectral_centroid = self.spectral_centroid;
+
+        let num_bins = SPECTRUM_BINS.min(half_fft);
+        let bins_per_band = (half_fft / num_bins).max(1);
+
+        for spectrum_index in 0..num_bins {
+            let start = spectrum_index * bins_per_band + 1;
+            let end = (start + bins_per_band).min(half_fft);
+            let sum: f32 = self.fft_buffer[start..end].iter().map(|c| c.norm()).sum();
+            self.current_spectrum[spectrum_index] = sum / bins_per_band as f32;
+        }
+
+        let kick_end = num_bins / 8;
+        let mut kick_flux = 0.0_f32;
+        for spectrum_index in 0..kick_end {
+            let diff = self.current_spectrum[spectrum_index] - self.prev_spectrum[spectrum_index];
+            if diff > 0.0 {
+                kick_flux += diff;
+            }
+        }
+
+        let snare_start = num_bins / 6;
+        let snare_end = num_bins / 2;
+        let mut snare_flux = 0.0_f32;
+        for spectrum_index in snare_start..snare_end {
+            let diff = self.current_spectrum[spectrum_index] - self.prev_spectrum[spectrum_index];
+            if diff > 0.0 {
+                snare_flux += diff;
+            }
+        }
+
+        let hat_flux_start = (num_bins as f32 * 0.6) as usize;
+        let hat_flux_end = num_bins;
+        let mut hat_flux = 0.0_f32;
+        for spectrum_index in hat_flux_start..hat_flux_end {
+            let diff = self.current_spectrum[spectrum_index] - self.prev_spectrum[spectrum_index];
+            if diff > 0.0 {
+                hat_flux += diff;
+            }
+        }
+
+        let mut total_flux = 0.0_f32;
+        for spectrum_index in 0..num_bins {
+            let diff = self.current_spectrum[spectrum_index] - self.prev_spectrum[spectrum_index];
+            if diff > 0.0 {
+                total_flux += diff;
+            }
+        }
+        self.spectral_flux = total_flux / num_bins as f32;
+
+        std::mem::swap(&mut self.current_spectrum, &mut self.prev_spectrum);
+
+        let low_energy = self.smoothed_sub_bass + self.smoothed_bass;
+        let mid_energy = self.smoothed_low_mids + self.smoothed_mids;
+        let high_energy = self.smoothed_high_mids + self.smoothed_highs;
+
+        self.low_transient = ((low_energy - self.prev_low_energy).max(0.0) * 2.5).min(1.0);
+        self.mid_transient = ((mid_energy - self.prev_mid_energy).max(0.0) * 2.5).min(1.0);
+        self.high_transient = ((high_energy - self.prev_high_energy).max(0.0) * 2.5).min(1.0);
+
+        self.prev_low_energy = low_energy;
+        self.prev_mid_energy = mid_energy;
+        self.prev_high_energy = high_energy;
+
+        let instant_transient =
+            (self.low_transient + self.mid_transient + self.high_transient) / 3.0;
+        self.transient_energy = self.transient_energy * 0.75 + instant_transient * 0.25;
+
+        let instant_sustained = (low_energy + mid_energy + high_energy) / 6.0;
+        self.sustained_energy = self.sustained_energy * 0.97 + instant_sustained * 0.03;
+
+        self.transient_ratio = if self.sustained_energy > 0.02 {
+            (self.transient_energy / self.sustained_energy).clamp(0.0, 2.0)
+        } else {
+            0.0
+        };
+
+        self.spectral_flux_history[self.flux_history_index] = self.spectral_flux;
+        self.flux_history_index = (self.flux_history_index + 1) % FLUX_HISTORY_SIZE;
+
+        let flux_mean: f32 =
+            self.spectral_flux_history.iter().sum::<f32>() / FLUX_HISTORY_SIZE as f32;
+        let flux_variance: f32 = self
+            .spectral_flux_history
+            .iter()
+            .map(|f| (f - flux_mean).powi(2))
+            .sum::<f32>()
+            / FLUX_HISTORY_SIZE as f32;
+        let flux_std = flux_variance.sqrt();
+        let flux_threshold = flux_mean + flux_std * 1.5;
+
+        let onset_triggered = self.spectral_flux > flux_threshold && self.spectral_flux > 0.004;
+
+        if onset_triggered && self.onset_decay < 0.3 {
+            self.onset_detected = true;
+            self.onset_decay = 1.0;
+
+            self.onset_times[self.onset_times_index] = time_seconds;
+            self.onset_times_index = (self.onset_times_index + 1) % ONSET_HISTORY_SIZE;
+
+            self.update_tempo_estimation();
+        } else {
+            self.onset_detected = false;
+            self.onset_decay *= 0.88;
+        }
+
+        let kick_threshold = 0.02 + self.long_term_energy * 0.025;
+        let kick_triggered =
+            kick_flux > kick_threshold && self.smoothed_sub_bass > 0.3 && self.low_transient > 0.2;
+        if kick_triggered && self.kick_decay < 0.2 {
+            self.kick_decay = 1.0;
+            self.time_since_last_beat = 0.0;
+        } else {
+            self.kick_decay *= 0.88;
+        }
+
+        let snare_threshold = 0.015 + self.long_term_energy * 0.02;
+        let snare_triggered =
+            snare_flux > snare_threshold && self.smoothed_mids > 0.25 && self.mid_transient > 0.15;
+        if snare_triggered && self.snare_decay < 0.2 {
+            self.snare_decay = 1.0;
+        } else {
+            self.snare_decay *= 0.84;
+        }
+
+        let hat_threshold = 0.012 + self.long_term_energy * 0.015;
+        let hat_triggered =
+            hat_flux > hat_threshold && self.smoothed_highs > 0.2 && self.high_transient > 0.12;
+        if hat_triggered && self.hat_decay < 0.15 {
+            self.hat_decay = 1.0;
+        } else {
+            self.hat_decay *= 0.8;
+        }
+
+        self.time_since_last_beat += delta_time.max(0.0);
+
+        if self.estimated_bpm > 0.0 {
+            let beat_period = 60.0 / self.estimated_bpm;
+            self.beat_phase = (self.time_since_last_beat % beat_period) / beat_period;
+            self.groove_sync = 1.0 - (self.beat_phase * 2.0 - 1.0).abs();
+        }
+
+        let current_energy = self.smoothed_sub_bass * 0.15
+            + self.smoothed_bass * 0.25
+            + self.smoothed_low_mids * 0.2
+            + self.smoothed_mids * 0.2
+            + self.smoothed_high_mids * 0.12
+            + self.smoothed_highs * 0.08;
+
+        self.energy_history[self.energy_history_index] = current_energy;
+        self.energy_history_index = (self.energy_history_index + 1) % ENERGY_HISTORY_SIZE;
+
+        self.average_energy = self.energy_history.iter().sum::<f32>() / ENERGY_HISTORY_SIZE as f32;
+
+        self.long_term_energy = self.long_term_energy * 0.995 + current_energy * 0.005;
+
+        self.intensity = if self.long_term_energy > 0.02 {
+            (current_energy / (self.long_term_energy * 1.8)).clamp(0.0, 2.0)
+        } else {
+            current_energy * 0.5
+        };
+
+        self.section_energy_short = self.section_energy_short * 0.94 + current_energy * 0.06;
+        self.section_energy_long = self.section_energy_long * 0.997 + current_energy * 0.003;
+
+        let energy_ratio = if self.section_energy_long > 0.02 {
+            self.section_energy_short / self.section_energy_long
+        } else {
+            1.0
+        };
+
+        let prev_building = self.is_building;
+        let prev_dropping = self.is_dropping;
+        let prev_breakdown = self.is_breakdown;
+
+        self.is_building = energy_ratio > 1.2 && current_energy > self.average_energy * 0.8;
+
+        let drop_kick_recent = self.kick_decay > 0.5;
+        self.is_dropping = energy_ratio > 1.5 && drop_kick_recent && self.smoothed_bass > 0.4;
+
+        self.is_breakdown = energy_ratio < 0.6 && current_energy < self.long_term_energy * 0.5;
+
+        if self.is_building && !prev_building {
+            self.build_intensity = 0.0;
+        }
+        if self.is_building {
+            self.build_intensity = (self.build_intensity + 0.015).min(1.0);
+        } else {
+            self.build_intensity *= 0.96;
+        }
+
+        if self.is_dropping && !prev_dropping {
+            self.drop_intensity = 1.0;
+        } else {
+            self.drop_intensity *= 0.98;
+        }
+
+        if self.is_breakdown && !prev_breakdown {
+            self.breakdown_intensity = 1.0;
+        } else if self.is_breakdown {
+            self.breakdown_intensity = (self.breakdown_intensity * 0.99).max(0.3);
+        } else {
+            self.breakdown_intensity *= 0.92;
+        }
+
+        self.smoothed_rolloff = self.smoothed_rolloff * 0.9 + self.spectral_rolloff * 0.1;
+
+        self.harmonic_change = (self.brightness_delta.abs() * 3.0
+            + (self.spectral_flatness - self.smoothed_flatness).abs() * 2.0)
+            .clamp(0.0, 1.0);
+
+        let expected_beat_variance = if self.estimated_bpm > 0.0 {
+            let beat_period = 60.0 / self.estimated_bpm;
+            let normalized_time = self.time_since_last_beat / beat_period;
+            let phase_error = (normalized_time.fract() - 0.5).abs();
+            1.0 - phase_error * 2.0
+        } else {
+            0.5
+        };
+        self.pocket_tightness = self.pocket_tightness * 0.95 + expected_beat_variance * 0.05;
+
+        self.kaleidoscope_blend *= 0.95;
+    }
+
+    fn update_tempo_estimation(&mut self) {
+        let mut valid_intervals = Vec::new();
+        let min_interval = 60.0 / 200.0;
+        let max_interval = 1.0;
+
+        for index in 0..ONSET_HISTORY_SIZE {
+            let current_time = self.onset_times[index];
+            if current_time <= 0.0 {
+                continue;
+            }
+
+            for other_index in (index + 1)..ONSET_HISTORY_SIZE {
+                let other_time = self.onset_times[other_index];
+                if other_time <= 0.0 {
+                    continue;
+                }
+
+                let interval = (other_time - current_time).abs();
+                if interval >= min_interval && interval <= max_interval {
+                    valid_intervals.push(interval);
+                }
+
+                let half_interval = interval / 2.0;
+                if half_interval >= min_interval && half_interval <= max_interval {
+                    valid_intervals.push(half_interval);
+                }
+
+                let double_interval = interval * 2.0;
+                if double_interval >= min_interval && double_interval <= max_interval {
+                    valid_intervals.push(double_interval);
+                }
+            }
+        }
+
+        if valid_intervals.len() < 4 {
+            return;
+        }
+
+        valid_intervals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+        let mut best_interval = 0.0_f32;
+        let mut best_count = 0_usize;
+        let tolerance = 0.025;
+
+        for &interval in &valid_intervals {
+            let count = valid_intervals
+                .iter()
+                .filter(|&&other| (other - interval).abs() < tolerance)
+                .count();
+
+            if count > best_count {
+                best_count = count;
+                best_interval = interval;
+            }
+        }
+
+        if best_count >= 3 && best_interval > 0.0 {
+            let new_bpm = 60.0 / best_interval;
+            let clamped_bpm = new_bpm.clamp(60.0, 200.0);
+
+            self.beat_confidence = (best_count as f32 / valid_intervals.len() as f32).min(1.0);
+
+            let blend = 0.15 * self.beat_confidence;
+            self.estimated_bpm = self.estimated_bpm * (1.0 - blend) + clamped_bpm * blend;
+        }
+    }
+}
+
+fn download_youtube_audio(url: &str) -> Result<PathBuf, String> {
+    let temp_dir = std::env::temp_dir();
+    let output_path = temp_dir.join("demo_scene_audio.mp3");
+
+    let status = Command::new("yt-dlp")
+        .args([
+            "-x",
+            "--audio-format",
+            "mp3",
+            "-o",
+            output_path.to_str().unwrap(),
+            "--no-playlist",
+            "--force-overwrites",
+            url,
+        ])
+        .status()
+        .map_err(|e| {
+            format!(
+                "Failed to run yt-dlp: {}. Make sure yt-dlp is installed.",
+                e
+            )
+        })?;
+
+    if !status.success() {
+        return Err("yt-dlp failed to download audio".to_string());
+    }
+
+    if output_path.exists() {
+        Ok(output_path)
+    } else {
+        Err("Could not find downloaded audio file".to_string())
+    }
+}
+
+const DEMOSCENE_SHADER: &str = include_str!("../shaders/demoscene.wgsl");
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct DemosceneUniforms {
+    time: f32,
+    chromatic_aberration: f32,
+    wave_distortion: f32,
+    color_shift: f32,
+    kaleidoscope_segments: f32,
+    crt_scanlines: f32,
+    vignette: f32,
+    plasma_intensity: f32,
+    glitch_intensity: f32,
+    mirror_mode: f32,
+    invert: f32,
+    hue_rotation: f32,
+    raymarch_mode: f32,
+    raymarch_blend: f32,
+    film_grain: f32,
+    sharpen: f32,
+    pixelate: f32,
+    color_posterize: f32,
+    radial_blur: f32,
+    tunnel_speed: f32,
+    fractal_iterations: f32,
+    glow_intensity: f32,
+    screen_shake: f32,
+    zoom_pulse: f32,
+    speed_lines: f32,
+    color_grade_mode: f32,
+    vhs_distortion: f32,
+    lens_flare: f32,
+    edge_glow: f32,
+    saturation: f32,
+    warp_speed: f32,
+    pulse_rings: f32,
+    heat_distortion: f32,
+    digital_rain: f32,
+    strobe: f32,
+    color_cycle_speed: f32,
+    feedback_amount: f32,
+    ascii_mode: f32,
+}
+
+impl Default for DemosceneUniforms {
+    fn default() -> Self {
+        Self {
+            time: 0.0,
+            chromatic_aberration: 0.6,
+            wave_distortion: 0.4,
+            color_shift: 0.5,
+            kaleidoscope_segments: 0.0,
+            crt_scanlines: 0.0,
+            vignette: 0.4,
+            plasma_intensity: 0.3,
+            glitch_intensity: 0.0,
+            mirror_mode: 0.0,
+            invert: 0.0,
+            hue_rotation: 0.0,
+            raymarch_mode: 0.0,
+            raymarch_blend: 0.5,
+            film_grain: 0.0,
+            sharpen: 0.0,
+            pixelate: 0.0,
+            color_posterize: 0.0,
+            radial_blur: 0.0,
+            tunnel_speed: 1.0,
+            fractal_iterations: 4.0,
+            glow_intensity: 0.0,
+            screen_shake: 0.0,
+            zoom_pulse: 0.0,
+            speed_lines: 0.0,
+            color_grade_mode: 0.0,
+            vhs_distortion: 0.0,
+            lens_flare: 0.0,
+            edge_glow: 0.0,
+            saturation: 1.0,
+            warp_speed: 0.0,
+            pulse_rings: 0.0,
+            heat_distortion: 0.0,
+            digital_rain: 0.0,
+            strobe: 0.0,
+            color_cycle_speed: 1.0,
+            feedback_amount: 0.0,
+            ascii_mode: 0.0,
+        }
+    }
+}
+
+struct SharedState {
+    uniforms: DemosceneUniforms,
+    enabled: bool,
+    animate_hue: bool,
+}
+
+impl Default for SharedState {
+    fn default() -> Self {
+        Self {
+            uniforms: DemosceneUniforms::default(),
+            enabled: true,
+            animate_hue: false,
+        }
+    }
+}
+
+type SharedStateHandle = Arc<RwLock<SharedState>>;
+
+struct DemoscenePass {
+    pipeline: wgpu::RenderPipeline,
+    blit_pipeline: wgpu::RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
+    blit_bind_group_layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
+    uniform_buffer: wgpu::Buffer,
+    cached_bind_group: Option<wgpu::BindGroup>,
+    cached_blit_bind_group: Option<wgpu::BindGroup>,
+    shared_state: SharedStateHandle,
+}
+
+impl DemoscenePass {
+    fn new(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        blit_pipeline: wgpu::RenderPipeline,
+        shared_state: SharedStateHandle,
+    ) -> Self {
+        let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Demoscene Shader"),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(DEMOSCENE_SHADER)),
+        });
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Demoscene Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Demoscene Pipeline Layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Demoscene Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader_module,
+                entry_point: Some("vertex_main"),
+                buffers: &[],
+                compilation_options: Default::default(),
+            },
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader_module,
+                entry_point: Some("fragment_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            multiview: None,
+            cache: None,
+        });
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Demoscene Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Demoscene Uniform Buffer"),
+            size: std::mem::size_of::<DemosceneUniforms>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let blit_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Blit Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+
+        Self {
+            pipeline,
+            blit_pipeline,
+            bind_group_layout,
+            blit_bind_group_layout,
+            sampler,
+            uniform_buffer,
+            cached_bind_group: None,
+            cached_blit_bind_group: None,
+            shared_state,
+        }
+    }
+}
+
+impl PassNode<World> for DemoscenePass {
+    fn name(&self) -> &str {
+        "demoscene_pass"
+    }
+
+    fn reads(&self) -> Vec<&str> {
+        vec!["input"]
+    }
+
+    fn writes(&self) -> Vec<&str> {
+        vec!["output"]
+    }
+
+    fn invalidate_bind_groups(&mut self) {
+        self.cached_bind_group = None;
+        self.cached_blit_bind_group = None;
+    }
+
+    fn prepare(&mut self, _device: &wgpu::Device, queue: &wgpu::Queue, world: &World) {
+        let time = world.resources.window.timing.uptime_milliseconds as f32 * 0.001;
+        if let Ok(mut state) = self.shared_state.write() {
+            state.uniforms.time = time;
+            if state.animate_hue {
+                state.uniforms.hue_rotation = (time * 0.1) % 1.0;
+            }
+            queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&state.uniforms));
+        }
+    }
+
+    fn execute<'r, 'e>(
+        &mut self,
+        context: PassExecutionContext<'r, 'e, World>,
+    ) -> Result<
+        Vec<nightshade::render::wgpu::rendergraph::SubGraphRunCommand<'r>>,
+        nightshade::render::wgpu::rendergraph::RenderGraphError,
+    > {
+        let input_view = context.get_texture_view("input")?;
+
+        if self.cached_bind_group.is_none() {
+            self.cached_bind_group = Some(context.device.create_bind_group(
+                &wgpu::BindGroupDescriptor {
+                    label: Some("Demoscene Bind Group"),
+                    layout: &self.bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(input_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: self.uniform_buffer.as_entire_binding(),
+                        },
+                    ],
+                },
+            ));
+        }
+
+        if self.cached_blit_bind_group.is_none() {
+            self.cached_blit_bind_group = Some(context.device.create_bind_group(
+                &wgpu::BindGroupDescriptor {
+                    label: Some("Demoscene Blit Bind Group"),
+                    layout: &self.blit_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(input_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        },
+                    ],
+                },
+            ));
+        }
+
+        let enabled = self.shared_state.read().map(|s| s.enabled).unwrap_or(true);
+        let (pipeline, bind_group) = if enabled {
+            (&self.pipeline, self.cached_bind_group.as_ref().unwrap())
+        } else {
+            (
+                &self.blit_pipeline,
+                self.cached_blit_bind_group.as_ref().unwrap(),
+            )
+        };
+
+        let (color_view, color_load_op, color_store_op) = context.get_color_attachment("output")?;
+
+        let mut render_pass = context
+            .encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Demoscene Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: color_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: color_load_op,
+                        store: color_store_op,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+        render_pass.set_pipeline(pipeline);
+        render_pass.set_bind_group(0, bind_group, &[]);
+        render_pass.draw(0..3, 0..1);
+        drop(render_pass);
+
+        Ok(context.into_sub_graph_commands())
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum DemoPhase {
+    TorusField,
+    CubeVortex,
+    SphereGrid,
+    PlasmaRings,
+    Finale,
+}
+
+impl DemoPhase {
+    fn name(&self) -> &str {
+        match self {
+            DemoPhase::TorusField => "Torus Field",
+            DemoPhase::CubeVortex => "Cube Vortex",
+            DemoPhase::SphereGrid => "Sphere Grid",
+            DemoPhase::PlasmaRings => "Plasma Rings",
+            DemoPhase::Finale => "Finale",
+        }
+    }
+
+    fn all() -> &'static [DemoPhase] {
+        &[
+            DemoPhase::TorusField,
+            DemoPhase::CubeVortex,
+            DemoPhase::SphereGrid,
+            DemoPhase::PlasmaRings,
+            DemoPhase::Finale,
+        ]
+    }
+}
+
+struct AnimatedObject {
+    entity: Entity,
+    base_position: Vec3,
+    phase_offset: f32,
+    color_offset: f32,
+    scale: f32,
+    orbit_radius: f32,
+    orbit_speed: f32,
+    spin_axis: Vec3,
+    spin_speed: f32,
+}
+
+struct MovingLight {
+    entity: Entity,
+    sphere_entity: Entity,
+    base_color: Vec3,
+    orbit_radius: f32,
+    orbit_speed: f32,
+    height_offset: f32,
+    phase_offset: f32,
+}
+
+#[derive(Clone, Copy)]
+struct CameraKeyframe {
+    position: Vec3,
+    time: f32,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum CameraMode {
+    Cinematic,
+    Orbit,
+    Manual,
+}
+
+struct DemoSceneState {
+    current_phase: DemoPhase,
+    phase_time: f32,
+    phase_duration: f32,
+    auto_transition: bool,
+    global_time: f32,
+    objects: Vec<AnimatedObject>,
+    lights: Vec<MovingLight>,
+    particle_emitters: Vec<Entity>,
+    title_text: Option<Entity>,
+    camera_entity: Option<Entity>,
+    color_cycle_speed: f32,
+    rotation_speed: f32,
+    pulse_intensity: f32,
+    bloom_intensity: f32,
+    camera_mode: CameraMode,
+    camera_keyframes: Vec<CameraKeyframe>,
+    camera_orbit_speed: f32,
+    camera_orbit_radius: f32,
+    camera_orbit_height: f32,
+    object_count: usize,
+    light_count: usize,
+    material_counter: usize,
+    shared_state: SharedStateHandle,
+    chrome_spheres: Vec<Entity>,
+    youtube_url: String,
+    clipboard_buffer: Arc<RwLock<Option<String>>>,
+    audio_analyzer: AudioAnalyzer,
+    audio_entity: Option<Entity>,
+    audio_playing: bool,
+    audio_start_time: f32,
+    audio_status: String,
+    bass_sensitivity: f32,
+    mids_sensitivity: f32,
+    highs_sensitivity: f32,
+    firework_shells: Vec<FireworkShell>,
+    last_firework_time: f32,
+    firework_cooldown: f32,
+}
+
+struct FireworkShell {
+    entity: Entity,
+    position: Vec3,
+    velocity: Vec3,
+    fuse_time: f32,
+    color: Vec3,
+    particle_count: u32,
+}
+
+impl Default for DemoSceneState {
+    fn default() -> Self {
+        Self {
+            current_phase: DemoPhase::TorusField,
+            phase_time: 0.0,
+            phase_duration: 15.0,
+            auto_transition: true,
+            global_time: 0.0,
+            objects: Vec::new(),
+            lights: Vec::new(),
+            particle_emitters: Vec::new(),
+            title_text: None,
+            camera_entity: None,
+            color_cycle_speed: 1.0,
+            rotation_speed: 1.0,
+            pulse_intensity: 1.0,
+            bloom_intensity: 0.8,
+            camera_mode: CameraMode::Cinematic,
+            camera_keyframes: Vec::new(),
+            camera_orbit_speed: 0.15,
+            camera_orbit_radius: 40.0,
+            camera_orbit_height: 15.0,
+            object_count: 64,
+            light_count: 12,
+            material_counter: 0,
+            shared_state: Arc::new(RwLock::new(SharedState::default())),
+            chrome_spheres: Vec::new(),
+            youtube_url: String::new(),
+            clipboard_buffer: Arc::new(RwLock::new(None)),
+            audio_analyzer: AudioAnalyzer::default(),
+            audio_entity: None,
+            audio_playing: false,
+            audio_start_time: 0.0,
+            audio_status: String::new(),
+            bass_sensitivity: 1.0,
+            mids_sensitivity: 1.0,
+            highs_sensitivity: 1.0,
+            firework_shells: Vec::new(),
+            last_firework_time: 0.0,
+            firework_cooldown: 0.3,
+        }
+    }
+}
+
+impl DemoSceneState {
+    fn hsv_to_rgb(hue: f32, saturation: f32, value: f32) -> Vec3 {
+        let hue = hue % 360.0;
+        let c = value * saturation;
+        let x = c * (1.0 - ((hue / 60.0) % 2.0 - 1.0).abs());
+        let m = value - c;
+
+        let (r, g, b) = if hue < 60.0 {
+            (c, x, 0.0)
+        } else if hue < 120.0 {
+            (x, c, 0.0)
+        } else if hue < 180.0 {
+            (0.0, c, x)
+        } else if hue < 240.0 {
+            (0.0, x, c)
+        } else if hue < 300.0 {
+            (x, 0.0, c)
+        } else {
+            (c, 0.0, x)
+        };
+
+        Vec3::new(r + m, g + m, b + m)
+    }
+
+    fn randomize_uniforms(&mut self) {
+        let mut rng = rand::rng();
+
+        if let Ok(mut state) = self.shared_state.write() {
+            state.uniforms.chromatic_aberration = rng.random_range(0.0..0.8);
+            state.uniforms.wave_distortion = rng.random_range(0.0..0.6);
+            state.uniforms.color_shift = rng.random_range(0.0..1.0);
+            state.uniforms.kaleidoscope_segments = if rng.random::<f32>() > 0.7 {
+                [0.0, 4.0, 6.0, 8.0][rng.random_range(0..4)]
+            } else {
+                0.0
+            };
+            state.uniforms.crt_scanlines = if rng.random::<f32>() > 0.8 {
+                rng.random_range(0.0..0.15)
+            } else {
+                0.0
+            };
+            state.uniforms.vignette = rng.random_range(0.1..0.6);
+            state.uniforms.plasma_intensity = rng.random_range(0.0..0.5);
+            state.uniforms.glitch_intensity = if rng.random::<f32>() > 0.7 {
+                rng.random_range(0.0..0.3)
+            } else {
+                0.0
+            };
+            state.uniforms.mirror_mode = if rng.random::<f32>() > 0.85 { 1.0 } else { 0.0 };
+            state.uniforms.invert = if rng.random::<f32>() > 0.9 {
+                rng.random_range(0.0..0.2)
+            } else {
+                0.0
+            };
+            state.uniforms.hue_rotation = rng.random_range(0.0..360.0);
+            state.uniforms.raymarch_mode = if rng.random::<f32>() > 0.8 {
+                rng.random_range(0.0_f32..3.0).floor()
+            } else {
+                0.0
+            };
+            state.uniforms.raymarch_blend = rng.random_range(0.0..0.5);
+            state.uniforms.film_grain = rng.random_range(0.0..0.03);
+            state.uniforms.sharpen = rng.random_range(0.0..0.2);
+            state.uniforms.pixelate = if rng.random::<f32>() > 0.9 {
+                rng.random_range(1.0_f32..4.0).floor()
+            } else {
+                0.0
+            };
+            state.uniforms.radial_blur = rng.random_range(0.0..0.05);
+            state.uniforms.tunnel_speed = rng.random_range(0.3..2.0);
+            state.uniforms.fractal_iterations = rng.random_range(2.0_f32..6.0).floor();
+            state.uniforms.glow_intensity = rng.random_range(0.0..0.3);
+            state.uniforms.screen_shake = rng.random_range(0.0..0.1);
+            state.uniforms.zoom_pulse = rng.random_range(0.0..0.1);
+            state.uniforms.speed_lines = rng.random_range(0.0..0.3);
+            state.uniforms.color_grade_mode = rng.random_range(0.0_f32..7.0).floor();
+            state.uniforms.vhs_distortion = if rng.random::<f32>() > 0.8 {
+                rng.random_range(0.0..0.1)
+            } else {
+                0.0
+            };
+            state.uniforms.lens_flare = rng.random_range(0.0..0.5);
+            state.uniforms.edge_glow = rng.random_range(0.0..0.3);
+            state.uniforms.saturation = rng.random_range(0.3..1.5);
+            state.uniforms.warp_speed = if rng.random::<f32>() > 0.8 {
+                rng.random_range(0.0..0.6)
+            } else {
+                0.0
+            };
+            state.uniforms.pulse_rings = if rng.random::<f32>() > 0.8 {
+                rng.random_range(0.0..0.5)
+            } else {
+                0.0
+            };
+            state.uniforms.heat_distortion = if rng.random::<f32>() > 0.85 {
+                rng.random_range(0.0..0.5)
+            } else {
+                0.0
+            };
+            state.uniforms.digital_rain = if rng.random::<f32>() > 0.9 {
+                rng.random_range(0.0..0.4)
+            } else {
+                0.0
+            };
+            state.uniforms.strobe = 0.0;
+        }
+
+        self.bloom_intensity = rng.random_range(0.2..0.8);
+        self.color_cycle_speed = rng.random_range(0.5..2.0);
+        self.rotation_speed = rng.random_range(0.3..2.0);
+        self.pulse_intensity = rng.random_range(0.5..2.0);
+    }
+
+    fn create_material(&mut self, world: &mut World, color: Vec3, emissive: Vec3) -> String {
+        let material_name = format!("DemoMaterial_{}", self.material_counter);
+        self.material_counter += 1;
+
+        material_registry_insert(
+            &mut world.resources.material_registry,
+            material_name.clone(),
+            Material {
+                base_color: [color.x, color.y, color.z, 1.0],
+                emissive_factor: [emissive.x, emissive.y, emissive.z],
+                roughness: 0.3,
+                metallic: 0.8,
+                ..Default::default()
+            },
+        );
+
+        if let Some(&index) = world
+            .resources
+            .material_registry
+            .registry
+            .name_to_index
+            .get(&material_name)
+        {
+            world
+                .resources
+                .material_registry
+                .registry
+                .add_reference(index);
+        }
+
+        material_name
+    }
+
+    fn spawn_demo_object(
+        &mut self,
+        world: &mut World,
+        mesh_name: &str,
+        position: Vec3,
+        scale: f32,
+        color: Vec3,
+        emissive: Vec3,
+    ) -> Entity {
+        let entity = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RENDER_MESH | MATERIAL_REF,
+            1,
+        )[0];
+
+        world.set_local_transform(
+            entity,
+            LocalTransform {
+                translation: position,
+                rotation: Quat::identity(),
+                scale: Vec3::new(scale, scale, scale),
+            },
+        );
+        world.set_render_mesh(entity, RenderMesh::new(mesh_name));
+
+        let material_name = self.create_material(world, color, emissive);
+        world.set_material_ref(entity, MaterialRef::new(material_name));
+
+        entity
+    }
+
+    fn spawn_light(
+        &mut self,
+        world: &mut World,
+        position: Vec3,
+        color: Vec3,
+        intensity: f32,
+    ) -> (Entity, Entity) {
+        let light_entity = world.spawn_entities(
+            NAME | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | LIGHT,
+            1,
+        )[0];
+
+        world.set_name(
+            light_entity,
+            Name(format!("DemoLight_{}", self.light_count)),
+        );
+        world.set_local_transform(
+            light_entity,
+            LocalTransform {
+                translation: position,
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_local_transform_dirty(light_entity, LocalTransformDirty);
+        world.set_global_transform(light_entity, GlobalTransform::default());
+        world.set_light(
+            light_entity,
+            Light {
+                light_type: LightType::Point,
+                color,
+                intensity,
+                range: 50.0,
+                inner_cone_angle: 0.0,
+                outer_cone_angle: 0.0,
+                cast_shadows: false,
+                shadow_bias: 0.007,
+            },
+        );
+
+        let sphere_entity = self.spawn_demo_object(
+            world,
+            "Sphere",
+            position,
+            0.3,
+            Vec3::new(0.0, 0.0, 0.0),
+            color * 3.0,
+        );
+
+        (light_entity, sphere_entity)
+    }
+
+    fn clear_scene(&mut self, world: &mut World) {
+        for object in self.objects.drain(..) {
+            despawn_recursive_immediate(world, object.entity);
+        }
+
+        for light in self.lights.drain(..) {
+            despawn_recursive_immediate(world, light.entity);
+            despawn_recursive_immediate(world, light.sphere_entity);
+        }
+
+        for emitter in self.particle_emitters.drain(..) {
+            if let Some(particle_emitter) = world.get_particle_emitter_mut(emitter) {
+                particle_emitter.enabled = false;
+            }
+        }
+
+        for chrome in self.chrome_spheres.drain(..) {
+            despawn_recursive_immediate(world, chrome);
+        }
+    }
+
+    fn spawn_chrome_sphere(&mut self, world: &mut World, position: Vec3, scale: f32) -> Entity {
+        let entity = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RENDER_MESH | MATERIAL_REF,
+            1,
+        )[0];
+
+        world.set_local_transform(
+            entity,
+            LocalTransform {
+                translation: position,
+                rotation: Quat::identity(),
+                scale: Vec3::new(scale, scale, scale),
+            },
+        );
+        world.set_render_mesh(entity, RenderMesh::new("Sphere"));
+
+        let material_name = format!("ChromeMaterial_{}", self.material_counter);
+        self.material_counter += 1;
+
+        material_registry_insert(
+            &mut world.resources.material_registry,
+            material_name.clone(),
+            Material {
+                base_color: [0.9, 0.9, 0.95, 1.0],
+                emissive_factor: [0.0, 0.0, 0.0],
+                roughness: 0.05,
+                metallic: 1.0,
+                ..Default::default()
+            },
+        );
+
+        if let Some(&index) = world
+            .resources
+            .material_registry
+            .registry
+            .name_to_index
+            .get(&material_name)
+        {
+            world
+                .resources
+                .material_registry
+                .registry
+                .add_reference(index);
+        }
+
+        world.set_material_ref(entity, MaterialRef::new(material_name));
+        entity
+    }
+
+    fn spawn_chrome_spheres_for_phase(&mut self, world: &mut World, phase: DemoPhase) {
+        let mut rng = rand::rng();
+
+        let positions: Vec<(Vec3, f32)> = match phase {
+            DemoPhase::TorusField => (0..8)
+                .map(|index| {
+                    let angle = (index as f32 / 8.0) * std::f32::consts::TAU;
+                    let radius = 15.0;
+                    (
+                        Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius),
+                        1.5,
+                    )
+                })
+                .collect(),
+            DemoPhase::CubeVortex => (0..6)
+                .map(|index| {
+                    let height = -12.0 + index as f32 * 5.0;
+                    let angle = index as f32 * 1.2;
+                    let radius = 8.0 + index as f32 * 2.0;
+                    (
+                        Vec3::new(angle.cos() * radius, height, angle.sin() * radius),
+                        1.0 + index as f32 * 0.3,
+                    )
+                })
+                .collect(),
+            DemoPhase::SphereGrid => {
+                vec![
+                    (Vec3::new(0.0, 0.0, 0.0), 3.0),
+                    (Vec3::new(-12.0, -12.0, -12.0), 2.0),
+                    (Vec3::new(12.0, 12.0, 12.0), 2.0),
+                    (Vec3::new(-12.0, 12.0, -12.0), 1.5),
+                    (Vec3::new(12.0, -12.0, 12.0), 1.5),
+                ]
+            }
+            DemoPhase::PlasmaRings => (0..12)
+                .map(|index| {
+                    let angle = (index as f32 / 12.0) * std::f32::consts::TAU;
+                    let radius = 8.0;
+                    let height = (angle * 2.0).sin() * 5.0;
+                    (
+                        Vec3::new(angle.cos() * radius, height, angle.sin() * radius),
+                        0.8,
+                    )
+                })
+                .collect(),
+            DemoPhase::Finale => (0..20)
+                .map(|_| {
+                    let theta = rng.random::<f32>() * std::f32::consts::TAU;
+                    let phi = rng.random::<f32>() * std::f32::consts::PI;
+                    let radius = 12.0 + rng.random::<f32>() * 10.0;
+                    let position = Vec3::new(
+                        radius * phi.sin() * theta.cos(),
+                        radius * phi.cos(),
+                        radius * phi.sin() * theta.sin(),
+                    );
+                    (position, 0.5 + rng.random::<f32>() * 1.5)
+                })
+                .collect(),
+        };
+
+        for (position, scale) in positions {
+            let entity = self.spawn_chrome_sphere(world, position, scale);
+            self.chrome_spheres.push(entity);
+        }
+    }
+
+    fn setup_torus_field(&mut self, world: &mut World) {
+        self.clear_scene(world);
+
+        let mut rng = rand::rng();
+        let ring_count = 4;
+        let objects_per_ring = self.object_count / ring_count;
+
+        for ring_index in 0..ring_count {
+            let ring_radius = 8.0 + ring_index as f32 * 6.0;
+            let height = (ring_index as f32 - 1.5) * 4.0;
+
+            for object_index in 0..objects_per_ring {
+                let angle = (object_index as f32 / objects_per_ring as f32) * std::f32::consts::TAU;
+                let position =
+                    Vec3::new(angle.cos() * ring_radius, height, angle.sin() * ring_radius);
+
+                let hue = (ring_index as f32 * 90.0 + object_index as f32 * 10.0) % 360.0;
+                let color = Self::hsv_to_rgb(hue, 0.8, 0.9);
+                let emissive = color * 0.5;
+
+                let entity = self.spawn_demo_object(world, "Torus", position, 0.8, color, emissive);
+
+                self.objects.push(AnimatedObject {
+                    entity,
+                    base_position: position,
+                    phase_offset: angle + ring_index as f32 * 0.5,
+                    color_offset: hue,
+                    scale: 0.8,
+                    orbit_radius: ring_radius,
+                    orbit_speed: 0.3 * (1.0 + ring_index as f32 * 0.2),
+                    spin_axis: Vec3::new(
+                        rng.random_range(-1.0..1.0),
+                        rng.random_range(-1.0..1.0),
+                        rng.random_range(-1.0..1.0),
+                    )
+                    .normalize(),
+                    spin_speed: rng.random_range(0.5..2.0),
+                });
+            }
+        }
+
+        self.setup_lights(world, DemoPhase::TorusField);
+        self.spawn_phase_particles(world, DemoPhase::TorusField);
+    }
+
+    fn setup_cube_vortex(&mut self, world: &mut World) {
+        self.clear_scene(world);
+
+        let mut rng = rand::rng();
+        let spiral_turns = 5;
+        let objects_per_turn = self.object_count / spiral_turns;
+
+        for turn_index in 0..spiral_turns {
+            for object_index in 0..objects_per_turn {
+                let progress = (turn_index * objects_per_turn + object_index) as f32
+                    / (spiral_turns * objects_per_turn) as f32;
+                let angle = progress * std::f32::consts::TAU * spiral_turns as f32;
+                let radius = 5.0 + progress * 20.0;
+                let height = -15.0 + progress * 30.0;
+
+                let position = Vec3::new(angle.cos() * radius, height, angle.sin() * radius);
+
+                let hue = progress * 360.0;
+                let color = Self::hsv_to_rgb(hue, 0.9, 1.0);
+                let emissive = color * (0.3 + progress * 0.7);
+
+                let scale = 0.3 + progress * 1.2;
+                let entity =
+                    self.spawn_demo_object(world, "Cube", position, scale, color, emissive);
+
+                self.objects.push(AnimatedObject {
+                    entity,
+                    base_position: position,
+                    phase_offset: angle,
+                    color_offset: hue,
+                    scale,
+                    orbit_radius: radius,
+                    orbit_speed: 0.5 - progress * 0.3,
+                    spin_axis: Vec3::new(
+                        rng.random_range(-1.0..1.0),
+                        1.0,
+                        rng.random_range(-1.0..1.0),
+                    )
+                    .normalize(),
+                    spin_speed: 1.0 + progress * 2.0,
+                });
+            }
+        }
+
+        self.setup_lights(world, DemoPhase::CubeVortex);
+        self.spawn_phase_particles(world, DemoPhase::CubeVortex);
+    }
+
+    fn setup_sphere_grid(&mut self, world: &mut World) {
+        self.clear_scene(world);
+
+        let grid_size = (self.object_count as f32).cbrt().ceil() as usize;
+        let spacing = 5.0;
+        let offset = (grid_size as f32 - 1.0) * spacing / 2.0;
+
+        let mut index = 0;
+        for x_index in 0..grid_size {
+            for y_index in 0..grid_size {
+                for z_index in 0..grid_size {
+                    if index >= self.object_count {
+                        break;
+                    }
+
+                    let position = Vec3::new(
+                        x_index as f32 * spacing - offset,
+                        y_index as f32 * spacing - offset,
+                        z_index as f32 * spacing - offset,
+                    );
+
+                    let distance = position.magnitude();
+                    let hue = distance * 20.0;
+                    let color = Self::hsv_to_rgb(hue, 0.7, 0.9);
+                    let emissive = color * 0.4;
+
+                    let entity =
+                        self.spawn_demo_object(world, "Sphere", position, 0.6, color, emissive);
+
+                    self.objects.push(AnimatedObject {
+                        entity,
+                        base_position: position,
+                        phase_offset: distance * 0.1,
+                        color_offset: hue,
+                        scale: 0.6,
+                        orbit_radius: 0.0,
+                        orbit_speed: 0.0,
+                        spin_axis: Vec3::y(),
+                        spin_speed: 0.5,
+                    });
+
+                    index += 1;
+                }
+            }
+        }
+
+        self.setup_lights(world, DemoPhase::SphereGrid);
+        self.spawn_phase_particles(world, DemoPhase::SphereGrid);
+    }
+
+    fn setup_plasma_rings(&mut self, world: &mut World) {
+        self.clear_scene(world);
+
+        let mut rng = rand::rng();
+        let ring_count = 6;
+        let objects_per_ring = self.object_count / ring_count;
+
+        for ring_index in 0..ring_count {
+            let ring_radius = 12.0;
+            let ring_tilt = (ring_index as f32 / ring_count as f32) * std::f32::consts::PI;
+
+            for object_index in 0..objects_per_ring {
+                let angle = (object_index as f32 / objects_per_ring as f32) * std::f32::consts::TAU;
+
+                let local_position =
+                    Vec3::new(angle.cos() * ring_radius, 0.0, angle.sin() * ring_radius);
+
+                let rotation_axis = Vec3::new(ring_tilt.cos(), 0.0, ring_tilt.sin());
+                let rotation_angle = ring_index as f32 * std::f32::consts::PI / ring_count as f32;
+                let rotation = nalgebra_glm::quat_angle_axis(rotation_angle, &rotation_axis);
+                let position = nalgebra_glm::quat_rotate_vec3(&rotation, &local_position);
+
+                let hue = (ring_index as f32 * 60.0 + angle.to_degrees()) % 360.0;
+                let color = Self::hsv_to_rgb(hue, 1.0, 1.0);
+                let emissive = color * 1.5;
+
+                let entity = self.spawn_demo_object(world, "Torus", position, 0.5, color, emissive);
+
+                self.objects.push(AnimatedObject {
+                    entity,
+                    base_position: position,
+                    phase_offset: angle + ring_index as f32,
+                    color_offset: hue,
+                    scale: 0.5,
+                    orbit_radius: ring_radius,
+                    orbit_speed: 0.8 + ring_index as f32 * 0.1,
+                    spin_axis: rotation_axis,
+                    spin_speed: rng.random_range(1.0..3.0),
+                });
+            }
+        }
+
+        self.setup_lights(world, DemoPhase::PlasmaRings);
+        self.spawn_phase_particles(world, DemoPhase::PlasmaRings);
+    }
+
+    fn setup_finale(&mut self, world: &mut World) {
+        self.clear_scene(world);
+
+        let mut rng = rand::rng();
+        let layer_count = 3;
+        let objects_per_layer = self.object_count / layer_count;
+
+        for layer_index in 0..layer_count {
+            let mesh_name = match layer_index % 3 {
+                0 => "Torus",
+                1 => "Cube",
+                _ => "Sphere",
+            };
+
+            for _object_index in 0..objects_per_layer {
+                let theta = rng.random::<f32>() * std::f32::consts::TAU;
+                let phi = rng.random::<f32>() * std::f32::consts::PI;
+                let radius = 8.0 + layer_index as f32 * 8.0;
+
+                let position = Vec3::new(
+                    radius * phi.sin() * theta.cos(),
+                    radius * phi.cos(),
+                    radius * phi.sin() * theta.sin(),
+                );
+
+                let hue = rng.random::<f32>() * 360.0;
+                let color = Self::hsv_to_rgb(hue, 1.0, 1.0);
+                let emissive = color * (1.0 + layer_index as f32 * 0.5);
+
+                let scale = rng.random_range(0.4..1.2);
+                let entity =
+                    self.spawn_demo_object(world, mesh_name, position, scale, color, emissive);
+
+                self.objects.push(AnimatedObject {
+                    entity,
+                    base_position: position,
+                    phase_offset: rng.random::<f32>() * std::f32::consts::TAU,
+                    color_offset: hue,
+                    scale,
+                    orbit_radius: radius,
+                    orbit_speed: rng.random_range(0.2..1.0),
+                    spin_axis: Vec3::new(
+                        rng.random_range(-1.0..1.0),
+                        rng.random_range(-1.0..1.0),
+                        rng.random_range(-1.0..1.0),
+                    )
+                    .normalize(),
+                    spin_speed: rng.random_range(0.5..3.0),
+                });
+            }
+        }
+
+        self.setup_lights(world, DemoPhase::Finale);
+        self.spawn_phase_particles(world, DemoPhase::Finale);
+    }
+
+    fn setup_lights(&mut self, world: &mut World, phase: DemoPhase) {
+        let light_colors = match phase {
+            DemoPhase::TorusField => vec![
+                Vec3::new(1.0, 0.3, 0.3),
+                Vec3::new(0.3, 1.0, 0.3),
+                Vec3::new(0.3, 0.3, 1.0),
+                Vec3::new(1.0, 1.0, 0.3),
+                Vec3::new(1.0, 0.3, 1.0),
+                Vec3::new(0.3, 1.0, 1.0),
+            ],
+            DemoPhase::CubeVortex => vec![
+                Vec3::new(1.0, 0.5, 0.0),
+                Vec3::new(1.0, 0.0, 0.5),
+                Vec3::new(0.5, 0.0, 1.0),
+                Vec3::new(0.0, 0.5, 1.0),
+                Vec3::new(0.0, 1.0, 0.5),
+                Vec3::new(0.5, 1.0, 0.0),
+            ],
+            DemoPhase::SphereGrid => vec![
+                Vec3::new(0.8, 0.8, 1.0),
+                Vec3::new(1.0, 0.8, 0.8),
+                Vec3::new(0.8, 1.0, 0.8),
+                Vec3::new(1.0, 1.0, 0.8),
+            ],
+            DemoPhase::PlasmaRings => vec![
+                Vec3::new(1.0, 0.0, 0.5),
+                Vec3::new(0.5, 0.0, 1.0),
+                Vec3::new(0.0, 0.5, 1.0),
+                Vec3::new(0.0, 1.0, 0.5),
+                Vec3::new(0.5, 1.0, 0.0),
+                Vec3::new(1.0, 0.5, 0.0),
+            ],
+            DemoPhase::Finale => vec![
+                Vec3::new(1.0, 1.0, 1.0),
+                Vec3::new(1.0, 0.8, 0.3),
+                Vec3::new(0.3, 0.8, 1.0),
+                Vec3::new(1.0, 0.3, 0.8),
+                Vec3::new(0.8, 1.0, 0.3),
+                Vec3::new(0.3, 1.0, 0.8),
+                Vec3::new(0.8, 0.3, 1.0),
+                Vec3::new(1.0, 0.5, 0.5),
+            ],
+        };
+
+        for (light_index, color) in light_colors.iter().enumerate().take(self.light_count) {
+            let angle = (light_index as f32 / light_colors.len() as f32) * std::f32::consts::TAU;
+            let radius = 20.0;
+            let height = (light_index as f32 - light_colors.len() as f32 / 2.0) * 3.0;
+
+            let position = Vec3::new(angle.cos() * radius, height, angle.sin() * radius);
+
+            let (light_entity, sphere_entity) = self.spawn_light(world, position, *color, 5.0);
+
+            self.lights.push(MovingLight {
+                entity: light_entity,
+                sphere_entity,
+                base_color: *color,
+                orbit_radius: radius,
+                orbit_speed: 0.3 + light_index as f32 * 0.05,
+                height_offset: height,
+                phase_offset: angle,
+            });
+        }
+    }
+
+    fn spawn_phase_particles(&mut self, world: &mut World, phase: DemoPhase) {
+        let positions = match phase {
+            DemoPhase::TorusField => vec![
+                Vec3::new(0.0, -10.0, 0.0),
+                Vec3::new(15.0, -10.0, 0.0),
+                Vec3::new(-15.0, -10.0, 0.0),
+            ],
+            DemoPhase::CubeVortex => vec![Vec3::new(0.0, -20.0, 0.0), Vec3::new(0.0, 20.0, 0.0)],
+            DemoPhase::SphereGrid => vec![
+                Vec3::new(-15.0, -15.0, -15.0),
+                Vec3::new(15.0, -15.0, 15.0),
+                Vec3::new(-15.0, 15.0, 15.0),
+                Vec3::new(15.0, 15.0, -15.0),
+            ],
+            DemoPhase::PlasmaRings => vec![Vec3::new(0.0, 0.0, 0.0)],
+            DemoPhase::Finale => vec![
+                Vec3::new(0.0, -25.0, 0.0),
+                Vec3::new(20.0, 0.0, 0.0),
+                Vec3::new(-20.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 20.0),
+                Vec3::new(0.0, 0.0, -20.0),
+            ],
+        };
+
+        for position in positions {
+            let entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
+            let mut emitter = ParticleEmitter::fire(position);
+            emitter.spawn_rate = 50.0;
+            emitter.particle_lifetime_min = 2.0;
+            emitter.particle_lifetime_max = 4.0;
+            emitter.size_start = 0.5;
+            emitter.size_end = 0.1;
+            emitter.emissive_strength = 8.0;
+            emitter.initial_velocity_min = 3.0;
+            emitter.initial_velocity_max = 8.0;
+            world.set_particle_emitter(entity, emitter);
+            self.particle_emitters.push(entity);
+        }
+    }
+
+    fn switch_phase(&mut self, world: &mut World, phase: DemoPhase) {
+        self.current_phase = phase;
+        self.phase_time = 0.0;
+        self.camera_keyframes = Self::get_camera_keyframes_for_phase(phase, self.phase_duration);
+
+        match phase {
+            DemoPhase::TorusField => self.setup_torus_field(world),
+            DemoPhase::CubeVortex => self.setup_cube_vortex(world),
+            DemoPhase::SphereGrid => self.setup_sphere_grid(world),
+            DemoPhase::PlasmaRings => self.setup_plasma_rings(world),
+            DemoPhase::Finale => self.setup_finale(world),
+        }
+
+        self.spawn_chrome_spheres_for_phase(world, phase);
+
+        if let Some(title_entity) = self.title_text {
+            if let Some(text) = world.get_text(title_entity) {
+                let text_index = text.text_index;
+                world
+                    .resources
+                    .text_cache
+                    .set_text(text_index, phase.name().to_string());
+            }
+            if let Some(text) = world.get_text_mut(title_entity) {
+                text.dirty = true;
+            }
+        }
+    }
+
+    fn randomize_shader_settings(&mut self) {
+        let mut rng = rand::rng();
+        if let Ok(mut state) = self.shared_state.write() {
+            state.uniforms.chromatic_aberration = rng.random::<f32>() * 1.5;
+            state.uniforms.wave_distortion = rng.random::<f32>() * 1.5;
+            state.uniforms.color_shift = rng.random::<f32>() * 1.5;
+            state.uniforms.kaleidoscope_segments = if rng.random::<f32>() > 0.7 {
+                (rng.random::<f32>() * 10.0 + 2.0).floor()
+            } else {
+                0.0
+            };
+            state.uniforms.crt_scanlines = if rng.random::<f32>() > 0.6 {
+                rng.random::<f32>() * 0.8
+            } else {
+                0.0
+            };
+            state.uniforms.vignette = rng.random::<f32>() * 1.2;
+            state.uniforms.plasma_intensity = rng.random::<f32>() * 0.6;
+            state.uniforms.glitch_intensity = if rng.random::<f32>() > 0.7 {
+                rng.random::<f32>() * 0.5
+            } else {
+                0.0
+            };
+            state.uniforms.mirror_mode = if rng.random::<f32>() > 0.8 { 1.0 } else { 0.0 };
+            state.uniforms.invert = if rng.random::<f32>() > 0.9 { 1.0 } else { 0.0 };
+            state.uniforms.hue_rotation = rng.random::<f32>();
+            state.uniforms.raymarch_mode = if rng.random::<f32>() > 0.5 {
+                (rng.random::<f32>() * 5.0 + 1.0).floor()
+            } else {
+                0.0
+            };
+            state.uniforms.raymarch_blend = rng.random::<f32>();
+            state.uniforms.film_grain = if rng.random::<f32>() > 0.6 {
+                rng.random::<f32>() * 0.5
+            } else {
+                0.0
+            };
+            state.uniforms.sharpen = if rng.random::<f32>() > 0.7 {
+                rng.random::<f32>() * 0.5
+            } else {
+                0.0
+            };
+            state.uniforms.pixelate = if rng.random::<f32>() > 0.85 {
+                rng.random::<f32>() * 0.5
+            } else {
+                0.0
+            };
+            state.uniforms.color_posterize = if rng.random::<f32>() > 0.8 {
+                rng.random::<f32>() * 0.7
+            } else {
+                0.0
+            };
+            state.uniforms.radial_blur = if rng.random::<f32>() > 0.8 {
+                rng.random::<f32>() * 0.5
+            } else {
+                0.0
+            };
+            state.uniforms.tunnel_speed = 0.5 + rng.random::<f32>() * 2.0;
+            state.uniforms.fractal_iterations = (2.0 + rng.random::<f32>() * 4.0).floor();
+            state.uniforms.glow_intensity = if rng.random::<f32>() > 0.5 {
+                rng.random::<f32>() * 1.0
+            } else {
+                0.0
+            };
+            state.uniforms.screen_shake = if rng.random::<f32>() > 0.8 {
+                rng.random::<f32>() * 0.5
+            } else {
+                0.0
+            };
+            state.uniforms.zoom_pulse = if rng.random::<f32>() > 0.7 {
+                rng.random::<f32>() * 0.5
+            } else {
+                0.0
+            };
+            state.uniforms.speed_lines = if rng.random::<f32>() > 0.7 {
+                rng.random::<f32>() * 0.6
+            } else {
+                0.0
+            };
+            state.uniforms.color_grade_mode = if rng.random::<f32>() > 0.5 {
+                (rng.random::<f32>() * 6.0 + 1.0).floor()
+            } else {
+                0.0
+            };
+            state.uniforms.vhs_distortion = if rng.random::<f32>() > 0.8 {
+                rng.random::<f32>() * 0.6
+            } else {
+                0.0
+            };
+            state.uniforms.lens_flare = if rng.random::<f32>() > 0.6 {
+                rng.random::<f32>() * 0.8
+            } else {
+                0.0
+            };
+            state.uniforms.edge_glow = if rng.random::<f32>() > 0.7 {
+                rng.random::<f32>() * 0.5
+            } else {
+                0.0
+            };
+            state.uniforms.saturation = 0.5 + rng.random::<f32>() * 1.0;
+        }
+    }
+
+    fn next_phase(&self) -> DemoPhase {
+        match self.current_phase {
+            DemoPhase::TorusField => DemoPhase::CubeVortex,
+            DemoPhase::CubeVortex => DemoPhase::SphereGrid,
+            DemoPhase::SphereGrid => DemoPhase::PlasmaRings,
+            DemoPhase::PlasmaRings => DemoPhase::Finale,
+            DemoPhase::Finale => DemoPhase::TorusField,
+        }
+    }
+
+    fn load_youtube_audio(&mut self, world: &mut World) {
+        if self.youtube_url.is_empty() {
+            self.audio_status = "Please enter a YouTube URL".to_string();
+            return;
+        }
+
+        self.audio_status = "Downloading audio...".to_string();
+
+        match download_youtube_audio(&self.youtube_url) {
+            Ok(audio_path) => {
+                self.audio_status = "Loading audio...".to_string();
+
+                match self.audio_analyzer.load_audio_file(&audio_path) {
+                    Ok(audio_bytes) => {
+                        let static_bytes: &'static [u8] = Box::leak(audio_bytes.into_boxed_slice());
+                        match load_sound_from_bytes(static_bytes) {
+                            Ok(sound_data) => {
+                                world
+                                    .resources
+                                    .audio
+                                    .load_sound("youtube_audio", sound_data);
+
+                                if self.audio_entity.is_none() {
+                                    let entity = world.spawn_entities(AUDIO_SOURCE, 1)[0];
+                                    self.audio_entity = Some(entity);
+                                }
+
+                                if let Some(entity) = self.audio_entity {
+                                    world.set_audio_source(
+                                        entity,
+                                        AudioSource::new("youtube_audio")
+                                            .with_volume(1.0)
+                                            .with_looping(false)
+                                            .playing(),
+                                    );
+                                }
+
+                                self.audio_playing = true;
+                                self.audio_start_time = self.global_time;
+                                self.audio_status = "Playing!".to_string();
+                            }
+                            Err(error) => {
+                                self.audio_status = format!("Failed to load audio: {}", error);
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        self.audio_status = format!("Failed to decode audio: {}", error);
+                    }
+                }
+            }
+            Err(error) => {
+                self.audio_status = error;
+            }
+        }
+    }
+
+    fn update_audio_reactive(&mut self) {
+        if !self.audio_playing {
+            return;
+        }
+
+        let latency_compensation = 0.06;
+        let audio_time = (self.global_time - self.audio_start_time - latency_compensation).max(0.0);
+        self.audio_analyzer.analyze_at_time(audio_time);
+
+        let _sub_bass = self.audio_analyzer.smoothed_sub_bass * self.bass_sensitivity;
+        let bass = self.audio_analyzer.smoothed_bass * self.bass_sensitivity;
+        let low_mids = self.audio_analyzer.smoothed_low_mids * self.mids_sensitivity;
+        let mids = self.audio_analyzer.smoothed_mids * self.mids_sensitivity;
+        let high_mids = self.audio_analyzer.smoothed_high_mids * self.highs_sensitivity;
+        let highs = self.audio_analyzer.smoothed_highs * self.highs_sensitivity;
+
+        let kick = self.audio_analyzer.kick_decay;
+        let snare = self.audio_analyzer.snare_decay;
+        let hat = self.audio_analyzer.hat_decay;
+        let onset = self.audio_analyzer.onset_decay;
+        let energy = self.audio_analyzer.average_energy;
+        let intensity = self.audio_analyzer.intensity;
+
+        let brightness = self.audio_analyzer.smoothed_centroid;
+        let noisiness = self.audio_analyzer.smoothed_flatness;
+        let transient_ratio = self.audio_analyzer.transient_ratio;
+        let low_transient = self.audio_analyzer.low_transient;
+        let mid_transient = self.audio_analyzer.mid_transient;
+        let high_transient = self.audio_analyzer.high_transient;
+
+        let groove = self.audio_analyzer.groove_sync;
+        let beat_phase = self.audio_analyzer.beat_phase;
+        let beat_confidence = self.audio_analyzer.beat_confidence;
+
+        let is_building = self.audio_analyzer.is_building;
+        let is_dropping = self.audio_analyzer.is_dropping;
+        let is_breakdown = self.audio_analyzer.is_breakdown;
+        let drop_intensity = self.audio_analyzer.drop_intensity;
+        let build_intensity = self.audio_analyzer.build_intensity;
+        let breakdown_intensity = self.audio_analyzer.breakdown_intensity;
+        let harmonic_change = self.audio_analyzer.harmonic_change;
+
+        let song_progress = self.audio_analyzer.song_progress(audio_time);
+
+        let energy_mult = if energy < 0.05 {
+            0.2
+        } else if energy < 0.15 {
+            0.5 + energy * 2.0
+        } else {
+            1.0
+        };
+
+        let breakdown_dampen = if is_breakdown {
+            1.0 - breakdown_intensity * 0.6
+        } else {
+            1.0
+        };
+
+        let drop_bloom_boost = if is_dropping {
+            drop_intensity * 0.25
+        } else {
+            0.0
+        };
+        let build_bloom_dampen = if is_building {
+            build_intensity * 0.1
+        } else {
+            0.0
+        };
+        let breakdown_bloom = if is_breakdown {
+            -breakdown_intensity * 0.2
+        } else {
+            0.0
+        };
+        self.bloom_intensity = (0.2 + energy * 0.25 * energy_mult + kick * 0.15 + drop_bloom_boost
+            - build_bloom_dampen
+            + breakdown_bloom)
+            .clamp(0.1, 0.85);
+
+        if let Ok(mut state) = self.shared_state.write() {
+            let intro = (song_progress * 2.0).min(1.0);
+            let buildup = ((song_progress - 0.15) * 1.5).clamp(0.0, 1.0);
+            let peak_section = ((song_progress - 0.3) * 1.43).clamp(0.0, 1.0);
+            let climax = ((song_progress - 0.5) * 2.0).clamp(0.0, 1.0);
+            let finale = ((song_progress - 0.75) * 4.0).clamp(0.0, 1.0);
+
+            let beat_pulse = if beat_confidence > 0.3 {
+                (beat_phase * std::f32::consts::TAU).sin() * 0.5 + 0.5
+            } else {
+                0.5
+            };
+
+            let bd = breakdown_dampen;
+            let em = energy_mult;
+
+            let base_react = 0.15 + intro * 0.35 + buildup * 0.25 + peak_section * 0.25;
+
+            state.uniforms.vignette = if is_breakdown {
+                0.7 + breakdown_intensity * 0.2
+            } else {
+                (0.7 - intro * 0.15 - buildup * 0.15 - intensity * 0.1 * em - drop_intensity * 0.15)
+                    .max(0.1)
+            };
+            state.uniforms.saturation = if is_breakdown {
+                0.3 - breakdown_intensity * 0.15
+            } else {
+                0.3 + intro * 0.2 + buildup * 0.2 + intensity * 0.15 * em + brightness * 0.1
+            };
+
+            state.uniforms.glow_intensity = (intro * 0.02
+                + bass * 0.1 * base_react
+                + kick * 0.12 * base_react
+                + groove * 0.06 * buildup)
+                * bd
+                * em;
+            state.uniforms.plasma_intensity =
+                (mids * 0.08 * base_react + noisiness * 0.12 * peak_section) * bd * em;
+            state.uniforms.wave_distortion =
+                (low_mids * 0.05 * base_react + harmonic_change * 0.1 * buildup) * bd * em;
+
+            let transient_chroma = (low_transient * 0.2 + mid_transient * 0.1) * em;
+            state.uniforms.chromatic_aberration = (kick * 0.12 * base_react
+                + onset * 0.1 * base_react
+                + transient_chroma * peak_section
+                + drop_intensity * 0.15)
+                * bd;
+            state.uniforms.screen_shake = (kick * 0.04 * intro
+                + kick * 0.08 * peak_section
+                + kick * 0.12 * climax * (1.0 + drop_intensity * 0.8))
+                * bd;
+            state.uniforms.zoom_pulse =
+                (kick * 0.03 * base_react + drop_intensity * 0.06 * climax) * bd;
+            state.uniforms.radial_blur =
+                (kick * 0.02 * base_react + low_transient * 0.03 * peak_section) * bd;
+
+            state.uniforms.speed_lines = (highs * 0.08 * intro
+                + highs * 0.15 * peak_section
+                + onset * 0.15 * climax
+                + hat * 0.1 * buildup
+                + drop_intensity * 0.2)
+                * bd
+                * em;
+            state.uniforms.edge_glow = (high_mids * 0.1 * base_react
+                + snare * 0.18 * peak_section
+                + brightness * 0.12 * buildup)
+                * bd
+                * em;
+
+            let lull_decay = if energy < 0.1 {
+                0.8
+            } else if energy < 0.2 {
+                0.88
+            } else {
+                0.94
+            };
+
+            if is_breakdown {
+                state.uniforms.glitch_intensity =
+                    (state.uniforms.glitch_intensity + breakdown_intensity * 0.02).min(0.2);
+                state.uniforms.film_grain = 0.03 + breakdown_intensity * 0.03;
+                state.uniforms.invert *= 0.85;
+            } else if onset > 0.35 || mid_transient > 0.25 {
+                let invert_amount = (onset * 0.1 + mid_transient * 0.06) * peak_section * em;
+                state.uniforms.invert = invert_amount.min(0.15);
+            } else {
+                state.uniforms.invert *= lull_decay;
+            }
+
+            let glitch_trigger =
+                (snare > 0.35 || (noisiness > 0.3 && high_transient > 0.2)) && !is_breakdown;
+            if glitch_trigger && buildup > 0.15 {
+                let glitch_add =
+                    (snare * 0.1 + noisiness * high_transient * 0.12) * peak_section * em;
+                state.uniforms.glitch_intensity =
+                    (state.uniforms.glitch_intensity + glitch_add).min(0.3);
+                if snare > 0.5 && peak_section > 0.25 {
+                    state.uniforms.mirror_mode = 1.0;
+                }
+            } else if !is_breakdown {
+                state.uniforms.glitch_intensity *= lull_decay;
+                state.uniforms.mirror_mode *= lull_decay;
+            }
+
+            let trigger_raymarch = !is_breakdown
+                && ((intensity > 1.0 && peak_section > 0.3 && kick > 0.4)
+                    || (is_dropping && drop_intensity > 0.3)
+                    || (transient_ratio > 1.4 && intensity > 0.9 && climax > 0.2));
+            if trigger_raymarch {
+                state.uniforms.raymarch_mode = if is_dropping { 2.0 } else { 1.0 };
+                state.uniforms.raymarch_blend = (state.uniforms.raymarch_blend + 0.1).min(0.4);
+                state.uniforms.tunnel_speed = 0.5 + bass * 1.2 + groove * 0.4;
+            } else {
+                state.uniforms.raymarch_blend *= lull_decay;
+                if state.uniforms.raymarch_blend < 0.02 {
+                    state.uniforms.raymarch_mode = 0.0;
+                }
+            }
+
+            let target_kaleidoscope = if is_breakdown {
+                0.0
+            } else if (climax > 0.3 && onset > 0.35) || (is_dropping && kick > 0.4) {
+                if is_dropping {
+                    8.0
+                } else if finale > 0.3 {
+                    6.0
+                } else {
+                    4.0
+                }
+            } else if peak_section > 0.4 && kick > 0.5 && harmonic_change > 0.25 {
+                4.0
+            } else {
+                0.0
+            };
+            if target_kaleidoscope > 0.0 {
+                self.audio_analyzer.kaleidoscope_blend =
+                    (self.audio_analyzer.kaleidoscope_blend + 0.18).min(1.0);
+            } else {
+                self.audio_analyzer.kaleidoscope_blend *= lull_decay;
+            }
+            state.uniforms.kaleidoscope_segments = if self.audio_analyzer.kaleidoscope_blend > 0.25
+            {
+                target_kaleidoscope
+            } else {
+                0.0
+            };
+
+            let hue_base = song_progress * 50.0;
+            let hue_beat = if beat_confidence > 0.3 {
+                beat_pulse * 12.0
+            } else {
+                0.0
+            };
+            let hue_harmonic = harmonic_change * 15.0;
+            state.uniforms.hue_rotation =
+                hue_base + bass * 12.0 * base_react * em + hue_beat + hue_harmonic;
+            state.uniforms.color_shift =
+                (highs * 0.15 * base_react + brightness * 0.2 * peak_section) * bd * em;
+
+            if is_breakdown {
+                state.uniforms.lens_flare *= 0.85;
+                state.uniforms.vhs_distortion = breakdown_intensity * 0.06;
+            } else if peak_section > 0.3 || is_dropping {
+                let flare_amount =
+                    (kick * 0.3 * peak_section + onset * 0.15 + drop_intensity * 0.15) * em;
+                state.uniforms.lens_flare = flare_amount.min(0.6);
+                state.uniforms.film_grain = 0.008 + onset * 0.025 + noisiness * 0.015;
+                state.uniforms.vhs_distortion =
+                    (snare * 0.06 + high_transient * 0.03) * climax * em;
+            } else {
+                state.uniforms.lens_flare *= lull_decay;
+                state.uniforms.film_grain = noisiness * 0.005 * em;
+                state.uniforms.vhs_distortion *= lull_decay;
+            }
+
+            let retro_trigger = finale > 0.5 && intensity > 1.0 && !is_breakdown;
+            state.uniforms.crt_scanlines = if retro_trigger {
+                0.1 + beat_pulse * 0.04
+            } else {
+                0.0
+            };
+            state.uniforms.pixelate = if finale > 0.7 && kick > 0.5 && !is_breakdown {
+                2.0
+            } else {
+                0.0
+            };
+
+            if is_building {
+                state.uniforms.fractal_iterations = 3.0 + build_intensity * 2.5;
+            } else if is_breakdown {
+                state.uniforms.fractal_iterations = 2.0;
+            } else {
+                state.uniforms.fractal_iterations = 4.0;
+            }
+
+            state.uniforms.warp_speed = if is_dropping && drop_intensity > 0.4 {
+                (drop_intensity * 1.0 + bass * 0.4) * bd
+            } else if climax > 0.5 && intensity > 1.1 {
+                (intensity - 0.8) * 0.5 * bd
+            } else {
+                state.uniforms.warp_speed * lull_decay
+            };
+
+            state.uniforms.pulse_rings = if kick > 0.5 && peak_section > 0.3 {
+                (kick * 0.7 + bass * 0.4) * peak_section * bd
+            } else {
+                state.uniforms.pulse_rings * lull_decay
+            };
+
+            state.uniforms.heat_distortion = if is_dropping {
+                drop_intensity * 1.0 * bd
+            } else if intensity > 1.2 && climax > 0.3 {
+                (intensity - 0.9) * 0.4 * bd
+            } else {
+                state.uniforms.heat_distortion * lull_decay
+            };
+
+            state.uniforms.digital_rain = if is_breakdown && breakdown_intensity > 0.4 {
+                breakdown_intensity * 0.5
+            } else if finale > 0.6 && noisiness > 0.35 {
+                noisiness * 0.4 * bd
+            } else {
+                state.uniforms.digital_rain * lull_decay
+            };
+
+            state.uniforms.strobe = if is_dropping && kick > 0.6 && drop_intensity > 0.5 {
+                0.7 * bd
+            } else if snare > 0.6 && climax > 0.4 {
+                0.4 * bd
+            } else {
+                0.0
+            };
+        }
+    }
+
+    fn launch_firework(&mut self, world: &mut World, color: Vec3, particle_count: u32) {
+        let mut rng = rand::rng();
+
+        let spread = 80.0;
+        let x_offset: f32 = rng.random_range(-spread..spread);
+        let z_offset: f32 = rng.random_range(-40.0..40.0);
+
+        let launch_pos = Vec3::new(x_offset, -20.0, z_offset - 60.0);
+        let target_height: f32 = rng.random_range(40.0..80.0);
+
+        let velocity = Vec3::new(
+            rng.random_range(-5.0..5.0),
+            rng.random_range(60.0..90.0),
+            rng.random_range(-5.0..5.0),
+        );
+
+        let fuse_time = target_height / velocity.y;
+
+        let entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
+        let trail_emitter = ParticleEmitter::firework_shell(launch_pos, velocity);
+        world.set_particle_emitter(entity, trail_emitter);
+
+        self.firework_shells.push(FireworkShell {
+            entity,
+            position: launch_pos,
+            velocity,
+            fuse_time,
+            color,
+            particle_count,
+        });
+    }
+
+    fn update_fireworks(&mut self, world: &mut World, delta_time: f32) {
+        let mut explosions: Vec<(Vec3, Vec3, u32, Entity)> = Vec::new();
+
+        for shell in self.firework_shells.iter_mut() {
+            shell.fuse_time -= delta_time;
+            shell.position += shell.velocity * delta_time;
+            shell.velocity.y -= 15.0 * delta_time;
+
+            if let Some(emitter) = world.get_particle_emitter_mut(shell.entity) {
+                emitter.position = shell.position;
+            }
+
+            if shell.fuse_time <= 0.0 {
+                explosions.push((
+                    shell.position,
+                    shell.color,
+                    shell.particle_count,
+                    shell.entity,
+                ));
+            }
+        }
+
+        for (pos, color, particle_count, entity) in explosions {
+            let flash_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
+            let flash_emitter = ParticleEmitter::flash_burst(pos);
+            world.set_particle_emitter(flash_entity, flash_emitter);
+
+            let explosion_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
+            let emitter = ParticleEmitter::firework_explosion(pos, color, particle_count);
+            world.set_particle_emitter(explosion_entity, emitter);
+
+            let glitter_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
+            let glitter_emitter = ParticleEmitter::firework_glitter(pos, particle_count / 3);
+            world.set_particle_emitter(glitter_entity, glitter_emitter);
+
+            if let Some(emitter) = world.get_particle_emitter_mut(entity) {
+                emitter.enabled = false;
+            }
+        }
+
+        self.firework_shells.retain(|shell| shell.fuse_time > 0.0);
+    }
+
+    fn trigger_audio_fireworks(&mut self, world: &mut World) {
+        if !self.audio_playing {
+            return;
+        }
+
+        let kick = self.audio_analyzer.kick_decay;
+        let drop_intensity = self.audio_analyzer.drop_intensity;
+        let is_dropping = self.audio_analyzer.is_dropping;
+        let intensity = self.audio_analyzer.intensity;
+
+        let should_launch = (is_dropping && drop_intensity > 0.6 && kick > 0.5)
+            || (intensity > 1.5 && kick > 0.7)
+            || (self.audio_analyzer.onset_decay > 0.8 && intensity > 1.3);
+
+        if should_launch && self.global_time > self.last_firework_time + self.firework_cooldown {
+            let mut rng = rand::rng();
+            let hue = rng.random::<f32>() * 360.0;
+            let color = Self::hsv_to_rgb(hue, 0.9, 1.0);
+
+            let particle_count = if is_dropping {
+                rng.random_range(600..1000)
+            } else {
+                rng.random_range(300..600)
+            };
+
+            self.launch_firework(world, color, particle_count);
+
+            if is_dropping && drop_intensity > 0.8 {
+                for _ in 0..rng.random_range(2..5) {
+                    let hue2 = rng.random::<f32>() * 360.0;
+                    let color2 = Self::hsv_to_rgb(hue2, 0.9, 1.0);
+                    self.launch_firework(world, color2, rng.random_range(400..700));
+                }
+            }
+
+            self.last_firework_time = self.global_time;
+        }
+    }
+
+    fn stop_audio(&mut self, world: &mut World) {
+        if let Some(entity) = self.audio_entity
+            && let Some(source) = world.get_audio_source_mut(entity)
+        {
+            source.playing = false;
+        }
+        self.audio_playing = false;
+        self.audio_status = "Stopped".to_string();
+    }
+
+    fn update_objects(&mut self, world: &mut World, _delta_time: f32) {
+        let time = self.global_time;
+
+        let (
+            audio_speed,
+            kick,
+            snare,
+            hat,
+            bass,
+            mids,
+            highs,
+            intensity,
+            groove,
+            beat_phase,
+            drop_intensity,
+            is_dropping,
+            brightness,
+        ) = if self.audio_playing {
+            let bpm_mult = (self.audio_analyzer.estimated_bpm / 120.0).clamp(0.6, 1.8);
+            (
+                bpm_mult,
+                self.audio_analyzer.kick_decay,
+                self.audio_analyzer.snare_decay,
+                self.audio_analyzer.hat_decay,
+                self.audio_analyzer.smoothed_bass,
+                self.audio_analyzer.smoothed_mids,
+                self.audio_analyzer.smoothed_highs,
+                self.audio_analyzer.intensity,
+                self.audio_analyzer.groove_sync,
+                self.audio_analyzer.beat_phase,
+                self.audio_analyzer.drop_intensity,
+                self.audio_analyzer.is_dropping,
+                self.audio_analyzer.smoothed_centroid,
+            )
+        } else {
+            (
+                1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, false, 0.5,
+            )
+        };
+
+        let beat_pulse_factor = (beat_phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
+
+        for (object_index, object) in self.objects.iter().enumerate() {
+            let object_phase_offset = object_index as f32 * 0.1;
+
+            let base_pulse =
+                (time * self.color_cycle_speed * audio_speed + object.phase_offset).sin() * 0.5
+                    + 0.5;
+            let audio_pulse =
+                kick * 0.4 + bass * 0.2 + highs * 0.15 + beat_pulse_factor * groove * 0.3;
+            let pulse = base_pulse + audio_pulse;
+
+            let kick_scale_boost = kick * 0.3;
+            let highs_shimmer = highs * 0.1 * (time * 8.0 + object_phase_offset).sin().abs();
+            let drop_scale = if is_dropping {
+                drop_intensity * 0.2
+            } else {
+                0.0
+            };
+            let scale_pulse = 1.0
+                + pulse * 0.15 * self.pulse_intensity
+                + kick_scale_boost
+                + drop_scale
+                + highs_shimmer;
+
+            let spin_speed_boost = 1.0 + intensity * 0.5 + snare * 0.8 + highs * 0.4;
+            let spin_angle =
+                time * object.spin_speed * self.rotation_speed * audio_speed * spin_speed_boost;
+            let spin_rotation = nalgebra_glm::quat_angle_axis(spin_angle, &object.spin_axis);
+
+            let orbit_speed_boost = 1.0 + groove * 0.3 + intensity * 0.2;
+            let orbit_angle =
+                time * object.orbit_speed * self.rotation_speed * audio_speed * orbit_speed_boost
+                    + object.phase_offset;
+
+            let kick_displacement = kick * 2.0;
+            let snare_jitter = Vec3::new(
+                (time * 17.3 + object_phase_offset).sin() * snare * 1.5,
+                (time * 13.7 + object_phase_offset).cos() * snare * 1.0,
+                (time * 11.1 + object_phase_offset).sin() * snare * 1.2,
+            );
+            let hat_sparkle = Vec3::new(
+                (time * 31.0 + object_phase_offset).sin() * hat * 0.5,
+                (time * 29.0 + object_phase_offset).cos() * hat * 0.5,
+                (time * 23.0 + object_phase_offset).sin() * hat * 0.5,
+            );
+
+            let new_position = if object.orbit_radius > 0.0 {
+                match self.current_phase {
+                    DemoPhase::TorusField => {
+                        let base_wave =
+                            (time * 0.5 * audio_speed + object.phase_offset).sin() * 2.0;
+                        let bass_wave = bass * 3.0 * (time * 2.0 + object.phase_offset).sin();
+                        let wave = base_wave + bass_wave;
+                        let radius_pulse = object.orbit_radius + kick_displacement;
+                        Vec3::new(
+                            orbit_angle.cos() * radius_pulse,
+                            object.base_position.y + wave,
+                            orbit_angle.sin() * radius_pulse,
+                        ) + snare_jitter
+                            + hat_sparkle
+                    }
+                    DemoPhase::CubeVortex => {
+                        let spiral_progress = (object.base_position.y + 15.0) / 30.0;
+                        let current_angle = orbit_angle;
+                        let audio_radius_mod = bass * 3.0 * spiral_progress + kick_displacement;
+                        let current_radius = object.orbit_radius
+                            + (time * 0.3 * audio_speed).sin() * 2.0 * spiral_progress
+                            + audio_radius_mod;
+                        let height_mod = intensity * 2.0 * spiral_progress;
+                        Vec3::new(
+                            current_angle.cos() * current_radius,
+                            object.base_position.y
+                                + (time * 2.0 * audio_speed).sin() * spiral_progress
+                                + height_mod,
+                            current_angle.sin() * current_radius,
+                        ) + snare_jitter
+                    }
+                    DemoPhase::SphereGrid => {
+                        let wave_freq = audio_speed * 0.8;
+                        let wave_amp = 1.5 + bass * 2.0 + kick * 1.5;
+                        let wave_x =
+                            (time * wave_freq + object.base_position.x * 0.1).sin() * wave_amp;
+                        let wave_y = (time * wave_freq * 0.75 + object.base_position.y * 0.1).sin()
+                            * wave_amp;
+                        let wave_z = (time * wave_freq * 0.875 + object.base_position.z * 0.1)
+                            .sin()
+                            * wave_amp;
+                        object.base_position + Vec3::new(wave_x, wave_y, wave_z) + hat_sparkle
+                    }
+                    DemoPhase::PlasmaRings => {
+                        let rotation =
+                            nalgebra_glm::quat_angle_axis(orbit_angle, &object.spin_axis);
+                        let base_pos =
+                            nalgebra_glm::quat_rotate_vec3(&rotation, &object.base_position);
+                        let expansion = 1.0 + kick * 0.2 + mids * 0.1;
+                        base_pos * expansion + snare_jitter
+                    }
+                    DemoPhase::Finale => {
+                        let breathing =
+                            1.0 + (time * 0.5 * audio_speed + object.phase_offset).sin() * 0.3;
+                        let audio_breathing = 1.0 + kick * 0.15 + bass * 0.1 + drop_intensity * 0.2;
+                        let radius = object.orbit_radius * breathing * audio_breathing;
+                        object.base_position.normalize() * radius + snare_jitter + hat_sparkle
+                    }
+                }
+            } else {
+                let wave_speed = audio_speed * 0.8;
+                let wave_amp = self.pulse_intensity * (1.0 + bass * 0.5 + kick * 0.3);
+                let wave_x =
+                    (time * wave_speed + object.base_position.x * 0.1).sin() * 1.5 * wave_amp;
+                let wave_y = (time * wave_speed * 0.75 + object.base_position.y * 0.1).sin()
+                    * 1.5
+                    * wave_amp;
+                let wave_z = (time * wave_speed * 0.875 + object.base_position.z * 0.1).sin()
+                    * 1.5
+                    * wave_amp;
+                object.base_position + Vec3::new(wave_x, wave_y, wave_z) + snare_jitter
+            };
+
+            if let Some(transform) = world.get_local_transform_mut(object.entity) {
+                transform.translation = new_position;
+                transform.rotation = spin_rotation;
+                transform.scale = Vec3::new(object.scale, object.scale, object.scale) * scale_pulse;
+            }
+            world.mark_local_transform_dirty(object.entity);
+
+            let hue_speed = self.color_cycle_speed * audio_speed * (1.0 + intensity * 0.5);
+            let hue_kick_shift = kick * 30.0;
+            let hue_brightness_shift = brightness * 20.0;
+            let new_hue = (object.color_offset
+                + time * 30.0 * hue_speed
+                + hue_kick_shift
+                + hue_brightness_shift)
+                % 360.0;
+
+            let saturation = 0.85 + intensity * 0.1 + kick * 0.05;
+            let value = 0.9 + kick * 0.1;
+            let new_color = Self::hsv_to_rgb(new_hue, saturation.min(1.0), value.min(1.0));
+
+            let base_emissive = 0.4 + pulse * self.pulse_intensity * 0.3;
+            let audio_emissive = kick * 0.8 + bass * 0.4 + intensity * 0.3 + drop_intensity * 0.5;
+            let emissive_strength = base_emissive + audio_emissive;
+
+            if let Some(material_ref) = world.get_material_ref(object.entity)
+                && let Some(material_index) = world
+                    .resources
+                    .material_registry
+                    .registry
+                    .name_to_index
+                    .get(&material_ref.name)
+                    .copied()
+                && let Some(Some(material)) = world
+                    .resources
+                    .material_registry
+                    .registry
+                    .entries
+                    .get_mut(material_index as usize)
+            {
+                material.emissive_factor = [
+                    new_color.x * emissive_strength,
+                    new_color.y * emissive_strength,
+                    new_color.z * emissive_strength,
+                ];
+            }
+        }
+    }
+
+    fn update_lights(&mut self, world: &mut World, _delta_time: f32) {
+        let time = self.global_time;
+
+        let (
+            audio_speed,
+            kick,
+            snare,
+            bass,
+            mids,
+            highs,
+            intensity,
+            groove,
+            beat_phase,
+            drop_intensity,
+            brightness,
+        ) = if self.audio_playing {
+            let bpm_mult = (self.audio_analyzer.estimated_bpm / 120.0).clamp(0.6, 1.8);
+            (
+                bpm_mult,
+                self.audio_analyzer.kick_decay,
+                self.audio_analyzer.snare_decay,
+                self.audio_analyzer.smoothed_bass,
+                self.audio_analyzer.smoothed_mids,
+                self.audio_analyzer.smoothed_highs,
+                self.audio_analyzer.intensity,
+                self.audio_analyzer.groove_sync,
+                self.audio_analyzer.beat_phase,
+                self.audio_analyzer.drop_intensity,
+                self.audio_analyzer.smoothed_centroid,
+            )
+        } else {
+            (1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5)
+        };
+
+        let beat_pulse = (beat_phase * std::f32::consts::TAU).sin() * 0.5 + 0.5;
+
+        for (light_index, light) in self.lights.iter().enumerate() {
+            let light_phase = light_index as f32 * 0.3;
+
+            let orbit_boost = 1.0 + groove * 0.2 + intensity * 0.15;
+            let angle = time * light.orbit_speed * self.rotation_speed * audio_speed * orbit_boost
+                + light.phase_offset;
+
+            let base_height_wave = (time * 0.3 * audio_speed + light.phase_offset).sin() * 5.0;
+            let beat_bob = beat_pulse * groove * 3.0;
+            let kick_jump = kick * 4.0;
+            let height_wave = base_height_wave + beat_bob + kick_jump;
+
+            let radius_pulse = light.orbit_radius + kick * 3.0 + bass * 2.0;
+
+            let snare_scatter = Vec3::new(
+                (time * 19.0 + light_phase).sin() * snare * 2.0,
+                (time * 17.0 + light_phase).cos() * snare * 1.5,
+                (time * 13.0 + light_phase).sin() * snare * 2.0,
+            );
+
+            let new_position = Vec3::new(
+                angle.cos() * radius_pulse,
+                light.height_offset + height_wave,
+                angle.sin() * radius_pulse,
+            ) + snare_scatter;
+
+            if let Some(transform) = world.get_local_transform_mut(light.entity) {
+                transform.translation = new_position;
+            }
+            world.mark_local_transform_dirty(light.entity);
+
+            if let Some(transform) = world.get_local_transform_mut(light.sphere_entity) {
+                transform.translation = new_position;
+            }
+            world.mark_local_transform_dirty(light.sphere_entity);
+
+            let hue_speed_mult = audio_speed * (1.0 + intensity * 0.3 + highs * 0.2);
+            let kick_hue_jump = kick * 40.0;
+            let mids_hue = mids * 15.0;
+            let brightness_hue = brightness * 30.0;
+            let hue_shift = (time * 20.0 * self.color_cycle_speed * hue_speed_mult
+                + kick_hue_jump
+                + mids_hue
+                + brightness_hue)
+                % 360.0;
+            let base_hue = light.base_color.x * 120.0
+                + light.base_color.y * 120.0
+                + light.base_color.z * 120.0;
+            let new_hue = (base_hue + hue_shift) % 360.0;
+
+            let saturation = 0.9 + kick * 0.1 + mids * 0.05;
+            let value = 0.95 + kick * 0.05 + highs * 0.03;
+            let new_color = Self::hsv_to_rgb(new_hue, saturation.min(1.0), value.min(1.0));
+
+            let base_intensity = 3.0
+                + (time * 2.0 * audio_speed + light.phase_offset).sin()
+                    * 2.0
+                    * self.pulse_intensity;
+            let audio_intensity = kick * 4.0
+                + bass * 2.0
+                + mids * 1.5
+                + highs * 1.0
+                + intensity * 2.0
+                + drop_intensity * 3.0
+                + beat_pulse * groove * 1.5;
+            let intensity_pulse = base_intensity + audio_intensity;
+
+            if let Some(light_component) = world.get_light_mut(light.entity) {
+                light_component.color = new_color;
+                light_component.intensity = intensity_pulse;
+            }
+
+            let emissive_boost = 5.0
+                + kick * 3.0
+                + mids * 1.0
+                + highs * 0.8
+                + intensity * 2.0
+                + drop_intensity * 2.0;
+            if let Some(material_ref) = world.get_material_ref(light.sphere_entity)
+                && let Some(material_index) = world
+                    .resources
+                    .material_registry
+                    .registry
+                    .name_to_index
+                    .get(&material_ref.name)
+                    .copied()
+                && let Some(Some(material)) = world
+                    .resources
+                    .material_registry
+                    .registry
+                    .entries
+                    .get_mut(material_index as usize)
+            {
+                material.emissive_factor = [
+                    new_color.x * emissive_boost,
+                    new_color.y * emissive_boost,
+                    new_color.z * emissive_boost,
+                ];
+            }
+        }
+    }
+
+    fn ease_in_out_sine(t: f32) -> f32 {
+        -(((t * std::f32::consts::PI).cos() - 1.0) / 2.0)
+    }
+
+    fn get_camera_keyframes_for_phase(phase: DemoPhase, duration: f32) -> Vec<CameraKeyframe> {
+        match phase {
+            DemoPhase::TorusField => vec![
+                CameraKeyframe {
+                    position: Vec3::new(50.0, 20.0, 0.0),
+                    time: 0.0,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(30.0, 5.0, 30.0),
+                    time: duration * 0.2,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-10.0, 2.0, 15.0),
+                    time: duration * 0.35,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-40.0, 25.0, -20.0),
+                    time: duration * 0.55,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(0.0, 40.0, 50.0),
+                    time: duration * 0.75,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(50.0, 20.0, 0.0),
+                    time: duration,
+                },
+            ],
+            DemoPhase::CubeVortex => vec![
+                CameraKeyframe {
+                    position: Vec3::new(0.0, -10.0, 60.0),
+                    time: 0.0,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(25.0, 0.0, 25.0),
+                    time: duration * 0.15,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(15.0, 20.0, 15.0),
+                    time: duration * 0.3,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-5.0, 35.0, 5.0),
+                    time: duration * 0.5,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-30.0, 15.0, -30.0),
+                    time: duration * 0.7,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(0.0, -5.0, -50.0),
+                    time: duration * 0.85,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(0.0, -10.0, 60.0),
+                    time: duration,
+                },
+            ],
+            DemoPhase::SphereGrid => vec![
+                CameraKeyframe {
+                    position: Vec3::new(35.0, 35.0, 35.0),
+                    time: 0.0,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(0.0, 0.0, 40.0),
+                    time: duration * 0.2,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-20.0, -20.0, 20.0),
+                    time: duration * 0.4,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-35.0, 10.0, -35.0),
+                    time: duration * 0.6,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(10.0, -30.0, -20.0),
+                    time: duration * 0.8,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(35.0, 35.0, 35.0),
+                    time: duration,
+                },
+            ],
+            DemoPhase::PlasmaRings => vec![
+                CameraKeyframe {
+                    position: Vec3::new(0.0, 0.0, 45.0),
+                    time: 0.0,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(30.0, 20.0, 30.0),
+                    time: duration * 0.15,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(0.0, 40.0, 0.1),
+                    time: duration * 0.3,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-30.0, 10.0, 30.0),
+                    time: duration * 0.45,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-20.0, -15.0, -20.0),
+                    time: duration * 0.6,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(20.0, -10.0, -30.0),
+                    time: duration * 0.75,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(40.0, 5.0, 0.1),
+                    time: duration * 0.9,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(0.0, 0.0, 45.0),
+                    time: duration,
+                },
+            ],
+            DemoPhase::Finale => vec![
+                CameraKeyframe {
+                    position: Vec3::new(60.0, 30.0, 0.1),
+                    time: 0.0,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(40.0, 10.0, 40.0),
+                    time: duration * 0.1,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(0.1, 5.0, 55.0),
+                    time: duration * 0.2,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-35.0, 15.0, 35.0),
+                    time: duration * 0.3,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-50.0, 25.0, 0.1),
+                    time: duration * 0.4,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(-30.0, 5.0, -40.0),
+                    time: duration * 0.5,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(0.1, -10.0, -55.0),
+                    time: duration * 0.6,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(35.0, 0.1, -35.0),
+                    time: duration * 0.7,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(50.0, 20.0, 0.1),
+                    time: duration * 0.8,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(30.0, 40.0, 30.0),
+                    time: duration * 0.9,
+                },
+                CameraKeyframe {
+                    position: Vec3::new(60.0, 30.0, 0.1),
+                    time: duration,
+                },
+            ],
+        }
+    }
+
+    fn interpolate_keyframes(keyframes: &[CameraKeyframe], time: f32) -> Vec3 {
+        if keyframes.is_empty() {
+            return Vec3::new(0.0, 10.0, 40.0);
+        }
+
+        if keyframes.len() == 1 {
+            return keyframes[0].position;
+        }
+
+        let mut from_index = 0;
+        for (index, keyframe) in keyframes.iter().enumerate() {
+            if keyframe.time <= time {
+                from_index = index;
+            } else {
+                break;
+            }
+        }
+
+        let to_index = (from_index + 1).min(keyframes.len() - 1);
+
+        if from_index == to_index {
+            return keyframes[from_index].position;
+        }
+
+        let from = &keyframes[from_index];
+        let to = &keyframes[to_index];
+
+        let segment_duration = to.time - from.time;
+        let segment_time = time - from.time;
+        let t = if segment_duration > 0.0 {
+            (segment_time / segment_duration).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+
+        let eased_t = Self::ease_in_out_sine(t);
+
+        from.position.lerp(&to.position, eased_t)
+    }
+
+    fn update_camera(&mut self, world: &mut World, _delta_time: f32) {
+        let Some(camera_entity) = self.camera_entity else {
+            return;
+        };
+
+        let audio_speed_mult = if self.audio_playing {
+            let bpm = self.audio_analyzer.estimated_bpm;
+            let base_mult = (bpm / 120.0).clamp(0.5, 2.0);
+            let energy_mult = 1.0 + self.audio_analyzer.intensity * 0.3;
+            base_mult * energy_mult
+        } else {
+            1.0
+        };
+
+        let kick_push = if self.audio_playing {
+            self.audio_analyzer.kick_decay * 3.0
+        } else {
+            0.0
+        };
+
+        let drop_zoom = if self.audio_playing && self.audio_analyzer.is_dropping {
+            self.audio_analyzer.drop_intensity * 8.0
+        } else {
+            0.0
+        };
+
+        let groove = if self.audio_playing {
+            self.audio_analyzer.groove_sync
+        } else {
+            0.0
+        };
+
+        let beat_phase = if self.audio_playing {
+            self.audio_analyzer.beat_phase
+        } else {
+            0.0
+        };
+
+        let base_position = match self.camera_mode {
+            CameraMode::Manual => return,
+            CameraMode::Orbit => {
+                let time = self.global_time;
+                let audio_angle_boost = groove * 0.3;
+                let angle = time * self.camera_orbit_speed * audio_speed_mult + audio_angle_boost;
+
+                let beat_bob = (beat_phase * std::f32::consts::TAU).sin() * 2.0 * groove;
+                let height_wave = (time * 0.2 * audio_speed_mult).sin() * 5.0 + beat_bob;
+
+                let dynamic_radius = self.camera_orbit_radius - kick_push - drop_zoom;
+
+                Vec3::new(
+                    angle.cos() * dynamic_radius,
+                    self.camera_orbit_height + height_wave,
+                    angle.sin() * dynamic_radius,
+                )
+            }
+            CameraMode::Cinematic => {
+                if self.camera_keyframes.is_empty() {
+                    self.camera_keyframes = Self::get_camera_keyframes_for_phase(
+                        self.current_phase,
+                        self.phase_duration,
+                    );
+                }
+                let base = Self::interpolate_keyframes(&self.camera_keyframes, self.phase_time);
+
+                let beat_sway = if self.audio_playing {
+                    let sway_x = (beat_phase * std::f32::consts::TAU).sin() * groove * 1.5;
+                    let sway_y = (beat_phase * std::f32::consts::TAU * 2.0).cos() * groove * 0.8;
+                    Vec3::new(sway_x, sway_y, 0.0)
+                } else {
+                    Vec3::zeros()
+                };
+
+                let intensity_push = if self.audio_playing {
+                    let dir = base.normalize();
+                    dir * (-kick_push - drop_zoom)
+                } else {
+                    Vec3::zeros()
+                };
+
+                base + beat_sway + intensity_push
+            }
+        };
+
+        let snare_look_offset = if self.audio_playing {
+            let snare = self.audio_analyzer.snare_decay;
+            Vec3::new(
+                (self.global_time * 7.3).sin() * snare * 2.0,
+                (self.global_time * 5.7).cos() * snare * 1.5,
+                (self.global_time * 4.1).sin() * snare * 1.0,
+            )
+        } else {
+            Vec3::zeros()
+        };
+
+        let look_at_target = Vec3::zeros() + snare_look_offset;
+        let view_matrix = nalgebra_glm::look_at(&base_position, &look_at_target, &Vec3::y());
+        let rotation_matrix = view_matrix.fixed_view::<3, 3>(0, 0).transpose();
+        let rotation = nalgebra_glm::mat3_to_quat(&rotation_matrix);
+
+        if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+            transform.translation = base_position;
+            transform.rotation = rotation;
+        }
+        world.mark_local_transform_dirty(camera_entity);
+    }
+}
+
+impl State for DemoSceneState {
+    fn title(&self) -> &str {
+        "Demo Scene"
+    }
+
+    fn initialize(&mut self, world: &mut World) {
+        world.resources.user_interface.enabled = true;
+        world.resources.graphics.atmosphere = Atmosphere::Space;
+        world.resources.graphics.show_grid = false;
+        world.resources.graphics.clear_color = [0.02, 0.02, 0.05, 1.0];
+        world.resources.graphics.bloom_enabled = true;
+        world.resources.graphics.bloom_intensity = self.bloom_intensity;
+
+        let camera = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | CAMERA,
+            1,
+        )[0];
+
+        world.set_local_transform(
+            camera,
+            LocalTransform {
+                translation: Vec3::new(0.0, 15.0, 40.0),
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_local_transform_dirty(camera, LocalTransformDirty);
+        world.set_global_transform(camera, GlobalTransform::default());
+        world.set_camera(
+            camera,
+            Camera {
+                projection: Projection::Perspective(PerspectiveCamera {
+                    aspect_ratio: None,
+                    y_fov_rad: 60.0_f32.to_radians(),
+                    z_near: 0.1,
+                    z_far: Some(500.0),
+                }),
+                smoothing: Some(Smoothing::default()),
+            },
+        );
+        self.camera_entity = Some(camera);
+        world.resources.active_camera = Some(camera);
+
+        let title = spawn_3d_text_with_properties(
+            world,
+            self.current_phase.name(),
+            Vec3::new(0.0, 25.0, 0.0),
+            TextProperties {
+                font_size: 80.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.2, 0.5, 1.0, 1.0),
+                smoothing: 0.01,
+                ..Default::default()
+            },
+        );
+        self.title_text = Some(title);
+
+        spawn_hud_text_with_properties(
+            world,
+            "DEMOSCENE\nWASD: Move | Mouse: Look | 1-5: Phase | Space: Next | ESC: Exit",
+            HudAnchor::TopCenter,
+            Vec2::new(0.0, 20.0),
+            TextProperties {
+                font_size: 18.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 0.9),
+                alignment: TextAlignment::Center,
+                outline_width: 0.01,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        self.setup_torus_field(world);
+    }
+
+    fn run_systems(&mut self, world: &mut World) {
+        escape_key_exit_system(world);
+
+        if self.camera_mode == CameraMode::Manual {
+            fly_camera_system(world);
+        }
+
+        sync_text_meshes_system(world);
+
+        let delta_time = world.resources.window.timing.delta_time;
+        self.global_time += delta_time;
+        self.phase_time += delta_time;
+
+        update_particle_emitters(world, delta_time);
+
+        if self.auto_transition && self.phase_time >= self.phase_duration {
+            let next = self.next_phase();
+            self.switch_phase(world, next);
+        }
+
+        self.update_objects(world, delta_time);
+        self.update_lights(world, delta_time);
+        self.update_camera(world, delta_time);
+        self.update_audio_reactive();
+        self.trigger_audio_fireworks(world);
+        self.update_fireworks(world, delta_time);
+
+        world.resources.graphics.bloom_intensity = self.bloom_intensity;
+
+        if let Some(title_entity) = self.title_text {
+            let title_rotation = nalgebra_glm::quat_angle_axis(self.global_time * 0.1, &Vec3::y());
+            if let Some(transform) = world.get_local_transform_mut(title_entity) {
+                transform.rotation = title_rotation;
+                let pulse = (self.global_time * 2.0).sin() * 0.5 + 0.5;
+                transform.scale = Vec3::new(1.0, 1.0, 1.0) * (0.9 + pulse * 0.2);
+            }
+            world.mark_local_transform_dirty(title_entity);
+        }
+    }
+
+    fn on_keyboard_input(&mut self, world: &mut World, key: KeyCode, state: KeyState) {
+        if state != KeyState::Pressed {
+            return;
+        }
+
+        match key {
+            KeyCode::Space => {
+                let next = self.next_phase();
+                self.switch_phase(world, next);
+            }
+            KeyCode::Digit1 => self.switch_phase(world, DemoPhase::TorusField),
+            KeyCode::Digit2 => self.switch_phase(world, DemoPhase::CubeVortex),
+            KeyCode::Digit3 => self.switch_phase(world, DemoPhase::SphereGrid),
+            KeyCode::Digit4 => self.switch_phase(world, DemoPhase::PlasmaRings),
+            KeyCode::Digit5 => self.switch_phase(world, DemoPhase::Finale),
+            KeyCode::KeyC => {
+                self.camera_mode = match self.camera_mode {
+                    CameraMode::Cinematic => CameraMode::Orbit,
+                    CameraMode::Orbit => CameraMode::Manual,
+                    CameraMode::Manual => CameraMode::Cinematic,
+                };
+            }
+            KeyCode::KeyA
+                if world
+                    .resources
+                    .input
+                    .keyboard
+                    .is_key_pressed(KeyCode::ControlLeft) =>
+            {
+                self.auto_transition = !self.auto_transition;
+            }
+            _ => {}
+        }
+    }
+
+    fn configure_render_graph(
+        &mut self,
+        graph: &mut RenderGraph<World>,
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        resources: RenderResources,
+    ) {
+        let particle_pass = passes::ParticlePass::new(device, wgpu::TextureFormat::Rgba16Float);
+        graph
+            .pass(Box::new(particle_pass))
+            .slot("color", resources.scene_color)
+            .slot("depth", resources.depth);
+
+        let (width, height) = (1920, 1080);
+        let bloom_width = width / 2;
+        let bloom_height = height / 2;
+
+        let bloom_texture = graph
+            .add_color_texture("bloom")
+            .format(wgpu::TextureFormat::Rgba16Float)
+            .size(bloom_width, bloom_height)
+            .clear_color(wgpu::Color::BLACK)
+            .transient();
+
+        let bloom_pass = passes::BloomPass::new(device, width, height);
+        graph
+            .pass(Box::new(bloom_pass))
+            .read("hdr", resources.scene_color)
+            .write("bloom", bloom_texture);
+
+        let postprocess_texture = graph
+            .add_color_texture("postprocess")
+            .format(wgpu::TextureFormat::Rgba8Unorm)
+            .size(width, height)
+            .clear_color(wgpu::Color::BLACK)
+            .transient();
+
+        let postprocess_pass =
+            passes::PostProcessPass::new(device, wgpu::TextureFormat::Rgba8Unorm, 1.0);
+        graph
+            .pass(Box::new(postprocess_pass))
+            .read("hdr", resources.scene_color)
+            .read("bloom", bloom_texture)
+            .read("ssao", resources.ssao)
+            .write("output", postprocess_texture);
+
+        let blit_pipeline = passes::BlitPass::create_pipeline(device, surface_format);
+        let demoscene_pass = DemoscenePass::new(
+            device,
+            surface_format,
+            blit_pipeline,
+            Arc::clone(&self.shared_state),
+        );
+        graph
+            .pass(Box::new(demoscene_pass))
+            .read("input", postprocess_texture)
+            .write("output", resources.swapchain);
+    }
+
+    fn ui(&mut self, world: &mut World, ui_context: &egui::Context) {
+        egui::Window::new("Demo Controls")
+            .default_pos([10.0, 60.0])
+            .default_width(320.0)
+            .vscroll(true)
+            .show(ui_context, |ui| {
+                egui::CollapsingHeader::new("Audio Visualizer")
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        if let Ok(mut buffer) = self.clipboard_buffer.try_write()
+                            && let Some(text) = buffer.take()
+                        {
+                            self.youtube_url = text;
+                        }
+
+                        ui.label("YouTube URL:");
+                        let text_edit = egui::TextEdit::multiline(&mut self.youtube_url)
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(2)
+                            .hint_text("Paste YouTube URL here...");
+                        ui.add(text_edit);
+
+                        ui.horizontal(|ui| {
+                            if ui.button("Paste").clicked() {
+                                #[cfg(target_arch = "wasm32")]
+                                {
+                                    let buffer = self.clipboard_buffer.clone();
+                                    spawn_local(async move {
+                                        let promise =
+                                            js_sys::eval("navigator.clipboard.readText()");
+                                        if let Ok(promise) = promise {
+                                            let promise: js_sys::Promise = promise.unchecked_into();
+                                            let future =
+                                                wasm_bindgen_futures::JsFuture::from(promise);
+                                            if let Ok(value) = future.await
+                                                && let Some(text) = value.as_string()
+                                                && let Ok(mut buf) = buffer.write()
+                                            {
+                                                *buf = Some(text);
+                                            }
+                                        }
+                                    });
+                                }
+                                #[cfg(not(target_arch = "wasm32"))]
+                                {
+                                    if let Ok(output) = std::process::Command::new("powershell")
+                                        .args(["-command", "Get-Clipboard"])
+                                        .output()
+                                        && let Ok(text) = String::from_utf8(output.stdout)
+                                    {
+                                        self.youtube_url = text.trim().to_string();
+                                    }
+                                }
+                            }
+                            if ui.button("Clear").clicked() {
+                                self.youtube_url.clear();
+                            }
+                        });
+
+                        ui.horizontal(|ui| {
+                            if ui.button("Load & Play").clicked() {
+                                self.load_youtube_audio(world);
+                            }
+                            if self.audio_playing && ui.button("Stop").clicked() {
+                                self.stop_audio(world);
+                            }
+                        });
+
+                        if !self.audio_status.is_empty() {
+                            ui.colored_label(egui::Color32::YELLOW, &self.audio_status);
+                        }
+
+                        ui.separator();
+                        if ui.button("🎲 Randomize All Effects").clicked() {
+                            self.randomize_uniforms();
+                        }
+
+                        ui.add(
+                            egui::Slider::new(&mut self.bass_sensitivity, 0.0..=3.0)
+                                .text("Bass sensitivity"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.mids_sensitivity, 0.0..=3.0)
+                                .text("Mids sensitivity"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.highs_sensitivity, 0.0..=3.0)
+                                .text("Highs sensitivity"),
+                        );
+
+                        if self.audio_playing {
+                            let audio_time = (self.global_time - self.audio_start_time).max(0.0);
+                            let progress = self.audio_analyzer.song_progress(audio_time);
+                            ui.add(
+                                egui::ProgressBar::new(progress)
+                                    .text(format!("{:.0}%", progress * 100.0)),
+                            );
+
+                            ui.horizontal(|ui| {
+                                ui.label("Low:");
+                                ui.add(
+                                    egui::ProgressBar::new(
+                                        self.audio_analyzer.smoothed_sub_bass.min(1.0),
+                                    )
+                                    .desired_width(40.0),
+                                );
+                                ui.add(
+                                    egui::ProgressBar::new(
+                                        self.audio_analyzer.smoothed_bass.min(1.0),
+                                    )
+                                    .desired_width(40.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Mid:");
+                                ui.add(
+                                    egui::ProgressBar::new(
+                                        self.audio_analyzer.smoothed_low_mids.min(1.0),
+                                    )
+                                    .desired_width(40.0),
+                                );
+                                ui.add(
+                                    egui::ProgressBar::new(
+                                        self.audio_analyzer.smoothed_mids.min(1.0),
+                                    )
+                                    .desired_width(40.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("High:");
+                                ui.add(
+                                    egui::ProgressBar::new(
+                                        self.audio_analyzer.smoothed_high_mids.min(1.0),
+                                    )
+                                    .desired_width(40.0),
+                                );
+                                ui.add(
+                                    egui::ProgressBar::new(
+                                        self.audio_analyzer.smoothed_highs.min(1.0),
+                                    )
+                                    .desired_width(40.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Events:");
+                                if self.audio_analyzer.kick_decay > 0.3 {
+                                    ui.colored_label(egui::Color32::RED, "KICK");
+                                }
+                                if self.audio_analyzer.snare_decay > 0.3 {
+                                    ui.colored_label(egui::Color32::YELLOW, "SNARE");
+                                }
+                                if self.audio_analyzer.onset_decay > 0.3 {
+                                    ui.colored_label(egui::Color32::GREEN, "ONSET");
+                                }
+                            });
+                        }
+
+                        ui.small("Requires yt-dlp installed");
+                    });
+
+                ui.collapsing("Phase", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Current:");
+                        ui.strong(self.current_phase.name());
+                    });
+
+                    let progress = self.phase_time / self.phase_duration;
+                    ui.add(egui::ProgressBar::new(progress).show_percentage());
+
+                    ui.checkbox(&mut self.auto_transition, "Auto-transition");
+
+                    if self.auto_transition {
+                        ui.add(
+                            egui::Slider::new(&mut self.phase_duration, 5.0..=60.0)
+                                .text("Duration (s)"),
+                        );
+                    }
+
+                    ui.horizontal_wrapped(|ui| {
+                        for phase in DemoPhase::all() {
+                            if ui
+                                .selectable_label(self.current_phase == *phase, phase.name())
+                                .clicked()
+                            {
+                                self.switch_phase(world, *phase);
+                            }
+                        }
+                    });
+                });
+
+                ui.collapsing("Scene", |ui| {
+                    ui.add(
+                        egui::Slider::new(&mut self.color_cycle_speed, 0.0..=3.0)
+                            .text("Color cycle"),
+                    );
+                    ui.add(egui::Slider::new(&mut self.rotation_speed, 0.0..=3.0).text("Rotation"));
+                    ui.add(egui::Slider::new(&mut self.pulse_intensity, 0.0..=2.0).text("Pulse"));
+                    ui.add(egui::Slider::new(&mut self.bloom_intensity, 0.0..=2.0).text("Bloom"));
+
+                    ui.separator();
+
+                    let mut object_count_slider = self.object_count;
+                    if ui
+                        .add(egui::Slider::new(&mut object_count_slider, 16..=256).text("Objects"))
+                        .changed()
+                        && object_count_slider != self.object_count
+                    {
+                        self.object_count = object_count_slider;
+                        self.switch_phase(world, self.current_phase);
+                    }
+
+                    let mut light_count_slider = self.light_count;
+                    if ui
+                        .add(egui::Slider::new(&mut light_count_slider, 4..=24).text("Lights"))
+                        .changed()
+                        && light_count_slider != self.light_count
+                    {
+                        self.light_count = light_count_slider;
+                        self.switch_phase(world, self.current_phase);
+                    }
+                });
+
+                ui.collapsing("Camera", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(
+                            &mut self.camera_mode,
+                            CameraMode::Cinematic,
+                            "Cinematic",
+                        );
+                        ui.selectable_value(&mut self.camera_mode, CameraMode::Orbit, "Orbit");
+                        ui.selectable_value(&mut self.camera_mode, CameraMode::Manual, "Manual");
+                    });
+
+                    match self.camera_mode {
+                        CameraMode::Cinematic => {
+                            let keyframe_count = self.camera_keyframes.len();
+                            let current_keyframe = self
+                                .camera_keyframes
+                                .iter()
+                                .rposition(|k| k.time <= self.phase_time)
+                                .map(|i| i + 1)
+                                .unwrap_or(1);
+                            ui.label(format!(
+                                "Keyframe: {} / {}",
+                                current_keyframe, keyframe_count
+                            ));
+                        }
+                        CameraMode::Orbit => {
+                            ui.add(
+                                egui::Slider::new(&mut self.camera_orbit_speed, 0.0..=1.0)
+                                    .text("Speed"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.camera_orbit_radius, 20.0..=80.0)
+                                    .text("Radius"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.camera_orbit_height, 0.0..=40.0)
+                                    .text("Height"),
+                            );
+                        }
+                        CameraMode::Manual => {
+                            ui.label("WASD + mouse");
+                        }
+                    }
+                });
+
+                ui.collapsing("Shader FX", |ui| {
+                    let mut shader_enabled =
+                        self.shared_state.read().map(|s| s.enabled).unwrap_or(true);
+                    if ui.checkbox(&mut shader_enabled, "Enable").changed()
+                        && let Ok(mut state) = self.shared_state.write()
+                    {
+                        state.enabled = shader_enabled;
+                    }
+
+                    if shader_enabled {
+                        ui.horizontal(|ui| {
+                            if ui.button("Randomize").clicked() {
+                                self.randomize_shader_settings();
+                            }
+                            if ui.button("Reset").clicked()
+                                && let Ok(mut state) = self.shared_state.write()
+                            {
+                                state.uniforms = DemosceneUniforms::default();
+                            }
+                        });
+
+                        if let Ok(mut state) = self.shared_state.write() {
+                            ui.collapsing("Raymarching", |ui| {
+                                let modes = [
+                                    "Off",
+                                    "Tunnel",
+                                    "Fractal",
+                                    "Mandelbulb",
+                                    "Vortex",
+                                    "Geometric",
+                                ];
+                                let current = state.uniforms.raymarch_mode as usize;
+                                ui.horizontal_wrapped(|ui| {
+                                    for (i, name) in modes.iter().enumerate() {
+                                        if ui.selectable_label(current == i, *name).clicked() {
+                                            state.uniforms.raymarch_mode = i as f32;
+                                        }
+                                    }
+                                });
+                                if state.uniforms.raymarch_mode > 0.5 {
+                                    ui.add(
+                                        egui::Slider::new(
+                                            &mut state.uniforms.raymarch_blend,
+                                            0.0..=1.0,
+                                        )
+                                        .text("Blend"),
+                                    );
+                                    ui.add(
+                                        egui::Slider::new(
+                                            &mut state.uniforms.tunnel_speed,
+                                            0.0..=5.0,
+                                        )
+                                        .text("Speed"),
+                                    );
+                                    ui.add(
+                                        egui::Slider::new(
+                                            &mut state.uniforms.fractal_iterations,
+                                            2.0..=8.0,
+                                        )
+                                        .text("Iterations"),
+                                    );
+                                }
+                            });
+
+                            ui.collapsing("Distortion", |ui| {
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.uniforms.chromatic_aberration,
+                                        0.0..=2.0,
+                                    )
+                                    .text("Chromatic"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.uniforms.wave_distortion,
+                                        0.0..=2.0,
+                                    )
+                                    .text("Wave"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.radial_blur, 0.0..=1.0)
+                                        .text("Radial blur"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.uniforms.kaleidoscope_segments,
+                                        0.0..=12.0,
+                                    )
+                                    .text("Kaleidoscope"),
+                                );
+                                let mut mirror = state.uniforms.mirror_mode > 0.5;
+                                if ui.checkbox(&mut mirror, "Mirror").changed() {
+                                    state.uniforms.mirror_mode = if mirror { 1.0 } else { 0.0 };
+                                }
+                            });
+
+                            ui.collapsing("Color", |ui| {
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.color_shift, 0.0..=2.0)
+                                        .text("Shift"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.uniforms.plasma_intensity,
+                                        0.0..=1.0,
+                                    )
+                                    .text("Plasma"),
+                                );
+                                ui.horizontal(|ui| {
+                                    ui.add_enabled(
+                                        !state.animate_hue,
+                                        egui::Slider::new(
+                                            &mut state.uniforms.hue_rotation,
+                                            0.0..=1.0,
+                                        )
+                                        .text("Hue"),
+                                    );
+                                    ui.checkbox(&mut state.animate_hue, "Auto");
+                                });
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.uniforms.color_posterize,
+                                        0.0..=1.0,
+                                    )
+                                    .text("Posterize"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.saturation, 0.0..=2.0)
+                                        .text("Saturation"),
+                                );
+                                let mut invert = state.uniforms.invert > 0.5;
+                                if ui.checkbox(&mut invert, "Invert").changed() {
+                                    state.uniforms.invert = if invert { 1.0 } else { 0.0 };
+                                }
+                            });
+
+                            ui.collapsing("Color Grading", |ui| {
+                                let grades = [
+                                    "Off",
+                                    "Cyberpunk",
+                                    "Vaporwave",
+                                    "Mono",
+                                    "Sepia",
+                                    "Matrix",
+                                    "Inferno",
+                                ];
+                                let current = state.uniforms.color_grade_mode as usize;
+                                ui.horizontal_wrapped(|ui| {
+                                    for (i, name) in grades.iter().enumerate() {
+                                        if ui.selectable_label(current == i, *name).clicked() {
+                                            state.uniforms.color_grade_mode = i as f32;
+                                        }
+                                    }
+                                });
+                            });
+
+                            ui.collapsing("Effects", |ui| {
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.vignette, 0.0..=2.0)
+                                        .text("Vignette"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.uniforms.glow_intensity,
+                                        0.0..=2.0,
+                                    )
+                                    .text("Glow"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.uniforms.glitch_intensity,
+                                        0.0..=1.0,
+                                    )
+                                    .text("Glitch"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.film_grain, 0.0..=1.0)
+                                        .text("Film grain"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.sharpen, 0.0..=1.0)
+                                        .text("Sharpen"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.lens_flare, 0.0..=1.0)
+                                        .text("Lens flare"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.edge_glow, 0.0..=1.0)
+                                        .text("Edge glow"),
+                                );
+                            });
+
+                            ui.collapsing("Motion", |ui| {
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.screen_shake, 0.0..=1.0)
+                                        .text("Shake"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.zoom_pulse, 0.0..=1.0)
+                                        .text("Zoom pulse"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.speed_lines, 0.0..=1.0)
+                                        .text("Speed lines"),
+                                );
+                            });
+
+                            ui.collapsing("Retro", |ui| {
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.crt_scanlines, 0.0..=1.0)
+                                        .text("CRT"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(&mut state.uniforms.pixelate, 0.0..=1.0)
+                                        .text("Pixelate"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.uniforms.vhs_distortion,
+                                        0.0..=1.0,
+                                    )
+                                    .text("VHS"),
+                                );
+                            });
+                        }
+                    }
+                });
+
+                ui.collapsing("Stats", |ui| {
+                    ui.label(format!("Objects: {}", self.objects.len()));
+                    ui.label(format!("Lights: {}", self.lights.len()));
+                    ui.label(format!("Chrome spheres: {}", self.chrome_spheres.len()));
+                    ui.label(format!(
+                        "FPS: {:.0}",
+                        world.resources.window.timing.frames_per_second
+                    ));
+                });
+            });
+
+        if ui_context.input(|i| i.key_pressed(egui::Key::R)) {
+            self.randomize_shader_settings();
+        }
+    }
+}

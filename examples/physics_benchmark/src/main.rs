@@ -2,7 +2,7 @@ use nightshade::ecs::camera::commands::spawn_pan_orbit_camera;
 use nightshade::ecs::camera::systems::pan_orbit_camera_system;
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::physics::*;
-use nightshade::ecs::picking::{pick_entities, PickingOptions, PickingRay};
+use nightshade::ecs::picking::{PickingOptions, PickingRay, pick_entities};
 use nightshade::prelude::*;
 use rand::Rng;
 
@@ -149,9 +149,7 @@ impl State for PhysicsBenchmark {
         );
         self.target_fps_hud_text = Some(target_fps_text);
 
-        for _ in 0..INITIAL_BALLS {
-            self.spawn_ball(world);
-        }
+        (0..INITIAL_BALLS).for_each(|_| self.spawn_ball(world));
     }
 
     fn run_systems(&mut self, world: &mut World) {
@@ -202,7 +200,10 @@ impl State for PhysicsBenchmark {
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
-                    format!("Balls: {}", format_number_with_commas(self.ball_entities.len())),
+                    format!(
+                        "Balls: {}",
+                        format_number_with_commas(self.ball_entities.len())
+                    ),
                 );
                 if let Some(hud_text) = world.get_hud_text_mut(ball_count_entity) {
                     hud_text.dirty = true;
@@ -251,10 +252,7 @@ impl State for PhysicsBenchmark {
                 ui.separator();
 
                 ui.label(format!("Resolution: {}", resolution));
-                ui.label(format!(
-                    "Balls: {}",
-                    format_number_with_commas(ball_count)
-                ));
+                ui.label(format!("Balls: {}", format_number_with_commas(ball_count)));
                 ui.label(format!(
                     "FPS: {:.0} (Low: {:.0} High: {:.0})",
                     fps, self.lowest_fps, self.highest_fps
@@ -377,23 +375,43 @@ impl PhysicsBenchmark {
 
         self.spawn_transparent_physics_wall(
             world,
-            Vec3::new(0.0, BOX_HEIGHT / 2.0, -BOX_SIZE / 2.0 - BOX_WALL_THICKNESS / 2.0),
-            Vec3::new(BOX_SIZE + BOX_WALL_THICKNESS * 2.0, BOX_HEIGHT, BOX_WALL_THICKNESS),
+            Vec3::new(
+                0.0,
+                BOX_HEIGHT / 2.0,
+                -BOX_SIZE / 2.0 - BOX_WALL_THICKNESS / 2.0,
+            ),
+            Vec3::new(
+                BOX_SIZE + BOX_WALL_THICKNESS * 2.0,
+                BOX_HEIGHT,
+                BOX_WALL_THICKNESS,
+            ),
             Vec3::new(0.25, 0.25, 0.28),
             "WallBack",
         );
 
         self.spawn_transparent_physics_wall(
             world,
-            Vec3::new(0.0, BOX_HEIGHT / 2.0, BOX_SIZE / 2.0 + BOX_WALL_THICKNESS / 2.0),
-            Vec3::new(BOX_SIZE + BOX_WALL_THICKNESS * 2.0, BOX_HEIGHT, BOX_WALL_THICKNESS),
+            Vec3::new(
+                0.0,
+                BOX_HEIGHT / 2.0,
+                BOX_SIZE / 2.0 + BOX_WALL_THICKNESS / 2.0,
+            ),
+            Vec3::new(
+                BOX_SIZE + BOX_WALL_THICKNESS * 2.0,
+                BOX_HEIGHT,
+                BOX_WALL_THICKNESS,
+            ),
             Vec3::new(0.25, 0.25, 0.28),
             "WallFront",
         );
 
         self.spawn_transparent_physics_wall(
             world,
-            Vec3::new(-BOX_SIZE / 2.0 - BOX_WALL_THICKNESS / 2.0, BOX_HEIGHT / 2.0, 0.0),
+            Vec3::new(
+                -BOX_SIZE / 2.0 - BOX_WALL_THICKNESS / 2.0,
+                BOX_HEIGHT / 2.0,
+                0.0,
+            ),
             Vec3::new(BOX_WALL_THICKNESS, BOX_HEIGHT, BOX_SIZE),
             Vec3::new(0.25, 0.25, 0.28),
             "WallLeft",
@@ -401,7 +419,11 @@ impl PhysicsBenchmark {
 
         self.spawn_transparent_physics_wall(
             world,
-            Vec3::new(BOX_SIZE / 2.0 + BOX_WALL_THICKNESS / 2.0, BOX_HEIGHT / 2.0, 0.0),
+            Vec3::new(
+                BOX_SIZE / 2.0 + BOX_WALL_THICKNESS / 2.0,
+                BOX_HEIGHT / 2.0,
+                0.0,
+            ),
             Vec3::new(BOX_WALL_THICKNESS, BOX_HEIGHT, BOX_SIZE),
             Vec3::new(0.25, 0.25, 0.28),
             "WallRight",
@@ -475,11 +497,8 @@ impl PhysicsBenchmark {
         }
 
         if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
-            *rigid_body = RigidBodyComponent::new_static().with_translation(
-                position.x,
-                position.y,
-                position.z,
-            );
+            *rigid_body = RigidBodyComponent::new_static()
+                .with_translation(position.x, position.y, position.z);
         }
 
         if let Some(collider) = world.get_collider_mut(entity) {
@@ -532,22 +551,22 @@ impl PhysicsBenchmark {
             collider.restitution = 0.7;
         }
 
-        if let Some(rigid_body) = world.get_rigid_body(entity) {
-            if let Some(handle) = rigid_body.handle {
-                let velocity_x = rng.random_range(-0.3..0.3);
-                let velocity_z = rng.random_range(-0.3..0.3);
-                let velocity_y = rng.random_range(2.0..4.0);
-                if let Some(rb) = world
-                    .resources
-                    .physics
-                    .rigid_body_set
-                    .get_mut(handle.into())
-                {
-                    rb.set_linvel(
-                        rapier3d::prelude::Vector::new(velocity_x, velocity_y, velocity_z),
-                        true,
-                    );
-                }
+        if let Some(rigid_body) = world.get_rigid_body(entity)
+            && let Some(handle) = rigid_body.handle
+        {
+            let velocity_x = rng.random_range(-0.3..0.3);
+            let velocity_z = rng.random_range(-0.3..0.3);
+            let velocity_y = rng.random_range(2.0..4.0);
+            if let Some(rb) = world
+                .resources
+                .physics
+                .rigid_body_set
+                .get_mut(handle.into())
+            {
+                rb.set_linvel(
+                    rapier3d::prelude::Vector::new(velocity_x, velocity_y, velocity_z),
+                    true,
+                );
             }
         }
 
@@ -556,10 +575,10 @@ impl PhysicsBenchmark {
 
     fn despawn_ball(&mut self, world: &mut World) {
         if let Some(entity) = self.ball_entities.pop() {
-            if let Some(rigid_body) = world.get_rigid_body(entity) {
-                if let Some(handle) = rigid_body.handle {
-                    world.resources.physics.remove_rigid_body(handle.into());
-                }
+            if let Some(rigid_body) = world.get_rigid_body(entity)
+                && let Some(handle) = rigid_body.handle
+            {
+                world.resources.physics.remove_rigid_body(handle.into());
             }
             world.despawn_entities(&[entity]);
         }
@@ -672,12 +691,12 @@ impl PhysicsBenchmark {
         let pick_results = pick_entities(world, screen_pos, options);
 
         for result in &pick_results {
-            if let Some(rigid_body) = world.get_rigid_body(result.entity) {
-                if rigid_body.body_type == RigidBodyType::Dynamic {
-                    self.grabbed_entity = Some(result.entity);
-                    self.grab_distance = result.distance.clamp(MIN_GRAB_DISTANCE, MAX_GRAB_DISTANCE);
-                    return;
-                }
+            if let Some(rigid_body) = world.get_rigid_body(result.entity)
+                && rigid_body.body_type == RigidBodyType::Dynamic
+            {
+                self.grabbed_entity = Some(result.entity);
+                self.grab_distance = result.distance.clamp(MIN_GRAB_DISTANCE, MAX_GRAB_DISTANCE);
+                return;
             }
         }
     }

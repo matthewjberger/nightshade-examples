@@ -1,13 +1,20 @@
 use nightshade::ecs::animation::components::{AnimationClip, AnimationProperty};
+use nightshade::ecs::grass::{
+    GrassConfig, GrassSpecies, add_grass_species, attach_grass_interactor, enable_grass,
+    enable_grass_interactors, set_grass_terrain, spawn_grass_region, update_grass_player_position,
+};
+use nightshade::ecs::lines::components::{Line, Lines};
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::prefab::resources::mesh_cache_insert;
 use nightshade::ecs::terrain::spawn_terrain_with_material;
 use nightshade::ecs::text::components::TextProperties;
+use nightshade::ecs::world::components::Visibility;
 use nightshade::prelude::*;
 use std::collections::HashSet;
 
 const FOX_MODEL: &[u8] = include_bytes!("../../../assets/models/fox.glb");
 const FOX_SCALE: f32 = 0.01;
+const HDR_SKYBOX: &[u8] = include_bytes!("../../../assets/sky/moonrise.hdr");
 
 const FIRST_NAMES: &[&str] = &[
     "Rusty", "Maple", "Bramble", "Hazel", "Fern", "Copper", "Willow", "Ash", "Clover", "Sage",
@@ -102,10 +109,17 @@ struct TreeObstacle {
 
 struct NavMeshDemo {
     camera_entity: Option<Entity>,
+    grass_region: Option<Entity>,
     foxes: Vec<FoxData>,
     tree_count: usize,
     tree_obstacles: Vec<TreeObstacle>,
     show_navmesh: bool,
+    show_grass: bool,
+    show_grass_interactors: bool,
+    show_interactor_debug: bool,
+    interactor_debug_entity: Option<Entity>,
+    interactor_radius: f32,
+    interactor_strength: f32,
     wander_mode: bool,
     follow_mode: bool,
     followed_fox_index: Option<usize>,
@@ -123,10 +137,17 @@ impl Default for NavMeshDemo {
     fn default() -> Self {
         Self {
             camera_entity: None,
+            grass_region: None,
             foxes: Vec::new(),
             tree_count: 0,
             tree_obstacles: Vec::new(),
             show_navmesh: false,
+            show_grass: true,
+            show_grass_interactors: true,
+            show_interactor_debug: false,
+            interactor_debug_entity: None,
+            interactor_radius: 0.5,
+            interactor_strength: 0.3,
             wander_mode: false,
             follow_mode: false,
             followed_fox_index: None,
@@ -149,10 +170,16 @@ impl State for NavMeshDemo {
 
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = true;
-        world.resources.graphics.atmosphere = Atmosphere::Sky;
+        world.resources.graphics.atmosphere = Atmosphere::Hdr;
         world.resources.graphics.show_grid = false;
 
-        spawn_sun(world);
+        load_hdr_skybox(world, HDR_SKYBOX.to_vec());
+
+        let sun = spawn_sun(world);
+        if let Some(light) = world.get_light_mut(sun) {
+            light.cast_shadows = true;
+            light.intensity = 5.0;
+        }
 
         let focus = nalgebra_glm::vec3(0.0, 2.0, 0.0);
         let camera =
@@ -161,6 +188,7 @@ impl State for NavMeshDemo {
         self.camera_entity = Some(camera);
 
         self.spawn_terrain(world);
+        self.spawn_grass(world);
         self.spawn_trees(world);
         self.build_navmesh(world);
         self.load_fox_model(world);
@@ -181,6 +209,8 @@ impl State for NavMeshDemo {
         self.sync_foxes_to_agents(world);
         self.update_fox_animations(world);
         self.update_follow_camera(world);
+        self.update_grass(world);
+        self.update_interactor_debug(world);
     }
 
     fn ui(&mut self, world: &mut World, ui_context: &egui::Context) {
@@ -195,6 +225,92 @@ impl State for NavMeshDemo {
                 .changed()
             {
                 set_navmesh_debug_draw(world, self.show_navmesh);
+            }
+            if ui.checkbox(&mut self.show_grass, "Show Grass").changed()
+                && let Some(grass_region) = self.grass_region
+            {
+                enable_grass(world, grass_region, self.show_grass);
+            }
+            if ui
+                .checkbox(&mut self.show_grass_interactors, "Grass Interactors")
+                .changed()
+                && let Some(grass_region) = self.grass_region
+            {
+                enable_grass_interactors(world, grass_region, self.show_grass_interactors);
+            }
+            ui.checkbox(&mut self.show_interactor_debug, "Show Interactor Debug");
+
+            if self.show_grass {
+                ui.separator();
+                ui.label("Grass Settings:");
+
+                if let Some(grass_region) = self.grass_region
+                    && let Some(region) = world.get_grass_region_mut(grass_region)
+                {
+                    ui.add(
+                        egui::Slider::new(&mut region.config.wind_strength, 0.0..=2.0)
+                            .text("Wind Strength"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut region.config.wind_frequency, 0.1..=3.0)
+                            .text("Wind Frequency"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut region.config.interaction_strength, 0.0..=3.0)
+                            .text("Interaction Strength"),
+                    );
+
+                    ui.horizontal(|ui| {
+                        ui.label("Wind Dir:");
+                        let mut dir_x = region.config.wind_direction[0];
+                        let mut dir_z = region.config.wind_direction[1];
+                        let changed_x = ui
+                            .add(
+                                egui::DragValue::new(&mut dir_x)
+                                    .speed(0.05)
+                                    .range(-1.0..=1.0),
+                            )
+                            .changed();
+                        let changed_z = ui
+                            .add(
+                                egui::DragValue::new(&mut dir_z)
+                                    .speed(0.05)
+                                    .range(-1.0..=1.0),
+                            )
+                            .changed();
+                        if changed_x || changed_z {
+                            let len = (dir_x * dir_x + dir_z * dir_z).sqrt();
+                            if len > 0.001 {
+                                region.config.wind_direction = [dir_x / len, dir_z / len];
+                            }
+                        }
+                    });
+                }
+
+                ui.separator();
+                ui.label("Fox Interactor Settings:");
+
+                let radius_changed = ui
+                    .add(
+                        egui::Slider::new(&mut self.interactor_radius, 0.1..=2.0)
+                            .text("Interactor Radius"),
+                    )
+                    .changed();
+                let strength_changed = ui
+                    .add(
+                        egui::Slider::new(&mut self.interactor_strength, 0.0..=2.0)
+                            .text("Interactor Strength"),
+                    )
+                    .changed();
+
+                if radius_changed || strength_changed {
+                    for fox in &self.foxes {
+                        if let Some(interactor) = world.get_grass_interactor_mut(fox.agent_entity) {
+                            interactor.radius = self.interactor_radius;
+                            interactor.strength = self.interactor_strength;
+                        }
+                    }
+                }
             }
 
             ui.separator();
@@ -303,9 +419,9 @@ impl NavMeshDemo {
     }
 
     fn spawn_terrain(&self, world: &mut World) {
-        let grass_material = Material {
-            base_color: [0.25, 0.45, 0.2, 1.0],
-            roughness: 0.9,
+        let terrain_material = Material {
+            base_color: [0.08, 0.12, 0.05, 1.0],
+            roughness: 0.95,
             metallic: 0.0,
             ..Default::default()
         };
@@ -314,8 +430,49 @@ impl NavMeshDemo {
             world,
             self.terrain_config.to_nightshade_config(),
             Vec3::zeros(),
-            grass_material,
+            terrain_material,
         );
+    }
+
+    fn spawn_grass(&mut self, world: &mut World) {
+        let mut config = GrassConfig::default()
+            .with_density(256)
+            .with_wind(0.6, 1.0)
+            .with_wind_direction(1.0, 0.3)
+            .with_stream_radius(150.0);
+
+        config.lod_distances = [15.0, 40.0, 80.0, 150.0];
+        config.lod_density_scales = [1.0, 0.5, 0.2, 0.05];
+
+        let grass_region = spawn_grass_region(world, config);
+        self.grass_region = Some(grass_region);
+
+        set_grass_terrain(
+            world,
+            grass_region,
+            self.terrain_config.to_nightshade_config(),
+        );
+
+        add_grass_species(world, grass_region, GrassSpecies::meadow(), 4.0);
+        add_grass_species(world, grass_region, GrassSpecies::short(), 3.0);
+        add_grass_species(world, grass_region, GrassSpecies::tall(), 1.0);
+    }
+
+    fn update_grass(&self, world: &mut World) {
+        let Some(grass_region) = self.grass_region else {
+            return;
+        };
+
+        let Some(camera) = self.camera_entity else {
+            return;
+        };
+
+        if let Some(pan_orbit) = world.get_pan_orbit_camera(camera) {
+            let focus = pan_orbit.focus;
+            let terrain_y = self.sample_height(focus.x, focus.z);
+            let grass_position = Vec3::new(focus.x, terrain_y, focus.z);
+            update_grass_player_position(world, grass_region, grass_position);
+        }
     }
 
     fn spawn_trees(&mut self, world: &mut World) {
@@ -378,7 +535,9 @@ impl NavMeshDemo {
                     | GLOBAL_TRANSFORM
                     | RENDER_MESH
                     | MATERIAL_REF
-                    | CASTS_SHADOW,
+                    | CASTS_SHADOW
+                    | VISIBILITY
+                    | BOUNDING_VOLUME,
                 1,
             )[0];
             world.set_local_transform(
@@ -434,7 +593,9 @@ impl NavMeshDemo {
                         | GLOBAL_TRANSFORM
                         | RENDER_MESH
                         | MATERIAL_REF
-                        | CASTS_SHADOW,
+                        | CASTS_SHADOW
+                        | VISIBILITY
+                        | BOUNDING_VOLUME,
                     1,
                 )[0];
                 world.set_local_transform(
@@ -664,6 +825,13 @@ impl NavMeshDemo {
             transform.scale = Vec3::new(FOX_SCALE, FOX_SCALE, FOX_SCALE);
         }
         world.mark_local_transform_dirty(fox_entity);
+
+        attach_grass_interactor(
+            world,
+            agent_entity,
+            self.interactor_radius,
+            self.interactor_strength,
+        );
 
         let initial_animation = self.animation_indices.survey;
         if let Some(player) = world.get_animation_player_mut(fox_entity) {
@@ -965,5 +1133,69 @@ impl NavMeshDemo {
                 self.spawn_fox(world, target_pos);
             }
         }
+    }
+
+    fn update_interactor_debug(&mut self, world: &mut World) {
+        if self.interactor_debug_entity.is_none() {
+            let entity = world.spawn_entities(
+                nightshade::ecs::LINES
+                    | nightshade::ecs::VISIBILITY
+                    | nightshade::ecs::GLOBAL_TRANSFORM,
+                1,
+            )[0];
+            world.set_lines(entity, Lines::default());
+            world.set_visibility(entity, Visibility { visible: true });
+            world.set_global_transform(entity, GlobalTransform::default());
+            self.interactor_debug_entity = Some(entity);
+        }
+
+        let Some(debug_entity) = self.interactor_debug_entity else {
+            return;
+        };
+
+        if !self.show_interactor_debug {
+            world.set_lines(debug_entity, Lines::new(vec![]));
+            return;
+        }
+
+        let mut lines = Vec::new();
+        let segments = 24;
+        let color = Vec4::new(1.0, 0.5, 0.0, 1.0);
+
+        for fox in &self.foxes {
+            let Some(interactor) = world.get_grass_interactor(fox.agent_entity) else {
+                continue;
+            };
+            let Some(transform) = world.get_local_transform(fox.agent_entity) else {
+                continue;
+            };
+
+            let center = transform.translation;
+            let radius = interactor.radius;
+
+            for segment_index in 0..segments {
+                let angle1 = (segment_index as f32 / segments as f32) * std::f32::consts::TAU;
+                let angle2 = ((segment_index + 1) as f32 / segments as f32) * std::f32::consts::TAU;
+
+                let x1 = center.x + angle1.cos() * radius;
+                let z1 = center.z + angle1.sin() * radius;
+                let x2 = center.x + angle2.cos() * radius;
+                let z2 = center.z + angle2.sin() * radius;
+
+                lines.push(Line {
+                    start: Vec3::new(x1, center.y + 0.05, z1),
+                    end: Vec3::new(x2, center.y + 0.05, z2),
+                    color,
+                });
+            }
+
+            lines.push(Line {
+                start: center + Vec3::new(0.0, 0.05, 0.0),
+                end: center + Vec3::new(0.0, 0.5, 0.0),
+                color: Vec4::new(0.0, 1.0, 0.0, 1.0),
+            });
+        }
+
+        world.set_lines(debug_entity, Lines::new(lines));
     }
 }

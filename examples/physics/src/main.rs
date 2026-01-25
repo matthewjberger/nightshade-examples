@@ -1,17 +1,28 @@
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::light::components::{Light, LightType};
 use nightshade::ecs::material::resources::material_registry_insert;
+use nightshade::ecs::physics::joints::{
+    FixedJoint, JointAxisDirection, JointLimits, PrismaticJoint, RevoluteJoint, RopeJoint,
+    SphericalJoint, SpringJoint, create_fixed_joint, create_prismatic_joint, create_revolute_joint,
+    create_rope_joint, create_spherical_joint, create_spring_joint,
+};
 use nightshade::ecs::physics::*;
 use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
 use nightshade::ecs::text::commands::spawn_hud_text;
-use nightshade::ecs::text::components::HudAnchor;
+use nightshade::ecs::text::components::{
+    HudAnchor, TextAlignment, TextProperties, VerticalAlignment,
+};
 use nightshade::ecs::transform::components::Parent;
+use nightshade::ecs::world::commands::spawn_3d_billboard_text_with_properties;
 use nightshade::ecs::world::resources::MouseState;
 use nightshade::ecs::world::{
     BOUNDING_VOLUME, CASTS_SHADOW, GLOBAL_TRANSFORM, LIGHT, LOCAL_TRANSFORM, LOCAL_TRANSFORM_DIRTY,
     MATERIAL_REF, NAME, PARENT, RENDER_MESH, VISIBILITY,
 };
 use nightshade::prelude::*;
+use nightshade::render::wgpu::passes;
+use nightshade::render::wgpu::rendergraph::RenderGraph;
+use nightshade::run::RenderResources;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(PhysicsDemo::default())
@@ -65,6 +76,15 @@ struct PhysicsDemo {
     notes: Vec<NoteState>,
     reading_note: Option<usize>,
     note_close_key_released: bool,
+    prismatic_sliders: Vec<PrismaticSliderState>,
+    spherical_joint_visuals: Vec<SphericalJointVisual>,
+    rope_joint_visuals: Vec<RopeJointVisual>,
+    spring_joint_visuals: Vec<SpringJointVisual>,
+    coulomb_friction_joints: Vec<CoulombFrictionJointState>,
+    velocity_friction_joints: Vec<VelocityFrictionJointState>,
+    flashlight_entity: Option<Entity>,
+    flashlight_on: bool,
+    flashlight_key_was_pressed: bool,
     #[cfg(feature = "openxr")]
     left_hand_cube: Option<Entity>,
     #[cfg(feature = "openxr")]
@@ -73,6 +93,40 @@ struct PhysicsDemo {
     xr_rt_was_pressed: bool,
     #[cfg(feature = "openxr")]
     xr_lt_was_pressed: bool,
+}
+
+struct PrismaticSliderState {
+    entity: Entity,
+    time_accumulator: f32,
+}
+
+struct SphericalJointVisual {
+    anchor_entity: Entity,
+    ball_entity: Entity,
+    rod_entity: Entity,
+}
+
+struct RopeJointVisual {
+    anchor_entity: Entity,
+    ball_entity: Entity,
+    rope_entity: Entity,
+}
+
+struct SpringJointVisual {
+    anchor_entity: Entity,
+    object_entity: Entity,
+    spring_entities: Vec<Entity>,
+}
+
+struct CoulombFrictionJointState {
+    arm_entity: Entity,
+    friction_torque: f32,
+}
+
+struct VelocityFrictionJointState {
+    arm_entity: Entity,
+    damping_factor: f32,
+    initialized: bool,
 }
 
 struct LeanState {
@@ -194,11 +248,61 @@ impl State for PhysicsDemo {
         "Physics Interaction Demo"
     }
 
+    fn configure_render_graph(
+        &mut self,
+        graph: &mut RenderGraph<World>,
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        resources: RenderResources,
+    ) {
+        let (width, height) = (1920, 1080);
+        let bloom_width = width / 2;
+        let bloom_height = height / 2;
+
+        let bloom_texture = graph
+            .add_color_texture("bloom")
+            .format(wgpu::TextureFormat::Rgba16Float)
+            .size(bloom_width, bloom_height)
+            .clear_color(wgpu::Color::BLACK)
+            .transient();
+
+        let bloom_pass = passes::BloomPass::new(device, width, height);
+        graph
+            .pass(Box::new(bloom_pass))
+            .read("hdr", resources.scene_color)
+            .write("bloom", bloom_texture);
+
+        let ssao_pass = passes::SsaoPass::new(device);
+        graph
+            .pass(Box::new(ssao_pass))
+            .read("depth", resources.depth)
+            .read("view_normals", resources.view_normals)
+            .write("ssao_raw", resources.ssao_raw);
+
+        let ssao_blur_pass = passes::SsaoBlurPass::new(device);
+        graph
+            .pass(Box::new(ssao_blur_pass))
+            .read("ssao_raw", resources.ssao_raw)
+            .write("ssao", resources.ssao);
+
+        let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.08);
+        graph
+            .pass(Box::new(postprocess_pass))
+            .read("hdr", resources.scene_color)
+            .read("bloom", bloom_texture)
+            .read("ssao", resources.ssao)
+            .write("output", resources.swapchain);
+    }
+
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = false;
         world.resources.graphics.atmosphere = Atmosphere::Sky;
         world.resources.graphics.show_grid = false;
         world.resources.graphics.use_fullscreen = true;
+        world.resources.graphics.ssao_enabled = true;
+        world.resources.graphics.ssao_radius = 0.5;
+        world.resources.graphics.ssao_bias = 0.025;
+        world.resources.graphics.ssao_intensity = 1.5;
 
         self.show_physics_debug = false;
         world.resources.physics.debug_draw = self.show_physics_debug;
@@ -209,7 +313,7 @@ impl State for PhysicsDemo {
             self.input_mode = InputMode::Xr;
         }
 
-        spawn_sun(world);
+        spawn_sun_overhead(world);
 
         let player_position = nalgebra_glm::vec3(0.0, 1.2, 8.0);
         let (player_entity, camera_entity) = spawn_first_person_player(world, player_position);
@@ -225,6 +329,13 @@ impl State for PhysicsDemo {
 
         self.player_entity = Some(player_entity);
         self.camera_entity = Some(camera_entity);
+
+        let flashlight = spawn_flashlight(world);
+        self.flashlight_entity = Some(flashlight);
+        self.flashlight_on = false;
+        if let Some(light) = world.get_light_mut(flashlight) {
+            light.intensity = 0.0;
+        }
 
         self.spawn_environment(world);
         self.spawn_exhibits(world);
@@ -282,6 +393,7 @@ impl State for PhysicsDemo {
         self.crouch_camera_system(world);
         #[cfg(feature = "openxr")]
         self.xr_hand_tracking_system(world);
+        nightshade::ecs::transform::systems::update_global_transforms_system(world);
         self.interaction_system(world);
         self.update_shot_baubles(world);
         self.update_doors_momentum(world);
@@ -289,7 +401,13 @@ impl State for PhysicsDemo {
         self.update_levers_momentum(world);
         self.update_wheels_momentum(world);
         self.update_lantern_light(world);
+        self.update_flashlight(world);
         self.update_interaction_prompt(world);
+        self.update_prismatic_sliders(world);
+        self.update_joint_visuals(world);
+        self.update_coulomb_friction_joints(world);
+        self.setup_velocity_friction_joints(world);
+        nightshade::ecs::text::systems::sync_text_meshes_system(world);
     }
 
     fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {
@@ -399,6 +517,15 @@ impl PhysicsDemo {
         self.spawn_chain_exhibit(world, nalgebra_glm::vec3(0.0, 0.0, -12.0));
         self.spawn_bauble_table(world, nalgebra_glm::vec3(10.0, 0.0, -4.0));
         self.spawn_note_table(world, nalgebra_glm::vec3(0.0, 0.0, 4.0));
+
+        self.spawn_fixed_joint_exhibit(world, nalgebra_glm::vec3(-10.0, 0.0, 4.0));
+        self.spawn_spherical_joint_exhibit(world, nalgebra_glm::vec3(-4.0, 0.0, 4.0));
+        self.spawn_rope_joint_exhibit(world, nalgebra_glm::vec3(4.0, 0.0, 4.0));
+        self.spawn_spring_joint_exhibit(world, nalgebra_glm::vec3(10.0, 0.0, 4.0));
+        self.spawn_prismatic_joint_exhibit(world, nalgebra_glm::vec3(-6.0, 0.0, 8.0));
+        self.spawn_revolute_joint_exhibit(world, nalgebra_glm::vec3(6.0, 0.0, 8.0));
+        self.spawn_velocity_friction_joint_exhibit(world, nalgebra_glm::vec3(0.0, 0.0, 10.0));
+        self.spawn_coulomb_friction_joint_exhibit(world, nalgebra_glm::vec3(-6.0, 0.0, 12.0));
     }
 
     fn spawn_grabbables_exhibit(&mut self, world: &mut World, center: Vec3) {
@@ -1357,6 +1484,23 @@ impl PhysicsDemo {
                 if let Some(rigid_body_mut) = world.get_rigid_body_mut(entity) {
                     rigid_body_mut.handle = Some(handle.into());
                 }
+                world
+                    .resources
+                    .physics
+                    .handle_to_entity
+                    .insert(handle, entity);
+                world
+                    .resources
+                    .physics
+                    .entity_to_handle
+                    .insert(entity, handle);
+                if let Some(interpolation) = world.get_physics_interpolation_mut(entity) {
+                    interpolation.previous_translation = link_position;
+                    interpolation.previous_rotation = nalgebra_glm::quat_identity();
+                    interpolation.current_translation = link_position;
+                    interpolation.current_rotation = nalgebra_glm::quat_identity();
+                    interpolation.enabled = true;
+                }
                 if let Some(rb) = world.resources.physics.rigid_body_set.get_mut(handle) {
                     rb.set_linear_damping(0.5);
                     rb.set_angular_damping(0.5);
@@ -1468,6 +1612,25 @@ impl PhysicsDemo {
             handle
         };
 
+        world
+            .resources
+            .physics
+            .handle_to_entity
+            .insert(lantern_handle, lantern_entity);
+        world
+            .resources
+            .physics
+            .entity_to_handle
+            .insert(lantern_entity, lantern_handle);
+
+        if let Some(interpolation) = world.get_physics_interpolation_mut(lantern_entity) {
+            interpolation.previous_translation = lantern_position;
+            interpolation.previous_rotation = nalgebra_glm::quat_identity();
+            interpolation.current_translation = lantern_position;
+            interpolation.current_rotation = nalgebra_glm::quat_identity();
+            interpolation.enabled = true;
+        }
+
         if let Some(last_link_handle) = prev_handle {
             let joint = SphericalJointBuilder::new()
                 .local_anchor1(point![0.0, -link_length / 2.0, 0.0])
@@ -1495,12 +1658,12 @@ impl PhysicsDemo {
             *light = Light {
                 light_type: LightType::Point,
                 color: nalgebra_glm::vec3(1.0, 0.85, 0.6),
-                intensity: 3.0,
-                range: 8.0,
+                intensity: 12.0,
+                range: 15.0,
                 inner_cone_angle: 0.0,
                 outer_cone_angle: 0.0,
-                cast_shadows: false,
-                shadow_bias: 0.0,
+                cast_shadows: true,
+                shadow_bias: 0.005,
             };
         }
 
@@ -1657,6 +1820,16 @@ impl PhysicsDemo {
         if let Some(rigid_body_mut) = world.get_rigid_body_mut(entity) {
             rigid_body_mut.handle = Some(handle.into());
         }
+        world
+            .resources
+            .physics
+            .handle_to_entity
+            .insert(handle, entity);
+        world
+            .resources
+            .physics
+            .entity_to_handle
+            .insert(entity, handle);
 
         self.physics_objects.push(entity);
         entity
@@ -1873,6 +2046,937 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         });
     }
 
+    fn spawn_fixed_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Fixed Joint",
+            nalgebra_glm::vec3(center.x + 1.0, 3.5, center.z),
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let num_vertebrae = 6;
+        let block_size = 0.3;
+        let block_spacing = 0.35;
+
+        let beam_material = create_textured_material(nalgebra_glm::vec3(0.5, 0.4, 0.3), 0.9, 0.0);
+        let anchor_entity = spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, 2.5, center.z),
+            nalgebra_glm::vec3(0.3, 0.3, 0.3),
+            beam_material,
+        );
+
+        let colors = [
+            nalgebra_glm::vec3(0.8, 0.3, 0.3),
+            nalgebra_glm::vec3(0.8, 0.5, 0.3),
+            nalgebra_glm::vec3(0.8, 0.8, 0.3),
+            nalgebra_glm::vec3(0.3, 0.8, 0.3),
+            nalgebra_glm::vec3(0.3, 0.5, 0.8),
+            nalgebra_glm::vec3(0.6, 0.3, 0.8),
+        ];
+
+        let mut previous_entity = anchor_entity;
+        for vertebra_index in 0..num_vertebrae {
+            let color = colors[vertebra_index % colors.len()];
+            let block_material = create_textured_material(color, 0.6, 0.2);
+            let block_x = center.x + (vertebra_index as f32 + 1.0) * block_spacing;
+
+            let block_entity = spawn_dynamic_physics_cube_with_material(
+                world,
+                nalgebra_glm::vec3(block_x, 2.5, center.z),
+                nalgebra_glm::vec3(block_size, block_size, block_size),
+                1.5,
+                block_material,
+            );
+            self.physics_objects.push(block_entity);
+
+            create_fixed_joint(
+                world,
+                previous_entity,
+                block_entity,
+                FixedJoint::new()
+                    .with_local_anchor1(nalgebra_glm::vec3(block_size / 2.0 + 0.025, 0.0, 0.0))
+                    .with_local_anchor2(nalgebra_glm::vec3(-block_size / 2.0 - 0.025, 0.0, 0.0)),
+            );
+
+            previous_entity = block_entity;
+        }
+    }
+
+    fn spawn_spherical_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Spherical Joint",
+            nalgebra_glm::vec3(center.x, 4.0, center.z),
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let anchor_position = nalgebra_glm::vec3(center.x, 3.0, center.z);
+        let ball_position = nalgebra_glm::vec3(center.x, 1.8, center.z);
+        let rod_length = 1.0;
+
+        let beam_material = create_textured_material(nalgebra_glm::vec3(0.5, 0.4, 0.3), 0.9, 0.0);
+        let anchor_entity = spawn_static_physics_cube_with_material(
+            world,
+            anchor_position,
+            nalgebra_glm::vec3(0.3, 0.3, 0.3),
+            beam_material,
+        );
+
+        let pendulum_material =
+            create_textured_material(nalgebra_glm::vec3(0.3, 0.8, 0.3), 0.5, 0.3);
+        let pendulum_entity = spawn_dynamic_physics_sphere_with_material(
+            world,
+            ball_position,
+            0.2,
+            3.0,
+            pendulum_material,
+        );
+        self.physics_objects.push(pendulum_entity);
+
+        create_spherical_joint(
+            world,
+            anchor_entity,
+            pendulum_entity,
+            SphericalJoint::new()
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -0.15, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, rod_length, 0.0)),
+        );
+
+        let rod_material = create_textured_material(nalgebra_glm::vec3(0.6, 0.55, 0.5), 0.7, 0.2);
+        let rod_entity = world.spawn_entities(
+            NAME | LOCAL_TRANSFORM
+                | GLOBAL_TRANSFORM
+                | LOCAL_TRANSFORM_DIRTY
+                | RENDER_MESH
+                | MATERIAL_REF
+                | BOUNDING_VOLUME
+                | CASTS_SHADOW
+                | VISIBILITY,
+            1,
+        )[0];
+
+        if let Some(name) = world.get_name_mut(rod_entity) {
+            name.0 = "Spherical Joint Rod".to_string();
+        }
+
+        let midpoint = (anchor_position + ball_position) * 0.5;
+        let distance = nalgebra_glm::distance(&anchor_position, &ball_position);
+
+        if let Some(transform) = world.get_local_transform_mut(rod_entity) {
+            transform.translation = midpoint;
+            transform.scale = nalgebra_glm::vec3(0.03, distance / 2.0, 0.03);
+        }
+
+        if let Some(mesh) = world.get_render_mesh_mut(rod_entity) {
+            mesh.name = "Cylinder".to_string();
+        }
+
+        let material_name = format!("SphericalRod_{}", rod_entity.id);
+        material_registry_insert(
+            &mut world.resources.material_registry,
+            material_name.clone(),
+            rod_material,
+        );
+        if let Some(&index) = world
+            .resources
+            .material_registry
+            .registry
+            .name_to_index
+            .get(&material_name)
+        {
+            world
+                .resources
+                .material_registry
+                .registry
+                .add_reference(index);
+        }
+        world.set_material_ref(rod_entity, MaterialRef::new(material_name));
+
+        if let Some(bv) = world.get_bounding_volume_mut(rod_entity) {
+            *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+        }
+
+        self.spherical_joint_visuals.push(SphericalJointVisual {
+            anchor_entity,
+            ball_entity: pendulum_entity,
+            rod_entity,
+        });
+    }
+
+    fn spawn_rope_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Rope Joint",
+            nalgebra_glm::vec3(center.x, 4.0, center.z),
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let anchor_height = 3.0;
+        let anchor_position = nalgebra_glm::vec3(center.x, anchor_height, center.z);
+        let ball_start_position = nalgebra_glm::vec3(center.x, anchor_height - 0.3, center.z);
+
+        let beam_material = create_textured_material(nalgebra_glm::vec3(0.5, 0.4, 0.3), 0.9, 0.0);
+        let anchor_entity = spawn_static_physics_cube_with_material(
+            world,
+            anchor_position,
+            nalgebra_glm::vec3(0.3, 0.3, 0.3),
+            beam_material,
+        );
+
+        let ball_material = create_textured_material(nalgebra_glm::vec3(0.8, 0.4, 0.8), 0.4, 0.5);
+        let ball_entity = spawn_dynamic_physics_sphere_with_material(
+            world,
+            ball_start_position,
+            0.25,
+            2.0,
+            ball_material,
+        );
+        self.physics_objects.push(ball_entity);
+
+        create_rope_joint(
+            world,
+            anchor_entity,
+            ball_entity,
+            RopeJoint::new(1.8)
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -0.15, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, 0.0, 0.0)),
+        );
+
+        let rope_material = create_textured_material(nalgebra_glm::vec3(0.6, 0.5, 0.35), 0.9, 0.0);
+        let rope_entity = world.spawn_entities(
+            NAME | LOCAL_TRANSFORM
+                | GLOBAL_TRANSFORM
+                | LOCAL_TRANSFORM_DIRTY
+                | RENDER_MESH
+                | MATERIAL_REF
+                | BOUNDING_VOLUME
+                | CASTS_SHADOW
+                | VISIBILITY,
+            1,
+        )[0];
+
+        if let Some(name) = world.get_name_mut(rope_entity) {
+            name.0 = "Rope Joint Visual".to_string();
+        }
+
+        let anchor_attach = anchor_position - nalgebra_glm::vec3(0.0, 0.15, 0.0);
+        let midpoint = (anchor_attach + ball_start_position) * 0.5;
+        let distance = nalgebra_glm::distance(&anchor_attach, &ball_start_position);
+
+        if let Some(transform) = world.get_local_transform_mut(rope_entity) {
+            transform.translation = midpoint;
+            transform.scale = nalgebra_glm::vec3(0.02, distance / 2.0, 0.02);
+        }
+
+        if let Some(mesh) = world.get_render_mesh_mut(rope_entity) {
+            mesh.name = "Cylinder".to_string();
+        }
+
+        let material_name = format!("RopeVisual_{}", rope_entity.id);
+        material_registry_insert(
+            &mut world.resources.material_registry,
+            material_name.clone(),
+            rope_material,
+        );
+        if let Some(&index) = world
+            .resources
+            .material_registry
+            .registry
+            .name_to_index
+            .get(&material_name)
+        {
+            world
+                .resources
+                .material_registry
+                .registry
+                .add_reference(index);
+        }
+        world.set_material_ref(rope_entity, MaterialRef::new(material_name));
+
+        if let Some(bv) = world.get_bounding_volume_mut(rope_entity) {
+            *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+        }
+
+        self.rope_joint_visuals.push(RopeJointVisual {
+            anchor_entity,
+            ball_entity,
+            rope_entity,
+        });
+    }
+
+    fn spawn_spring_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Spring Joint",
+            nalgebra_glm::vec3(center.x, 4.0, center.z),
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let anchor_height = 3.0;
+        let anchor_position = nalgebra_glm::vec3(center.x, anchor_height, center.z);
+        let object_position = nalgebra_glm::vec3(center.x, anchor_height - 1.5, center.z);
+
+        let beam_material = create_textured_material(nalgebra_glm::vec3(0.5, 0.4, 0.3), 0.9, 0.0);
+        let anchor_entity = spawn_static_physics_cube_with_material(
+            world,
+            anchor_position,
+            nalgebra_glm::vec3(0.3, 0.3, 0.3),
+            beam_material,
+        );
+
+        let spring_cube_material =
+            create_textured_material(nalgebra_glm::vec3(0.3, 0.8, 0.8), 0.4, 0.5);
+        let spring_entity = spawn_dynamic_physics_cube_with_material(
+            world,
+            object_position,
+            nalgebra_glm::vec3(0.4, 0.4, 0.4),
+            3.0,
+            spring_cube_material,
+        );
+        self.physics_objects.push(spring_entity);
+
+        create_spring_joint(
+            world,
+            anchor_entity,
+            spring_entity,
+            SpringJoint::new(1.0, 50.0, 2.0)
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -0.15, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, 0.2, 0.0)),
+        );
+
+        let coil_material = create_textured_material(nalgebra_glm::vec3(0.7, 0.7, 0.75), 0.3, 0.8);
+        let num_coils = 8;
+        let mut spring_entities = Vec::new();
+
+        for coil_index in 0..num_coils {
+            let coil_entity = world.spawn_entities(
+                NAME | LOCAL_TRANSFORM
+                    | GLOBAL_TRANSFORM
+                    | LOCAL_TRANSFORM_DIRTY
+                    | RENDER_MESH
+                    | MATERIAL_REF
+                    | BOUNDING_VOLUME
+                    | CASTS_SHADOW
+                    | VISIBILITY,
+                1,
+            )[0];
+
+            if let Some(name) = world.get_name_mut(coil_entity) {
+                name.0 = format!("Spring Coil {}", coil_index);
+            }
+
+            if let Some(transform) = world.get_local_transform_mut(coil_entity) {
+                transform.translation = anchor_position;
+                transform.scale = nalgebra_glm::vec3(0.015, 0.1, 0.015);
+            }
+
+            if let Some(mesh) = world.get_render_mesh_mut(coil_entity) {
+                mesh.name = "Cylinder".to_string();
+            }
+
+            let material_name = format!("SpringCoil_{}_{}", spring_entity.id, coil_index);
+            material_registry_insert(
+                &mut world.resources.material_registry,
+                material_name.clone(),
+                coil_material.clone(),
+            );
+            if let Some(&index) = world
+                .resources
+                .material_registry
+                .registry
+                .name_to_index
+                .get(&material_name)
+            {
+                world
+                    .resources
+                    .material_registry
+                    .registry
+                    .add_reference(index);
+            }
+            world.set_material_ref(coil_entity, MaterialRef::new(material_name));
+
+            if let Some(bv) = world.get_bounding_volume_mut(coil_entity) {
+                *bv =
+                    nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+            }
+
+            spring_entities.push(coil_entity);
+        }
+
+        self.spring_joint_visuals.push(SpringJointVisual {
+            anchor_entity,
+            object_entity: spring_entity,
+            spring_entities,
+        });
+    }
+
+    fn spawn_prismatic_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Prismatic Joint",
+            nalgebra_glm::vec3(center.x, 2.5, center.z),
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let rail_y = 1.5;
+        let rail_half_height = 0.075;
+        let slider_half_height = 0.15;
+        let slider_y = rail_y + rail_half_height + slider_half_height;
+
+        let rail_material = create_textured_material(nalgebra_glm::vec3(0.5, 0.4, 0.3), 0.9, 0.0);
+        let rail_entity = spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, rail_y, center.z),
+            nalgebra_glm::vec3(3.0, 0.15, 0.15),
+            rail_material,
+        );
+
+        let slider_material = create_textured_material(nalgebra_glm::vec3(0.8, 0.8, 0.3), 0.5, 0.4);
+        let slider_entity = spawn_dynamic_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x - 1.0, slider_y, center.z),
+            nalgebra_glm::vec3(0.3, 0.3, 0.3),
+            1.0,
+            slider_material,
+        );
+        self.physics_objects.push(slider_entity);
+
+        create_prismatic_joint(
+            world,
+            rail_entity,
+            slider_entity,
+            PrismaticJoint::new(JointAxisDirection::X)
+                .with_local_anchor1(nalgebra_glm::vec3(
+                    0.0,
+                    rail_half_height + slider_half_height,
+                    0.0,
+                ))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, 0.0, 0.0))
+                .with_limits(JointLimits::new(-1.3, 1.3)),
+        );
+
+        self.prismatic_sliders.push(PrismaticSliderState {
+            entity: slider_entity,
+            time_accumulator: 0.0,
+        });
+    }
+
+    fn update_prismatic_sliders(&mut self, world: &mut World) {
+        let dt = world.resources.window.timing.delta_time;
+
+        for slider in &mut self.prismatic_sliders {
+            if self.interaction.grabbed_entity == Some(slider.entity) {
+                continue;
+            }
+
+            slider.time_accumulator += dt;
+
+            let target_velocity = (slider.time_accumulator * 1.5).sin() * 2.0;
+
+            let Some(rigid_body_component) = world.get_rigid_body(slider.entity) else {
+                continue;
+            };
+            let Some(handle) = rigid_body_component.handle else {
+                continue;
+            };
+            let Some(rigid_body) = world
+                .resources
+                .physics
+                .rigid_body_set
+                .get_mut(handle.into())
+            else {
+                continue;
+            };
+
+            let current_vel = rigid_body.linvel();
+            rigid_body.set_linvel(
+                rapier3d::math::Vector::new(target_velocity, current_vel.y, current_vel.z),
+                true,
+            );
+        }
+    }
+
+    fn update_joint_visuals(&self, world: &mut World) {
+        for visual in &self.spherical_joint_visuals {
+            let anchor_pos = world
+                .get_global_transform(visual.anchor_entity)
+                .map(|t| t.translation())
+                .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
+            let ball_pos = world
+                .get_global_transform(visual.ball_entity)
+                .map(|t| t.translation())
+                .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
+
+            let anchor_attach = anchor_pos - nalgebra_glm::vec3(0.0, 0.15, 0.0);
+            let ball_attach = ball_pos + nalgebra_glm::vec3(0.0, 0.2, 0.0);
+            let midpoint = (anchor_attach + ball_attach) * 0.5;
+            let distance = nalgebra_glm::distance(&anchor_attach, &ball_attach);
+
+            let rotation = Self::rotation_from_to_direction(
+                nalgebra_glm::vec3(0.0, 1.0, 0.0),
+                ball_attach - anchor_attach,
+            );
+
+            if let Some(transform) = world.get_local_transform_mut(visual.rod_entity) {
+                transform.translation = midpoint;
+                transform.rotation = rotation;
+                transform.scale = nalgebra_glm::vec3(0.03, distance.max(0.01), 0.03);
+            }
+            nightshade::ecs::transform::commands::mark_local_transform_dirty(
+                world,
+                visual.rod_entity,
+            );
+        }
+
+        for visual in &self.rope_joint_visuals {
+            let anchor_pos = world
+                .get_global_transform(visual.anchor_entity)
+                .map(|t| t.translation())
+                .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
+            let ball_pos = world
+                .get_global_transform(visual.ball_entity)
+                .map(|t| t.translation())
+                .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
+
+            let anchor_attach = anchor_pos - nalgebra_glm::vec3(0.0, 0.15, 0.0);
+            let midpoint = (anchor_attach + ball_pos) * 0.5;
+            let distance = nalgebra_glm::distance(&anchor_attach, &ball_pos);
+
+            let rotation = Self::rotation_from_to_direction(
+                nalgebra_glm::vec3(0.0, 1.0, 0.0),
+                ball_pos - anchor_attach,
+            );
+
+            if let Some(transform) = world.get_local_transform_mut(visual.rope_entity) {
+                transform.translation = midpoint;
+                transform.rotation = rotation;
+                transform.scale = nalgebra_glm::vec3(0.02, distance.max(0.01), 0.02);
+            }
+            nightshade::ecs::transform::commands::mark_local_transform_dirty(
+                world,
+                visual.rope_entity,
+            );
+        }
+
+        for visual in &self.spring_joint_visuals {
+            let anchor_pos = world
+                .get_global_transform(visual.anchor_entity)
+                .map(|t| t.translation())
+                .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
+            let object_pos = world
+                .get_global_transform(visual.object_entity)
+                .map(|t| t.translation())
+                .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
+
+            let anchor_attach = anchor_pos - nalgebra_glm::vec3(0.0, 0.15, 0.0);
+            let object_attach = object_pos + nalgebra_glm::vec3(0.0, 0.2, 0.0);
+            let total_distance = nalgebra_glm::distance(&anchor_attach, &object_attach);
+
+            let num_coils = visual.spring_entities.len();
+            if num_coils == 0 {
+                continue;
+            }
+
+            let direction = if total_distance > 0.001 {
+                nalgebra_glm::normalize(&(object_attach - anchor_attach))
+            } else {
+                nalgebra_glm::vec3(0.0, -1.0, 0.0)
+            };
+
+            let up = nalgebra_glm::vec3(0.0, 1.0, 0.0);
+            let coil_radius = 0.08;
+
+            for (coil_index, &coil_entity) in visual.spring_entities.iter().enumerate() {
+                let t = (coil_index as f32 + 0.5) / num_coils as f32;
+                let base_pos = anchor_attach + direction * (t * total_distance);
+
+                let angle = coil_index as f32 * std::f32::consts::PI;
+                let perpendicular = if direction.y.abs() > 0.999_f32 {
+                    nalgebra_glm::vec3(1.0, 0.0, 0.0)
+                } else {
+                    nalgebra_glm::normalize(&nalgebra_glm::cross(&direction, &up))
+                };
+                let perpendicular2 = nalgebra_glm::cross(&direction, &perpendicular);
+
+                let offset = perpendicular * (angle.cos() * coil_radius)
+                    + perpendicular2 * (angle.sin() * coil_radius);
+                let coil_pos = base_pos + offset;
+
+                let next_t = ((coil_index + 1) as f32 + 0.5) / num_coils as f32;
+                let next_base_pos = anchor_attach + direction * (next_t * total_distance);
+                let next_angle = (coil_index + 1) as f32 * std::f32::consts::PI;
+                let next_offset = perpendicular * (next_angle.cos() * coil_radius)
+                    + perpendicular2 * (next_angle.sin() * coil_radius);
+                let next_coil_pos = next_base_pos + next_offset;
+
+                let coil_direction_vec = next_coil_pos - coil_pos;
+                let coil_length = nalgebra_glm::length(&coil_direction_vec);
+
+                let coil_rotation = Self::rotation_from_to_direction(
+                    nalgebra_glm::vec3(0.0, 1.0, 0.0),
+                    coil_direction_vec,
+                );
+
+                let midpoint = (coil_pos + next_coil_pos) * 0.5;
+
+                if let Some(transform) = world.get_local_transform_mut(coil_entity) {
+                    transform.translation = midpoint;
+                    transform.rotation = coil_rotation;
+                    transform.scale = nalgebra_glm::vec3(0.015, coil_length.max(0.01), 0.015);
+                }
+                nightshade::ecs::transform::commands::mark_local_transform_dirty(
+                    world,
+                    coil_entity,
+                );
+            }
+        }
+    }
+
+    fn rotation_from_to_direction(from: Vec3, to: Vec3) -> nalgebra_glm::Quat {
+        let to_normalized = nalgebra_glm::normalize(&to);
+        let from_normalized = nalgebra_glm::normalize(&from);
+
+        let dot: f32 = from_normalized.dot(&to_normalized);
+
+        if dot > 0.9999 {
+            return nalgebra_glm::quat_identity();
+        }
+
+        if dot < -0.9999 {
+            let mut axis =
+                nalgebra_glm::cross(&nalgebra_glm::vec3(1.0, 0.0, 0.0), &from_normalized);
+            if nalgebra_glm::length(&axis) < 0.0001 {
+                axis = nalgebra_glm::cross(&nalgebra_glm::vec3(0.0, 1.0, 0.0), &from_normalized);
+            }
+            axis = nalgebra_glm::normalize(&axis);
+            return nalgebra_glm::quat_angle_axis(std::f32::consts::PI, &axis);
+        }
+
+        let axis = nalgebra_glm::cross(&from_normalized, &to_normalized);
+        let s = ((1.0 + dot) * 2.0).sqrt();
+        let inv_s = 1.0 / s;
+
+        nalgebra_glm::quat(axis.x * inv_s, axis.y * inv_s, axis.z * inv_s, s * 0.5)
+    }
+
+    fn spawn_revolute_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Revolute Joint",
+            nalgebra_glm::vec3(center.x, 4.0, center.z),
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let hinge_height = 3.0;
+        let arm_length = 1.2;
+        let arm_thickness = 0.1;
+        let weight_radius = 0.15;
+
+        let bracket_material =
+            create_textured_material(nalgebra_glm::vec3(0.5, 0.5, 0.55), 0.3, 0.7);
+        let bracket_entity = spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, hinge_height, center.z),
+            nalgebra_glm::vec3(0.2, 0.2, 0.2),
+            bracket_material,
+        );
+
+        let arm_center_y = hinge_height - arm_length / 2.0;
+        let arm_material = create_textured_material(nalgebra_glm::vec3(0.7, 0.25, 0.25), 0.6, 0.3);
+        let arm_entity = spawn_dynamic_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, arm_center_y, center.z),
+            nalgebra_glm::vec3(arm_thickness, arm_length, arm_thickness),
+            1.5,
+            arm_material,
+        );
+        self.physics_objects.push(arm_entity);
+
+        let weight_y = hinge_height - arm_length;
+        let weight_material = create_textured_material(nalgebra_glm::vec3(0.3, 0.3, 0.7), 0.4, 0.5);
+        let weight_entity = spawn_dynamic_physics_sphere_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, weight_y - weight_radius, center.z),
+            weight_radius,
+            4.0,
+            weight_material,
+        );
+        self.physics_objects.push(weight_entity);
+
+        create_revolute_joint(
+            world,
+            bracket_entity,
+            arm_entity,
+            RevoluteJoint::new(JointAxisDirection::Z)
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -0.1, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, arm_length / 2.0, 0.0)),
+        );
+
+        create_fixed_joint(
+            world,
+            arm_entity,
+            weight_entity,
+            FixedJoint::new()
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -arm_length / 2.0, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, weight_radius, 0.0)),
+        );
+    }
+
+    fn spawn_velocity_friction_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Velocity Friction",
+            nalgebra_glm::vec3(center.x, 4.0, center.z),
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let hinge_height = 3.0;
+        let arm_length = 1.2;
+        let arm_thickness = 0.1;
+        let weight_radius = 0.15;
+        let damping_factor = 2.0;
+
+        let bracket_material =
+            create_textured_material(nalgebra_glm::vec3(0.5, 0.5, 0.55), 0.3, 0.7);
+        let bracket_entity = spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, hinge_height, center.z),
+            nalgebra_glm::vec3(0.2, 0.2, 0.2),
+            bracket_material,
+        );
+
+        let arm_center_y = hinge_height - arm_length / 2.0;
+        let arm_material = create_textured_material(nalgebra_glm::vec3(0.7, 0.5, 0.25), 0.6, 0.3);
+        let arm_entity = spawn_dynamic_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, arm_center_y, center.z),
+            nalgebra_glm::vec3(arm_thickness, arm_length, arm_thickness),
+            1.5,
+            arm_material,
+        );
+        self.physics_objects.push(arm_entity);
+
+        let weight_y = hinge_height - arm_length;
+        let weight_material = create_textured_material(nalgebra_glm::vec3(0.7, 0.5, 0.3), 0.4, 0.5);
+        let weight_entity = spawn_dynamic_physics_sphere_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, weight_y - weight_radius, center.z),
+            weight_radius,
+            4.0,
+            weight_material,
+        );
+        self.physics_objects.push(weight_entity);
+
+        create_revolute_joint(
+            world,
+            bracket_entity,
+            arm_entity,
+            RevoluteJoint::new(JointAxisDirection::Z)
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -0.1, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, arm_length / 2.0, 0.0)),
+        );
+
+        create_fixed_joint(
+            world,
+            arm_entity,
+            weight_entity,
+            FixedJoint::new()
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -arm_length / 2.0, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, weight_radius, 0.0)),
+        );
+
+        self.velocity_friction_joints.push(VelocityFrictionJointState {
+            arm_entity,
+            damping_factor,
+            initialized: false,
+        });
+    }
+
+    fn spawn_coulomb_friction_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Coulomb Friction",
+            nalgebra_glm::vec3(center.x, 4.0, center.z),
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let hinge_height = 3.0;
+        let arm_length = 1.2;
+        let arm_thickness = 0.1;
+        let weight_radius = 0.15;
+        let friction_torque = 0.5;
+
+        let bracket_material =
+            create_textured_material(nalgebra_glm::vec3(0.5, 0.5, 0.55), 0.3, 0.7);
+        let bracket_entity = spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, hinge_height, center.z),
+            nalgebra_glm::vec3(0.2, 0.2, 0.2),
+            bracket_material,
+        );
+
+        let arm_center_y = hinge_height - arm_length / 2.0;
+        let arm_material = create_textured_material(nalgebra_glm::vec3(0.8, 0.4, 0.2), 0.6, 0.3);
+        let arm_entity = spawn_dynamic_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, arm_center_y, center.z),
+            nalgebra_glm::vec3(arm_thickness, arm_length, arm_thickness),
+            1.5,
+            arm_material,
+        );
+        self.physics_objects.push(arm_entity);
+
+        let weight_y = hinge_height - arm_length;
+        let weight_material = create_textured_material(nalgebra_glm::vec3(0.8, 0.4, 0.2), 0.4, 0.5);
+        let weight_entity = spawn_dynamic_physics_sphere_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, weight_y - weight_radius, center.z),
+            weight_radius,
+            4.0,
+            weight_material,
+        );
+        self.physics_objects.push(weight_entity);
+
+        create_revolute_joint(
+            world,
+            bracket_entity,
+            arm_entity,
+            RevoluteJoint::new(JointAxisDirection::Z)
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -0.1, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, arm_length / 2.0, 0.0)),
+        );
+
+        create_fixed_joint(
+            world,
+            arm_entity,
+            weight_entity,
+            FixedJoint::new()
+                .with_local_anchor1(nalgebra_glm::vec3(0.0, -arm_length / 2.0, 0.0))
+                .with_local_anchor2(nalgebra_glm::vec3(0.0, weight_radius, 0.0)),
+        );
+
+        self.coulomb_friction_joints.push(CoulombFrictionJointState {
+            arm_entity,
+            friction_torque,
+        });
+    }
+
+    fn update_coulomb_friction_joints(&mut self, world: &mut World) {
+        for joint_state in &self.coulomb_friction_joints {
+            let Some(rigid_body_component) = world.get_rigid_body(joint_state.arm_entity) else {
+                continue;
+            };
+            let Some(handle) = rigid_body_component.handle else {
+                continue;
+            };
+            let Some(rigid_body) = world.resources.physics.rigid_body_set.get_mut(handle.into())
+            else {
+                continue;
+            };
+
+            let angular_velocity = rigid_body.angvel();
+            let angular_speed_z = angular_velocity.z;
+
+            if angular_speed_z.abs() > 0.001 {
+                let friction_direction = -angular_speed_z.signum();
+                let friction_torque_vector = rapier3d::math::Vector::new(
+                    0.0,
+                    0.0,
+                    friction_direction * joint_state.friction_torque,
+                );
+                rigid_body.apply_torque_impulse(friction_torque_vector, true);
+            }
+        }
+    }
+
+    fn setup_velocity_friction_joints(&mut self, world: &mut World) {
+        for joint_state in &self.velocity_friction_joints {
+            if joint_state.initialized {
+                continue;
+            }
+            let Some(rigid_body_component) = world.get_rigid_body(joint_state.arm_entity) else {
+                continue;
+            };
+            let Some(handle) = rigid_body_component.handle else {
+                continue;
+            };
+            let Some(rigid_body) = world.resources.physics.rigid_body_set.get_mut(handle.into())
+            else {
+                continue;
+            };
+
+            rigid_body.set_angular_damping(joint_state.damping_factor);
+        }
+        for joint_state in &mut self.velocity_friction_joints {
+            joint_state.initialized = true;
+        }
+    }
+
     fn spawn_recall_pedestal(&mut self, world: &mut World, center: Vec3) {
         let pedestal_material =
             create_textured_material(nalgebra_glm::vec3(0.3, 0.3, 0.35), 0.85, 0.0);
@@ -2068,6 +3172,24 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         }
         if let Some(rigid_body_mut) = world.get_rigid_body_mut(entity) {
             rigid_body_mut.handle = Some(handle.into());
+        }
+        world
+            .resources
+            .physics
+            .handle_to_entity
+            .insert(handle, entity);
+        world
+            .resources
+            .physics
+            .entity_to_handle
+            .insert(entity, handle);
+
+        if let Some(interpolation) = world.get_physics_interpolation_mut(entity) {
+            interpolation.previous_translation = position;
+            interpolation.previous_rotation = nalgebra_glm::quat_identity();
+            interpolation.current_translation = position;
+            interpolation.current_rotation = nalgebra_glm::quat_identity();
+            interpolation.enabled = true;
         }
 
         let shoot_speed = 15.0;
@@ -2344,7 +3466,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             window_handle.set_cursor_visible(world.resources.graphics.show_cursor);
         }
 
-        let can_look_mouse = right_clicked || self.interaction.grabbed_entity.is_some();
+        let can_look_mouse = right_clicked;
 
         if !can_look_mouse && !has_gamepad_input {
             return;
@@ -3423,6 +4545,44 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         world.mark_local_transform_dirty(light_entity);
     }
 
+    fn update_flashlight(&mut self, world: &mut World) {
+        let Some(flashlight_entity) = self.flashlight_entity else {
+            return;
+        };
+        let Some(camera) = self.camera_entity else {
+            return;
+        };
+
+        let f_pressed = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyF);
+
+        if f_pressed && !self.flashlight_key_was_pressed {
+            self.flashlight_on = !self.flashlight_on;
+            if let Some(light) = world.get_light_mut(flashlight_entity) {
+                light.intensity = if self.flashlight_on { 60.0 } else { 0.0 };
+            }
+        }
+        self.flashlight_key_was_pressed = f_pressed;
+
+        if let Some(camera_transform) = world.get_global_transform(camera).cloned() {
+            let camera_position = camera_transform.translation();
+            let camera_forward = camera_transform.forward_vector();
+
+            let offset_position = camera_position + camera_forward * 0.3;
+
+            let flashlight_transform = LocalTransform {
+                translation: offset_position,
+                rotation: world
+                    .get_local_transform(camera)
+                    .map(|t| t.rotation)
+                    .unwrap_or(Quat::identity()),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            };
+
+            world.set_local_transform(flashlight_entity, flashlight_transform);
+            world.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
+        }
+    }
+
     fn update_pressed_button(&mut self, world: &mut World, button_index: usize) {
         let delta_time = world.resources.window.timing.delta_time;
         let press_speed = 8.0;
@@ -3873,4 +5033,84 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             }
         }
     }
+}
+
+fn spawn_flashlight(world: &mut World) -> Entity {
+    let entity = world.spawn_entities(
+        LIGHT | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM,
+        1,
+    )[0];
+
+    world.set_light(
+        entity,
+        Light {
+            light_type: LightType::Spot,
+            color: nalgebra_glm::vec3(1.0, 0.95, 0.85),
+            intensity: 60.0,
+            range: 50.0,
+            inner_cone_angle: 0.12,
+            outer_cone_angle: 0.35,
+            cast_shadows: true,
+            shadow_bias: 0.0001,
+        },
+    );
+
+    world.set_local_transform(
+        entity,
+        LocalTransform {
+            translation: Vec3::new(0.0, 0.0, 0.0),
+            rotation: Quat::identity(),
+            scale: Vec3::new(1.0, 1.0, 1.0),
+        },
+    );
+
+    world.set_global_transform(entity, GlobalTransform::default());
+    world.set_local_transform_dirty(entity, LocalTransformDirty);
+
+    entity
+}
+
+fn spawn_sun_overhead(world: &mut World) -> Entity {
+    use nightshade::ecs::world::components;
+    use nightshade::ecs::world::{
+        GLOBAL_TRANSFORM, LIGHT, LOCAL_TRANSFORM, LOCAL_TRANSFORM_DIRTY, NAME,
+    };
+
+    let entity = world.spawn_entities(
+        NAME | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | LIGHT,
+        1,
+    )[0];
+
+    world.set_name(entity, components::Name("Sun".to_string()));
+    world.set_local_transform(
+        entity,
+        components::LocalTransform {
+            translation: nalgebra_glm::Vec3::new(5.0, 10.0, 5.0),
+            rotation: nalgebra_glm::quat_angle_axis(
+                std::f32::consts::FRAC_PI_4,
+                &nalgebra_glm::Vec3::new(0.0, 1.0, 0.0),
+            ) * nalgebra_glm::quat_angle_axis(
+                -std::f32::consts::FRAC_PI_4,
+                &nalgebra_glm::Vec3::new(1.0, 0.0, 0.0),
+            ),
+            scale: nalgebra_glm::Vec3::new(1.0, 1.0, 1.0),
+        },
+    );
+    world.set_local_transform_dirty(entity, components::LocalTransformDirty);
+    world.set_global_transform(entity, components::GlobalTransform::default());
+    world.set_light(
+        entity,
+        Light {
+            light_type: LightType::Directional,
+            color: nalgebra_glm::vec3(1.0, 0.95, 0.8),
+            intensity: 5.0,
+            range: 100.0,
+            inner_cone_angle: std::f32::consts::PI / 6.0,
+            outer_cone_angle: std::f32::consts::PI / 4.0,
+            cast_shadows: true,
+            shadow_bias: 0.0005,
+        },
+    );
+
+    entity
 }

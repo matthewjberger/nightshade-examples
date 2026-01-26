@@ -2842,11 +2842,12 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 .with_local_anchor2(nalgebra_glm::vec3(0.0, weight_radius, 0.0)),
         );
 
-        self.velocity_friction_joints.push(VelocityFrictionJointState {
-            arm_entity,
-            damping_factor,
-            initialized: false,
-        });
+        self.velocity_friction_joints
+            .push(VelocityFrictionJointState {
+                arm_entity,
+                damping_factor,
+                initialized: false,
+            });
     }
 
     fn spawn_coulomb_friction_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
@@ -2920,10 +2921,11 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 .with_local_anchor2(nalgebra_glm::vec3(0.0, weight_radius, 0.0)),
         );
 
-        self.coulomb_friction_joints.push(CoulombFrictionJointState {
-            arm_entity,
-            friction_torque,
-        });
+        self.coulomb_friction_joints
+            .push(CoulombFrictionJointState {
+                arm_entity,
+                friction_torque,
+            });
     }
 
     fn update_coulomb_friction_joints(&mut self, world: &mut World) {
@@ -2934,7 +2936,11 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             let Some(handle) = rigid_body_component.handle else {
                 continue;
             };
-            let Some(rigid_body) = world.resources.physics.rigid_body_set.get_mut(handle.into())
+            let Some(rigid_body) = world
+                .resources
+                .physics
+                .rigid_body_set
+                .get_mut(handle.into())
             else {
                 continue;
             };
@@ -2965,7 +2971,11 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             let Some(handle) = rigid_body_component.handle else {
                 continue;
             };
-            let Some(rigid_body) = world.resources.physics.rigid_body_set.get_mut(handle.into())
+            let Some(rigid_body) = world
+                .resources
+                .physics
+                .rigid_body_set
+                .get_mut(handle.into())
             else {
                 continue;
             };

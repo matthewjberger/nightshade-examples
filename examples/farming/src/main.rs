@@ -1,14 +1,54 @@
+#[cfg(not(target_arch = "wasm32"))]
+use nightshade::ecs::animation::components::{AnimationClip, AnimationProperty};
+#[cfg(not(target_arch = "wasm32"))]
+use nightshade::ecs::prefab::resources::mesh_cache_insert;
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
+
+const SKY_HDR: &[u8] = include_bytes!("../../../assets/sky/moonrise.hdr");
+#[cfg(not(target_arch = "wasm32"))]
+use nightshade::ecs::grass::attach_grass_interactor;
+use nightshade::ecs::grass::{
+    GrassConfig, GrassSpecies, add_grass_species, enable_grass, enable_grass_interactors,
+    spawn_grass_region, update_grass_player_position,
+};
 use nightshade::ecs::input::queries::query_active_gamepad;
-use nightshade::ecs::input::resources::TouchGesture;
-use nightshade::ecs::lines::components::Line;
+use nightshade::ecs::input::resources::{MouseState, TouchGesture};
+use nightshade::ecs::lines::components::{Line, Lines};
 use nightshade::ecs::material::components::AlphaMode;
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::particles::components::{
     ColorGradient, EmitterShape, EmitterType, ParticleEmitter,
 };
+use nightshade::ecs::terrain::{NoiseConfig, NoiseType, TerrainConfig as NightshadeTerrainConfig};
 use nightshade::prelude::*;
 use rand::{Rng, SeedableRng};
 use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CharacterMovementState {
+    #[default]
+    Idle,
+    Walking,
+    Jumping,
+    Chopping,
+    PickingFruit,
+    Planting,
+    Watering,
+    PullingPlant,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FarmingAnimationIndices {
+    pub idle: Option<usize>,
+    pub walk: Option<usize>,
+    pub pick_fruit: Option<usize>,
+    pub plant: Option<usize>,
+    pub watering: Option<usize>,
+    pub pull_plant: Option<usize>,
+    pub dig_and_plant: Option<usize>,
+    pub kneeling_idle: Option<usize>,
+}
 
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
     let c = v * s;
@@ -41,6 +81,8 @@ freecs::ecs! {
         shield: Shield => SHIELD,
         health_crystal: HealthCrystal => HEALTH_CRYSTAL,
         health_gem: HealthGem => HEALTH_GEM,
+        tree: Tree => TREE,
+        log: Log => LOG,
     }
     GameResources {
         enemy_list: Vec<freecs::Entity>,
@@ -49,6 +91,8 @@ freecs::ecs! {
         popup_list: Vec<freecs::Entity>,
         health_crystal_list: Vec<freecs::Entity>,
         health_gem_list: Vec<freecs::Entity>,
+        tree_list: Vec<freecs::Entity>,
+        log_list: Vec<freecs::Entity>,
         spawn_timer: f32,
         enemies_spawned: u32,
         enemies_killed: u32,
@@ -111,6 +155,40 @@ pub struct HealthCrystal {
 pub struct HealthGem {
     pub health_value: f32,
     pub particle_emitter: Option<Entity>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TreeState {
+    #[default]
+    Standing,
+    BeingChopped,
+    Falling,
+    Shrinking,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Tree {
+    pub trunk_entity: Entity,
+    pub foliage_entities: [Entity; 3],
+    pub health: f32,
+    pub max_health: f32,
+    pub trunk_height: f32,
+    pub state: TreeState,
+    pub fall_progress: f32,
+    pub fall_direction: Vec3,
+    pub shrink_progress: f32,
+    pub original_trunk_scale: Vec3,
+    pub original_foliage_scales: [Vec3; 3],
+    pub trunk_y_offset: f32,
+    pub foliage_y_offsets: [f32; 3],
+    pub chunk: (i32, i32),
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Log {
+    pub twig_entity: Entity,
+    pub base_height: f32,
+    pub rotation_offset: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -292,6 +370,17 @@ enum GameState {
     Paused,
     LevelUp,
     GameOver,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CameraMode {
+    #[default]
+    TopDown,
+    ThirdPerson,
+}
+
+fn smooth_step(t: f32) -> f32 {
+    t * t * (3.0 - 2.0 * t)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -551,7 +640,32 @@ struct Survivors {
     treasure_zones: Vec<TreasureZone>,
     next_zone_distance: f32,
     active_buffs: Vec<ActiveBuff>,
+    camera_mode: CameraMode,
+    camera_yaw: f32,
+    camera_transition: f32,
+    axe_entity: Option<Entity>,
+    is_chopping: bool,
+    chopping_tree: Option<freecs::Entity>,
+    axe_swing_angle: f32,
+    target_indicator_entity: Option<Entity>,
+    log_inventory: u32,
+    nearest_tree_entity: Option<freecs::Entity>,
+    character_movement_state: CharacterMovementState,
+    animation_indices: FarmingAnimationIndices,
+    current_animation: Option<usize>,
+    was_moving: bool,
+    character_loaded: bool,
+    current_animation_name: String,
+    grass_region: Option<Entity>,
+    grass_plane_entity: Option<Entity>,
+    player_vertical_velocity: f32,
+    player_height: f32,
+    is_grounded: bool,
 }
+
+const AXE_SWING_SPEED: f32 = 12.0;
+const CHOP_RANGE: f32 = 2.5;
+const LOG_COLLECT_DISTANCE: f32 = 1.5;
 
 struct LineEffect {
     entity: Entity,
@@ -652,6 +766,27 @@ impl Default for Survivors {
             treasure_zones: Vec::new(),
             next_zone_distance: 50.0,
             active_buffs: Vec::new(),
+            camera_mode: CameraMode::TopDown,
+            camera_yaw: 0.0,
+            camera_transition: 1.0,
+            axe_entity: None,
+            is_chopping: false,
+            chopping_tree: None,
+            axe_swing_angle: 0.0,
+            target_indicator_entity: None,
+            log_inventory: 0,
+            nearest_tree_entity: None,
+            character_movement_state: CharacterMovementState::Idle,
+            animation_indices: FarmingAnimationIndices::default(),
+            current_animation: None,
+            was_moving: false,
+            character_loaded: false,
+            current_animation_name: String::from("None"),
+            grass_region: None,
+            grass_plane_entity: None,
+            player_vertical_velocity: 0.0,
+            player_height: 0.0,
+            is_grounded: true,
         }
     }
 }
@@ -662,16 +797,22 @@ impl State for Survivors {
     }
 
     fn initialize(&mut self, world: &mut World) {
-        world.resources.graphics.atmosphere = Atmosphere::Sky;
+        world.resources.graphics.atmosphere = Atmosphere::Hdr;
         world.resources.graphics.show_grid = false;
         world.resources.user_interface.enabled = false;
         world.resources.immediate_ui.enabled = true;
 
+        load_hdr_skybox(world, SKY_HDR.to_vec());
+
         self.spawn_arena(world);
+        self.spawn_grass_plane(world);
+        self.spawn_grass(world);
         self.spawn_player(world);
         self.spawn_camera(world);
         self.spawn_lighting(world);
+        self.spawn_target_indicator(world);
         self.create_materials(world);
+        self.update_chunks(world);
     }
 
     fn run_systems(&mut self, world: &mut World) {
@@ -694,7 +835,11 @@ impl State for Survivors {
             GameState::Playing => {
                 self.game_time += game_delta;
                 self.player_movement_system(world, game_delta);
+                self.animation_system(world);
+                nightshade::ecs::animation::systems::update_animation_players(world, game_delta);
+                nightshade::ecs::animation::systems::apply_animations(world);
                 self.camera_follow_system(world, game_delta);
+                self.update_grass(world);
                 self.update_ground_position(world);
                 self.update_chunks(world);
                 self.enemy_spawn_system(world, game_delta);
@@ -716,6 +861,9 @@ impl State for Survivors {
                 self.lightning_system(world, game_delta);
                 self.garlic_system(world, game_delta);
                 self.bomb_system(world, game_delta);
+                self.tree_chopping_system(world, game_delta);
+                self.log_pickup_system(world);
+                self.log_animation_system(world, game_delta);
                 self.check_wave_announcement(world);
                 self.update_ambient_particles(world);
                 self.update_line_effects(world, game_delta);
@@ -793,6 +941,11 @@ impl State for Survivors {
                     self.game_speed = (self.game_speed / 2.0).max(0.25);
                 }
             }
+            KeyCode::Tab => {
+                if self.game_state == GameState::Playing {
+                    self.toggle_camera_mode();
+                }
+            }
             _ => {}
         }
     }
@@ -858,6 +1011,11 @@ impl State for Survivors {
                 }
                 gilrs::Button::LeftTrigger2 => {
                     self.game_speed = (self.game_speed - 0.5).max(0.25);
+                }
+                gilrs::Button::Select => {
+                    if self.game_state == GameState::Playing {
+                        self.toggle_camera_mode();
+                    }
                 }
                 _ => {}
             }
@@ -981,11 +1139,18 @@ impl State for Survivors {
 
             ui.draw_rect(
                 Vec2::new(hud_x, hud_y),
-                Vec2::new(hud_width, 220.0),
+                Vec2::new(hud_width, 250.0),
                 Vec4::new(0.0, 0.0, 0.0, 0.6),
             );
 
             ui.begin_vertical(Vec2::new(hud_x + 10.0, hud_y + 10.0), hud_width - 20.0);
+
+            if self.character_loaded {
+                ui.label_colored(
+                    &format!("Animation: {}", self.current_animation_name),
+                    Vec4::new(0.6, 0.9, 0.6, 1.0),
+                );
+            }
 
             let health_pct = self.player_health / self.stats.max_health;
             let health_color = if health_pct > 0.5 {
@@ -1124,6 +1289,30 @@ impl State for Survivors {
                 );
             }
 
+            if self.log_inventory > 0 {
+                ui.label_colored(
+                    &format!("Logs: {}", self.log_inventory),
+                    Vec4::new(0.7, 0.5, 0.3, 1.0),
+                );
+            }
+
+            ui.end_vertical();
+
+            self.draw_tree_health_bar(world, ui);
+
+            let camera_btn_width = 120.0;
+            let camera_btn_height = 30.0;
+            let camera_btn_x = screen_size.x - camera_btn_width - 10.0;
+            let camera_btn_y = screen_size.y - camera_btn_height - 10.0;
+
+            ui.begin_vertical(Vec2::new(camera_btn_x, camera_btn_y), camera_btn_width);
+            let camera_label = match self.camera_mode {
+                CameraMode::TopDown => "Top-Down [Tab]",
+                CameraMode::ThirdPerson => "3rd Person [Q/E]",
+            };
+            if ui.button(camera_label).clicked {
+                self.toggle_camera_mode();
+            }
             ui.end_vertical();
         }
 
@@ -1417,7 +1606,148 @@ impl Survivors {
         );
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn spawn_player(&mut self, world: &mut World) {
+        self.player_position = Vec3::new(0.0, 0.0, 0.0);
+
+        let character_path = Path::new(r"C:\Users\matth\Downloads\Farming Pack\Ch03_nonPBR.fbx");
+
+        let animation_files = [
+            (
+                r"C:\Users\matth\Downloads\Farming Pack\holding idle.fbx",
+                "idle",
+            ),
+            (
+                r"C:\Users\matth\Downloads\Farming Pack\holding walk.fbx",
+                "walk",
+            ),
+            (
+                r"C:\Users\matth\Downloads\Farming Pack\pick fruit.fbx",
+                "pick_fruit",
+            ),
+            (
+                r"C:\Users\matth\Downloads\Farming Pack\plant a plant.fbx",
+                "plant",
+            ),
+            (
+                r"C:\Users\matth\Downloads\Farming Pack\watering.fbx",
+                "watering",
+            ),
+            (
+                r"C:\Users\matth\Downloads\Farming Pack\pull plant.fbx",
+                "pull_plant",
+            ),
+            (
+                r"C:\Users\matth\Downloads\Farming Pack\dig and plant seeds.fbx",
+                "dig_and_plant",
+            ),
+            (
+                r"C:\Users\matth\Downloads\Farming Pack\kneeling idle.fbx",
+                "kneeling_idle",
+            ),
+        ];
+
+        let load_result = nightshade::ecs::prefab::import_fbx_from_path(character_path);
+
+        match load_result {
+            Ok(result) => {
+                for (name, (rgba_data, width, height)) in result.textures {
+                    world.queue_command(WorldCommand::LoadTexture {
+                        name,
+                        rgba_data,
+                        width,
+                        height,
+                    });
+                }
+
+                for (name, mesh) in result.meshes {
+                    mesh_cache_insert(&mut world.resources.mesh_cache, name, mesh);
+                }
+
+                let mut all_animations: Vec<AnimationClip> = Vec::new();
+
+                for (anim_path, anim_name) in &animation_files {
+                    let anim_result = nightshade::ecs::prefab::import_fbx_animations_from_path(
+                        Path::new(anim_path),
+                    );
+                    if let Ok(animations) = anim_result {
+                        for mut clip in animations {
+                            clip.channels.retain(|channel| {
+                                channel.target_property != AnimationProperty::Translation
+                            });
+
+                            let index = all_animations.len();
+                            clip.name = anim_name.to_string();
+
+                            match *anim_name {
+                                "idle" => self.animation_indices.idle = Some(index),
+                                "walk" => self.animation_indices.walk = Some(index),
+                                "pick_fruit" => self.animation_indices.pick_fruit = Some(index),
+                                "plant" => self.animation_indices.plant = Some(index),
+                                "watering" => self.animation_indices.watering = Some(index),
+                                "pull_plant" => self.animation_indices.pull_plant = Some(index),
+                                "dig_and_plant" => {
+                                    self.animation_indices.dig_and_plant = Some(index)
+                                }
+                                "kneeling_idle" => {
+                                    self.animation_indices.kneeling_idle = Some(index)
+                                }
+                                _ => {}
+                            }
+
+                            all_animations.push(clip);
+                        }
+                    }
+                }
+
+                if let Some(prefab) = result.prefabs.into_iter().next() {
+                    let entity = nightshade::ecs::prefab::spawn_prefab_with_skins(
+                        world,
+                        &prefab,
+                        &all_animations,
+                        &result.skins,
+                        self.player_position,
+                    );
+
+                    self.player_entity = Some(entity);
+
+                    if let Some(transform) = world.get_local_transform_mut(entity) {
+                        transform.scale = Vec3::new(0.01, 0.01, 0.01);
+                    }
+                    world.mark_local_transform_dirty(entity);
+
+                    if let Some(player) = world.get_animation_player_mut(entity) {
+                        if let Some(idle_index) = self.animation_indices.idle {
+                            player.play(idle_index);
+                            player.speed = 1.0;
+                            self.current_animation = Some(idle_index);
+                            self.current_animation_name = String::from("Idle");
+                        } else if !player.clips.is_empty() {
+                            player.play(0);
+                            player.speed = 1.0;
+                            self.current_animation = Some(0);
+                            self.current_animation_name = player.clips[0].name.clone();
+                        }
+                    }
+
+                    self.character_loaded = true;
+
+                    attach_grass_interactor(world, entity, 0.5, 0.3);
+                }
+            }
+            Err(error) => {
+                tracing::error!("Failed to load character model: {}", error);
+                self.spawn_fallback_player(world);
+            }
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn spawn_player(&mut self, world: &mut World) {
+        self.spawn_fallback_player(world);
+    }
+
+    fn spawn_fallback_player(&mut self, world: &mut World) {
         self.player_position = Vec3::new(0.0, PLAYER_RADIUS, 0.0);
 
         let player = spawn_mesh(
@@ -1445,32 +1775,6 @@ impl Survivors {
         );
         self.apply_material(world, player, &body_material);
 
-        let stripe = spawn_mesh(
-            world,
-            "Torus",
-            Vec3::new(0.0, 0.3, 0.0),
-            Vec3::new(
-                PLAYER_RADIUS * 1.4,
-                PLAYER_RADIUS * 0.2,
-                PLAYER_RADIUS * 1.4,
-            ),
-        );
-        world.set_parent(stripe, Parent(Some(player)));
-
-        let stripe_material = format!("PlayerStripe_{}", stripe.id);
-        material_registry_insert(
-            &mut world.resources.material_registry,
-            stripe_material.clone(),
-            Material {
-                base_color: [1.0, 0.85, 0.2, 1.0],
-                roughness: 0.2,
-                metallic: 0.7,
-                emissive_factor: [0.5, 0.4, 0.0],
-                ..Default::default()
-            },
-        );
-        self.apply_material(world, stripe, &stripe_material);
-
         self.player_entity = Some(player);
     }
 
@@ -1489,6 +1793,23 @@ impl Survivors {
                 .add_reference(index);
         }
         world.set_material_ref(entity, MaterialRef::new(material_name.to_string()));
+    }
+
+    fn spawn_target_indicator(&mut self, world: &mut World) {
+        let indicator = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | LINES,
+            1,
+        )[0];
+        world.set_local_transform(
+            indicator,
+            LocalTransform {
+                translation: Vec3::zeros(),
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_lines(indicator, Lines::default());
+        self.target_indicator_entity = Some(indicator);
     }
 
     fn spawn_camera(&mut self, world: &mut World) {
@@ -1526,7 +1847,106 @@ impl Survivors {
     }
 
     fn spawn_lighting(&mut self, world: &mut World) {
-        spawn_sun(world);
+        let sun = spawn_sun(world);
+        if let Some(light) = world.get_light_mut(sun) {
+            light.cast_shadows = true;
+            light.intensity = 2.0;
+        }
+    }
+
+    fn spawn_grass_plane(&mut self, world: &mut World) {
+        let plane = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RENDER_MESH | MATERIAL_REF,
+            1,
+        )[0];
+
+        world.set_local_transform(
+            plane,
+            LocalTransform {
+                translation: Vec3::new(0.0, -0.01, 0.0),
+                rotation: Quat::identity(),
+                scale: Vec3::new(1000.0, 0.1, 1000.0),
+            },
+        );
+        world.set_render_mesh(plane, RenderMesh::new("Cube"));
+
+        let plane_material = "GrassPlane".to_string();
+        material_registry_insert(
+            &mut world.resources.material_registry,
+            plane_material.clone(),
+            Material {
+                base_color: [0.25, 0.38, 0.18, 1.0],
+                roughness: 0.95,
+                metallic: 0.0,
+                ..Default::default()
+            },
+        );
+
+        if let Some(&index) = world
+            .resources
+            .material_registry
+            .registry
+            .name_to_index
+            .get(&plane_material)
+        {
+            world
+                .resources
+                .material_registry
+                .registry
+                .add_reference(index);
+        }
+        world.set_material_ref(plane, MaterialRef::new(plane_material));
+
+        self.grass_plane_entity = Some(plane);
+    }
+
+    fn spawn_grass(&mut self, world: &mut World) {
+        let terrain_config = NightshadeTerrainConfig {
+            width: 500.0,
+            depth: 500.0,
+            resolution_x: 64,
+            resolution_z: 64,
+            height_scale: 0.0,
+            noise: NoiseConfig {
+                seed: 42,
+                frequency: 0.01,
+                octaves: 1,
+                lacunarity: 2.0,
+                persistence: 0.5,
+                noise_type: NoiseType::Perlin,
+            },
+            uv_scale: [1.0, 1.0],
+        };
+
+        let mut config = GrassConfig::default()
+            .with_density(64)
+            .with_wind(0.6, 1.0)
+            .with_wind_direction(1.0, 0.3)
+            .with_stream_radius(100.0);
+
+        config.lod_distances = [15.0, 40.0, 80.0, 100.0];
+        config.lod_density_scales = [1.0, 0.5, 0.2, 0.05];
+
+        let grass_region = spawn_grass_region(world, config);
+        self.grass_region = Some(grass_region);
+
+        nightshade::ecs::grass::set_grass_terrain(world, grass_region, terrain_config);
+
+        add_grass_species(world, grass_region, GrassSpecies::meadow(), 4.0);
+        add_grass_species(world, grass_region, GrassSpecies::short(), 3.0);
+        add_grass_species(world, grass_region, GrassSpecies::tall(), 1.0);
+
+        enable_grass(world, grass_region, true);
+        enable_grass_interactors(world, grass_region, true);
+    }
+
+    fn update_grass(&self, world: &mut World) {
+        let Some(grass_region) = self.grass_region else {
+            return;
+        };
+
+        let grass_position = Vec3::new(self.player_position.x, 0.0, self.player_position.z);
+        update_grass_player_position(world, grass_region, grass_position);
     }
 
     fn create_materials(&mut self, world: &mut World) {
@@ -1666,21 +2086,32 @@ impl Survivors {
     }
 
     fn player_movement_system(&mut self, world: &mut World, delta: f32) {
-        let keyboard = &world.resources.input.keyboard;
+        let mut input_forward: f32 = 0.0;
+        let mut input_right: f32 = 0.0;
+        let mut jump_pressed = false;
 
-        let mut movement = Vec3::zeros();
+        {
+            let keyboard = &world.resources.input.keyboard;
 
-        if keyboard.is_key_pressed(KeyCode::KeyW) || keyboard.is_key_pressed(KeyCode::ArrowUp) {
-            movement.z -= 1.0;
-        }
-        if keyboard.is_key_pressed(KeyCode::KeyS) || keyboard.is_key_pressed(KeyCode::ArrowDown) {
-            movement.z += 1.0;
-        }
-        if keyboard.is_key_pressed(KeyCode::KeyA) || keyboard.is_key_pressed(KeyCode::ArrowLeft) {
-            movement.x -= 1.0;
-        }
-        if keyboard.is_key_pressed(KeyCode::KeyD) || keyboard.is_key_pressed(KeyCode::ArrowRight) {
-            movement.x += 1.0;
+            if keyboard.is_key_pressed(KeyCode::KeyW) || keyboard.is_key_pressed(KeyCode::ArrowUp) {
+                input_forward += 1.0;
+            }
+            if keyboard.is_key_pressed(KeyCode::KeyS) || keyboard.is_key_pressed(KeyCode::ArrowDown)
+            {
+                input_forward -= 1.0;
+            }
+            if keyboard.is_key_pressed(KeyCode::KeyA) || keyboard.is_key_pressed(KeyCode::ArrowLeft)
+            {
+                input_right -= 1.0;
+            }
+            if keyboard.is_key_pressed(KeyCode::KeyD)
+                || keyboard.is_key_pressed(KeyCode::ArrowRight)
+            {
+                input_right += 1.0;
+            }
+            if keyboard.is_key_pressed(KeyCode::Space) {
+                jump_pressed = true;
+            }
         }
 
         if let Some(gamepad) = query_active_gamepad(world) {
@@ -1690,10 +2121,10 @@ impl Survivors {
             const DEADZONE: f32 = 0.15;
 
             if left_stick_x.abs() > DEADZONE {
-                movement.x += left_stick_x;
+                input_right += left_stick_x;
             }
             if left_stick_y.abs() > DEADZONE {
-                movement.z -= left_stick_y;
+                input_forward += left_stick_y;
             }
 
             let dpad_up = gamepad.is_pressed(gilrs::Button::DPadUp);
@@ -1702,25 +2133,82 @@ impl Survivors {
             let dpad_right = gamepad.is_pressed(gilrs::Button::DPadRight);
 
             if dpad_up {
-                movement.z -= 1.0;
+                input_forward += 1.0;
             }
             if dpad_down {
-                movement.z += 1.0;
+                input_forward -= 1.0;
             }
             if dpad_left {
-                movement.x -= 1.0;
+                input_right -= 1.0;
             }
             if dpad_right {
-                movement.x += 1.0;
+                input_right += 1.0;
             }
         }
 
         let gesture = world.resources.input.touch.gesture;
         if let TouchGesture::SingleDrag { delta: touch_delta } = gesture {
             let sensitivity = 0.02;
-            movement.x += touch_delta.x * sensitivity;
-            movement.z += touch_delta.y * sensitivity;
+            input_right += touch_delta.x * sensitivity;
+            input_forward -= touch_delta.y * sensitivity;
         }
+
+        if let Some(gamepad) = query_active_gamepad(world)
+            && gamepad.is_pressed(gilrs::Button::South)
+        {
+            jump_pressed = true;
+        }
+
+        if jump_pressed && self.is_grounded {
+            const JUMP_IMPULSE: f32 = 6.0;
+            self.player_vertical_velocity = JUMP_IMPULSE;
+            self.is_grounded = false;
+        }
+
+        const GRAVITY: f32 = 15.0;
+        if !self.is_grounded {
+            self.player_vertical_velocity -= GRAVITY * delta;
+            self.player_height += self.player_vertical_velocity * delta;
+
+            if self.player_height <= 0.0 {
+                self.player_height = 0.0;
+                self.player_vertical_velocity = 0.0;
+                self.is_grounded = true;
+            }
+        }
+
+        let mut movement = Vec3::zeros();
+
+        match self.camera_mode {
+            CameraMode::TopDown => {
+                movement.x = input_forward;
+                movement.z = input_right;
+            }
+            CameraMode::ThirdPerson => {
+                let cam_cos = self.camera_yaw.cos();
+                let cam_sin = self.camera_yaw.sin();
+                movement.x = input_forward * cam_cos - input_right * cam_sin;
+                movement.z = input_forward * cam_sin + input_right * cam_cos;
+            }
+        }
+
+        let horizontal_speed = nalgebra_glm::length(&Vec2::new(movement.x, movement.z));
+        let start_threshold = 0.1;
+        let stop_threshold = 0.05;
+        let has_movement = if self.was_moving {
+            horizontal_speed > stop_threshold
+        } else {
+            horizontal_speed > start_threshold
+        };
+        self.was_moving = has_movement;
+
+        self.character_movement_state = if !self.is_grounded {
+            CharacterMovementState::Jumping
+        } else if has_movement {
+            CharacterMovementState::Walking
+        } else {
+            CharacterMovementState::Idle
+        };
 
         let is_moving = nalgebra_glm::length(&movement) > 0.0;
 
@@ -1748,7 +2236,13 @@ impl Survivors {
 
         if let Some(entity) = self.player_entity {
             if let Some(transform) = world.get_local_transform_mut(entity) {
-                transform.translation = self.player_position;
+                transform.translation = Vec3::new(
+                    self.player_position.x,
+                    self.player_position.y + self.player_height,
+                    self.player_position.z,
+                );
+                let facing_angle = self.player_facing.x.atan2(self.player_facing.z);
+                transform.rotation = nalgebra_glm::quat_angle_axis(facing_angle, &Vec3::y());
             }
             mark_local_transform_dirty(world, entity);
         }
@@ -1761,14 +2255,127 @@ impl Survivors {
         }
     }
 
+    fn animation_system(&mut self, world: &mut World) {
+        if !self.character_loaded {
+            return;
+        }
+
+        let Some(player_entity) = self.player_entity else {
+            return;
+        };
+
+        let effective_state = if self.is_chopping {
+            CharacterMovementState::Chopping
+        } else {
+            self.character_movement_state
+        };
+
+        let (target_animation, target_speed, animation_name) = match effective_state {
+            CharacterMovementState::Idle => (self.animation_indices.idle, 1.0, "Idle"),
+            CharacterMovementState::Walking => (self.animation_indices.walk, 1.0, "Walking"),
+            CharacterMovementState::Jumping => (self.animation_indices.walk, 1.5, "Jumping"),
+            CharacterMovementState::Chopping => {
+                (self.animation_indices.pull_plant, 1.2, "Chopping")
+            }
+            CharacterMovementState::PickingFruit => {
+                (self.animation_indices.pick_fruit, 1.0, "Picking Fruit")
+            }
+            CharacterMovementState::Planting => (self.animation_indices.plant, 1.0, "Planting"),
+            CharacterMovementState::Watering => (self.animation_indices.watering, 1.0, "Watering"),
+            CharacterMovementState::PullingPlant => {
+                (self.animation_indices.pull_plant, 1.0, "Pulling Plant")
+            }
+        };
+
+        if target_animation != self.current_animation {
+            if let Some(anim_index) = target_animation
+                && let Some(player) = world.get_animation_player_mut(player_entity)
+            {
+                player.blend_to(anim_index, 0.2);
+                player.speed = target_speed;
+                self.current_animation = Some(anim_index);
+                self.current_animation_name = animation_name.to_string();
+            }
+        } else if let Some(player) = world.get_animation_player_mut(player_entity) {
+            player.speed = target_speed;
+        }
+    }
+
     fn camera_follow_system(&mut self, world: &mut World, delta: f32) {
         if self.camera_shake > 0.0 {
             self.camera_shake = (self.camera_shake - delta * 8.0).max(0.0);
         }
 
+        let transition_speed = 3.0;
+        if self.camera_transition < 1.0 {
+            self.camera_transition = (self.camera_transition + delta * transition_speed).min(1.0);
+        }
+
+        let smooth_t = smooth_step(self.camera_transition);
+
+        let top_down_height: f32 = CAMERA_HEIGHT;
+        let top_down_distance: f32 = CAMERA_DISTANCE;
+
+        let third_person_height: f32 = 4.0;
+        let third_person_distance: f32 = 8.0;
+
+        let (current_height, current_distance) = match self.camera_mode {
+            CameraMode::TopDown => {
+                let height =
+                    nalgebra_glm::lerp_scalar(third_person_height, top_down_height, smooth_t);
+                let distance =
+                    nalgebra_glm::lerp_scalar(third_person_distance, top_down_distance, smooth_t);
+                (height, distance)
+            }
+            CameraMode::ThirdPerson => {
+                let height =
+                    nalgebra_glm::lerp_scalar(top_down_height, third_person_height, smooth_t);
+                let distance =
+                    nalgebra_glm::lerp_scalar(top_down_distance, third_person_distance, smooth_t);
+                (height, distance)
+            }
+        };
+
+        if self.camera_mode == CameraMode::ThirdPerson {
+            let camera_rotate_speed = 2.5;
+
+            if let Some(gamepad) = query_active_gamepad(world) {
+                let right_stick_x = gamepad.value(gilrs::Axis::RightStickX);
+                const DEADZONE: f32 = 0.15;
+                if right_stick_x.abs() > DEADZONE {
+                    self.camera_yaw -= right_stick_x * camera_rotate_speed * delta;
+                }
+            }
+
+            let mouse = &world.resources.input.mouse;
+            if mouse.state.contains(MouseState::RIGHT_CLICKED) {
+                let mouse_delta = mouse.raw_mouse_delta;
+                self.camera_yaw -= mouse_delta.x * 0.005;
+            }
+
+            let keyboard = &world.resources.input.keyboard;
+            if keyboard.is_key_pressed(KeyCode::KeyQ) {
+                self.camera_yaw += camera_rotate_speed * delta;
+            }
+            if keyboard.is_key_pressed(KeyCode::KeyE) {
+                self.camera_yaw -= camera_rotate_speed * delta;
+            }
+        }
+
+        let target_yaw = match self.camera_mode {
+            CameraMode::TopDown => 0.0,
+            CameraMode::ThirdPerson => self.camera_yaw,
+        };
+
+        let yaw_lerp_speed = 3.0;
+        self.camera_yaw =
+            self.camera_yaw + (target_yaw - self.camera_yaw) * (yaw_lerp_speed * delta).min(1.0);
+
         if let Some(camera) = self.camera_entity {
+            let offset_x = -current_distance * self.camera_yaw.cos();
+            let offset_z = -current_distance * self.camera_yaw.sin();
             let mut target_position =
-                self.player_position + Vec3::new(0.0, CAMERA_HEIGHT, CAMERA_DISTANCE);
+                self.player_position + Vec3::new(offset_x, current_height, offset_z);
 
             if self.camera_shake > 0.0 {
                 let mut rng = rand::rng();
@@ -1780,9 +2387,24 @@ impl Survivors {
 
             if let Some(transform) = world.get_local_transform_mut(camera) {
                 transform.translation = target_position;
+
+                let look_target = self.player_position + Vec3::new(0.0, 1.0, 0.0);
+                let direction = nalgebra_glm::normalize(&(look_target - target_position));
+                let right = nalgebra_glm::normalize(&nalgebra_glm::cross(&direction, &Vec3::y()));
+                let up = nalgebra_glm::cross(&right, &direction);
+                let rotation_matrix = nalgebra_glm::Mat3::from_columns(&[right, up, -direction]);
+                transform.rotation = nalgebra_glm::mat3_to_quat(&rotation_matrix);
             }
             mark_local_transform_dirty(world, camera);
         }
+    }
+
+    fn toggle_camera_mode(&mut self) {
+        self.camera_mode = match self.camera_mode {
+            CameraMode::TopDown => CameraMode::ThirdPerson,
+            CameraMode::ThirdPerson => CameraMode::TopDown,
+        };
+        self.camera_transition = 0.0;
     }
 
     fn update_ground_position(&mut self, world: &mut World) {
@@ -1907,6 +2529,8 @@ impl Survivors {
             let tier_radii = [2.0 * tree_scale, 1.5 * tree_scale, 1.0 * tree_scale];
             let tier_offsets = [0.0, 1.0 * tree_scale, 1.8 * tree_scale];
 
+            let mut foliage_entities = [Entity::default(); 3];
+
             for tier in 0..foliage_tiers {
                 let cone = world.spawn_entities(
                     LOCAL_TRANSFORM
@@ -1962,7 +2586,46 @@ impl Survivors {
                 world.set_material_ref(cone, MaterialRef::new(cone_material_name));
                 world.set_casts_shadow(cone, CastsShadow);
                 entities.push(cone);
+                foliage_entities[tier] = cone;
             }
+
+            let trunk_scale = Vec3::new(trunk_radius, trunk_height, trunk_radius);
+            let foliage_scales = [
+                Vec3::new(tier_radii[0], tier_heights[0], tier_radii[0]),
+                Vec3::new(tier_radii[1], tier_heights[1], tier_radii[1]),
+                Vec3::new(tier_radii[2], tier_heights[2], tier_radii[2]),
+            ];
+
+            let trunk_y_offset = trunk_height / 2.0;
+            let foliage_y_offsets = [
+                trunk_height + tier_offsets[0] + tier_heights[0] / 2.0,
+                trunk_height + tier_offsets[1] + tier_heights[1] / 2.0,
+                trunk_height + tier_offsets[2] + tier_heights[2] / 2.0,
+            ];
+
+            let game_entity = self.game_world.spawn_entities(POSITION | TREE, 1)[0];
+            self.game_world
+                .set_position(game_entity, Position(Vec3::new(x, 0.0, z)));
+            self.game_world.set_tree(
+                game_entity,
+                Tree {
+                    trunk_entity: trunk,
+                    foliage_entities,
+                    health: 3.0,
+                    max_health: 3.0,
+                    trunk_height,
+                    state: TreeState::Standing,
+                    fall_progress: 0.0,
+                    fall_direction: Vec3::zeros(),
+                    shrink_progress: 0.0,
+                    original_trunk_scale: trunk_scale,
+                    original_foliage_scales: foliage_scales,
+                    trunk_y_offset,
+                    foliage_y_offsets,
+                    chunk,
+                },
+            );
+            self.game_world.resources.tree_list.push(game_entity);
         }
 
         let rock_count: u32 = rng.random_range(1..4);
@@ -2031,6 +2694,28 @@ impl Survivors {
             }
         }
         self.loaded_chunks.remove(&chunk);
+
+        let trees_to_remove: Vec<freecs::Entity> = self
+            .game_world
+            .resources
+            .tree_list
+            .iter()
+            .filter(|&&tree_entity| {
+                self.game_world
+                    .get_tree(tree_entity)
+                    .map(|tree| tree.chunk == chunk)
+                    .unwrap_or(false)
+            })
+            .copied()
+            .collect();
+
+        for tree_entity in trees_to_remove {
+            self.game_world.despawn_entities(&[tree_entity]);
+            self.game_world
+                .resources
+                .tree_list
+                .retain(|&e| e != tree_entity);
+        }
     }
 
     fn enemy_spawn_system(&mut self, world: &mut World, delta: f32) {
@@ -7459,4 +8144,639 @@ impl Survivors {
 
         world.set_particle_emitter(debris_entity, debris_emitter);
     }
+
+    fn tree_chopping_system(&mut self, world: &mut World, delta: f32) {
+        const TURN_SPEED: f32 = 10.0;
+
+        let mouse = &world.resources.input.mouse;
+        let mouse_chop = mouse.state.contains(MouseState::LEFT_CLICKED);
+        let gamepad_chop = query_active_gamepad(world)
+            .map(|gp| gp.is_pressed(gilrs::Button::East))
+            .unwrap_or(false);
+        let chop_pressed = mouse_chop || gamepad_chop;
+
+        let mut nearest_tree: Option<(freecs::Entity, f32, Vec3)> = None;
+        for tree_entity in &self.game_world.resources.tree_list {
+            if let Some(tree) = self.game_world.get_tree(*tree_entity)
+                && (tree.state == TreeState::Standing || tree.state == TreeState::BeingChopped)
+                && let Some(pos) = self.game_world.get_position(*tree_entity)
+            {
+                let distance = nalgebra_glm::distance(
+                    &Vec2::new(self.player_position.x, self.player_position.z),
+                    &Vec2::new(pos.0.x, pos.0.z),
+                );
+                if distance < CHOP_RANGE
+                    && distance > 0.1
+                    && (nearest_tree.is_none() || distance < nearest_tree.as_ref().unwrap().1)
+                {
+                    nearest_tree = Some((*tree_entity, distance, pos.0));
+                }
+            }
+        }
+
+        self.nearest_tree_entity = nearest_tree.map(|(e, _, _)| e);
+
+        self.update_target_indicator(world, nearest_tree.as_ref().map(|(_, _, pos)| *pos));
+
+        if let Some((tree_entity, _, tree_pos)) = nearest_tree {
+            let to_tree = tree_pos - self.player_position;
+            let target_facing = nalgebra_glm::normalize(&Vec3::new(to_tree.x, 0.0, to_tree.z));
+
+            if chop_pressed {
+                self.is_chopping = true;
+                self.chopping_tree = Some(tree_entity);
+
+                self.player_facing = nalgebra_glm::lerp(
+                    &self.player_facing,
+                    &target_facing,
+                    (TURN_SPEED * delta).min(1.0),
+                );
+                self.player_facing = nalgebra_glm::normalize(&self.player_facing);
+
+                if let Some(entity) = self.player_entity {
+                    if let Some(transform) = world.get_local_transform_mut(entity) {
+                        let facing_angle = self.player_facing.x.atan2(self.player_facing.z);
+                        transform.rotation =
+                            nalgebra_glm::quat_angle_axis(facing_angle, &Vec3::y());
+                    }
+                    mark_local_transform_dirty(world, entity);
+                }
+
+                let prev_sin = self.axe_swing_angle.sin();
+                self.axe_swing_angle += AXE_SWING_SPEED * delta;
+                let current_sin = self.axe_swing_angle.sin();
+
+                let swing_progress = (current_sin + 1.0) / 2.0;
+
+                if let Some(axe) = self.axe_entity {
+                    if let Some(transform) = world.get_local_transform_mut(axe) {
+                        let swing_angle = -swing_progress * 1.8 + 0.6;
+                        let base_rotation =
+                            nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::z());
+                        let swing_rotation = nalgebra_glm::quat_angle_axis(swing_angle, &Vec3::y());
+                        transform.rotation = base_rotation * swing_rotation;
+                    }
+                    mark_local_transform_dirty(world, axe);
+                }
+
+                if prev_sin > 0.0
+                    && current_sin <= 0.0
+                    && let Some(mut tree) = self.game_world.get_tree(tree_entity).copied()
+                {
+                    tree.health -= 1.0;
+                    tree.state = TreeState::BeingChopped;
+
+                    if tree.health <= 0.0 {
+                        tree.state = TreeState::Falling;
+                        tree.fall_progress = 0.0;
+                        tree.fall_direction = target_facing;
+                    }
+
+                    self.game_world.set_tree(tree_entity, tree);
+                }
+            } else {
+                self.is_chopping = false;
+                self.chopping_tree = None;
+                self.reset_axe_position(world);
+            }
+        } else {
+            self.is_chopping = false;
+            self.chopping_tree = None;
+            self.reset_axe_position(world);
+        }
+
+        self.update_falling_trees(world, delta);
+    }
+
+    fn reset_axe_position(&mut self, world: &mut World) {
+        if let Some(axe) = self.axe_entity {
+            if let Some(transform) = world.get_local_transform_mut(axe) {
+                transform.rotation =
+                    nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::z());
+            }
+            mark_local_transform_dirty(world, axe);
+        }
+        self.axe_swing_angle = 0.0;
+    }
+
+    fn update_target_indicator(&mut self, world: &mut World, tree_pos: Option<Vec3>) {
+        let Some(indicator) = self.target_indicator_entity else {
+            return;
+        };
+
+        let Some(lines_component) = world.get_lines_mut(indicator) else {
+            return;
+        };
+
+        if let Some(tree_pos) = tree_pos {
+            let player_pos = self.player_position + Vec3::new(0.0, 0.1, 0.0);
+            let to_tree = tree_pos - player_pos;
+            let direction = nalgebra_glm::normalize(&Vec3::new(to_tree.x, 0.0, to_tree.z));
+            let distance = nalgebra_glm::length(&Vec2::new(to_tree.x, to_tree.z));
+
+            let arrow_start = player_pos + direction * 0.8;
+            let arrow_end = player_pos + direction * (distance - 0.5).max(1.0);
+
+            let right = nalgebra_glm::cross(&Vec3::y(), &direction);
+            let arrow_head_size = 0.3;
+            let arrow_head_back = arrow_end - direction * arrow_head_size;
+            let arrow_head_left = arrow_head_back + right * arrow_head_size * 0.5;
+            let arrow_head_right = arrow_head_back - right * arrow_head_size * 0.5;
+
+            let color = if self.is_chopping {
+                Vec4::new(1.0, 0.8, 0.2, 1.0)
+            } else {
+                Vec4::new(0.3, 0.9, 0.3, 1.0)
+            };
+
+            lines_component.lines = vec![
+                Line {
+                    start: arrow_start,
+                    end: arrow_end,
+                    color,
+                },
+                Line {
+                    start: arrow_end,
+                    end: arrow_head_left,
+                    color,
+                },
+                Line {
+                    start: arrow_end,
+                    end: arrow_head_right,
+                    color,
+                },
+            ];
+            lines_component.mark_dirty();
+        } else {
+            lines_component.lines.clear();
+            lines_component.mark_dirty();
+        }
+    }
+
+    fn update_falling_trees(&mut self, world: &mut World, delta: f32) {
+        let tree_list = self.game_world.resources.tree_list.clone();
+        let mut trees_to_remove = Vec::new();
+        let mut tree_updates: Vec<(freecs::Entity, Tree)> = Vec::new();
+        let mut logs_to_spawn: Vec<(Vec3, Vec3, f32)> = Vec::new();
+
+        for tree_entity in &tree_list {
+            if let Some(mut tree) = self.game_world.get_tree(*tree_entity).copied() {
+                if tree.state == TreeState::Falling {
+                    tree.fall_progress += delta * 1.2;
+
+                    let clamped_progress = tree.fall_progress.min(1.0);
+                    let ease_in_quad = clamped_progress * clamped_progress;
+                    let ease_out_bounce = if clamped_progress < 0.8 {
+                        ease_in_quad / 0.64
+                    } else {
+                        let bounce_t = (clamped_progress - 0.8) / 0.2;
+                        1.0 + (1.0 - bounce_t) * bounce_t * 0.1
+                    };
+                    let fall_angle = ease_out_bounce.min(1.0) * std::f32::consts::FRAC_PI_2;
+
+                    let fall_axis = nalgebra_glm::cross(&Vec3::y(), &tree.fall_direction);
+                    let fall_axis_normalized = if nalgebra_glm::length(&fall_axis) > 0.001 {
+                        nalgebra_glm::normalize(&fall_axis)
+                    } else {
+                        Vec3::x()
+                    };
+                    let fall_rotation =
+                        nalgebra_glm::quat_angle_axis(fall_angle, &fall_axis_normalized);
+
+                    if let Some(pos) = self.game_world.get_position(*tree_entity) {
+                        let base_pos = pos.0;
+
+                        if let Some(trunk_transform) =
+                            world.get_local_transform_mut(tree.trunk_entity)
+                        {
+                            let rotated_offset = nalgebra_glm::quat_rotate_vec3(
+                                &fall_rotation,
+                                &Vec3::new(0.0, tree.trunk_y_offset, 0.0),
+                            );
+                            trunk_transform.translation =
+                                Vec3::new(base_pos.x, 0.0, base_pos.z) + rotated_offset;
+                            trunk_transform.rotation = fall_rotation;
+                        }
+                        mark_local_transform_dirty(world, tree.trunk_entity);
+
+                        for (index, foliage) in tree.foliage_entities.iter().enumerate() {
+                            if let Some(foliage_transform) = world.get_local_transform_mut(*foliage)
+                            {
+                                let rotated_offset = nalgebra_glm::quat_rotate_vec3(
+                                    &fall_rotation,
+                                    &Vec3::new(0.0, tree.foliage_y_offsets[index], 0.0),
+                                );
+                                foliage_transform.translation =
+                                    Vec3::new(base_pos.x, 0.0, base_pos.z) + rotated_offset;
+                                foliage_transform.rotation = fall_rotation;
+                            }
+                            mark_local_transform_dirty(world, *foliage);
+                        }
+
+                        if tree.fall_progress >= 1.0 {
+                            tree.state = TreeState::Shrinking;
+                            tree.shrink_progress = 0.0;
+                            let fall_end_pos =
+                                base_pos + tree.fall_direction * tree.trunk_height * 0.5;
+                            logs_to_spawn.push((
+                                fall_end_pos,
+                                tree.fall_direction,
+                                tree.trunk_height,
+                            ));
+                        }
+                    }
+
+                    tree_updates.push((*tree_entity, tree));
+                } else if tree.state == TreeState::Shrinking {
+                    tree.shrink_progress += delta * 2.5;
+
+                    let shrink_t = tree.shrink_progress.min(1.0);
+                    let scale_factor = (1.0 - smooth_step(shrink_t)).max(0.001);
+                    let rise_offset = smooth_step(shrink_t) * 2.0;
+
+                    if let Some(trunk_transform) = world.get_local_transform_mut(tree.trunk_entity)
+                    {
+                        trunk_transform.scale = tree.original_trunk_scale * scale_factor;
+                        trunk_transform.translation.y += rise_offset * delta * 3.0;
+                    }
+                    mark_local_transform_dirty(world, tree.trunk_entity);
+
+                    for (index, foliage) in tree.foliage_entities.iter().enumerate() {
+                        if let Some(foliage_transform) = world.get_local_transform_mut(*foliage) {
+                            foliage_transform.scale =
+                                tree.original_foliage_scales[index] * scale_factor;
+                            foliage_transform.translation.y += rise_offset * delta * 3.0;
+                        }
+                        mark_local_transform_dirty(world, *foliage);
+                    }
+
+                    if tree.shrink_progress >= 1.0 {
+                        world.queue_despawn_entity(tree.trunk_entity);
+                        for foliage in &tree.foliage_entities {
+                            world.queue_despawn_entity(*foliage);
+                        }
+                        trees_to_remove.push(*tree_entity);
+                    }
+
+                    tree_updates.push((*tree_entity, tree));
+                }
+            }
+        }
+
+        for (entity, tree) in tree_updates {
+            self.game_world.set_tree(entity, tree);
+        }
+
+        for tree_entity in trees_to_remove {
+            self.game_world
+                .resources
+                .tree_list
+                .retain(|e| *e != tree_entity);
+        }
+
+        for (position, direction, trunk_height) in logs_to_spawn {
+            self.spawn_logs_with_smoke(world, position, direction, trunk_height);
+        }
+    }
+
+    fn spawn_logs_with_smoke(
+        &mut self,
+        world: &mut World,
+        position: Vec3,
+        _direction: Vec3,
+        trunk_height: f32,
+    ) {
+        let mut rng = rand::rng();
+        let log_count = 4 + rng.random_range(0..3);
+
+        for log_index in 0..log_count {
+            let spread = trunk_height * 0.4;
+            let base_x = position.x + rng.random_range(-spread..spread);
+            let base_z = position.z + rng.random_range(-spread..spread);
+            let base_height = 0.8 + rng.random_range(0.0..0.3);
+            let log_pos = Vec3::new(base_x, base_height, base_z);
+
+            let log_length = 0.4 + rng.random_range(0.0..0.3);
+            let log_radius = 0.12 + rng.random_range(0.0..0.08);
+
+            let log_entity = world.spawn_entities(
+                LOCAL_TRANSFORM
+                    | LOCAL_TRANSFORM_DIRTY
+                    | GLOBAL_TRANSFORM
+                    | RENDER_MESH
+                    | MATERIAL_REF
+                    | CASTS_SHADOW,
+                1,
+            )[0];
+
+            let rotation_offset = rng.random_range(0.0..std::f32::consts::TAU);
+
+            world.set_local_transform(
+                log_entity,
+                LocalTransform {
+                    translation: log_pos,
+                    rotation: nalgebra_glm::quat_angle_axis(rotation_offset, &Vec3::y()),
+                    scale: Vec3::new(log_radius, log_length, log_radius),
+                },
+            );
+            world.set_render_mesh(log_entity, RenderMesh::new("Cylinder"));
+
+            let brown_variation = rng.random_range(-0.05..0.05);
+            let log_material_name = format!("Log_{}_{}", log_entity.id, log_index);
+            material_registry_insert(
+                &mut world.resources.material_registry,
+                log_material_name.clone(),
+                Material {
+                    base_color: [0.5 + brown_variation, 0.32 + brown_variation, 0.15, 1.0],
+                    roughness: 0.7,
+                    metallic: 0.0,
+                    emissive_factor: [0.15, 0.08, 0.02],
+                    ..Default::default()
+                },
+            );
+            if let Some(&mat_index) = world
+                .resources
+                .material_registry
+                .registry
+                .name_to_index
+                .get(&log_material_name)
+            {
+                world
+                    .resources
+                    .material_registry
+                    .registry
+                    .add_reference(mat_index);
+            }
+            world.set_material_ref(log_entity, MaterialRef::new(log_material_name));
+            world.set_casts_shadow(log_entity, CastsShadow);
+
+            let twig_entity = world.spawn_entities(
+                LOCAL_TRANSFORM
+                    | LOCAL_TRANSFORM_DIRTY
+                    | GLOBAL_TRANSFORM
+                    | RENDER_MESH
+                    | MATERIAL_REF
+                    | PARENT,
+                1,
+            )[0];
+
+            let twig_angle = rng.random_range(0.0..std::f32::consts::TAU);
+            let twig_tilt = rng.random_range(0.3..0.8);
+            world.set_local_transform(
+                twig_entity,
+                LocalTransform {
+                    translation: Vec3::new(0.0, log_length * 0.3, 0.0),
+                    rotation: nalgebra_glm::quat_angle_axis(twig_angle, &Vec3::y())
+                        * nalgebra_glm::quat_angle_axis(twig_tilt, &Vec3::x()),
+                    scale: Vec3::new(0.02, 0.15, 0.02),
+                },
+            );
+            world.set_render_mesh(twig_entity, RenderMesh::new("Cylinder"));
+            world.set_parent(twig_entity, Parent(Some(log_entity)));
+
+            let twig_material_name = format!("Twig_{}_{}", twig_entity.id, log_index);
+            material_registry_insert(
+                &mut world.resources.material_registry,
+                twig_material_name.clone(),
+                Material {
+                    base_color: [0.35, 0.25, 0.1, 1.0],
+                    roughness: 0.9,
+                    metallic: 0.0,
+                    ..Default::default()
+                },
+            );
+            if let Some(&mat_index) = world
+                .resources
+                .material_registry
+                .registry
+                .name_to_index
+                .get(&twig_material_name)
+            {
+                world
+                    .resources
+                    .material_registry
+                    .registry
+                    .add_reference(mat_index);
+            }
+            world.set_material_ref(twig_entity, MaterialRef::new(twig_material_name));
+
+            let game_entity = self
+                .game_world
+                .spawn_entities(ENTITY_HANDLE | POSITION | LOG, 1)[0];
+            self.game_world
+                .set_entity_handle(game_entity, EntityHandle(log_entity));
+            self.game_world
+                .set_position(game_entity, Position(Vec3::new(base_x, 0.0, base_z)));
+            self.game_world.set_log(
+                game_entity,
+                Log {
+                    twig_entity,
+                    base_height,
+                    rotation_offset,
+                },
+            );
+            self.game_world.resources.log_list.push(game_entity);
+
+            let smoke_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
+            let smoke_gradient = ColorGradient {
+                colors: vec![
+                    (0.0, Vec4::new(0.9, 0.85, 0.75, 0.8)),
+                    (0.3, Vec4::new(0.7, 0.65, 0.55, 0.5)),
+                    (0.7, Vec4::new(0.5, 0.48, 0.45, 0.25)),
+                    (1.0, Vec4::new(0.4, 0.4, 0.4, 0.0)),
+                ],
+            };
+            let smoke_emitter = ParticleEmitter {
+                emitter_type: EmitterType::Smoke,
+                shape: EmitterShape::Sphere { radius: 0.3 },
+                position: log_pos + Vec3::new(0.0, 0.2, 0.0),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 0.0,
+                burst_count: 8,
+                particle_lifetime_min: 0.5,
+                particle_lifetime_max: 1.0,
+                initial_velocity_min: 0.8,
+                initial_velocity_max: 1.5,
+                velocity_spread: 0.6,
+                gravity: Vec3::new(0.0, 0.5, 0.0),
+                drag: 1.5,
+                size_start: 0.25,
+                size_end: 0.6,
+                color_gradient: smoke_gradient,
+                emissive_strength: 0.5,
+                enabled: true,
+                accumulated_spawn: 0.0,
+                one_shot: true,
+                has_fired: false,
+                turbulence_strength: 0.3,
+                turbulence_frequency: 2.0,
+            };
+            world.set_particle_emitter(smoke_entity, smoke_emitter);
+        }
+    }
+
+    fn log_pickup_system(&mut self, world: &mut World) {
+        let mut logs_to_remove = Vec::new();
+        let log_list = self.game_world.resources.log_list.clone();
+
+        for log_entity in &log_list {
+            if let Some(pos) = self.game_world.get_position(*log_entity).copied() {
+                let distance = nalgebra_glm::distance(
+                    &Vec2::new(self.player_position.x, self.player_position.z),
+                    &Vec2::new(pos.0.x, pos.0.z),
+                );
+                if distance < LOG_COLLECT_DISTANCE {
+                    if let Some(handle) = self.game_world.get_entity_handle(*log_entity) {
+                        world.queue_command(WorldCommand::DespawnRecursive { entity: handle.0 });
+                    }
+                    logs_to_remove.push(*log_entity);
+                    self.log_inventory += 1;
+                }
+            }
+        }
+
+        for log_entity in logs_to_remove {
+            self.game_world.despawn_entities(&[log_entity]);
+            self.game_world
+                .resources
+                .log_list
+                .retain(|e| *e != log_entity);
+        }
+    }
+
+    fn log_animation_system(&mut self, world: &mut World, _delta: f32) {
+        let time = self.game_time;
+        let log_list = self.game_world.resources.log_list.clone();
+
+        for log_entity in &log_list {
+            if let Some(handle) = self.game_world.get_entity_handle(*log_entity)
+                && let Some(log) = self.game_world.get_log(*log_entity).copied()
+                && let Some(pos) = self.game_world.get_position(*log_entity).copied()
+            {
+                let bob_offset = (time * 2.0 + log.rotation_offset).sin() * 0.1;
+                let current_y = log.base_height + bob_offset;
+
+                let rotation_speed = 1.5;
+                let current_rotation = log.rotation_offset + time * rotation_speed;
+
+                if let Some(transform) = world.get_local_transform_mut(handle.0) {
+                    transform.translation.x = pos.0.x;
+                    transform.translation.y = current_y;
+                    transform.translation.z = pos.0.z;
+                    transform.rotation =
+                        nalgebra_glm::quat_angle_axis(current_rotation, &Vec3::y());
+                }
+                mark_local_transform_dirty(world, handle.0);
+            }
+        }
+    }
+
+    fn draw_tree_health_bar(&self, world: &World, ui: &mut ImmediateUi) {
+        let Some(tree_entity) = self.chopping_tree else {
+            return;
+        };
+        let Some(tree) = self.game_world.get_tree(tree_entity) else {
+            return;
+        };
+
+        let health_pct = tree.health / tree.max_health;
+
+        let health_color = if health_pct > 0.66 {
+            Vec4::new(0.2, 0.8, 0.2, 1.0)
+        } else if health_pct > 0.33 {
+            Vec4::new(0.9, 0.7, 0.1, 1.0)
+        } else {
+            Vec4::new(0.9, 0.2, 0.1, 1.0)
+        };
+
+        if self.camera_mode == CameraMode::ThirdPerson {
+            let bar_width = 200.0;
+            let bar_height = 20.0;
+
+            let (viewport_width, _) = world
+                .resources
+                .window
+                .cached_viewport_size
+                .unwrap_or((1920, 1080));
+
+            let bar_x = (viewport_width as f32 - bar_width) / 2.0;
+            let bar_y = 20.0;
+
+            ui.draw_rect(
+                Vec2::new(bar_x - 4.0, bar_y - 4.0),
+                Vec2::new(bar_width + 8.0, bar_height + 8.0),
+                Vec4::new(0.0, 0.0, 0.0, 0.9),
+            );
+
+            ui.draw_rect(
+                Vec2::new(bar_x - 2.0, bar_y - 2.0),
+                Vec2::new(bar_width + 4.0, bar_height + 4.0),
+                Vec4::new(0.3, 0.2, 0.1, 1.0),
+            );
+
+            ui.draw_rect(
+                Vec2::new(bar_x, bar_y),
+                Vec2::new(bar_width * health_pct, bar_height),
+                health_color,
+            );
+        } else {
+            let Some(pos) = self.game_world.get_position(tree_entity) else {
+                return;
+            };
+            let tree_top = pos.0 + Vec3::new(0.0, tree.trunk_height + 2.5, 0.0);
+            let Some(screen_pos) = world_to_screen(world, tree_top) else {
+                return;
+            };
+
+            let small_bar_width = 80.0;
+            let small_bar_height = 12.0;
+            let bar_x = screen_pos.x - small_bar_width / 2.0;
+            let bar_y = screen_pos.y;
+
+            ui.draw_rect(
+                Vec2::new(bar_x - 3.0, bar_y - 3.0),
+                Vec2::new(small_bar_width + 6.0, small_bar_height + 6.0),
+                Vec4::new(0.0, 0.0, 0.0, 0.9),
+            );
+
+            ui.draw_rect(
+                Vec2::new(bar_x - 1.0, bar_y - 1.0),
+                Vec2::new(small_bar_width + 2.0, small_bar_height + 2.0),
+                Vec4::new(0.3, 0.2, 0.1, 1.0),
+            );
+
+            ui.draw_rect(
+                Vec2::new(bar_x, bar_y),
+                Vec2::new(small_bar_width * health_pct, small_bar_height),
+                health_color,
+            );
+        }
+    }
+}
+
+fn world_to_screen(world: &World, world_pos: Vec3) -> Option<Vec2> {
+    let camera_entity = world.resources.active_camera?;
+    let camera = world.get_camera(camera_entity)?;
+    let global_transform = world.get_global_transform(camera_entity)?;
+
+    let window = &world.resources.window;
+    let (viewport_width, viewport_height) = window.cached_viewport_size?;
+
+    let view_matrix = global_transform.0.try_inverse()?;
+    let aspect_ratio = viewport_width as f32 / viewport_height as f32;
+    let projection_matrix = camera.projection.matrix_with_aspect(aspect_ratio);
+
+    let clip_pos =
+        projection_matrix * view_matrix * Vec4::new(world_pos.x, world_pos.y, world_pos.z, 1.0);
+
+    if clip_pos.w <= 0.0 {
+        return None;
+    }
+
+    let ndc = clip_pos.xyz() / clip_pos.w;
+
+    let screen_x = (ndc.x + 1.0) * 0.5 * viewport_width as f32;
+    let screen_y = (1.0 - ndc.y) * 0.5 * viewport_height as f32;
+
+    Some(Vec2::new(screen_x, screen_y))
 }

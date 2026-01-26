@@ -1,7 +1,7 @@
 use nightshade::ecs::camera::commands::spawn_camera;
 use nightshade::ecs::graphics::resources::Atmosphere;
 use nightshade::ecs::scene::{
-    Scene, SceneCamera, SceneEntity, SceneInstancedMesh, SceneLight, SceneMaterial,
+    Scene, SceneCamera, SceneEntity, SceneInstancedMesh, SceneLight, SceneMaterial, SceneMesh,
     SceneMeshInstance, save_scene, spawn_scene,
 };
 use nightshade::ecs::script::components::{Script, ScriptSource};
@@ -256,17 +256,16 @@ state["paddle_x"] = pos_x;
         },
         enabled: true,
     });
-    entity.components.instanced_mesh = Some(
-        SceneInstancedMesh::from_name(
-            "Cube",
-            vec![SceneMeshInstance::new([0.0, 0.0, 0.0]).with_scale([3.0, 0.5, 0.5])],
-        )
-        .with_material(SceneMaterial {
+    entity.components.mesh = Some(SceneMesh {
+        mesh_uuid: None,
+        mesh_name: Some("Cube".to_string()),
+        material: Some(SceneMaterial {
             base_color: [0.2, 0.6, 1.0, 1.0],
             roughness: 0.3,
             ..Default::default()
         }),
-    );
+    });
+    entity.transform.scale = Vec3::new(3.0, 0.5, 0.5);
     scene.add_entity(entity);
 }
 
@@ -275,37 +274,11 @@ fn add_ball(scene: &mut Scene) {
 let game_state = if state.contains("game_state") { state["game_state"] } else { 0.0 };
 
 if game_state > 1.5 {
-    state["ball_x"] = pos_x;
-    state["ball_y"] = pos_y;
     return;
 }
 
 if game_state < 0.5 {
-    state["ball_x"] = pos_x;
-    state["ball_y"] = pos_y;
     return;
-}
-
-let brick_hit = if state.contains("brick_hit") { state["brick_hit"] } else { 0.0 };
-if brick_hit > 0.5 {
-    let axis = if state.contains("brick_hit_axis") { state["brick_hit_axis"] } else { 0.0 };
-    if axis < 0.5 {
-        let old_vx = if state.contains("ball_vx") { state["ball_vx"] } else { 6.0 };
-        state["ball_vx"] = 0.0 - old_vx;
-    } else {
-        let old_vy = if state.contains("ball_vy") { state["ball_vy"] } else { 6.0 };
-        state["ball_vy"] = 0.0 - old_vy;
-    }
-    state["brick_hit"] = 0.0;
-
-    let score = if state.contains("score") { state["score"] } else { 0.0 };
-    let combo = if state.contains("combo") { state["combo"] } else { 0.0 };
-    state["score"] = score + 10.0 * (combo + 1.0);
-    state["combo"] = combo + 1.0;
-
-    state["shake_time"] = 0.15;
-    let shake_base = 0.2 + (combo + 1.0) * 0.05;
-    if shake_base > 0.7 { state["shake_intensity"] = 0.7; } else { state["shake_intensity"] = shake_base; }
 }
 
 let vx = if state.contains("ball_vx") { state["ball_vx"] } else { 6.0 };
@@ -314,6 +287,7 @@ let vy = if state.contains("ball_vy") { state["ball_vy"] } else { 6.0 };
 pos_x = pos_x + vx * dt;
 pos_y = pos_y + vy * dt;
 
+// Wall collisions
 if pos_x < -9.0 {
     if vx < 0.0 { state["ball_vx"] = 0.0 - vx; } else { state["ball_vx"] = vx; }
     pos_x = -9.0;
@@ -327,6 +301,7 @@ if pos_y > 7.0 {
     pos_y = 7.0;
 }
 
+// Ball lost
 if pos_y < -7.5 {
     let lives = if state.contains("lives") { state["lives"] } else { 3.0 };
     let new_lives = lives - 1.0;
@@ -344,6 +319,7 @@ if pos_y < -7.5 {
     }
 }
 
+// Paddle collision
 let paddle_x = if state.contains("paddle_x") { state["paddle_x"] } else { 0.0 };
 if pos_y < -5.3 && pos_y > -6.5 && vy < 0.0 {
     let dx = pos_x - paddle_x;
@@ -356,8 +332,61 @@ if pos_y < -5.3 && pos_y > -6.5 && vy < 0.0 {
     }
 }
 
-state["ball_x"] = pos_x;
-state["ball_y"] = pos_y;
+// Brick collisions - check all bricks using entity_names
+let hit_brick = false;
+let hit_axis = 0.0;
+
+for name in entity_names {
+    if name.starts_with("Brick_") {
+        if entities.contains(name) {
+            let brick = entities[name];
+            let bx = brick.x;
+            let by = brick.y;
+
+            let dx = pos_x - bx;
+            let dy = pos_y - by;
+            let abs_dx = if dx < 0.0 { 0.0 - dx } else { dx };
+            let abs_dy = if dy < 0.0 { 0.0 - dy } else { dy };
+
+            if abs_dx < 0.65 && abs_dy < 0.45 {
+                despawn_names.push(name);
+                hit_brick = true;
+
+                if abs_dx / 0.65 > abs_dy / 0.45 {
+                    hit_axis = 0.0;
+                } else {
+                    hit_axis = 1.0;
+                }
+
+                let bricks = if state.contains("bricks_remaining") { state["bricks_remaining"] } else { 102.0 };
+                let new_bricks = bricks - 1.0;
+                state["bricks_remaining"] = new_bricks;
+
+                if new_bricks < 0.5 {
+                    state["game_state"] = 3.0;
+                }
+            }
+        }
+    }
+}
+
+// Apply brick hit bounce
+if hit_brick {
+    if hit_axis < 0.5 {
+        state["ball_vx"] = 0.0 - vx;
+    } else {
+        state["ball_vy"] = 0.0 - vy;
+    }
+
+    let score = if state.contains("score") { state["score"] } else { 0.0 };
+    let combo = if state.contains("combo") { state["combo"] } else { 0.0 };
+    state["score"] = score + 10.0 * (combo + 1.0);
+    state["combo"] = combo + 1.0;
+
+    state["shake_time"] = 0.15;
+    let shake_base = 0.2 + (combo + 1.0) * 0.05;
+    if shake_base > 0.7 { state["shake_intensity"] = 0.7; } else { state["shake_intensity"] = shake_base; }
+}
 "#;
 
     let mut entity = SceneEntity::new()
@@ -373,54 +402,20 @@ state["ball_y"] = pos_y;
         },
         enabled: true,
     });
-    entity.components.instanced_mesh = Some(
-        SceneInstancedMesh::from_name(
-            "Sphere",
-            vec![SceneMeshInstance::new([0.0, 0.0, 0.0]).with_uniform_scale(0.4)],
-        )
-        .with_material(SceneMaterial {
+    entity.components.mesh = Some(SceneMesh {
+        mesh_uuid: None,
+        mesh_name: Some("Sphere".to_string()),
+        material: Some(SceneMaterial {
             base_color: [1.0, 1.0, 1.0, 1.0],
             roughness: 0.2,
             ..Default::default()
         }),
-    );
+    });
+    entity.transform.scale = Vec3::new(0.4, 0.4, 0.4);
     scene.add_entity(entity);
 }
 
 fn add_brick(scene: &mut Scene, row: i32, col: i32, position: [f32; 3], color: [f32; 4]) {
-    let brick_script = r#"
-let game_state = if state.contains("game_state") { state["game_state"] } else { 0.0 };
-if game_state < 0.5 || game_state > 1.5 {
-    return;
-}
-
-let ball_x = if state.contains("ball_x") { state["ball_x"] } else { 0.0 };
-let ball_y = if state.contains("ball_y") { state["ball_y"] } else { 0.0 };
-
-let dx = ball_x - pos_x;
-let dy = ball_y - pos_y;
-let abs_dx = if dx < 0.0 { 0.0 - dx } else { dx };
-let abs_dy = if dy < 0.0 { 0.0 - dy } else { dy };
-
-if abs_dx < 0.65 && abs_dy < 0.45 {
-    do_despawn = true;
-    state["brick_hit"] = 1.0;
-    if abs_dx / 0.65 > abs_dy / 0.45 {
-        state["brick_hit_axis"] = 0.0;
-    } else {
-        state["brick_hit_axis"] = 1.0;
-    }
-
-    let bricks = if state.contains("bricks_remaining") { state["bricks_remaining"] } else { 102.0 };
-    let new_bricks = bricks - 1.0;
-    state["bricks_remaining"] = new_bricks;
-
-    if new_bricks < 0.5 {
-        state["game_state"] = 3.0;
-    }
-}
-"#;
-
     let mut entity = SceneEntity::new()
         .with_name(format!("Brick_{}_{}", row, col))
         .with_transform(LocalTransform {
@@ -428,12 +423,6 @@ if abs_dx < 0.65 && abs_dy < 0.45 {
             ..Default::default()
         })
         .with_visible(true);
-    entity.components.script = Some(Script {
-        source: ScriptSource::Embedded {
-            source: brick_script.to_string(),
-        },
-        enabled: true,
-    });
     entity.components.instanced_mesh = Some(
         SceneInstancedMesh::from_name(
             "Cube",
@@ -498,7 +487,7 @@ impl State for BlockBreakerScripts {
                 Ok(result) => {
                     for &entity in result.uuid_to_entity.values() {
                         if let Some(name) = world.get_name(entity)
-                            && name.0 == "Camera"
+                            && name.0 == "Camera_Lens"
                         {
                             world.resources.active_camera = Some(entity);
                             break;

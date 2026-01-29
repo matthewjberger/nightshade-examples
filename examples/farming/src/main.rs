@@ -1,3 +1,32 @@
+mod ecs;
+mod types;
+
+use ecs::{
+    GameWorld, EntityHandle, Position, Velocity, Enemy, Projectile, Gem, HealthCrystal, HealthGem,
+    Tree, Log, Popup, TreasureZone,
+    ENTITY_HANDLE, POSITION, VELOCITY, ENEMY, PROJECTILE, GEM, POPUP,
+    HEALTH_CRYSTAL, HEALTH_GEM, TREE, LOG,
+};
+use types::{
+    CharacterMovementState, EnemyType, TreeState, ZoneType, BuffType,
+    ActiveBuff, PopupType, GameState, CameraMode, UpgradeType, HighScoreType, PlayerStats,
+    LineEffect, LobBomb, hsv_to_rgb, smooth_step,
+    ARENA_SIZE, GROUND_SIZE, CHUNK_SIZE, RENDER_DISTANCE, PLAYER_RADIUS, PLAYER_SPEED,
+    CAMERA_HEIGHT, CAMERA_DISTANCE, ENEMY_RADIUS, ENEMY_SPEED, SPAWN_INTERVAL, COLLISION_DISTANCE,
+    ENEMY_DAMAGE, DAMAGE_COOLDOWN, PROJECTILE_RADIUS, PROJECTILE_SPEED,
+    PROJECTILE_COOLDOWN, PROJECTILE_RANGE, PROJECTILE_HIT_DISTANCE, GEM_RADIUS, GEM_MAGNET_RANGE,
+    GEM_MAGNET_SPEED, GEM_COLLECT_DISTANCE, XP_PER_LEVEL, ORB_RADIUS, ORB_ORBIT_RADIUS,
+    ORB_ORBIT_SPEED, ORB_DAMAGE, ORB_HIT_DISTANCE, PULSE_COOLDOWN, PULSE_RADIUS, PULSE_BASE_DAMAGE,
+    REGEN_INTERVAL, REGEN_AMOUNT, WHIP_COOLDOWN, WHIP_RANGE, WHIP_ARC, WHIP_DAMAGE,
+    LIGHTNING_COOLDOWN, LIGHTNING_RANGE, LIGHTNING_CHAIN_COUNT, LIGHTNING_CHAIN_RANGE,
+    LIGHTNING_DAMAGE, GARLIC_RADIUS, GARLIC_TICK_RATE, GARLIC_DAMAGE, BOMB_RADIUS, BOMB_DAMAGE,
+    BOMB_COOLDOWN, INVINCIBILITY_DURATION, INVINCIBILITY_FLASH_RATE, DUST_SPAWN_INTERVAL,
+    COMBO_DECAY_TIME, SPEED_BOOST_DURATION, SPEED_BOOST_MULTIPLIER, WAVE_ENEMIES_BASE,
+    BOSS_WAVE_INTERVAL, BOSS_HEALTH, BOSS_SPEED, BOSS_RADIUS, BOSS_XP, SHIELD_BASE_DURATION,
+    SHIELD_DURATION_PER_LAYER, SHIELD_REGEN_DELAY, SHIELD_RADIUS_BASE, SHIELD_RADIUS_STEP,
+    AXE_SWING_SPEED, CHOP_RANGE, LOG_COLLECT_DISTANCE,
+};
+
 #[cfg(not(target_arch = "wasm32"))]
 use nightshade::ecs::animation::components::{AnimationClip, AnimationProperty};
 #[cfg(not(target_arch = "wasm32"))]
@@ -23,772 +52,20 @@ use nightshade::ecs::particles::components::{
 use nightshade::ecs::terrain::{NoiseConfig, NoiseType, TerrainConfig as NightshadeTerrainConfig};
 use nightshade::prelude::*;
 use rand::{Rng, SeedableRng};
-use std::collections::{HashMap, HashSet};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum CharacterMovementState {
-    #[default]
-    Idle,
-    Walking,
-    Jumping,
-    Chopping,
-    PickingFruit,
-    Planting,
-    Watering,
-    PullingPlant,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct FarmingAnimationIndices {
-    pub idle: Option<usize>,
-    pub walk: Option<usize>,
-    pub pick_fruit: Option<usize>,
-    pub plant: Option<usize>,
-    pub watering: Option<usize>,
-    pub pull_plant: Option<usize>,
-    pub dig_and_plant: Option<usize>,
-    pub kneeling_idle: Option<usize>,
-}
-
-fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
-    let c = v * s;
-    let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
-    let m = v - c;
-    let (r, g, b) = match (h * 6.0) as i32 {
-        0 => (c, x, 0.0),
-        1 => (x, c, 0.0),
-        2 => (0.0, c, x),
-        3 => (0.0, x, c),
-        4 => (x, 0.0, c),
-        _ => (c, 0.0, x),
-    };
-    (r + m, g + m, b + m)
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(Survivors::default())
 }
 
-freecs::ecs! {
-    GameWorld {
-        entity_handle: EntityHandle => ENTITY_HANDLE,
-        position: Position => POSITION,
-        velocity: Velocity => VELOCITY,
-        enemy: Enemy => ENEMY,
-        projectile: Projectile => PROJECTILE,
-        gem: Gem => GEM,
-        popup: Popup => POPUP,
-        shield: Shield => SHIELD,
-        health_crystal: HealthCrystal => HEALTH_CRYSTAL,
-        health_gem: HealthGem => HEALTH_GEM,
-        tree: Tree => TREE,
-        log: Log => LOG,
-    }
-    GameResources {
-        enemy_list: Vec<freecs::Entity>,
-        projectile_list: Vec<freecs::Entity>,
-        gem_list: Vec<freecs::Entity>,
-        popup_list: Vec<freecs::Entity>,
-        health_crystal_list: Vec<freecs::Entity>,
-        health_gem_list: Vec<freecs::Entity>,
-        tree_list: Vec<freecs::Entity>,
-        log_list: Vec<freecs::Entity>,
-        spawn_timer: f32,
-        enemies_spawned: u32,
-        enemies_killed: u32,
-        current_wave: u32,
-        wave_timer: f32,
-        wave_enemies_remaining: u32,
-        boss_alive: bool,
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct EntityHandle(pub Entity);
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Position(pub Vec3);
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Velocity(pub Vec3);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum EnemyType {
-    #[default]
-    Normal,
-    Fast,
-    Tank,
-    Exploder,
-    Boss,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Enemy {
-    pub speed: f32,
-    pub health: f32,
-    pub enemy_type: EnemyType,
-    pub xp_value: u32,
-    pub shield_hits: u32,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Projectile {
-    pub damage: f32,
-    pub speed: f32,
-    pub particle_emitter: Option<Entity>,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Gem {
-    pub xp_value: u32,
-    pub particle_emitter: Option<Entity>,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct HealthCrystal {
-    pub health_value: f32,
-    pub current_hp: f32,
-    pub particle_emitter: Option<Entity>,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct HealthGem {
-    pub health_value: f32,
-    pub particle_emitter: Option<Entity>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum TreeState {
-    #[default]
-    Standing,
-    BeingChopped,
-    Falling,
-    Shrinking,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Tree {
-    pub trunk_entity: Entity,
-    pub foliage_entities: [Entity; 3],
-    pub health: f32,
-    pub max_health: f32,
-    pub trunk_height: f32,
-    pub state: TreeState,
-    pub fall_progress: f32,
-    pub fall_direction: Vec3,
-    pub shrink_progress: f32,
-    pub original_trunk_scale: Vec3,
-    pub original_foliage_scales: [Vec3; 3],
-    pub trunk_y_offset: f32,
-    pub foliage_y_offsets: [f32; 3],
-    pub chunk: (i32, i32),
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Log {
-    pub twig_entity: Entity,
-    pub base_height: f32,
-    pub rotation_offset: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ZoneType {
-    MaxHealth,
-    Damage,
-    Berserk,
-    Haste,
-    Invincible,
-    HealthCache,
-    BombCache,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuffType {
-    Berserk,
-    Haste,
-    Invincible,
-}
-
-#[derive(Debug, Clone)]
-pub struct TreasureZone {
-    pub center: Vec3,
-    pub radius: f32,
-    pub fence_entities: Vec<Entity>,
-    pub power_up_entity: Option<Entity>,
-    pub power_up_emitter: Option<Entity>,
-    pub zone_type: ZoneType,
-    pub cleared: bool,
-    pub activated: bool,
-    pub zone_enemies: Vec<freecs::Entity>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ActiveBuff {
-    pub buff_type: BuffType,
-    pub remaining_time: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PopupType {
-    Damage,
-    CriticalDamage,
-    Xp,
-    Combo,
-    LevelUp,
-    Wave,
-    BossDamage,
-    PowerUp,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Popup {
-    pub text_entity: Entity,
-    pub lifetime: f32,
-    pub popup_type: PopupType,
-    pub start_scale: f32,
-    pub max_scale: f32,
-    pub base_position: Vec3,
-    pub velocity: Vec3,
-}
-
-impl Default for Popup {
-    fn default() -> Self {
-        Self {
-            text_entity: Entity {
-                id: 0,
-                generation: 0,
-            },
-            lifetime: 0.0,
-            popup_type: PopupType::Damage,
-            start_scale: 0.0,
-            velocity: Vec3::zeros(),
-            max_scale: 1.0,
-            base_position: Vec3::zeros(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Shield {
-    pub hits_remaining: u32,
-    pub max_hits: u32,
-    pub regen_timer: f32,
-    pub visual_entity: Option<Entity>,
-}
-
-const ARENA_SIZE: f32 = 40.0;
-const GROUND_SIZE: f32 = 200.0;
-const CHUNK_SIZE: f32 = 20.0;
-const RENDER_DISTANCE: i32 = 3;
-const PLAYER_RADIUS: f32 = 0.5;
-const PLAYER_SPEED: f32 = 8.0;
-const CAMERA_HEIGHT: f32 = 25.0;
-const CAMERA_DISTANCE: f32 = 15.0;
-
-const ENEMY_RADIUS: f32 = 0.4;
-const ENEMY_SPEED: f32 = 3.0;
-const SPAWN_INTERVAL: f32 = 0.5;
-const COLLISION_DISTANCE: f32 = PLAYER_RADIUS + ENEMY_RADIUS;
-
-const PLAYER_MAX_HEALTH: f32 = 100.0;
-const ENEMY_DAMAGE: f32 = 10.0;
-const DAMAGE_COOLDOWN: f32 = 0.5;
-
-const PROJECTILE_RADIUS: f32 = 0.15;
-const PROJECTILE_SPEED: f32 = 15.0;
-const PROJECTILE_COOLDOWN: f32 = 0.3;
-const PROJECTILE_RANGE: f32 = 20.0;
-const PROJECTILE_HIT_DISTANCE: f32 = PROJECTILE_RADIUS + ENEMY_RADIUS;
-
-const GEM_RADIUS: f32 = 0.2;
-const GEM_MAGNET_RANGE: f32 = 3.0;
-const GEM_MAGNET_SPEED: f32 = 12.0;
-const GEM_COLLECT_DISTANCE: f32 = PLAYER_RADIUS + GEM_RADIUS;
-
-const XP_PER_LEVEL: u32 = 100;
-
-const ORB_RADIUS: f32 = 0.25;
-const ORB_ORBIT_RADIUS: f32 = 2.0;
-const ORB_ORBIT_SPEED: f32 = 3.0;
-const ORB_DAMAGE: f32 = 25.0;
-const ORB_HIT_DISTANCE: f32 = ORB_RADIUS + ENEMY_RADIUS;
-
-const PULSE_COOLDOWN: f32 = 2.0;
-const PULSE_RADIUS: f32 = 5.0;
-const PULSE_BASE_DAMAGE: f32 = 30.0;
-
-const REGEN_INTERVAL: f32 = 1.0;
-const REGEN_AMOUNT: f32 = 2.0;
-
-const WHIP_COOLDOWN: f32 = 1.2;
-const WHIP_RANGE: f32 = 4.0;
-const WHIP_ARC: f32 = 2.5;
-const WHIP_DAMAGE: f32 = 20.0;
-
-const LIGHTNING_COOLDOWN: f32 = 1.5;
-const LIGHTNING_RANGE: f32 = 8.0;
-const LIGHTNING_CHAIN_COUNT: u32 = 3;
-const LIGHTNING_CHAIN_RANGE: f32 = 4.0;
-const LIGHTNING_DAMAGE: f32 = 15.0;
-
-const GARLIC_RADIUS: f32 = 2.5;
-const GARLIC_TICK_RATE: f32 = 0.5;
-const GARLIC_DAMAGE: f32 = 5.0;
-
-const BOMB_RADIUS: f32 = 12.0;
-const BOMB_DAMAGE: f32 = 100.0;
-const BOMB_COOLDOWN: f32 = 8.0;
-
-const INVINCIBILITY_DURATION: f32 = 0.5;
-const INVINCIBILITY_FLASH_RATE: f32 = 10.0;
-
-const DUST_SPAWN_INTERVAL: f32 = 0.08;
-const COMBO_DECAY_TIME: f32 = 2.0;
-const SPEED_BOOST_DURATION: f32 = 0.3;
-const SPEED_BOOST_MULTIPLIER: f32 = 1.3;
-
-const WAVE_ENEMIES_BASE: u32 = 20;
-const BOSS_WAVE_INTERVAL: u32 = 5;
-const BOSS_HEALTH: f32 = 50.0;
-const BOSS_SPEED: f32 = 1.5;
-const BOSS_RADIUS: f32 = 1.2;
-const BOSS_XP: u32 = 100;
-
-const SHIELD_BASE_DURATION: f32 = 8.0;
-const SHIELD_DURATION_PER_LAYER: f32 = 6.0;
-const SHIELD_REGEN_DELAY: f32 = 5.0;
-const SHIELD_RADIUS_BASE: f32 = 1.3;
-const SHIELD_RADIUS_STEP: f32 = 0.2;
-
-const MAX_UPGRADE_LEVEL: u32 = 5;
-
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-enum GameState {
-    #[default]
-    MainMenu,
-    Playing,
-    Paused,
-    LevelUp,
-    GameOver,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum CameraMode {
-    #[default]
-    TopDown,
-    ThirdPerson,
-}
-
-fn smooth_step(t: f32) -> f32 {
-    t * t * (3.0 - 2.0 * t)
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum UpgradeType {
-    Damage,
-    FireRate,
-    ProjectileCount,
-    Range,
-    Speed,
-    MaxHealth,
-    OrbitingOrbs,
-    AreaPulse,
-    Magnetism,
-    Regeneration,
-    Whip,
-    Lightning,
-    Garlic,
-    Bomb,
-    Shield,
-}
-
-impl UpgradeType {
-    fn base_name(&self) -> &'static str {
-        match self {
-            UpgradeType::Damage => "Damage",
-            UpgradeType::FireRate => "Fire Rate",
-            UpgradeType::ProjectileCount => "Projectiles",
-            UpgradeType::Range => "Range",
-            UpgradeType::Speed => "Speed",
-            UpgradeType::MaxHealth => "Health",
-            UpgradeType::OrbitingOrbs => "Orbs",
-            UpgradeType::AreaPulse => "Pulse",
-            UpgradeType::Magnetism => "Magnet",
-            UpgradeType::Regeneration => "Regen",
-            UpgradeType::Whip => "Whip",
-            UpgradeType::Lightning => "Lightning",
-            UpgradeType::Garlic => "Garlic",
-            UpgradeType::Bomb => "Bomb",
-            UpgradeType::Shield => "Shield",
-        }
-    }
-
-    fn tier_name(&self, level: u32) -> String {
-        let tier = level + 1;
-        let tier_suffix = match tier {
-            1 => "I",
-            2 => "II",
-            3 => "III",
-            4 => "IV",
-            5 => "V",
-            _ => "MAX",
-        };
-        format!("{} {}", self.base_name(), tier_suffix)
-    }
-
-    fn description(&self, level: u32) -> String {
-        match self {
-            UpgradeType::Damage => format!("Damage +{}%", 25 * (level + 1)),
-            UpgradeType::FireRate => format!("Fire rate +{}%", 20 * (level + 1)),
-            UpgradeType::ProjectileCount => format!("+{} projectile(s)", level + 1),
-            UpgradeType::Range => format!("Range +{}%", 25 * (level + 1)),
-            UpgradeType::Speed => format!("Speed +{}%", 15 * (level + 1)),
-            UpgradeType::MaxHealth => format!("+{} max health", 25 * (level + 1)),
-            UpgradeType::OrbitingOrbs => format!("{} orbs orbit you", 2 * (level + 1)),
-            UpgradeType::AreaPulse => format!("Pulse Lv{}: {}dmg", level + 1, 30 + 10 * level),
-            UpgradeType::Magnetism => format!("Magnet range +{}%", 50 * (level + 1)),
-            UpgradeType::Regeneration => format!("Heal {} HP/sec", 2 * (level + 1)),
-            UpgradeType::Whip => format!("Whip Lv{}: {}dmg", level + 1, 20 + 10 * level),
-            UpgradeType::Lightning => format!("Chain {} targets", 3 + level),
-            UpgradeType::Garlic => format!("Aura Lv{}: {}dmg/tick", level + 1, 5 + 3 * level),
-            UpgradeType::Bomb => {
-                format!("Auto-bomb every {:.1}s", BOMB_COOLDOWN / (level + 1) as f32)
-            }
-            UpgradeType::Shield => format!("{} shield layer(s)", level + 1),
-        }
-    }
-
-    fn max_level(&self) -> u32 {
-        match self {
-            UpgradeType::ProjectileCount => 4,
-            UpgradeType::OrbitingOrbs => 3,
-            UpgradeType::Bomb => 3,
-            UpgradeType::Shield => 5,
-            _ => MAX_UPGRADE_LEVEL,
-        }
-    }
-
-    fn tier_color(&self, level: u32) -> Vec4 {
-        match level {
-            0 => Vec4::new(0.7, 0.7, 0.7, 1.0),
-            1 => Vec4::new(0.4, 0.8, 0.4, 1.0),
-            2 => Vec4::new(0.3, 0.5, 1.0, 1.0),
-            3 => Vec4::new(0.8, 0.3, 0.9, 1.0),
-            4 => Vec4::new(1.0, 0.8, 0.2, 1.0),
-            _ => Vec4::new(1.0, 0.5, 0.2, 1.0),
-        }
-    }
-}
-
-#[derive(Clone)]
-struct PlayerStats {
-    damage_multiplier: f32,
-    cooldown_multiplier: f32,
-    projectile_count: u32,
-    range_multiplier: f32,
-    speed_multiplier: f32,
-    max_health: f32,
-    orb_count: u32,
-    area_pulse_level: u32,
-    magnet_multiplier: f32,
-    regen_level: u32,
-    whip_level: u32,
-    lightning_level: u32,
-    garlic_level: u32,
-    shield_level: u32,
-    damage_level: u32,
-    fire_rate_level: u32,
-    projectile_level: u32,
-    range_level: u32,
-    speed_level: u32,
-    health_level: u32,
-    magnetism_level: u32,
-    bomb_level: u32,
-    buff_damage_multiplier: f32,
-    buff_speed_multiplier: f32,
-}
-
-impl Default for PlayerStats {
-    fn default() -> Self {
-        Self {
-            damage_multiplier: 1.0,
-            cooldown_multiplier: 1.0,
-            projectile_count: 1,
-            range_multiplier: 1.0,
-            speed_multiplier: 1.0,
-            max_health: PLAYER_MAX_HEALTH,
-            orb_count: 0,
-            area_pulse_level: 0,
-            magnet_multiplier: 1.0,
-            regen_level: 0,
-            whip_level: 0,
-            lightning_level: 0,
-            garlic_level: 0,
-            shield_level: 0,
-            damage_level: 0,
-            fire_rate_level: 0,
-            projectile_level: 0,
-            range_level: 0,
-            speed_level: 0,
-            health_level: 0,
-            magnetism_level: 0,
-            bomb_level: 0,
-            buff_damage_multiplier: 1.0,
-            buff_speed_multiplier: 1.0,
-        }
-    }
-}
-
-impl PlayerStats {
-    fn get_upgrade_level(&self, upgrade: UpgradeType) -> u32 {
-        match upgrade {
-            UpgradeType::Damage => self.damage_level,
-            UpgradeType::FireRate => self.fire_rate_level,
-            UpgradeType::ProjectileCount => self.projectile_level,
-            UpgradeType::Range => self.range_level,
-            UpgradeType::Speed => self.speed_level,
-            UpgradeType::MaxHealth => self.health_level,
-            UpgradeType::OrbitingOrbs => self.orb_count / 2,
-            UpgradeType::AreaPulse => self.area_pulse_level,
-            UpgradeType::Magnetism => self.magnetism_level,
-            UpgradeType::Regeneration => self.regen_level,
-            UpgradeType::Whip => self.whip_level,
-            UpgradeType::Lightning => self.lightning_level,
-            UpgradeType::Garlic => self.garlic_level,
-            UpgradeType::Bomb => self.bomb_level,
-            UpgradeType::Shield => self.shield_level,
-        }
-    }
-
-    fn is_maxed(&self, upgrade: UpgradeType) -> bool {
-        self.get_upgrade_level(upgrade) >= upgrade.max_level()
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Default)]
-enum HighScoreType {
-    #[default]
-    None,
-    Kills,
-    Wave,
-    Time,
-    Combo,
-}
-
+#[derive(Default)]
 struct Survivors {
-    player_entity: Option<Entity>,
-    player_position: Vec3,
-    camera_entity: Option<Entity>,
     game_world: GameWorld,
-    game_state: GameState,
-    player_health: f32,
-    damage_cooldown: f32,
-    attack_cooldown: f32,
-    enemy_materials: EnemyMaterials,
-    projectile_material_name: Option<String>,
-    gem_material_name: Option<String>,
-    orb_material_name: Option<String>,
-    player_xp: u32,
-    player_level: u32,
-    stats: PlayerStats,
-    upgrade_choices: Vec<UpgradeType>,
-    selected_upgrade_index: usize,
-    camera_shake: f32,
-    game_time: f32,
-    orb_entities: Vec<Entity>,
-    orb_angle: f32,
-    pulse_cooldown: f32,
-    regen_timer: f32,
-    invincibility_timer: f32,
-    whip_cooldown: f32,
-    whip_angle: f32,
-    lightning_cooldown: f32,
-    garlic_timer: f32,
-    garlic_emitter: Option<Entity>,
-    bomb_cooldown: f32,
-    player_facing: Vec3,
-    dust_timer: f32,
-    combo_count: u32,
-    combo_timer: f32,
-    combo_max: u32,
-    speed_boost_timer: f32,
-    last_wave_announced: u32,
-    ambient_emitter: Option<Entity>,
-    kill_flash_timer: f32,
-    line_effects: Vec<LineEffect>,
-    game_speed: f32,
-    lob_bombs: Vec<LobBomb>,
-    level_up_flash: f32,
-    boss_kill_flash: f32,
-    combo_emitter: Option<Entity>,
-    player_shield_layers: Vec<(Entity, f32, f32, u32)>,
-    player_shield_regen_timer: f32,
-    enemy_shield_entities: Vec<(freecs::Entity, Entity, f32)>,
-    high_score_kills: u32,
-    high_score_wave: u32,
-    high_score_time: f32,
-    high_score_combo: u32,
-    new_high_score_timer: f32,
-    new_high_score_type: HighScoreType,
-    score_popup_scale: f32,
-    ground_entity: Option<Entity>,
-    loaded_chunks: HashSet<(i32, i32)>,
-    chunk_entities: HashMap<(i32, i32), Vec<Entity>>,
-    max_distance_traveled: f32,
-    health_crystal_spawn_timer: f32,
-    health_crystal_spawn_interval: f32,
-    treasure_zones: Vec<TreasureZone>,
-    next_zone_distance: f32,
-    active_buffs: Vec<ActiveBuff>,
-    camera_mode: CameraMode,
-    camera_yaw: f32,
-    camera_transition: f32,
-    axe_entity: Option<Entity>,
-    is_chopping: bool,
-    chopping_tree: Option<freecs::Entity>,
-    axe_swing_angle: f32,
-    target_indicator_entity: Option<Entity>,
-    log_inventory: u32,
-    nearest_tree_entity: Option<freecs::Entity>,
-    character_movement_state: CharacterMovementState,
-    animation_indices: FarmingAnimationIndices,
-    current_animation: Option<usize>,
-    was_moving: bool,
-    character_loaded: bool,
-    current_animation_name: String,
-    grass_region: Option<Entity>,
-    grass_plane_entity: Option<Entity>,
-    player_vertical_velocity: f32,
-    player_height: f32,
-    is_grounded: bool,
-}
-
-const AXE_SWING_SPEED: f32 = 12.0;
-const CHOP_RANGE: f32 = 2.5;
-const LOG_COLLECT_DISTANCE: f32 = 1.5;
-
-struct LineEffect {
-    entity: Entity,
-    timer: f32,
-    max_time: f32,
-    center: Vec3,
-    start_radius: f32,
-    end_radius: f32,
-    segments: u32,
-    color_start: Vec4,
-    color_end: Vec4,
-}
-
-struct LobBomb {
-    entity: Entity,
-    start_position: Vec3,
-    target_position: Vec3,
-    flight_time: f32,
-    elapsed: f32,
-    arc_height: f32,
-    trail_emitter: Option<Entity>,
-    fuse_emitter: Option<Entity>,
-}
-
-#[derive(Default, Clone)]
-struct EnemyMaterials {
-    normal: Option<String>,
-    fast: Option<String>,
-    tank: Option<String>,
-    exploder: Option<String>,
-    boss: Option<String>,
-}
-
-impl Default for Survivors {
-    fn default() -> Self {
-        Self {
-            player_entity: None,
-            player_position: Vec3::zeros(),
-            camera_entity: None,
-            game_world: GameWorld::default(),
-            game_state: GameState::MainMenu,
-            player_health: PLAYER_MAX_HEALTH,
-            damage_cooldown: 0.0,
-            attack_cooldown: 0.0,
-            enemy_materials: EnemyMaterials::default(),
-            projectile_material_name: None,
-            gem_material_name: None,
-            orb_material_name: None,
-            player_xp: 0,
-            player_level: 1,
-            stats: PlayerStats::default(),
-            upgrade_choices: Vec::new(),
-            selected_upgrade_index: 0,
-            camera_shake: 0.0,
-            game_time: 0.0,
-            orb_entities: Vec::new(),
-            orb_angle: 0.0,
-            pulse_cooldown: 0.0,
-            regen_timer: 0.0,
-            invincibility_timer: 0.0,
-            whip_cooldown: 0.0,
-            whip_angle: 0.0,
-            lightning_cooldown: 0.0,
-            garlic_timer: 0.0,
-            garlic_emitter: None,
-            bomb_cooldown: 0.0,
-            player_facing: Vec3::new(1.0, 0.0, 0.0),
-            dust_timer: 0.0,
-            combo_count: 0,
-            combo_timer: 0.0,
-            combo_max: 0,
-            speed_boost_timer: 0.0,
-            last_wave_announced: 0,
-            ambient_emitter: None,
-            kill_flash_timer: 0.0,
-            line_effects: Vec::new(),
-            game_speed: 1.0,
-            lob_bombs: Vec::new(),
-            level_up_flash: 0.0,
-            boss_kill_flash: 0.0,
-            combo_emitter: None,
-            player_shield_layers: Vec::new(),
-            player_shield_regen_timer: 0.0,
-            enemy_shield_entities: Vec::new(),
-            high_score_kills: 0,
-            high_score_wave: 0,
-            high_score_time: 0.0,
-            high_score_combo: 0,
-            new_high_score_timer: 0.0,
-            new_high_score_type: HighScoreType::None,
-            score_popup_scale: 1.0,
-            ground_entity: None,
-            loaded_chunks: HashSet::new(),
-            chunk_entities: HashMap::new(),
-            max_distance_traveled: 0.0,
-            health_crystal_spawn_timer: 0.0,
-            health_crystal_spawn_interval: 60.0,
-            treasure_zones: Vec::new(),
-            next_zone_distance: 50.0,
-            active_buffs: Vec::new(),
-            camera_mode: CameraMode::TopDown,
-            camera_yaw: 0.0,
-            camera_transition: 1.0,
-            axe_entity: None,
-            is_chopping: false,
-            chopping_tree: None,
-            axe_swing_angle: 0.0,
-            target_indicator_entity: None,
-            log_inventory: 0,
-            nearest_tree_entity: None,
-            character_movement_state: CharacterMovementState::Idle,
-            animation_indices: FarmingAnimationIndices::default(),
-            current_animation: None,
-            was_moving: false,
-            character_loaded: false,
-            current_animation_name: String::from("None"),
-            grass_region: None,
-            grass_plane_entity: None,
-            player_vertical_velocity: 0.0,
-            player_height: 0.0,
-            is_grounded: true,
-        }
-    }
+    player: ecs::PlayerState,
+    camera: ecs::CameraState,
+    state: ecs::GameStateData,
+    visuals: ecs::VisualEntities,
+    chunks: ecs::ChunkState,
+    materials: ecs::MaterialCache,
 }
 
 impl State for Survivors {
@@ -817,7 +94,7 @@ impl State for Survivors {
 
     fn run_systems(&mut self, world: &mut World) {
         let delta = world.resources.window.timing.delta_time;
-        let game_delta = delta * self.game_speed;
+        let game_delta = delta * self.state.speed;
 
         self.update_popups(world, game_delta);
         self.update_invincibility(world, game_delta);
@@ -827,13 +104,13 @@ impl State for Survivors {
         self.update_flashes(delta);
         self.update_combo_fire(world);
 
-        match self.game_state {
+        match self.state.state {
             GameState::MainMenu => {
                 self.camera_follow_system(world, delta);
                 self.update_ambient_particles(world);
             }
             GameState::Playing => {
-                self.game_time += game_delta;
+                self.state.time += game_delta;
                 self.player_movement_system(world, game_delta);
                 self.animation_system(world);
                 nightshade::ecs::animation::systems::update_animation_players(world, game_delta);
@@ -871,9 +148,9 @@ impl State for Survivors {
                 self.treasure_zone_system(world, game_delta);
                 self.update_active_buffs(game_delta);
 
-                if self.player_health <= 0.0 {
+                if self.player.health <= 0.0 {
                     self.check_high_scores();
-                    self.game_state = GameState::GameOver;
+                    self.state.state = GameState::GameOver;
                 }
 
                 update_particle_emitters(world, game_delta);
@@ -894,55 +171,55 @@ impl State for Survivors {
 
         match key {
             KeyCode::KeyR => {
-                if self.game_state == GameState::GameOver {
+                if self.state.state == GameState::GameOver {
                     self.restart_game(world);
                 }
             }
-            KeyCode::Escape => match self.game_state {
+            KeyCode::Escape => match self.state.state {
                 GameState::Playing => {
-                    self.game_state = GameState::Paused;
+                    self.state.state = GameState::Paused;
                 }
                 GameState::Paused => {
-                    self.game_state = GameState::Playing;
+                    self.state.state = GameState::Playing;
                 }
                 _ => {}
             },
-            KeyCode::Enter | KeyCode::Space => match self.game_state {
+            KeyCode::Enter | KeyCode::Space => match self.state.state {
                 GameState::MainMenu => {
                     self.start_game(world);
                 }
                 GameState::LevelUp => {
-                    if let Some(upgrade) = self.upgrade_choices.get(self.selected_upgrade_index) {
+                    if let Some(upgrade) = self.player.upgrade_choices.get(self.player.selected_upgrade_index) {
                         self.apply_upgrade(*upgrade, world);
-                        self.game_state = GameState::Playing;
+                        self.state.state = GameState::Playing;
                     }
                 }
                 _ => {}
             },
             KeyCode::ArrowLeft | KeyCode::KeyA => {
-                if self.game_state == GameState::LevelUp && self.selected_upgrade_index > 0 {
-                    self.selected_upgrade_index -= 1;
+                if self.state.state == GameState::LevelUp && self.player.selected_upgrade_index > 0 {
+                    self.player.selected_upgrade_index -= 1;
                 }
             }
             KeyCode::ArrowRight | KeyCode::KeyD => {
-                if self.game_state == GameState::LevelUp
-                    && self.selected_upgrade_index < self.upgrade_choices.len().saturating_sub(1)
+                if self.state.state == GameState::LevelUp
+                    && self.player.selected_upgrade_index < self.player.upgrade_choices.len().saturating_sub(1)
                 {
-                    self.selected_upgrade_index += 1;
+                    self.player.selected_upgrade_index += 1;
                 }
             }
             KeyCode::BracketRight | KeyCode::Equal => {
-                if self.game_state == GameState::Playing {
-                    self.game_speed = (self.game_speed * 2.0).min(8.0);
+                if self.state.state == GameState::Playing {
+                    self.state.speed = (self.state.speed * 2.0).min(8.0);
                 }
             }
             KeyCode::BracketLeft | KeyCode::Minus => {
-                if self.game_state == GameState::Playing {
-                    self.game_speed = (self.game_speed / 2.0).max(0.25);
+                if self.state.state == GameState::Playing {
+                    self.state.speed = (self.state.speed / 2.0).max(0.25);
                 }
             }
             KeyCode::Tab => {
-                if self.game_state == GameState::Playing {
+                if self.state.state == GameState::Playing {
                     self.toggle_camera_mode();
                 }
             }
@@ -953,67 +230,67 @@ impl State for Survivors {
     fn on_gamepad_event(&mut self, world: &mut World, event: gilrs::Event) {
         if let gilrs::EventType::ButtonPressed(button, _) = event.event {
             match button {
-                gilrs::Button::Start => match self.game_state {
+                gilrs::Button::Start => match self.state.state {
                     GameState::MainMenu => {
                         self.start_game(world);
                     }
                     GameState::Playing => {
-                        self.game_state = GameState::Paused;
+                        self.state.state = GameState::Paused;
                     }
                     GameState::Paused => {
-                        self.game_state = GameState::Playing;
+                        self.state.state = GameState::Playing;
                     }
                     GameState::GameOver => {
                         self.restart_game(world);
                     }
                     _ => {}
                 },
-                gilrs::Button::South => match self.game_state {
+                gilrs::Button::South => match self.state.state {
                     GameState::MainMenu => {
                         self.start_game(world);
                     }
                     GameState::Paused => {
-                        self.game_state = GameState::Playing;
+                        self.state.state = GameState::Playing;
                     }
                     GameState::GameOver => {
                         self.restart_game(world);
                     }
                     GameState::LevelUp => {
-                        if let Some(upgrade) = self.upgrade_choices.get(self.selected_upgrade_index)
+                        if let Some(upgrade) = self.player.upgrade_choices.get(self.player.selected_upgrade_index)
                         {
                             self.apply_upgrade(*upgrade, world);
-                            self.game_state = GameState::Playing;
+                            self.state.state = GameState::Playing;
                         }
                     }
                     _ => {}
                 },
                 gilrs::Button::DPadLeft | gilrs::Button::DPadUp => {
-                    if self.game_state == GameState::LevelUp && self.selected_upgrade_index > 0 {
-                        self.selected_upgrade_index -= 1;
+                    if self.state.state == GameState::LevelUp && self.player.selected_upgrade_index > 0 {
+                        self.player.selected_upgrade_index -= 1;
                     }
                 }
                 gilrs::Button::DPadRight | gilrs::Button::DPadDown => {
-                    if self.game_state == GameState::LevelUp
-                        && self.selected_upgrade_index
-                            < self.upgrade_choices.len().saturating_sub(1)
+                    if self.state.state == GameState::LevelUp
+                        && self.player.selected_upgrade_index
+                            < self.player.upgrade_choices.len().saturating_sub(1)
                     {
-                        self.selected_upgrade_index += 1;
+                        self.player.selected_upgrade_index += 1;
                     }
                 }
                 gilrs::Button::RightTrigger => {
-                    self.game_speed = (self.game_speed + 0.25).min(3.0);
+                    self.state.speed = (self.state.speed + 0.25).min(3.0);
                 }
                 gilrs::Button::LeftTrigger => {
-                    self.game_speed = (self.game_speed - 0.25).max(0.25);
+                    self.state.speed = (self.state.speed - 0.25).max(0.25);
                 }
                 gilrs::Button::RightTrigger2 => {
-                    self.game_speed = (self.game_speed + 0.5).min(3.0);
+                    self.state.speed = (self.state.speed + 0.5).min(3.0);
                 }
                 gilrs::Button::LeftTrigger2 => {
-                    self.game_speed = (self.game_speed - 0.5).max(0.25);
+                    self.state.speed = (self.state.speed - 0.5).max(0.25);
                 }
                 gilrs::Button::Select => {
-                    if self.game_state == GameState::Playing {
+                    if self.state.state == GameState::Playing {
                         self.toggle_camera_mode();
                     }
                 }
@@ -1025,7 +302,7 @@ impl State for Survivors {
     fn immediate_ui(&mut self, world: &mut World, ui: &mut ImmediateUi) {
         let screen_size = ui.screen_size;
 
-        if self.game_state == GameState::MainMenu {
+        if self.state.state == GameState::MainMenu {
             ui.draw_rect(
                 Vec2::new(0.0, 0.0),
                 screen_size,
@@ -1050,7 +327,7 @@ impl State for Survivors {
                 .button_with_color("START GAME", Vec4::new(0.24, 0.47, 0.31, 1.0))
                 .clicked
             {
-                self.game_state = GameState::Playing;
+                self.state.state = GameState::Playing;
             }
 
             ui.spacing(30.0);
@@ -1067,21 +344,21 @@ impl State for Survivors {
                 Vec4::new(0.5, 0.5, 0.5, 1.0),
             );
 
-            if self.high_score_kills > 0 || self.high_score_wave > 0 {
+            if self.state.high_score_kills > 0 || self.state.high_score_wave > 0 {
                 ui.spacing(20.0);
                 ui.set_alignment(LayoutAlignment::Center);
                 ui.label_colored("--- HIGH SCORES ---", Vec4::new(1.0, 0.84, 0.0, 1.0));
                 ui.label_colored(
                     &format!(
                         "Wave: {} | Kills: {}",
-                        self.high_score_wave, self.high_score_kills
+                        self.state.high_score_wave, self.state.high_score_kills
                     ),
                     Vec4::new(0.8, 0.8, 0.8, 1.0),
                 );
                 ui.label_colored(
                     &format!(
                         "Time: {:.0}s | Combo: {}x",
-                        self.high_score_time, self.high_score_combo
+                        self.state.high_score_time, self.state.high_score_combo
                     ),
                     Vec4::new(0.8, 0.8, 0.8, 1.0),
                 );
@@ -1098,7 +375,7 @@ impl State for Survivors {
             return;
         }
 
-        if self.game_state == GameState::Paused {
+        if self.state.state == GameState::Paused {
             ui.draw_rect(
                 Vec2::new(0.0, 0.0),
                 screen_size,
@@ -1118,7 +395,7 @@ impl State for Survivors {
                 .button_with_color("Resume", Vec4::new(0.24, 0.39, 0.24, 1.0))
                 .clicked
             {
-                self.game_state = GameState::Playing;
+                self.state.state = GameState::Playing;
             }
 
             ui.spacing(20.0);
@@ -1131,7 +408,7 @@ impl State for Survivors {
             return;
         }
 
-        if self.game_state == GameState::Playing || self.game_state == GameState::LevelUp {
+        if self.state.state == GameState::Playing || self.state.state == GameState::LevelUp {
             let hud_x = 10.0;
             let hud_y = 10.0;
             let hud_width = 280.0;
@@ -1145,14 +422,14 @@ impl State for Survivors {
 
             ui.begin_vertical(Vec2::new(hud_x + 10.0, hud_y + 10.0), hud_width - 20.0);
 
-            if self.character_loaded {
+            if self.player.character_loaded {
                 ui.label_colored(
-                    &format!("Animation: {}", self.current_animation_name),
+                    &format!("Animation: {}", self.player.current_animation_name),
                     Vec4::new(0.6, 0.9, 0.6, 1.0),
                 );
             }
 
-            let health_pct = self.player_health / self.stats.max_health;
+            let health_pct = self.player.health / self.player.stats.max_health;
             let health_color = if health_pct > 0.5 {
                 Vec4::new(0.0, 0.78, 0.0, 1.0)
             } else if health_pct > 0.25 {
@@ -1165,10 +442,10 @@ impl State for Survivors {
             ui.progress_bar_colored(health_pct, bar_width, health_color);
             ui.end_horizontal();
 
-            let xp_for_next = XP_PER_LEVEL * self.player_level;
-            let xp_pct = self.player_xp as f32 / xp_for_next as f32;
+            let xp_for_next = XP_PER_LEVEL * self.player.level;
+            let xp_pct = self.player.xp as f32 / xp_for_next as f32;
             ui.begin_horizontal_at_cursor();
-            ui.label(&format!("Lv.{}:", self.player_level));
+            ui.label(&format!("Lv.{}:", self.player.level));
             ui.progress_bar_colored(xp_pct, bar_width, Vec4::new(0.39, 0.78, 1.0, 1.0));
             ui.end_horizontal();
 
@@ -1189,59 +466,59 @@ impl State for Survivors {
 
             let current_kills = self.game_world.resources.enemies_killed;
             let is_kills_record =
-                current_kills > self.high_score_kills && self.high_score_kills > 0;
+                current_kills > self.state.high_score_kills && self.state.high_score_kills > 0;
             let is_time_record =
-                self.game_time > self.high_score_time && self.high_score_time > 0.0;
+                self.state.time > self.state.high_score_time && self.state.high_score_time > 0.0;
 
             if is_kills_record || is_time_record {
-                let pulse = (self.game_time * 6.0).sin() * 0.3 + 0.7;
+                let pulse = (self.state.time * 6.0).sin() * 0.3 + 0.7;
                 let record_color = Vec4::new(1.0, 0.84 * pulse + 0.16, 0.0, 1.0);
                 if is_kills_record && is_time_record {
                     ui.label_colored(
-                        &format!("Kills: {} | Time: {:.0}s", current_kills, self.game_time),
+                        &format!("Kills: {} | Time: {:.0}s", current_kills, self.state.time),
                         record_color,
                     );
                 } else if is_kills_record {
                     ui.label_colored(&format!("Kills: {}", current_kills), record_color);
-                    ui.label(&format!("Time: {:.0}s", self.game_time));
+                    ui.label(&format!("Time: {:.0}s", self.state.time));
                 } else {
                     ui.label(&format!("Kills: {}", current_kills));
-                    ui.label_colored(&format!("Time: {:.0}s", self.game_time), record_color);
+                    ui.label_colored(&format!("Time: {:.0}s", self.state.time), record_color);
                 }
             } else {
                 ui.label(&format!(
                     "Kills: {} | Time: {:.0}s",
-                    current_kills, self.game_time
+                    current_kills, self.state.time
                 ));
             }
 
-            if self.combo_count > 1 {
-                let combo_color = if self.combo_count >= 50 {
+            if self.player.combo_count > 1 {
+                let combo_color = if self.player.combo_count >= 50 {
                     Vec4::new(1.0, 0.39, 1.0, 1.0)
-                } else if self.combo_count >= 25 {
+                } else if self.player.combo_count >= 25 {
                     Vec4::new(1.0, 0.78, 0.2, 1.0)
-                } else if self.combo_count >= 10 {
+                } else if self.player.combo_count >= 10 {
                     Vec4::new(1.0, 0.59, 0.2, 1.0)
                 } else {
                     Vec4::new(1.0, 1.0, 0.39, 1.0)
                 };
-                ui.label_colored(&format!("{}x COMBO!", self.combo_count), combo_color);
-                if self.combo_count > self.combo_max {
-                    let best_pulse = (self.game_time * 10.0).sin() * 0.5 + 0.5;
+                ui.label_colored(&format!("{}x COMBO!", self.player.combo_count), combo_color);
+                if self.player.combo_count > self.player.combo_max {
+                    let best_pulse = (self.state.time * 10.0).sin() * 0.5 + 0.5;
                     let best_color =
                         Vec4::new(1.0, 0.84 + best_pulse * 0.16, best_pulse * 0.3, 1.0);
                     ui.label_colored("NEW BEST COMBO!", best_color);
                 }
             }
 
-            if self.stats.bomb_level > 0 {
+            if self.player.stats.bomb_level > 0 {
                 let cooldown_percent =
-                    self.bomb_cooldown / (BOMB_COOLDOWN / self.stats.bomb_level as f32);
-                let ready = self.bomb_cooldown <= 0.0;
+                    self.player.bomb_cooldown / (BOMB_COOLDOWN / self.player.stats.bomb_level as f32);
+                let ready = self.player.bomb_cooldown <= 0.0;
                 let bomb_text = if ready {
                     "Bomb: READY".to_string()
                 } else {
-                    format!("Bomb: {:.1}s", self.bomb_cooldown)
+                    format!("Bomb: {:.1}s", self.player.bomb_cooldown)
                 };
                 let bomb_color = if ready {
                     Vec4::new(0.39, 1.0, 0.39, 1.0)
@@ -1256,13 +533,13 @@ impl State for Survivors {
                 ui.label_colored("BOSS!", Vec4::new(1.0, 0.0, 0.0, 1.0));
             }
 
-            if (self.game_speed - 1.0).abs() > 0.01 {
-                let speed_text = if self.game_speed >= 1.0 {
-                    format!("{}x Speed", self.game_speed as i32)
+            if (self.state.speed - 1.0).abs() > 0.01 {
+                let speed_text = if self.state.speed >= 1.0 {
+                    format!("{}x Speed", self.state.speed as i32)
                 } else {
-                    format!("{:.2}x Speed", self.game_speed)
+                    format!("{:.2}x Speed", self.state.speed)
                 };
-                let speed_color = if self.game_speed > 1.0 {
+                let speed_color = if self.state.speed > 1.0 {
                     Vec4::new(0.39, 0.78, 1.0, 1.0)
                 } else {
                     Vec4::new(1.0, 0.78, 0.39, 1.0)
@@ -1270,13 +547,13 @@ impl State for Survivors {
                 ui.label_colored(&speed_text, speed_color);
             }
 
-            for buff in &self.active_buffs {
+            for buff in &self.player.active_buffs {
                 let (buff_name, buff_color) = match buff.buff_type {
                     BuffType::Berserk => ("BERSERK", Vec4::new(0.8, 0.0, 0.0, 1.0)),
                     BuffType::Haste => ("HASTE", Vec4::new(0.0, 0.8, 1.0, 1.0)),
                     BuffType::Invincible => ("INVINCIBLE", Vec4::new(1.0, 1.0, 0.0, 1.0)),
                 };
-                let pulse = (self.game_time * 6.0).sin() * 0.2 + 0.8;
+                let pulse = (self.state.time * 6.0).sin() * 0.2 + 0.8;
                 let pulsing_color = Vec4::new(
                     buff_color.x * pulse,
                     buff_color.y * pulse,
@@ -1289,9 +566,9 @@ impl State for Survivors {
                 );
             }
 
-            if self.log_inventory > 0 {
+            if self.player.log_inventory > 0 {
                 ui.label_colored(
-                    &format!("Logs: {}", self.log_inventory),
+                    &format!("Logs: {}", self.player.log_inventory),
                     Vec4::new(0.7, 0.5, 0.3, 1.0),
                 );
             }
@@ -1306,7 +583,7 @@ impl State for Survivors {
             let camera_btn_y = screen_size.y - camera_btn_height - 10.0;
 
             ui.begin_vertical(Vec2::new(camera_btn_x, camera_btn_y), camera_btn_width);
-            let camera_label = match self.camera_mode {
+            let camera_label = match self.camera.mode {
                 CameraMode::TopDown => "Top-Down [Tab]",
                 CameraMode::ThirdPerson => "3rd Person [Q/E]",
             };
@@ -1316,7 +593,7 @@ impl State for Survivors {
             ui.end_vertical();
         }
 
-        if self.game_state == GameState::LevelUp {
+        if self.state.state == GameState::LevelUp {
             ui.draw_rect(
                 Vec2::new(0.0, 0.0),
                 screen_size,
@@ -1330,7 +607,7 @@ impl State for Survivors {
             ui.set_alignment(LayoutAlignment::Center);
 
             ui.label_colored(
-                &format!("LEVEL UP! (Lv.{})", self.player_level),
+                &format!("LEVEL UP! (Lv.{})", self.player.level),
                 Vec4::new(1.0, 0.84, 0.0, 1.0),
             );
             ui.spacing(20.0);
@@ -1340,10 +617,10 @@ impl State for Survivors {
             let mut selected_upgrade: Option<UpgradeType> = None;
 
             ui.begin_horizontal_at_cursor();
-            for (index, upgrade) in self.upgrade_choices.iter().enumerate() {
-                let current_level = self.stats.get_upgrade_level(*upgrade);
+            for (index, upgrade) in self.player.upgrade_choices.iter().enumerate() {
+                let current_level = self.player.stats.get_upgrade_level(*upgrade);
                 let tier_color = upgrade.tier_color(current_level);
-                let is_selected = index == self.selected_upgrade_index;
+                let is_selected = index == self.player.selected_upgrade_index;
 
                 let fill_color = if is_selected {
                     Vec4::new(
@@ -1366,14 +643,14 @@ impl State for Survivors {
                     selected_upgrade = Some(*upgrade);
                 }
                 if response.hovered {
-                    self.selected_upgrade_index = index;
+                    self.player.selected_upgrade_index = index;
                 }
             }
             ui.end_horizontal();
 
             ui.spacing(15.0);
-            if let Some(upgrade) = self.upgrade_choices.get(self.selected_upgrade_index) {
-                let current_level = self.stats.get_upgrade_level(*upgrade);
+            if let Some(upgrade) = self.player.upgrade_choices.get(self.player.selected_upgrade_index) {
+                let current_level = self.player.stats.get_upgrade_level(*upgrade);
                 ui.label_colored(
                     &upgrade.description(current_level),
                     Vec4::new(0.83, 0.83, 0.83, 1.0),
@@ -1390,11 +667,11 @@ impl State for Survivors {
 
             if let Some(upgrade) = selected_upgrade {
                 self.apply_upgrade(upgrade, world);
-                self.game_state = GameState::Playing;
+                self.state.state = GameState::Playing;
             }
         }
 
-        if self.game_state == GameState::GameOver {
+        if self.state.state == GameState::GameOver {
             ui.draw_rect(
                 Vec2::new(0.0, 0.0),
                 screen_size,
@@ -1409,13 +686,13 @@ impl State for Survivors {
 
             ui.label_colored("GAME OVER", Vec4::new(1.0, 0.0, 0.0, 1.0));
 
-            if self.new_high_score_timer > 0.0 {
+            if self.state.new_high_score_timer > 0.0 {
                 ui.spacing(15.0);
-                let rainbow_phase = self.new_high_score_timer * 5.0;
+                let rainbow_phase = self.state.new_high_score_timer * 5.0;
                 let r = (rainbow_phase.sin() * 0.5 + 0.5).max(0.3);
                 let g = ((rainbow_phase + 2.094).sin() * 0.5 + 0.5).max(0.3);
                 let b = ((rainbow_phase + 4.189).sin() * 0.5 + 0.5).max(0.3);
-                let glow = (self.new_high_score_timer * 8.0).sin().abs() * 0.5 + 0.5;
+                let glow = (self.state.new_high_score_timer * 8.0).sin().abs() * 0.5 + 0.5;
                 let high_score_color = Vec4::new(
                     (r + glow * 0.5).min(1.0),
                     (g + glow * 0.5).min(1.0),
@@ -1429,43 +706,43 @@ impl State for Survivors {
 
             let kills = self.game_world.resources.enemies_killed;
             let wave = self.game_world.resources.current_wave;
-            let is_kills_record = kills == self.high_score_kills && kills > 0;
-            let is_wave_record = wave == self.high_score_wave && wave > 0;
+            let is_kills_record = kills == self.state.high_score_kills && kills > 0;
+            let is_wave_record = wave == self.state.high_score_wave && wave > 0;
             let is_time_record =
-                (self.game_time - self.high_score_time).abs() < 0.1 && self.game_time > 0.0;
-            let is_combo_record = self.combo_max == self.high_score_combo && self.combo_max > 0;
+                (self.state.time - self.state.high_score_time).abs() < 0.1 && self.state.time > 0.0;
+            let is_combo_record = self.player.combo_max == self.state.high_score_combo && self.player.combo_max > 0;
 
             let gold = Vec4::new(1.0, 0.84, 0.0, 1.0);
             let normal = Vec4::new(1.0, 1.0, 1.0, 1.0);
 
-            ui.label(&format!("Level: {}", self.player_level));
+            ui.label(&format!("Level: {}", self.player.level));
 
-            if is_wave_record && self.new_high_score_timer > 0.0 {
+            if is_wave_record && self.state.new_high_score_timer > 0.0 {
                 ui.label_colored(&format!("Wave: {} - NEW BEST!", wave), gold);
             } else {
                 ui.label(&format!("Wave: {}", wave));
             }
 
-            if is_kills_record && self.new_high_score_timer > 0.0 {
+            if is_kills_record && self.state.new_high_score_timer > 0.0 {
                 ui.label_colored(&format!("Kills: {} - NEW BEST!", kills), gold);
             } else {
                 ui.label(&format!("Kills: {}", kills));
             }
 
-            if is_time_record && self.new_high_score_timer > 0.0 {
-                ui.label_colored(&format!("Time: {:.0}s - NEW BEST!", self.game_time), gold);
+            if is_time_record && self.state.new_high_score_timer > 0.0 {
+                ui.label_colored(&format!("Time: {:.0}s - NEW BEST!", self.state.time), gold);
             } else {
-                ui.label(&format!("Time: {:.0}s", self.game_time));
+                ui.label(&format!("Time: {:.0}s", self.state.time));
             }
 
-            if self.combo_max > 1 {
-                if is_combo_record && self.new_high_score_timer > 0.0 {
+            if self.player.combo_max > 1 {
+                if is_combo_record && self.state.new_high_score_timer > 0.0 {
                     ui.label_colored(
-                        &format!("Best Combo: {}x - NEW BEST!", self.combo_max),
+                        &format!("Best Combo: {}x - NEW BEST!", self.player.combo_max),
                         gold,
                     );
                 } else {
-                    ui.label(&format!("Best Combo: {}x", self.combo_max));
+                    ui.label(&format!("Best Combo: {}x", self.player.combo_max));
                 }
             }
 
@@ -1474,14 +751,14 @@ impl State for Survivors {
             ui.label_colored(
                 &format!(
                     "Best Wave: {} | Best Kills: {}",
-                    self.high_score_wave, self.high_score_kills
+                    self.state.high_score_wave, self.state.high_score_kills
                 ),
                 normal,
             );
             ui.label_colored(
                 &format!(
                     "Best Time: {:.0}s | Best Combo: {}x",
-                    self.high_score_time, self.high_score_combo
+                    self.state.high_score_time, self.state.high_score_combo
                 ),
                 normal,
             );
@@ -1497,9 +774,9 @@ impl State for Survivors {
 
         ui.set_layer(UiLayer::Tooltips);
 
-        let health_pct = self.player_health / self.stats.max_health;
-        if health_pct < 0.3 && self.game_state == GameState::Playing {
-            let pulse = ((self.game_time * 4.0).sin() * 0.5 + 0.5) * (0.3 - health_pct) / 0.3;
+        let health_pct = self.player.health / self.player.stats.max_health;
+        if health_pct < 0.3 && self.state.state == GameState::Playing {
+            let pulse = ((self.state.time * 4.0).sin() * 0.5 + 0.5) * (0.3 - health_pct) / 0.3;
             let alpha = pulse * 0.31;
             ui.draw_rect(
                 Vec2::new(0.0, 0.0),
@@ -1508,8 +785,8 @@ impl State for Survivors {
             );
         }
 
-        if self.boss_kill_flash > 0.0 {
-            let alpha = self.boss_kill_flash * 0.2;
+        if self.state.boss_kill_flash > 0.0 {
+            let alpha = self.state.boss_kill_flash * 0.2;
             ui.draw_rect(
                 Vec2::new(0.0, 0.0),
                 screen_size,
@@ -1517,8 +794,8 @@ impl State for Survivors {
             );
         }
 
-        if self.level_up_flash > 0.0 {
-            let alpha = self.level_up_flash * 0.15;
+        if self.state.level_up_flash > 0.0 {
+            let alpha = self.state.level_up_flash * 0.15;
             ui.draw_rect(
                 Vec2::new(0.0, 0.0),
                 screen_size,
@@ -1569,14 +846,14 @@ impl State for Survivors {
 
 impl Survivors {
     fn spawn_arena(&mut self, world: &mut World) {
-        self.ground_entity = Some(spawn_mesh(
+        self.visuals.ground = Some(spawn_mesh(
             world,
             "Cube",
             Vec3::new(0.0, -0.5, 0.0),
             Vec3::new(GROUND_SIZE, 1.0, GROUND_SIZE),
         ));
 
-        let ground_material = format!("Ground_{}", self.ground_entity.unwrap().id);
+        let ground_material = format!("Ground_{}", self.visuals.ground.unwrap().id);
         material_registry_insert(
             &mut world.resources.material_registry,
             ground_material.clone(),
@@ -1601,14 +878,14 @@ impl Survivors {
                 .add_reference(index);
         }
         world.set_material_ref(
-            self.ground_entity.unwrap(),
+            self.visuals.ground.unwrap(),
             MaterialRef::new(ground_material),
         );
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     fn spawn_player(&mut self, world: &mut World) {
-        self.player_position = Vec3::new(0.0, 0.0, 0.0);
+        self.player.position = Vec3::new(0.0, 0.0, 0.0);
 
         let character_path = Path::new(r"C:\Users\matth\Downloads\Farming Pack\Ch03_nonPBR.fbx");
 
@@ -1680,17 +957,17 @@ impl Survivors {
                             clip.name = anim_name.to_string();
 
                             match *anim_name {
-                                "idle" => self.animation_indices.idle = Some(index),
-                                "walk" => self.animation_indices.walk = Some(index),
-                                "pick_fruit" => self.animation_indices.pick_fruit = Some(index),
-                                "plant" => self.animation_indices.plant = Some(index),
-                                "watering" => self.animation_indices.watering = Some(index),
-                                "pull_plant" => self.animation_indices.pull_plant = Some(index),
+                                "idle" => self.player.animation_indices.idle = Some(index),
+                                "walk" => self.player.animation_indices.walk = Some(index),
+                                "pick_fruit" => self.player.animation_indices.pick_fruit = Some(index),
+                                "plant" => self.player.animation_indices.plant = Some(index),
+                                "watering" => self.player.animation_indices.watering = Some(index),
+                                "pull_plant" => self.player.animation_indices.pull_plant = Some(index),
                                 "dig_and_plant" => {
-                                    self.animation_indices.dig_and_plant = Some(index)
+                                    self.player.animation_indices.dig_and_plant = Some(index)
                                 }
                                 "kneeling_idle" => {
-                                    self.animation_indices.kneeling_idle = Some(index)
+                                    self.player.animation_indices.kneeling_idle = Some(index)
                                 }
                                 _ => {}
                             }
@@ -1706,10 +983,10 @@ impl Survivors {
                         &prefab,
                         &all_animations,
                         &result.skins,
-                        self.player_position,
+                        self.player.position,
                     );
 
-                    self.player_entity = Some(entity);
+                    self.player.entity = Some(entity);
 
                     if let Some(transform) = world.get_local_transform_mut(entity) {
                         transform.scale = Vec3::new(0.01, 0.01, 0.01);
@@ -1717,20 +994,20 @@ impl Survivors {
                     world.mark_local_transform_dirty(entity);
 
                     if let Some(player) = world.get_animation_player_mut(entity) {
-                        if let Some(idle_index) = self.animation_indices.idle {
+                        if let Some(idle_index) = self.player.animation_indices.idle {
                             player.play(idle_index);
                             player.speed = 1.0;
-                            self.current_animation = Some(idle_index);
-                            self.current_animation_name = String::from("Idle");
+                            self.player.current_animation = Some(idle_index);
+                            self.player.current_animation_name = String::from("Idle");
                         } else if !player.clips.is_empty() {
                             player.play(0);
                             player.speed = 1.0;
-                            self.current_animation = Some(0);
-                            self.current_animation_name = player.clips[0].name.clone();
+                            self.player.current_animation = Some(0);
+                            self.player.current_animation_name = player.clips[0].name.clone();
                         }
                     }
 
-                    self.character_loaded = true;
+                    self.player.character_loaded = true;
 
                     attach_grass_interactor(world, entity, 0.5, 0.3);
                 }
@@ -1748,12 +1025,12 @@ impl Survivors {
     }
 
     fn spawn_fallback_player(&mut self, world: &mut World) {
-        self.player_position = Vec3::new(0.0, PLAYER_RADIUS, 0.0);
+        self.player.position = Vec3::new(0.0, PLAYER_RADIUS, 0.0);
 
         let player = spawn_mesh(
             world,
             "Sphere",
-            self.player_position,
+            self.player.position,
             Vec3::new(
                 PLAYER_RADIUS * 2.0,
                 PLAYER_RADIUS * 2.0,
@@ -1775,7 +1052,7 @@ impl Survivors {
         );
         self.apply_material(world, player, &body_material);
 
-        self.player_entity = Some(player);
+        self.player.entity = Some(player);
     }
 
     fn apply_material(&self, world: &mut World, entity: Entity, material_name: &str) {
@@ -1809,11 +1086,11 @@ impl Survivors {
             },
         );
         world.set_lines(indicator, Lines::default());
-        self.target_indicator_entity = Some(indicator);
+        self.visuals.target_indicator = Some(indicator);
     }
 
     fn spawn_camera(&mut self, world: &mut World) {
-        let camera_position = self.player_position + Vec3::new(0.0, CAMERA_HEIGHT, CAMERA_DISTANCE);
+        let camera_position = self.player.position + Vec3::new(0.0, CAMERA_HEIGHT, CAMERA_DISTANCE);
         let camera = world.spawn_entities(
             LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | CAMERA,
             1,
@@ -1821,7 +1098,7 @@ impl Survivors {
 
         if let Some(transform) = world.get_local_transform_mut(camera) {
             transform.translation = camera_position;
-            let direction = nalgebra_glm::normalize(&(self.player_position - camera_position));
+            let direction = nalgebra_glm::normalize(&(self.player.position - camera_position));
             let right = nalgebra_glm::normalize(&nalgebra_glm::cross(&direction, &Vec3::y()));
             let up = nalgebra_glm::cross(&right, &direction);
             let rotation_matrix = nalgebra_glm::Mat3::from_columns(&[right, up, -direction]);
@@ -1843,7 +1120,7 @@ impl Survivors {
         );
 
         world.resources.active_camera = Some(camera);
-        self.camera_entity = Some(camera);
+        self.camera.entity = Some(camera);
     }
 
     fn spawn_lighting(&mut self, world: &mut World) {
@@ -1897,7 +1174,7 @@ impl Survivors {
         }
         world.set_material_ref(plane, MaterialRef::new(plane_material));
 
-        self.grass_plane_entity = Some(plane);
+        self.visuals.grass_plane = Some(plane);
     }
 
     fn spawn_grass(&mut self, world: &mut World) {
@@ -1928,7 +1205,7 @@ impl Survivors {
         config.lod_density_scales = [1.0, 0.5, 0.2, 0.05];
 
         let grass_region = spawn_grass_region(world, config);
-        self.grass_region = Some(grass_region);
+        self.visuals.grass_region = Some(grass_region);
 
         nightshade::ecs::grass::set_grass_terrain(world, grass_region, terrain_config);
 
@@ -1941,23 +1218,23 @@ impl Survivors {
     }
 
     fn update_grass(&self, world: &mut World) {
-        let Some(grass_region) = self.grass_region else {
+        let Some(grass_region) = self.visuals.grass_region else {
             return;
         };
 
-        let grass_position = Vec3::new(self.player_position.x, 0.0, self.player_position.z);
+        let grass_position = Vec3::new(self.player.position.x, 0.0, self.player.position.z);
         update_grass_player_position(world, grass_region, grass_position);
     }
 
     fn create_materials(&mut self, world: &mut World) {
         self.create_enemy_material(world, "EnemyNormal", [0.9, 0.2, 0.2, 1.0], [0.0, 0.0, 0.0]);
-        self.enemy_materials.normal = Some("EnemyNormal".to_string());
+        self.materials.enemy_materials.normal = Some("EnemyNormal".to_string());
 
         self.create_enemy_material(world, "EnemyFast", [1.0, 0.6, 0.1, 1.0], [0.3, 0.2, 0.0]);
-        self.enemy_materials.fast = Some("EnemyFast".to_string());
+        self.materials.enemy_materials.fast = Some("EnemyFast".to_string());
 
         self.create_enemy_material(world, "EnemyTank", [0.4, 0.2, 0.5, 1.0], [0.1, 0.0, 0.2]);
-        self.enemy_materials.tank = Some("EnemyTank".to_string());
+        self.materials.enemy_materials.tank = Some("EnemyTank".to_string());
 
         self.create_enemy_material(
             world,
@@ -1965,10 +1242,10 @@ impl Survivors {
             [0.2, 0.8, 0.2, 1.0],
             [0.1, 0.4, 0.1],
         );
-        self.enemy_materials.exploder = Some("EnemyExploder".to_string());
+        self.materials.enemy_materials.exploder = Some("EnemyExploder".to_string());
 
         self.create_enemy_material(world, "EnemyBoss", [0.8, 0.1, 0.1, 1.0], [0.6, 0.1, 0.1]);
-        self.enemy_materials.boss = Some("EnemyBoss".to_string());
+        self.materials.enemy_materials.boss = Some("EnemyBoss".to_string());
 
         let projectile_material_name = "ProjectileMaterial".to_string();
         material_registry_insert(
@@ -1995,7 +1272,7 @@ impl Survivors {
                 .registry
                 .add_reference(index);
         }
-        self.projectile_material_name = Some(projectile_material_name);
+        self.materials.projectile_material_name = Some(projectile_material_name);
 
         let gem_material_name = "GemMaterial".to_string();
         material_registry_insert(
@@ -2022,7 +1299,7 @@ impl Survivors {
                 .registry
                 .add_reference(index);
         }
-        self.gem_material_name = Some(gem_material_name);
+        self.materials.gem_material_name = Some(gem_material_name);
 
         let orb_material_name = "OrbMaterial".to_string();
         material_registry_insert(
@@ -2049,7 +1326,7 @@ impl Survivors {
                 .registry
                 .add_reference(index);
         }
-        self.orb_material_name = Some(orb_material_name);
+        self.materials.orb_material_name = Some(orb_material_name);
     }
 
     fn create_enemy_material(
@@ -2159,34 +1436,34 @@ impl Survivors {
             jump_pressed = true;
         }
 
-        if jump_pressed && self.is_grounded {
+        if jump_pressed && self.player.is_grounded {
             const JUMP_IMPULSE: f32 = 6.0;
-            self.player_vertical_velocity = JUMP_IMPULSE;
-            self.is_grounded = false;
+            self.player.vertical_velocity = JUMP_IMPULSE;
+            self.player.is_grounded = false;
         }
 
         const GRAVITY: f32 = 15.0;
-        if !self.is_grounded {
-            self.player_vertical_velocity -= GRAVITY * delta;
-            self.player_height += self.player_vertical_velocity * delta;
+        if !self.player.is_grounded {
+            self.player.vertical_velocity -= GRAVITY * delta;
+            self.player.height += self.player.vertical_velocity * delta;
 
-            if self.player_height <= 0.0 {
-                self.player_height = 0.0;
-                self.player_vertical_velocity = 0.0;
-                self.is_grounded = true;
+            if self.player.height <= 0.0 {
+                self.player.height = 0.0;
+                self.player.vertical_velocity = 0.0;
+                self.player.is_grounded = true;
             }
         }
 
         let mut movement = Vec3::zeros();
 
-        match self.camera_mode {
+        match self.camera.mode {
             CameraMode::TopDown => {
                 movement.x = input_forward;
                 movement.z = input_right;
             }
             CameraMode::ThirdPerson => {
-                let cam_cos = self.camera_yaw.cos();
-                let cam_sin = self.camera_yaw.sin();
+                let cam_cos = self.camera.yaw.cos();
+                let cam_sin = self.camera.yaw.sin();
                 movement.x = input_forward * cam_cos - input_right * cam_sin;
                 movement.z = input_forward * cam_sin + input_right * cam_cos;
             }
@@ -2195,14 +1472,14 @@ impl Survivors {
         let horizontal_speed = nalgebra_glm::length(&Vec2::new(movement.x, movement.z));
         let start_threshold = 0.1;
         let stop_threshold = 0.05;
-        let has_movement = if self.was_moving {
+        let has_movement = if self.player.was_moving {
             horizontal_speed > stop_threshold
         } else {
             horizontal_speed > start_threshold
         };
-        self.was_moving = has_movement;
+        self.player.was_moving = has_movement;
 
-        self.character_movement_state = if !self.is_grounded {
+        self.player.character_movement_state = if !self.player.is_grounded {
             CharacterMovementState::Jumping
         } else if has_movement {
             CharacterMovementState::Walking
@@ -2217,84 +1494,76 @@ impl Survivors {
                 movement = nalgebra_glm::normalize(&movement);
             }
 
-            self.player_facing = movement;
+            self.player.facing = movement;
 
             let mut speed =
-                PLAYER_SPEED * self.stats.speed_multiplier * self.stats.buff_speed_multiplier;
-            if self.speed_boost_timer > 0.0 {
+                PLAYER_SPEED * self.player.stats.speed_multiplier * self.player.stats.buff_speed_multiplier;
+            if self.player.speed_boost_timer > 0.0 {
                 speed *= SPEED_BOOST_MULTIPLIER;
             }
 
-            self.player_position += movement * speed * delta;
+            self.player.position += movement * speed * delta;
 
-            self.dust_timer += delta;
-            if self.dust_timer >= DUST_SPAWN_INTERVAL {
-                self.dust_timer = 0.0;
-                self.spawn_dust_particle(world, self.player_position);
+            self.player.dust_timer += delta;
+            if self.player.dust_timer >= DUST_SPAWN_INTERVAL {
+                self.player.dust_timer = 0.0;
+                self.spawn_dust_particle(world, self.player.position);
             }
         }
 
-        if let Some(entity) = self.player_entity {
+        if let Some(entity) = self.player.entity {
             if let Some(transform) = world.get_local_transform_mut(entity) {
                 transform.translation = Vec3::new(
-                    self.player_position.x,
-                    self.player_position.y + self.player_height,
-                    self.player_position.z,
+                    self.player.position.x,
+                    self.player.position.y + self.player.height,
+                    self.player.position.z,
                 );
-                let facing_angle = self.player_facing.x.atan2(self.player_facing.z);
+                let facing_angle = self.player.facing.x.atan2(self.player.facing.z);
                 transform.rotation = nalgebra_glm::quat_angle_axis(facing_angle, &Vec3::y());
             }
             mark_local_transform_dirty(world, entity);
         }
 
         let distance_from_origin =
-            nalgebra_glm::length(&Vec2::new(self.player_position.x, self.player_position.z));
-        if distance_from_origin > self.max_distance_traveled {
-            self.max_distance_traveled = distance_from_origin;
+            nalgebra_glm::length(&Vec2::new(self.player.position.x, self.player.position.z));
+        if distance_from_origin > self.chunks.max_distance_traveled {
+            self.chunks.max_distance_traveled = distance_from_origin;
             self.try_spawn_treasure_zone(world);
         }
     }
 
     fn animation_system(&mut self, world: &mut World) {
-        if !self.character_loaded {
+        if !self.player.character_loaded {
             return;
         }
 
-        let Some(player_entity) = self.player_entity else {
+        let Some(player_entity) = self.player.entity else {
             return;
         };
 
-        let effective_state = if self.is_chopping {
+        let effective_state = if self.player.is_chopping {
             CharacterMovementState::Chopping
         } else {
-            self.character_movement_state
+            self.player.character_movement_state
         };
 
         let (target_animation, target_speed, animation_name) = match effective_state {
-            CharacterMovementState::Idle => (self.animation_indices.idle, 1.0, "Idle"),
-            CharacterMovementState::Walking => (self.animation_indices.walk, 1.0, "Walking"),
-            CharacterMovementState::Jumping => (self.animation_indices.walk, 1.5, "Jumping"),
+            CharacterMovementState::Idle => (self.player.animation_indices.idle, 1.0, "Idle"),
+            CharacterMovementState::Walking => (self.player.animation_indices.walk, 1.0, "Walking"),
+            CharacterMovementState::Jumping => (self.player.animation_indices.walk, 1.5, "Jumping"),
             CharacterMovementState::Chopping => {
-                (self.animation_indices.pull_plant, 1.2, "Chopping")
-            }
-            CharacterMovementState::PickingFruit => {
-                (self.animation_indices.pick_fruit, 1.0, "Picking Fruit")
-            }
-            CharacterMovementState::Planting => (self.animation_indices.plant, 1.0, "Planting"),
-            CharacterMovementState::Watering => (self.animation_indices.watering, 1.0, "Watering"),
-            CharacterMovementState::PullingPlant => {
-                (self.animation_indices.pull_plant, 1.0, "Pulling Plant")
+                (self.player.animation_indices.pull_plant, 1.2, "Chopping")
             }
         };
 
-        if target_animation != self.current_animation {
+        if target_animation != self.player.current_animation {
             if let Some(anim_index) = target_animation
                 && let Some(player) = world.get_animation_player_mut(player_entity)
             {
                 player.blend_to(anim_index, 0.2);
                 player.speed = target_speed;
-                self.current_animation = Some(anim_index);
-                self.current_animation_name = animation_name.to_string();
+                self.player.current_animation = Some(anim_index);
+                self.player.current_animation_name = animation_name.to_string();
             }
         } else if let Some(player) = world.get_animation_player_mut(player_entity) {
             player.speed = target_speed;
@@ -2302,16 +1571,16 @@ impl Survivors {
     }
 
     fn camera_follow_system(&mut self, world: &mut World, delta: f32) {
-        if self.camera_shake > 0.0 {
-            self.camera_shake = (self.camera_shake - delta * 8.0).max(0.0);
+        if self.camera.shake > 0.0 {
+            self.camera.shake = (self.camera.shake - delta * 8.0).max(0.0);
         }
 
         let transition_speed = 3.0;
-        if self.camera_transition < 1.0 {
-            self.camera_transition = (self.camera_transition + delta * transition_speed).min(1.0);
+        if self.camera.transition < 1.0 {
+            self.camera.transition = (self.camera.transition + delta * transition_speed).min(1.0);
         }
 
-        let smooth_t = smooth_step(self.camera_transition);
+        let smooth_t = smooth_step(self.camera.transition);
 
         let top_down_height: f32 = CAMERA_HEIGHT;
         let top_down_distance: f32 = CAMERA_DISTANCE;
@@ -2319,7 +1588,7 @@ impl Survivors {
         let third_person_height: f32 = 4.0;
         let third_person_distance: f32 = 8.0;
 
-        let (current_height, current_distance) = match self.camera_mode {
+        let (current_height, current_distance) = match self.camera.mode {
             CameraMode::TopDown => {
                 let height =
                     nalgebra_glm::lerp_scalar(third_person_height, top_down_height, smooth_t);
@@ -2336,50 +1605,50 @@ impl Survivors {
             }
         };
 
-        if self.camera_mode == CameraMode::ThirdPerson {
+        if self.camera.mode == CameraMode::ThirdPerson {
             let camera_rotate_speed = 2.5;
 
             if let Some(gamepad) = query_active_gamepad(world) {
                 let right_stick_x = gamepad.value(gilrs::Axis::RightStickX);
                 const DEADZONE: f32 = 0.15;
                 if right_stick_x.abs() > DEADZONE {
-                    self.camera_yaw -= right_stick_x * camera_rotate_speed * delta;
+                    self.camera.yaw -= right_stick_x * camera_rotate_speed * delta;
                 }
             }
 
             let mouse = &world.resources.input.mouse;
             if mouse.state.contains(MouseState::RIGHT_CLICKED) {
                 let mouse_delta = mouse.raw_mouse_delta;
-                self.camera_yaw -= mouse_delta.x * 0.005;
+                self.camera.yaw -= mouse_delta.x * 0.005;
             }
 
             let keyboard = &world.resources.input.keyboard;
             if keyboard.is_key_pressed(KeyCode::KeyQ) {
-                self.camera_yaw += camera_rotate_speed * delta;
+                self.camera.yaw += camera_rotate_speed * delta;
             }
             if keyboard.is_key_pressed(KeyCode::KeyE) {
-                self.camera_yaw -= camera_rotate_speed * delta;
+                self.camera.yaw -= camera_rotate_speed * delta;
             }
         }
 
-        let target_yaw = match self.camera_mode {
+        let target_yaw = match self.camera.mode {
             CameraMode::TopDown => 0.0,
-            CameraMode::ThirdPerson => self.camera_yaw,
+            CameraMode::ThirdPerson => self.camera.yaw,
         };
 
         let yaw_lerp_speed = 3.0;
-        self.camera_yaw =
-            self.camera_yaw + (target_yaw - self.camera_yaw) * (yaw_lerp_speed * delta).min(1.0);
+        self.camera.yaw =
+            self.camera.yaw + (target_yaw - self.camera.yaw) * (yaw_lerp_speed * delta).min(1.0);
 
-        if let Some(camera) = self.camera_entity {
-            let offset_x = -current_distance * self.camera_yaw.cos();
-            let offset_z = -current_distance * self.camera_yaw.sin();
+        if let Some(camera) = self.camera.entity {
+            let offset_x = -current_distance * self.camera.yaw.cos();
+            let offset_z = -current_distance * self.camera.yaw.sin();
             let mut target_position =
-                self.player_position + Vec3::new(offset_x, current_height, offset_z);
+                self.player.position + Vec3::new(offset_x, current_height, offset_z);
 
-            if self.camera_shake > 0.0 {
+            if self.camera.shake > 0.0 {
                 let mut rng = rand::rng();
-                let shake_amount = self.camera_shake * 0.5;
+                let shake_amount = self.camera.shake * 0.5;
                 target_position.x += rng.random_range(-shake_amount..shake_amount);
                 target_position.y += rng.random_range(-shake_amount..shake_amount);
                 target_position.z += rng.random_range(-shake_amount..shake_amount);
@@ -2388,7 +1657,7 @@ impl Survivors {
             if let Some(transform) = world.get_local_transform_mut(camera) {
                 transform.translation = target_position;
 
-                let look_target = self.player_position + Vec3::new(0.0, 1.0, 0.0);
+                let look_target = self.player.position + Vec3::new(0.0, 1.0, 0.0);
                 let direction = nalgebra_glm::normalize(&(look_target - target_position));
                 let right = nalgebra_glm::normalize(&nalgebra_glm::cross(&direction, &Vec3::y()));
                 let up = nalgebra_glm::cross(&right, &direction);
@@ -2400,31 +1669,31 @@ impl Survivors {
     }
 
     fn toggle_camera_mode(&mut self) {
-        self.camera_mode = match self.camera_mode {
+        self.camera.mode = match self.camera.mode {
             CameraMode::TopDown => CameraMode::ThirdPerson,
             CameraMode::ThirdPerson => CameraMode::TopDown,
         };
-        self.camera_transition = 0.0;
+        self.camera.transition = 0.0;
     }
 
     fn update_ground_position(&mut self, world: &mut World) {
-        if let Some(ground) = self.ground_entity {
+        if let Some(ground) = self.visuals.ground {
             if let Some(transform) = world.get_local_transform_mut(ground) {
-                transform.translation.x = self.player_position.x;
-                transform.translation.z = self.player_position.z;
+                transform.translation.x = self.player.position.x;
+                transform.translation.z = self.player.position.z;
             }
             mark_local_transform_dirty(world, ground);
         }
     }
 
     fn update_chunks(&mut self, world: &mut World) {
-        let player_chunk_x = (self.player_position.x / CHUNK_SIZE).floor() as i32;
-        let player_chunk_z = (self.player_position.z / CHUNK_SIZE).floor() as i32;
+        let player_chunk_x = (self.player.position.x / CHUNK_SIZE).floor() as i32;
+        let player_chunk_z = (self.player.position.z / CHUNK_SIZE).floor() as i32;
 
         let current_distance =
-            (self.player_position.x.powi(2) + self.player_position.z.powi(2)).sqrt();
-        if current_distance > self.max_distance_traveled {
-            self.max_distance_traveled = current_distance;
+            (self.player.position.x.powi(2) + self.player.position.z.powi(2)).sqrt();
+        if current_distance > self.chunks.max_distance_traveled {
+            self.chunks.max_distance_traveled = current_distance;
         }
 
         let mut chunks_to_load = Vec::new();
@@ -2433,13 +1702,13 @@ impl Survivors {
         for dx in -RENDER_DISTANCE..=RENDER_DISTANCE {
             for dz in -RENDER_DISTANCE..=RENDER_DISTANCE {
                 let chunk = (player_chunk_x + dx, player_chunk_z + dz);
-                if !self.loaded_chunks.contains(&chunk) {
+                if !self.chunks.loaded_chunks.contains(&chunk) {
                     chunks_to_load.push(chunk);
                 }
             }
         }
 
-        for &chunk in &self.loaded_chunks {
+        for &chunk in &self.chunks.loaded_chunks {
             let (chunk_x, chunk_z) = chunk;
             if (chunk_x - player_chunk_x).abs() > RENDER_DISTANCE + 1
                 || (chunk_z - player_chunk_z).abs() > RENDER_DISTANCE + 1
@@ -2683,17 +1952,17 @@ impl Survivors {
             entities.push(rock);
         }
 
-        self.loaded_chunks.insert(chunk);
-        self.chunk_entities.insert(chunk, entities);
+        self.chunks.loaded_chunks.insert(chunk);
+        self.chunks.chunk_entities.insert(chunk, entities);
     }
 
     fn unload_chunk(&mut self, world: &mut World, chunk: (i32, i32)) {
-        if let Some(entities) = self.chunk_entities.remove(&chunk) {
+        if let Some(entities) = self.chunks.chunk_entities.remove(&chunk) {
             for entity in entities {
                 world.queue_despawn_entity(entity);
             }
         }
-        self.loaded_chunks.remove(&chunk);
+        self.chunks.loaded_chunks.remove(&chunk);
 
         let trees_to_remove: Vec<freecs::Entity> = self
             .game_world
@@ -2735,7 +2004,7 @@ impl Survivors {
 
         let wave = self.game_world.resources.current_wave;
         let difficulty_multiplier =
-            1.0 + (self.player_level as f32 - 1.0) * 0.15 + (wave as f32 - 1.0) * 0.1;
+            1.0 + (self.player.level as f32 - 1.0) * 0.15 + (wave as f32 - 1.0) * 0.1;
         let spawn_interval = (SPAWN_INTERVAL / difficulty_multiplier).max(0.08);
 
         if self.game_world.resources.spawn_timer >= spawn_interval
@@ -2743,7 +2012,7 @@ impl Survivors {
         {
             self.game_world.resources.spawn_timer = 0.0;
 
-            let enemies_to_spawn = if self.player_level >= 5 && rand::rng().random::<f32>() < 0.3 {
+            let enemies_to_spawn = if self.player.level >= 5 && rand::rng().random::<f32>() < 0.3 {
                 2.min(self.game_world.resources.wave_enemies_remaining)
             } else {
                 1.min(self.game_world.resources.wave_enemies_remaining)
@@ -2772,9 +2041,9 @@ impl Survivors {
         let spawn_distance = rng.random_range(30.0..40.0);
         let spawn_angle = rng.random_range(0.0..std::f32::consts::TAU);
         let spawn_position = Vec3::new(
-            self.player_position.x + spawn_angle.cos() * spawn_distance,
+            self.player.position.x + spawn_angle.cos() * spawn_distance,
             BOSS_RADIUS,
-            self.player_position.z + spawn_angle.sin() * spawn_distance,
+            self.player.position.z + spawn_angle.sin() * spawn_distance,
         );
 
         let engine_entity =
@@ -2815,7 +2084,7 @@ impl Survivors {
 
         self.spawn_enemy_spawn_effect(world, spawn_position, EnemyType::Boss);
         self.spawn_boss_entrance_effect(world, spawn_position);
-        self.camera_shake = 1.5;
+        self.camera.shake = 1.5;
     }
 
     fn spawn_boss_entrance_effect(&mut self, world: &mut World, position: Vec3) {
@@ -2837,7 +2106,7 @@ impl Survivors {
                 color_start: Vec4::new(1.0, 0.2, 0.2, 1.0),
                 color_end: Vec4::new(0.8, 0.0, 0.0, 0.0),
             };
-            self.line_effects.push(effect);
+            self.visuals.line_effects.push(effect);
         }
 
         let pillar_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
@@ -2896,9 +2165,9 @@ impl Survivors {
         let spawn_distance = rng.random_range(25.0..35.0);
         let spawn_angle = rng.random_range(0.0..std::f32::consts::TAU);
         let spawn_position = Vec3::new(
-            self.player_position.x + spawn_angle.cos() * spawn_distance,
+            self.player.position.x + spawn_angle.cos() * spawn_distance,
             radius,
-            self.player_position.z + spawn_angle.sin() * spawn_distance,
+            self.player.position.z + spawn_angle.sin() * spawn_distance,
         );
 
         let engine_entity = self.spawn_enemy_mesh(world, spawn_position, radius, enemy_type);
@@ -2907,9 +2176,9 @@ impl Survivors {
             .game_world
             .spawn_entities(ENTITY_HANDLE | POSITION | VELOCITY | ENEMY, 1)[0];
 
-        let speed_multiplier = 1.0 + (self.player_level as f32 - 1.0) * 0.08;
+        let speed_multiplier = 1.0 + (self.player.level as f32 - 1.0) * 0.08;
         let enemy_speed = base_speed * speed_multiplier * rng.random_range(0.9..1.1);
-        let health_multiplier = 1.0 + (self.player_level as f32 - 1.0) * 0.1;
+        let health_multiplier = 1.0 + (self.player.level as f32 - 1.0) * 0.1;
         let enemy_health = base_health * health_multiplier;
 
         let shield_hits = match enemy_type {
@@ -3190,15 +2459,15 @@ impl Survivors {
     fn pick_enemy_type(&self, rng: &mut impl rand::Rng) -> EnemyType {
         let roll: f32 = rng.random();
 
-        if self.player_level < 3 {
+        if self.player.level < 3 {
             EnemyType::Normal
-        } else if self.player_level < 5 {
+        } else if self.player.level < 5 {
             if roll < 0.7 {
                 EnemyType::Normal
             } else {
                 EnemyType::Fast
             }
-        } else if self.player_level < 8 {
+        } else if self.player.level < 8 {
             if roll < 0.5 {
                 EnemyType::Normal
             } else if roll < 0.75 {
@@ -3218,7 +2487,7 @@ impl Survivors {
     }
 
     fn enemy_chase_system(&mut self, world: &mut World, delta: f32) {
-        let player_pos = self.player_position;
+        let player_pos = self.player.position;
 
         let enemies: Vec<freecs::Entity> = self
             .game_world
@@ -3249,8 +2518,8 @@ impl Survivors {
     }
 
     fn find_nearest_enemy(&self) -> Option<(freecs::Entity, Vec3, f32)> {
-        let player_pos = self.player_position;
-        let range = PROJECTILE_RANGE * self.stats.range_multiplier;
+        let player_pos = self.player.position;
+        let range = PROJECTILE_RANGE * self.player.stats.range_multiplier;
         let mut nearest: Option<(freecs::Entity, Vec3, f32)> = None;
 
         for game_entity in self.game_world.query_entities(ENEMY | POSITION) {
@@ -3272,27 +2541,27 @@ impl Survivors {
     }
 
     fn attack_system(&mut self, world: &mut World, delta: f32) {
-        if self.attack_cooldown > 0.0 {
-            self.attack_cooldown -= delta;
+        if self.player.attack_cooldown > 0.0 {
+            self.player.attack_cooldown -= delta;
             return;
         }
 
         if let Some((_, enemy_pos, _)) = self.find_nearest_enemy() {
-            for index in 0..self.stats.projectile_count {
-                let angle_offset = if self.stats.projectile_count > 1 {
+            for index in 0..self.player.stats.projectile_count {
+                let angle_offset = if self.player.stats.projectile_count > 1 {
                     let spread = 0.3;
-                    (index as f32 - (self.stats.projectile_count - 1) as f32 / 2.0) * spread
+                    (index as f32 - (self.player.stats.projectile_count - 1) as f32 / 2.0) * spread
                 } else {
                     0.0
                 };
                 self.spawn_projectile(world, enemy_pos, angle_offset);
             }
-            self.attack_cooldown = PROJECTILE_COOLDOWN * self.stats.cooldown_multiplier;
+            self.player.attack_cooldown = PROJECTILE_COOLDOWN * self.player.stats.cooldown_multiplier;
         }
     }
 
     fn spawn_projectile(&mut self, world: &mut World, target_pos: Vec3, angle_offset: f32) {
-        let spawn_pos = self.player_position;
+        let spawn_pos = self.player.position;
         let base_direction = nalgebra_glm::normalize(&(target_pos - spawn_pos));
 
         let rotation = nalgebra_glm::quat_angle_axis(angle_offset, &Vec3::y());
@@ -3363,7 +2632,7 @@ impl Survivors {
             .game_world
             .spawn_entities(ENTITY_HANDLE | POSITION | VELOCITY | PROJECTILE, 1)[0];
 
-        let damage = 50.0 * self.stats.damage_multiplier * self.stats.buff_damage_multiplier;
+        let damage = 50.0 * self.player.stats.damage_multiplier * self.player.stats.buff_damage_multiplier;
 
         let trail_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
         let trail_gradient = ColorGradient {
@@ -3411,7 +2680,6 @@ impl Survivors {
             game_entity,
             Projectile {
                 damage,
-                speed: PROJECTILE_SPEED,
                 particle_emitter: Some(trail_entity),
             },
         );
@@ -3483,8 +2751,8 @@ impl Survivors {
             let new_position = Position(position.0 + velocity.0 * delta);
 
             let distance_from_player = nalgebra_glm::length(&Vec2::new(
-                new_position.0.x - self.player_position.x,
-                new_position.0.z - self.player_position.z,
+                new_position.0.x - self.player.position.x,
+                new_position.0.z - self.player.position.z,
             ));
             if distance_from_player > max_distance_from_player {
                 to_remove.push((game_entity, particle_emitter));
@@ -3869,10 +3137,10 @@ impl Survivors {
     }
 
     fn gem_system(&mut self, world: &mut World, delta: f32) {
-        let player_pos = self.player_position;
+        let player_pos = self.player.position;
         let mut gems_to_remove = Vec::new();
         let mut xp_popups: Vec<(Vec3, u32)> = Vec::new();
-        let magnet_range = GEM_MAGNET_RANGE * self.stats.magnet_multiplier;
+        let magnet_range = GEM_MAGNET_RANGE * self.player.stats.magnet_multiplier;
 
         let gems: Vec<freecs::Entity> = self
             .game_world
@@ -3906,8 +3174,8 @@ impl Survivors {
             } else {
                 let handle = self.game_world.get_entity_handle(game_entity).unwrap();
                 let phase = (game_entity.id as f32) * 1.7;
-                let bob_offset = (self.game_time * 4.0 + phase).sin() * 0.15;
-                let spin = self.game_time * 2.0 + phase;
+                let bob_offset = (self.state.time * 4.0 + phase).sin() * 0.15;
+                let spin = self.state.time * 2.0 + phase;
 
                 if let Some(transform) = world.get_local_transform_mut(handle.0) {
                     transform.translation.y = GEM_RADIUS + bob_offset;
@@ -3953,42 +3221,42 @@ impl Survivors {
         }
 
         if xp_gained > 0 {
-            self.player_xp += xp_gained;
-            let xp_for_next = XP_PER_LEVEL * self.player_level;
-            if self.player_xp >= xp_for_next {
-                self.player_xp -= xp_for_next;
-                self.player_level += 1;
+            self.player.xp += xp_gained;
+            let xp_for_next = XP_PER_LEVEL * self.player.level;
+            if self.player.xp >= xp_for_next {
+                self.player.xp -= xp_for_next;
+                self.player.level += 1;
                 self.generate_upgrade_choices();
                 self.spawn_levelup_effect(world);
                 self.spawn_popup_typed(
                     world,
-                    self.player_position + Vec3::new(0.0, 4.0, 0.0),
-                    format!("LEVEL {}!", self.player_level),
+                    self.player.position + Vec3::new(0.0, 4.0, 0.0),
+                    format!("LEVEL {}!", self.player.level),
                     Vec4::new(1.0, 0.9, 0.2, 1.0),
                     PopupType::LevelUp,
                 );
-                self.level_up_flash = 1.0;
-                self.camera_shake = 0.5;
-                self.game_state = GameState::LevelUp;
+                self.state.level_up_flash = 1.0;
+                self.camera.shake = 0.5;
+                self.state.state = GameState::LevelUp;
             }
         }
     }
 
     fn health_crystal_spawn_system(&mut self, world: &mut World, delta: f32) {
-        self.health_crystal_spawn_timer += delta;
+        self.chunks.health_crystal_spawn_timer += delta;
 
-        if self.health_crystal_spawn_timer >= self.health_crystal_spawn_interval {
-            self.health_crystal_spawn_timer = 0.0;
+        if self.chunks.health_crystal_spawn_timer >= self.chunks.health_crystal_spawn_interval {
+            self.chunks.health_crystal_spawn_timer = 0.0;
 
             let mut rng = rand::rng();
-            self.health_crystal_spawn_interval = rng.random_range(45.0..75.0);
+            self.chunks.health_crystal_spawn_interval = rng.random_range(45.0..75.0);
 
             let spawn_distance = rng.random_range(15.0..25.0);
             let spawn_angle = rng.random_range(0.0..std::f32::consts::TAU);
             let spawn_position = Vec3::new(
-                self.player_position.x + spawn_angle.cos() * spawn_distance,
+                self.player.position.x + spawn_angle.cos() * spawn_distance,
                 0.5,
-                self.player_position.z + spawn_angle.sin() * spawn_distance,
+                self.player.position.z + spawn_angle.sin() * spawn_distance,
             );
 
             self.spawn_health_crystal(world, spawn_position, 30.0, 3.0);
@@ -4094,9 +3362,9 @@ impl Survivors {
             let handle = self.game_world.get_entity_handle(game_entity).unwrap();
 
             let phase = (game_entity.id as f32) * 1.7;
-            let bob_offset = (self.game_time * 3.0 + phase).sin() * 0.1;
-            let pulse = (self.game_time * 5.0 + phase).sin() * 0.5 + 0.5;
-            let spin = self.game_time * 1.5 + phase;
+            let bob_offset = (self.state.time * 3.0 + phase).sin() * 0.1;
+            let pulse = (self.state.time * 5.0 + phase).sin() * 0.5 + 0.5;
+            let spin = self.state.time * 1.5 + phase;
 
             if let Some(transform) = world.get_local_transform_mut(handle.0) {
                 transform.translation.y = 0.5 + bob_offset;
@@ -4204,10 +3472,10 @@ impl Survivors {
     }
 
     fn health_gem_system(&mut self, world: &mut World, delta: f32) {
-        let player_pos = self.player_position;
+        let player_pos = self.player.position;
         let mut gems_to_remove = Vec::new();
         let mut health_popups: Vec<(Vec3, f32)> = Vec::new();
-        let magnet_range = GEM_MAGNET_RANGE * self.stats.magnet_multiplier;
+        let magnet_range = GEM_MAGNET_RANGE * self.player.stats.magnet_multiplier;
 
         let gems: Vec<freecs::Entity> = self
             .game_world
@@ -4241,8 +3509,8 @@ impl Survivors {
             } else {
                 let handle = self.game_world.get_entity_handle(game_entity).unwrap();
                 let phase = (game_entity.id as f32) * 1.7;
-                let bob_offset = (self.game_time * 4.0 + phase).sin() * 0.15;
-                let spin = self.game_time * 2.0 + phase;
+                let bob_offset = (self.state.time * 4.0 + phase).sin() * 0.15;
+                let spin = self.state.time * 2.0 + phase;
 
                 if let Some(transform) = world.get_local_transform_mut(handle.0) {
                     transform.translation.y = GEM_RADIUS + bob_offset;
@@ -4278,9 +3546,9 @@ impl Survivors {
         }
 
         for (pos, health) in health_popups {
-            let heal_amount = health.min(self.stats.max_health - self.player_health);
+            let heal_amount = health.min(self.player.stats.max_health - self.player.health);
             if heal_amount > 0.0 {
-                self.player_health = (self.player_health + heal_amount).min(self.stats.max_health);
+                self.player.health = (self.player.health + heal_amount).min(self.player.stats.max_health);
                 self.spawn_popup_typed(
                     world,
                     pos,
@@ -4288,7 +3556,7 @@ impl Survivors {
                     Vec4::new(1.0, 0.4, 0.6, 1.0),
                     PopupType::Xp,
                 );
-                self.spawn_heal_effect(world, self.player_position);
+                self.spawn_heal_effect(world, self.player.position);
             }
         }
     }
@@ -4451,7 +3719,7 @@ impl Survivors {
     }
 
     fn try_spawn_treasure_zone(&mut self, world: &mut World) {
-        if self.max_distance_traveled < self.next_zone_distance {
+        if self.chunks.max_distance_traveled < self.chunks.next_zone_distance {
             return;
         }
 
@@ -4460,16 +3728,16 @@ impl Survivors {
         let spawn_angle = rng.random_range(0.0..std::f32::consts::TAU);
         let spawn_offset = rng.random_range(30.0..50.0);
         let zone_center = Vec3::new(
-            self.player_position.x + spawn_angle.cos() * spawn_offset,
+            self.player.position.x + spawn_angle.cos() * spawn_offset,
             0.0,
-            self.player_position.z + spawn_angle.sin() * spawn_offset,
+            self.player.position.z + spawn_angle.sin() * spawn_offset,
         );
 
         let min_distance_from_existing = 40.0;
-        for existing_zone in &self.treasure_zones {
+        for existing_zone in &self.chunks.treasure_zones {
             let distance = nalgebra_glm::length(&(zone_center - existing_zone.center));
             if distance < min_distance_from_existing {
-                self.next_zone_distance += rng.random_range(10.0..20.0);
+                self.chunks.next_zone_distance += rng.random_range(10.0..20.0);
                 return;
             }
         }
@@ -4487,15 +3755,13 @@ impl Survivors {
 
         self.spawn_treasure_zone(world, zone_center, zone_type);
 
-        self.next_zone_distance += rng.random_range(50.0..70.0);
+        self.chunks.next_zone_distance += rng.random_range(50.0..70.0);
     }
 
     fn spawn_treasure_zone(&mut self, world: &mut World, center: Vec3, zone_type: ZoneType) {
         let zone_radius = 10.0;
         let fence_post_count = 16;
         let gap_index = 0;
-
-        let mut fence_entities = Vec::new();
 
         for index in 0..fence_post_count {
             if index == gap_index {
@@ -4533,8 +3799,6 @@ impl Survivors {
                 },
             );
             self.apply_material(world, post_entity, &mat_name);
-
-            fence_entities.push(post_entity);
         }
 
         let power_up_position = Vec3::new(center.x, 1.5, center.z);
@@ -4613,7 +3877,6 @@ impl Survivors {
         let zone = TreasureZone {
             center,
             radius: zone_radius,
-            fence_entities,
             power_up_entity: Some(power_up_entity),
             power_up_emitter: Some(particle_entity),
             zone_type,
@@ -4622,15 +3885,15 @@ impl Survivors {
             zone_enemies: Vec::new(),
         };
 
-        self.treasure_zones.push(zone);
+        self.chunks.treasure_zones.push(zone);
     }
 
     fn treasure_zone_system(&mut self, world: &mut World, _delta: f32) {
         let mut zones_to_collect = Vec::new();
 
-        for zone_index in 0..self.treasure_zones.len() {
+        for zone_index in 0..self.chunks.treasure_zones.len() {
             let (center, radius, activated, power_up_entity) = {
-                let zone = &self.treasure_zones[zone_index];
+                let zone = &self.chunks.treasure_zones[zone_index];
                 (
                     zone.center,
                     zone.radius,
@@ -4639,53 +3902,53 @@ impl Survivors {
                 )
             };
 
-            let distance_to_player = nalgebra_glm::length(&(self.player_position - center));
+            let distance_to_player = nalgebra_glm::length(&(self.player.position - center));
             let in_zone = distance_to_player < radius;
 
             if !activated && in_zone {
-                self.treasure_zones[zone_index].activated = true;
+                self.chunks.treasure_zones[zone_index].activated = true;
 
                 let enemy_count = 5;
                 for _ in 0..enemy_count {
                     let elite = self.spawn_elite_enemy(world, center);
-                    self.treasure_zones[zone_index].zone_enemies.push(elite);
+                    self.chunks.treasure_zones[zone_index].zone_enemies.push(elite);
                 }
             }
 
-            if self.treasure_zones[zone_index].activated && !self.treasure_zones[zone_index].cleared
+            if self.chunks.treasure_zones[zone_index].activated && !self.chunks.treasure_zones[zone_index].cleared
             {
-                let alive_enemies: Vec<freecs::Entity> = self.treasure_zones[zone_index]
+                let alive_enemies: Vec<freecs::Entity> = self.chunks.treasure_zones[zone_index]
                     .zone_enemies
                     .iter()
                     .filter(|e| self.game_world.get_enemy(**e).is_some())
                     .copied()
                     .collect();
 
-                self.treasure_zones[zone_index].zone_enemies = alive_enemies.clone();
+                self.chunks.treasure_zones[zone_index].zone_enemies = alive_enemies.clone();
 
                 if alive_enemies.is_empty() {
-                    self.treasure_zones[zone_index].cleared = true;
+                    self.chunks.treasure_zones[zone_index].cleared = true;
                 }
             }
 
-            let zone = &self.treasure_zones[zone_index];
+            let zone = &self.chunks.treasure_zones[zone_index];
             if zone.cleared
                 && let Some(pue) = power_up_entity
             {
                 if let Some(transform) = world.get_local_transform_mut(pue) {
                     transform.rotation =
-                        nalgebra_glm::quat_angle_axis(self.game_time * 2.0, &Vec3::y())
+                        nalgebra_glm::quat_angle_axis(self.state.time * 2.0, &Vec3::y())
                             * nalgebra_glm::quat_angle_axis(
                                 std::f32::consts::FRAC_PI_4,
                                 &Vec3::new(1.0, 0.0, 1.0).normalize(),
                             );
-                    transform.translation.y = 1.0 + (self.game_time * 3.0).sin() * 0.3;
+                    transform.translation.y = 1.0 + (self.state.time * 3.0).sin() * 0.3;
                 }
                 mark_local_transform_dirty(world, pue);
 
                 let distance_to_powerup = nalgebra_glm::length(&Vec2::new(
-                    self.player_position.x - center.x,
-                    self.player_position.z - center.z,
+                    self.player.position.x - center.x,
+                    self.player.position.z - center.z,
                 ));
 
                 if distance_to_powerup < 2.0 {
@@ -4698,7 +3961,7 @@ impl Survivors {
             {
                 if let Some(transform) = world.get_local_transform_mut(pue) {
                     transform.rotation =
-                        nalgebra_glm::quat_angle_axis(self.game_time * 0.5, &Vec3::y())
+                        nalgebra_glm::quat_angle_axis(self.state.time * 0.5, &Vec3::y())
                             * nalgebra_glm::quat_angle_axis(
                                 std::f32::consts::FRAC_PI_4,
                                 &Vec3::new(1.0, 0.0, 1.0).normalize(),
@@ -4742,9 +4005,9 @@ impl Survivors {
             .game_world
             .spawn_entities(ENTITY_HANDLE | POSITION | VELOCITY | ENEMY, 1)[0];
 
-        let speed_multiplier = 1.0 + (self.player_level as f32 - 1.0) * 0.08;
+        let speed_multiplier = 1.0 + (self.player.level as f32 - 1.0) * 0.08;
         let enemy_speed = base_speed * speed_multiplier * 1.1 * rng.random_range(0.9..1.1);
-        let health_multiplier = 1.0 + (self.player_level as f32 - 1.0) * 0.1;
+        let health_multiplier = 1.0 + (self.player.level as f32 - 1.0) * 0.1;
         let enemy_health = base_health * health_multiplier * 1.5;
 
         let shield_hits = 2;
@@ -4778,7 +4041,7 @@ impl Survivors {
     }
 
     fn collect_power_up(&mut self, world: &mut World, zone_index: usize) {
-        let zone = &self.treasure_zones[zone_index];
+        let zone = &self.chunks.treasure_zones[zone_index];
         let zone_type = zone.zone_type;
         let center = zone.center;
 
@@ -4792,13 +4055,13 @@ impl Survivors {
             world.queue_command(WorldCommand::DespawnRecursive { entity: emitter });
         }
 
-        self.treasure_zones[zone_index].power_up_entity = None;
-        self.treasure_zones[zone_index].power_up_emitter = None;
+        self.chunks.treasure_zones[zone_index].power_up_entity = None;
+        self.chunks.treasure_zones[zone_index].power_up_emitter = None;
 
         match zone_type {
             ZoneType::MaxHealth => {
-                self.stats.max_health += 25.0;
-                self.player_health = (self.player_health + 25.0).min(self.stats.max_health);
+                self.player.stats.max_health += 25.0;
+                self.player.health = (self.player.health + 25.0).min(self.player.stats.max_health);
                 self.spawn_popup_typed(
                     world,
                     center + Vec3::new(0.0, 2.0, 0.0),
@@ -4808,7 +4071,7 @@ impl Survivors {
                 );
             }
             ZoneType::Damage => {
-                self.stats.damage_multiplier += 0.1;
+                self.player.stats.damage_multiplier += 0.1;
                 self.spawn_popup_typed(
                     world,
                     center + Vec3::new(0.0, 2.0, 0.0),
@@ -4818,7 +4081,7 @@ impl Survivors {
                 );
             }
             ZoneType::Berserk => {
-                self.active_buffs.push(ActiveBuff {
+                self.player.active_buffs.push(ActiveBuff {
                     buff_type: BuffType::Berserk,
                     remaining_time: 30.0,
                 });
@@ -4831,7 +4094,7 @@ impl Survivors {
                 );
             }
             ZoneType::Haste => {
-                self.active_buffs.push(ActiveBuff {
+                self.player.active_buffs.push(ActiveBuff {
                     buff_type: BuffType::Haste,
                     remaining_time: 30.0,
                 });
@@ -4844,11 +4107,11 @@ impl Survivors {
                 );
             }
             ZoneType::Invincible => {
-                self.active_buffs.push(ActiveBuff {
+                self.player.active_buffs.push(ActiveBuff {
                     buff_type: BuffType::Invincible,
                     remaining_time: 10.0,
                 });
-                self.invincibility_timer = 10.0;
+                self.player.invincibility_timer = 10.0;
                 self.spawn_popup_typed(
                     world,
                     center + Vec3::new(0.0, 2.0, 0.0),
@@ -4859,8 +4122,8 @@ impl Survivors {
             }
             ZoneType::HealthCache => {
                 let heal_amount = 100.0;
-                self.player_health = (self.player_health + heal_amount).min(self.stats.max_health);
-                self.spawn_heal_effect(world, self.player_position);
+                self.player.health = (self.player.health + heal_amount).min(self.player.stats.max_health);
+                self.spawn_heal_effect(world, self.player.position);
                 self.spawn_popup_typed(
                     world,
                     center + Vec3::new(0.0, 2.0, 0.0),
@@ -4870,7 +4133,7 @@ impl Survivors {
                 );
             }
             ZoneType::BombCache => {
-                self.bomb_cooldown = 0.0;
+                self.player.bomb_cooldown = 0.0;
                 self.spawn_popup_typed(
                     world,
                     center + Vec3::new(0.0, 2.0, 0.0),
@@ -4929,7 +4192,7 @@ impl Survivors {
         let mut damage_multiplier_buff = 1.0;
         let mut speed_multiplier_buff = 1.0;
 
-        self.active_buffs.retain_mut(|buff| {
+        self.player.active_buffs.retain_mut(|buff| {
             buff.remaining_time -= delta;
             if buff.remaining_time <= 0.0 {
                 false
@@ -4947,8 +4210,8 @@ impl Survivors {
             }
         });
 
-        self.stats.buff_damage_multiplier = damage_multiplier_buff;
-        self.stats.buff_speed_multiplier = speed_multiplier_buff;
+        self.player.stats.buff_damage_multiplier = damage_multiplier_buff;
+        self.player.stats.buff_speed_multiplier = speed_multiplier_buff;
     }
 
     fn spawn_levelup_effect(&self, world: &mut World) {
@@ -4969,7 +4232,7 @@ impl Survivors {
             shape: EmitterShape::Sphere {
                 radius: PLAYER_RADIUS,
             },
-            position: self.player_position,
+            position: self.player.position,
             direction: Vec3::new(0.0, 1.0, 0.0),
             spawn_rate: 0.0,
             burst_count: 50,
@@ -5061,7 +4324,7 @@ impl Survivors {
         let mut available: Vec<_> = all_upgrades
             .iter()
             .copied()
-            .filter(|upgrade| !self.stats.is_maxed(*upgrade))
+            .filter(|upgrade| !self.player.stats.is_maxed(*upgrade))
             .collect();
 
         for _ in 0..3.min(available.len()) {
@@ -5072,8 +4335,8 @@ impl Survivors {
             choices.push(available.remove(index));
         }
 
-        self.upgrade_choices = choices;
-        self.selected_upgrade_index = 0;
+        self.player.upgrade_choices = choices;
+        self.player.selected_upgrade_index = 0;
     }
 
     fn spawn_damage_popup(
@@ -5095,12 +4358,6 @@ impl Survivors {
             1.0
         };
         let font_size = base_size * damage_scale;
-
-        let popup_type = if is_boss {
-            PopupType::BossDamage
-        } else {
-            PopupType::Damage
-        };
         let text = format!("{}", damage as i32);
 
         let text_position = position + Vec3::new(0.0, 1.0, 0.0);
@@ -5125,11 +4382,7 @@ impl Survivors {
             Popup {
                 text_entity,
                 lifetime: 0.0,
-                popup_type,
-                start_scale: 1.0,
-                max_scale: 1.0,
                 base_position: text_position,
-                velocity: Vec3::zeros(),
             },
         );
 
@@ -5151,7 +4404,6 @@ impl Survivors {
             PopupType::Combo => 48.0,
             PopupType::LevelUp => 64.0,
             PopupType::Wave => 72.0,
-            PopupType::BossDamage => 44.0,
             PopupType::PowerUp => 48.0,
         };
 
@@ -5177,11 +4429,7 @@ impl Survivors {
             Popup {
                 text_entity,
                 lifetime: 0.0,
-                popup_type,
-                start_scale: 1.0,
-                max_scale: 1.0,
                 base_position: text_position,
-                velocity: Vec3::zeros(),
             },
         );
 
@@ -5238,58 +4486,58 @@ impl Survivors {
     fn apply_upgrade(&mut self, upgrade: UpgradeType, world: &mut World) {
         match upgrade {
             UpgradeType::Damage => {
-                self.stats.damage_multiplier *= 1.25;
-                self.stats.damage_level += 1;
+                self.player.stats.damage_multiplier *= 1.25;
+                self.player.stats.damage_level += 1;
             }
             UpgradeType::FireRate => {
-                self.stats.cooldown_multiplier *= 0.8;
-                self.stats.fire_rate_level += 1;
+                self.player.stats.cooldown_multiplier *= 0.8;
+                self.player.stats.fire_rate_level += 1;
             }
             UpgradeType::ProjectileCount => {
-                self.stats.projectile_count += 1;
-                self.stats.projectile_level += 1;
+                self.player.stats.projectile_count += 1;
+                self.player.stats.projectile_level += 1;
             }
             UpgradeType::Range => {
-                self.stats.range_multiplier *= 1.25;
-                self.stats.range_level += 1;
+                self.player.stats.range_multiplier *= 1.25;
+                self.player.stats.range_level += 1;
             }
             UpgradeType::Speed => {
-                self.stats.speed_multiplier *= 1.15;
-                self.stats.speed_level += 1;
+                self.player.stats.speed_multiplier *= 1.15;
+                self.player.stats.speed_level += 1;
             }
             UpgradeType::MaxHealth => {
-                self.stats.max_health += 25.0;
-                self.player_health += 25.0;
-                self.stats.health_level += 1;
+                self.player.stats.max_health += 25.0;
+                self.player.health += 25.0;
+                self.player.stats.health_level += 1;
             }
             UpgradeType::OrbitingOrbs => {
-                self.stats.orb_count += 2;
+                self.player.stats.orb_count += 2;
             }
             UpgradeType::AreaPulse => {
-                self.stats.area_pulse_level += 1;
+                self.player.stats.area_pulse_level += 1;
             }
             UpgradeType::Magnetism => {
-                self.stats.magnet_multiplier *= 1.5;
-                self.stats.magnetism_level += 1;
+                self.player.stats.magnet_multiplier *= 1.5;
+                self.player.stats.magnetism_level += 1;
             }
             UpgradeType::Regeneration => {
-                self.stats.regen_level += 1;
+                self.player.stats.regen_level += 1;
             }
             UpgradeType::Whip => {
-                self.stats.whip_level += 1;
+                self.player.stats.whip_level += 1;
             }
             UpgradeType::Lightning => {
-                self.stats.lightning_level += 1;
+                self.player.stats.lightning_level += 1;
             }
             UpgradeType::Garlic => {
-                self.stats.garlic_level += 1;
+                self.player.stats.garlic_level += 1;
             }
             UpgradeType::Bomb => {
-                self.stats.bomb_level += 1;
+                self.player.stats.bomb_level += 1;
             }
             UpgradeType::Shield => {
-                self.stats.shield_level += 1;
-                self.spawn_shield_layer(world, self.stats.shield_level - 1);
+                self.player.stats.shield_level += 1;
+                self.spawn_shield_layer(world, self.player.stats.shield_level - 1);
             }
         }
     }
@@ -5324,7 +4572,7 @@ impl Survivors {
             Vec3::new(radius * 2.0, radius * 2.0, radius * 2.0),
         );
 
-        if let Some(player_entity) = self.player_entity {
+        if let Some(player_entity) = self.player.entity {
             world.set_parent(shield_entity, Parent(Some(player_entity)));
         }
 
@@ -5343,7 +4591,7 @@ impl Survivors {
         );
         self.apply_material(world, shield_entity, &shield_material_name);
 
-        self.player_shield_layers
+        self.player.shield_layers
             .push((shield_entity, duration, duration, layer_index));
     }
 
@@ -5406,7 +4654,7 @@ impl Survivors {
 
         world.set_particle_emitter(effect_entity, shield_emitter);
 
-        self.line_effects.push(LineEffect {
+        self.visuals.line_effects.push(LineEffect {
             entity: world.spawn_entities(LINES, 1)[0],
             timer: 0.0,
             max_time: 0.3,
@@ -5425,7 +4673,7 @@ impl Survivors {
     }
 
     fn update_player_shield_system(&mut self, world: &mut World, delta: f32) {
-        if self.stats.shield_level == 0 {
+        if self.player.stats.shield_level == 0 {
             return;
         }
 
@@ -5433,18 +4681,18 @@ impl Survivors {
         let mut break_effects = Vec::new();
 
         for (index, (entity, timer, max_timer, layer_index)) in
-            self.player_shield_layers.iter_mut().enumerate()
+            self.player.shield_layers.iter_mut().enumerate()
         {
             *timer -= delta;
 
             if *timer <= 0.0 {
                 layers_to_remove.push(index);
-                break_effects.push((self.player_position, *layer_index));
+                break_effects.push((self.player.position, *layer_index));
                 world.queue_command(WorldCommand::DespawnRecursive { entity: *entity });
             } else {
                 let time_ratio = *timer / *max_timer;
                 let base_radius = Self::get_shield_layer_radius(*layer_index);
-                let pulse = (self.game_time * (2.0 + *layer_index as f32 * 0.3)).sin() * 0.05 + 1.0;
+                let pulse = (self.state.time * (2.0 + *layer_index as f32 * 0.3)).sin() * 0.05 + 1.0;
                 let radius = base_radius * pulse;
 
                 if let Some(transform) = world.get_local_transform_mut(*entity) {
@@ -5456,7 +4704,7 @@ impl Survivors {
                         _ => Vec3::new(-0.3, 1.0, 0.0).normalize(),
                     };
                     transform.rotation = nalgebra_glm::quat_angle_axis(
-                        self.game_time * rotation_speed,
+                        self.state.time * rotation_speed,
                         &rotation_axis,
                     );
                 }
@@ -5485,23 +4733,23 @@ impl Survivors {
         }
 
         for index in layers_to_remove.into_iter().rev() {
-            self.player_shield_layers.remove(index);
+            self.player.shield_layers.remove(index);
         }
 
         for (position, layer_index) in break_effects {
             self.spawn_shield_layer_break_effect(world, position, layer_index);
         }
 
-        if self.player_shield_layers.is_empty() && self.stats.shield_level > 0 {
-            self.player_shield_regen_timer += delta;
-            if self.player_shield_regen_timer >= SHIELD_REGEN_DELAY {
-                self.player_shield_regen_timer = 0.0;
-                for layer_index in 0..self.stats.shield_level {
+        if self.player.shield_layers.is_empty() && self.player.stats.shield_level > 0 {
+            self.player.shield_regen_timer += delta;
+            if self.player.shield_regen_timer >= SHIELD_REGEN_DELAY {
+                self.player.shield_regen_timer = 0.0;
+                for layer_index in 0..self.player.stats.shield_level {
                     self.spawn_shield_layer(world, layer_index);
                 }
                 self.spawn_popup_typed(
                     world,
-                    self.player_position + Vec3::new(0.0, 1.5, 0.0),
+                    self.player.position + Vec3::new(0.0, 1.5, 0.0),
                     "Shields Restored!".to_string(),
                     Vec4::new(0.5, 0.8, 1.0, 1.0),
                     PopupType::Xp,
@@ -5511,15 +4759,15 @@ impl Survivors {
     }
 
     fn player_collision_system(&mut self, world: &mut World, delta: f32) {
-        if self.damage_cooldown > 0.0 {
-            self.damage_cooldown -= delta;
+        if self.player.damage_cooldown > 0.0 {
+            self.player.damage_cooldown -= delta;
         }
 
-        if self.invincibility_timer > 0.0 {
+        if self.player.invincibility_timer > 0.0 {
             return;
         }
 
-        let player_pos = self.player_position;
+        let player_pos = self.player.position;
         let enemies: Vec<freecs::Entity> = self
             .game_world
             .query_entities(ENEMY | POSITION | ENTITY_HANDLE)
@@ -5529,21 +4777,21 @@ impl Survivors {
             let position = self.game_world.get_position(game_entity).unwrap();
             let distance = nalgebra_glm::distance(&player_pos, &position.0);
 
-            if distance < COLLISION_DISTANCE && self.damage_cooldown <= 0.0 {
-                if !self.player_shield_layers.is_empty()
+            if distance < COLLISION_DISTANCE && self.player.damage_cooldown <= 0.0 {
+                if !self.player.shield_layers.is_empty()
                     && let Some(outermost_index) = self
-                        .player_shield_layers
+                        .player.shield_layers
                         .iter()
                         .enumerate()
                         .max_by_key(|(_, (_, _, _, layer_index))| *layer_index)
                         .map(|(index, _)| index)
                 {
                     let (entity, _, _, layer_index) =
-                        self.player_shield_layers.remove(outermost_index);
+                        self.player.shield_layers.remove(outermost_index);
                     world.queue_command(WorldCommand::DespawnRecursive { entity });
                     self.spawn_shield_layer_break_effect(world, player_pos, layer_index);
-                    self.player_shield_regen_timer = 0.0;
-                    self.damage_cooldown = DAMAGE_COOLDOWN * 0.5;
+                    self.player.shield_regen_timer = 0.0;
+                    self.player.damage_cooldown = DAMAGE_COOLDOWN * 0.5;
 
                     let layer_color = Self::get_shield_layer_color(layer_index);
                     self.spawn_popup_typed(
@@ -5564,10 +4812,10 @@ impl Survivors {
                     break;
                 }
 
-                self.player_health -= ENEMY_DAMAGE;
-                self.damage_cooldown = DAMAGE_COOLDOWN;
-                self.invincibility_timer = INVINCIBILITY_DURATION;
-                self.camera_shake = 1.0;
+                self.player.health -= ENEMY_DAMAGE;
+                self.player.damage_cooldown = DAMAGE_COOLDOWN;
+                self.player.invincibility_timer = INVINCIBILITY_DURATION;
+                self.camera.shake = 1.0;
 
                 self.spawn_popup_typed(
                     world,
@@ -5594,7 +4842,7 @@ impl Survivors {
     }
 
     fn start_game(&mut self, _world: &mut World) {
-        self.game_state = GameState::Playing;
+        self.state.state = GameState::Playing;
     }
 
     fn restart_game(&mut self, world: &mut World) {
@@ -5614,12 +4862,12 @@ impl Survivors {
             }
         }
 
-        for orb_entity in &self.orb_entities {
+        for orb_entity in &self.visuals.orb_entities {
             world.queue_command(WorldCommand::DespawnRecursive {
                 entity: *orb_entity,
             });
         }
-        self.orb_entities.clear();
+        self.visuals.orb_entities.clear();
 
         let mut to_despawn = self.game_world.resources.enemy_list.clone();
         to_despawn.extend(self.game_world.resources.projectile_list.clone());
@@ -5639,66 +4887,66 @@ impl Survivors {
         self.game_world.resources.wave_enemies_remaining = 0;
         self.game_world.resources.boss_alive = false;
 
-        if let Some(emitter) = self.garlic_emitter {
+        if let Some(emitter) = self.visuals.garlic_emitter {
             world.queue_command(WorldCommand::DespawnRecursive { entity: emitter });
         }
-        self.garlic_emitter = None;
+        self.visuals.garlic_emitter = None;
 
-        for (shield_entity, _, _, _) in &self.player_shield_layers {
+        for (shield_entity, _, _, _) in &self.player.shield_layers {
             world.queue_command(WorldCommand::DespawnRecursive {
                 entity: *shield_entity,
             });
         }
-        self.player_shield_layers.clear();
-        self.player_shield_regen_timer = 0.0;
+        self.player.shield_layers.clear();
+        self.player.shield_regen_timer = 0.0;
 
-        for (_, shield_visual, _) in &self.enemy_shield_entities {
+        for (_, shield_visual, _) in &self.visuals.enemy_shield_entities {
             world.queue_command(WorldCommand::DespawnRecursive {
                 entity: *shield_visual,
             });
         }
-        self.enemy_shield_entities.clear();
+        self.visuals.enemy_shield_entities.clear();
 
-        self.player_position = Vec3::new(0.0, PLAYER_RADIUS, 0.0);
-        self.stats = PlayerStats::default();
-        self.player_health = self.stats.max_health;
-        self.damage_cooldown = 0.0;
-        self.attack_cooldown = 0.0;
-        self.player_xp = 0;
-        self.player_level = 1;
-        self.orb_angle = 0.0;
-        self.pulse_cooldown = 0.0;
-        self.regen_timer = 0.0;
-        self.game_time = 0.0;
-        self.camera_shake = 0.0;
-        self.invincibility_timer = 0.0;
-        self.whip_cooldown = 0.0;
-        self.whip_angle = 0.0;
-        self.lightning_cooldown = 0.0;
-        self.garlic_timer = 0.0;
-        self.bomb_cooldown = 0.0;
-        self.player_facing = Vec3::new(1.0, 0.0, 0.0);
-        self.dust_timer = 0.0;
-        self.combo_count = 0;
-        self.combo_timer = 0.0;
-        self.speed_boost_timer = 0.0;
-        self.last_wave_announced = 0;
-        self.kill_flash_timer = 0.0;
-        self.game_speed = 1.0;
-        self.lob_bombs.clear();
-        self.game_state = GameState::Playing;
+        self.player.position = Vec3::new(0.0, PLAYER_RADIUS, 0.0);
+        self.player.stats = PlayerStats::default();
+        self.player.health = self.player.stats.max_health;
+        self.player.damage_cooldown = 0.0;
+        self.player.attack_cooldown = 0.0;
+        self.player.xp = 0;
+        self.player.level = 1;
+        self.player.orb_angle = 0.0;
+        self.player.pulse_cooldown = 0.0;
+        self.player.regen_timer = 0.0;
+        self.state.time = 0.0;
+        self.camera.shake = 0.0;
+        self.player.invincibility_timer = 0.0;
+        self.player.whip_cooldown = 0.0;
+        self.player.whip_angle = 0.0;
+        self.player.lightning_cooldown = 0.0;
+        self.player.garlic_timer = 0.0;
+        self.player.bomb_cooldown = 0.0;
+        self.player.facing = Vec3::new(1.0, 0.0, 0.0);
+        self.player.dust_timer = 0.0;
+        self.player.combo_count = 0;
+        self.player.combo_timer = 0.0;
+        self.player.speed_boost_timer = 0.0;
+        self.state.last_wave_announced = 0;
+        self.state.kill_flash_timer = 0.0;
+        self.state.speed = 1.0;
+        self.visuals.lob_bombs.clear();
+        self.state.state = GameState::Playing;
 
-        if let Some(entity) = self.player_entity {
+        if let Some(entity) = self.player.entity {
             if let Some(transform) = world.get_local_transform_mut(entity) {
-                transform.translation = self.player_position;
+                transform.translation = self.player.position;
             }
             mark_local_transform_dirty(world, entity);
         }
     }
 
     fn orb_system(&mut self, world: &mut World, delta: f32) {
-        let target_orb_count = self.stats.orb_count as usize;
-        let current_orb_count = self.orb_entities.len();
+        let target_orb_count = self.player.stats.orb_count as usize;
+        let current_orb_count = self.visuals.orb_entities.len();
 
         if current_orb_count < target_orb_count {
             for _ in current_orb_count..target_orb_count {
@@ -5706,26 +4954,26 @@ impl Survivors {
             }
         }
 
-        if self.orb_entities.is_empty() {
+        if self.visuals.orb_entities.is_empty() {
             return;
         }
 
-        self.orb_angle += ORB_ORBIT_SPEED * delta;
-        if self.orb_angle > std::f32::consts::TAU {
-            self.orb_angle -= std::f32::consts::TAU;
+        self.player.orb_angle += ORB_ORBIT_SPEED * delta;
+        if self.player.orb_angle > std::f32::consts::TAU {
+            self.player.orb_angle -= std::f32::consts::TAU;
         }
 
-        let orb_count = self.orb_entities.len();
+        let orb_count = self.visuals.orb_entities.len();
         let angle_step = std::f32::consts::TAU / orb_count as f32;
 
-        for (index, orb_entity) in self.orb_entities.iter().enumerate() {
-            let angle = self.orb_angle + angle_step * index as f32;
+        for (index, orb_entity) in self.visuals.orb_entities.iter().enumerate() {
+            let angle = self.player.orb_angle + angle_step * index as f32;
             let orb_offset = Vec3::new(
                 angle.cos() * ORB_ORBIT_RADIUS,
                 0.5,
                 angle.sin() * ORB_ORBIT_RADIUS,
             );
-            let orb_position = self.player_position + orb_offset;
+            let orb_position = self.player.position + orb_offset;
 
             if let Some(transform) = world.get_local_transform_mut(*orb_entity) {
                 transform.translation = orb_position;
@@ -5737,7 +4985,7 @@ impl Survivors {
     }
 
     fn spawn_orb(&mut self, world: &mut World) {
-        let orb_index = self.orb_entities.len();
+        let orb_index = self.visuals.orb_entities.len();
         let hue = (orb_index as f32 * 0.3) % 1.0;
         let (ring_r, ring_g, ring_b) = hsv_to_rgb(hue, 0.8, 1.0);
         let (core_r, core_g, core_b) = hsv_to_rgb(hue, 0.5, 1.0);
@@ -5745,7 +4993,7 @@ impl Survivors {
         let engine_entity = spawn_mesh(
             world,
             "Torus",
-            self.player_position,
+            self.player.position,
             Vec3::new(ORB_RADIUS * 2.5, ORB_RADIUS * 0.8, ORB_RADIUS * 2.5),
         );
 
@@ -5784,21 +5032,21 @@ impl Survivors {
         );
         self.apply_material(world, core, &core_mat);
 
-        self.orb_entities.push(engine_entity);
+        self.visuals.orb_entities.push(engine_entity);
     }
 
     fn orb_collision_system(&mut self, world: &mut World) {
-        if self.orb_entities.is_empty() {
+        if self.visuals.orb_entities.is_empty() {
             return;
         }
 
-        let orb_count = self.orb_entities.len();
+        let orb_count = self.visuals.orb_entities.len();
         let angle_step = std::f32::consts::TAU / orb_count as f32;
 
         let orb_positions: Vec<Vec3> = (0..orb_count)
             .map(|index| {
-                let angle = self.orb_angle + angle_step * index as f32;
-                self.player_position
+                let angle = self.player.orb_angle + angle_step * index as f32;
+                self.player.position
                     + Vec3::new(
                         angle.cos() * ORB_ORBIT_RADIUS,
                         0.5,
@@ -5828,8 +5076,8 @@ impl Survivors {
 
                 if distance < ORB_HIT_DISTANCE {
                     let orb_damage = ORB_DAMAGE
-                        * self.stats.damage_multiplier
-                        * self.stats.buff_damage_multiplier;
+                        * self.player.stats.damage_multiplier
+                        * self.player.stats.buff_damage_multiplier;
                     let new_health = enemy.health - orb_damage;
                     damage_popups.push((enemy_pos.0, orb_damage));
 
@@ -5880,23 +5128,23 @@ impl Survivors {
     }
 
     fn pulse_system(&mut self, world: &mut World, delta: f32) {
-        if self.stats.area_pulse_level == 0 {
+        if self.player.stats.area_pulse_level == 0 {
             return;
         }
 
-        self.pulse_cooldown -= delta;
-        if self.pulse_cooldown > 0.0 {
+        self.player.pulse_cooldown -= delta;
+        if self.player.pulse_cooldown > 0.0 {
             return;
         }
 
-        self.pulse_cooldown = PULSE_COOLDOWN / (1.0 + self.stats.area_pulse_level as f32 * 0.2);
+        self.player.pulse_cooldown = PULSE_COOLDOWN / (1.0 + self.player.stats.area_pulse_level as f32 * 0.2);
 
         let pulse_damage = PULSE_BASE_DAMAGE
-            * self.stats.area_pulse_level as f32
-            * self.stats.damage_multiplier
-            * self.stats.buff_damage_multiplier;
-        let pulse_radius = PULSE_RADIUS + self.stats.area_pulse_level as f32 * 1.0;
-        let player_pos = self.player_position;
+            * self.player.stats.area_pulse_level as f32
+            * self.player.stats.damage_multiplier
+            * self.player.stats.buff_damage_multiplier;
+        let pulse_radius = PULSE_RADIUS + self.player.stats.area_pulse_level as f32 * 1.0;
+        let player_pos = self.player.position;
 
         self.spawn_pulse_effect(world, player_pos, pulse_radius);
 
@@ -6073,14 +5321,14 @@ impl Survivors {
                 color_end: Vec4::new(0.8, 0.4, 1.0, 0.0),
             };
 
-            self.line_effects.push(effect);
+            self.visuals.line_effects.push(effect);
         }
     }
 
     fn update_line_effects(&mut self, world: &mut World, delta: f32) {
         let mut effects_to_remove = Vec::new();
 
-        for (index, effect) in self.line_effects.iter_mut().enumerate() {
+        for (index, effect) in self.visuals.line_effects.iter_mut().enumerate() {
             effect.timer += delta;
 
             let progress = (effect.timer / effect.max_time).min(1.0);
@@ -6147,28 +5395,28 @@ impl Survivors {
         }
 
         for index in effects_to_remove.into_iter().rev() {
-            self.line_effects.remove(index);
+            self.visuals.line_effects.remove(index);
         }
     }
 
     fn regen_system(&mut self, world: &mut World, delta: f32) {
-        if self.stats.regen_level == 0 {
+        if self.player.stats.regen_level == 0 {
             return;
         }
 
-        self.regen_timer += delta;
-        if self.regen_timer >= REGEN_INTERVAL {
-            self.regen_timer = 0.0;
+        self.player.regen_timer += delta;
+        if self.player.regen_timer >= REGEN_INTERVAL {
+            self.player.regen_timer = 0.0;
 
-            let regen_amount = REGEN_AMOUNT * self.stats.regen_level as f32;
-            let old_health = self.player_health;
-            self.player_health = (self.player_health + regen_amount).min(self.stats.max_health);
-            let actual_heal = self.player_health - old_health;
+            let regen_amount = REGEN_AMOUNT * self.player.stats.regen_level as f32;
+            let old_health = self.player.health;
+            self.player.health = (self.player.health + regen_amount).min(self.player.stats.max_health);
+            let actual_heal = self.player.health - old_health;
 
             if actual_heal > 0.0 {
                 self.spawn_popup_typed(
                     world,
-                    self.player_position,
+                    self.player.position,
                     format!("+{}", actual_heal as i32),
                     Vec4::new(0.3, 1.0, 0.4, 1.0),
                     PopupType::Xp,
@@ -6178,11 +5426,11 @@ impl Survivors {
     }
 
     fn update_invincibility(&mut self, world: &mut World, delta: f32) {
-        if self.invincibility_timer > 0.0 {
-            self.invincibility_timer -= delta;
+        if self.player.invincibility_timer > 0.0 {
+            self.player.invincibility_timer -= delta;
 
-            if let Some(player) = self.player_entity {
-                let flash = ((self.invincibility_timer * INVINCIBILITY_FLASH_RATE)
+            if let Some(player) = self.player.entity {
+                let flash = ((self.player.invincibility_timer * INVINCIBILITY_FLASH_RATE)
                     * std::f32::consts::TAU)
                     .sin()
                     * 0.5
@@ -6191,7 +5439,7 @@ impl Survivors {
                     visibility.visible = flash > 0.3;
                 }
             }
-        } else if let Some(player) = self.player_entity
+        } else if let Some(player) = self.player.entity
             && let Some(visibility) = world.get_visibility_mut(player)
         {
             visibility.visible = true;
@@ -6242,28 +5490,28 @@ impl Survivors {
     }
 
     fn whip_system(&mut self, world: &mut World, delta: f32) {
-        if self.stats.whip_level == 0 {
+        if self.player.stats.whip_level == 0 {
             return;
         }
 
-        self.whip_cooldown -= delta;
-        if self.whip_cooldown > 0.0 {
+        self.player.whip_cooldown -= delta;
+        if self.player.whip_cooldown > 0.0 {
             return;
         }
 
-        self.whip_cooldown = WHIP_COOLDOWN / (1.0 + self.stats.whip_level as f32 * 0.1);
+        self.player.whip_cooldown = WHIP_COOLDOWN / (1.0 + self.player.stats.whip_level as f32 * 0.1);
 
-        self.whip_angle += std::f32::consts::PI;
-        if self.whip_angle > std::f32::consts::TAU {
-            self.whip_angle -= std::f32::consts::TAU;
+        self.player.whip_angle += std::f32::consts::PI;
+        if self.player.whip_angle > std::f32::consts::TAU {
+            self.player.whip_angle -= std::f32::consts::TAU;
         }
 
-        let whip_direction = Vec3::new(self.whip_angle.cos(), 0.0, self.whip_angle.sin());
+        let whip_direction = Vec3::new(self.player.whip_angle.cos(), 0.0, self.player.whip_angle.sin());
         let whip_damage = WHIP_DAMAGE
-            * self.stats.damage_multiplier
-            * self.stats.buff_damage_multiplier
-            * (1.0 + self.stats.whip_level as f32 * 0.2);
-        let whip_range = WHIP_RANGE * (1.0 + self.stats.whip_level as f32 * 0.15);
+            * self.player.stats.damage_multiplier
+            * self.player.stats.buff_damage_multiplier
+            * (1.0 + self.player.stats.whip_level as f32 * 0.2);
+        let whip_range = WHIP_RANGE * (1.0 + self.player.stats.whip_level as f32 * 0.15);
 
         let mut enemies_hit = Vec::new();
         let mut damage_popups = Vec::new();
@@ -6275,7 +5523,7 @@ impl Survivors {
 
         for game_entity in enemies {
             let pos = self.game_world.get_position(game_entity).unwrap().0;
-            let to_enemy = pos - self.player_position;
+            let to_enemy = pos - self.player.position;
             let distance = nalgebra_glm::length(&to_enemy);
 
             if distance > whip_range {
@@ -6305,7 +5553,7 @@ impl Survivors {
             }
         }
 
-        self.spawn_whip_effect(world, self.player_position, whip_direction, whip_range);
+        self.spawn_whip_effect(world, self.player.position, whip_direction, whip_range);
 
         for (pos, damage) in damage_popups {
             self.spawn_damage_popup(world, pos, damage, Vec4::new(1.0, 0.85, 0.3, 1.0), false);
@@ -6431,24 +5679,24 @@ impl Survivors {
     }
 
     fn lightning_system(&mut self, world: &mut World, delta: f32) {
-        if self.stats.lightning_level == 0 {
+        if self.player.stats.lightning_level == 0 {
             return;
         }
 
-        self.lightning_cooldown -= delta;
-        if self.lightning_cooldown > 0.0 {
+        self.player.lightning_cooldown -= delta;
+        if self.player.lightning_cooldown > 0.0 {
             return;
         }
 
-        self.lightning_cooldown =
-            LIGHTNING_COOLDOWN / (1.0 + self.stats.lightning_level as f32 * 0.1);
+        self.player.lightning_cooldown =
+            LIGHTNING_COOLDOWN / (1.0 + self.player.stats.lightning_level as f32 * 0.1);
 
         let lightning_damage = LIGHTNING_DAMAGE
-            * self.stats.damage_multiplier
-            * self.stats.buff_damage_multiplier
-            * (1.0 + self.stats.lightning_level as f32 * 0.25);
-        let chain_count = LIGHTNING_CHAIN_COUNT + self.stats.lightning_level - 1;
-        let range = LIGHTNING_RANGE * (1.0 + self.stats.lightning_level as f32 * 0.1);
+            * self.player.stats.damage_multiplier
+            * self.player.stats.buff_damage_multiplier
+            * (1.0 + self.player.stats.lightning_level as f32 * 0.25);
+        let chain_count = LIGHTNING_CHAIN_COUNT + self.player.stats.lightning_level - 1;
+        let range = LIGHTNING_RANGE * (1.0 + self.player.stats.lightning_level as f32 * 0.1);
 
         let enemies: Vec<freecs::Entity> = self
             .game_world
@@ -6462,7 +5710,7 @@ impl Survivors {
         let mut first_target: Option<(freecs::Entity, Vec3, f32)> = None;
         for game_entity in &enemies {
             if let Some(position) = self.game_world.get_position(*game_entity) {
-                let distance = nalgebra_glm::distance(&self.player_position, &position.0);
+                let distance = nalgebra_glm::distance(&self.player.position, &position.0);
                 if distance < range
                     && (first_target.is_none() || distance < first_target.unwrap().2)
                 {
@@ -6506,7 +5754,7 @@ impl Survivors {
             }
         }
 
-        self.spawn_lightning_effect(world, self.player_position, &chain_targets);
+        self.spawn_lightning_effect(world, self.player.position, &chain_targets);
 
         let mut enemies_to_kill = Vec::new();
         let mut damage_popups = Vec::new();
@@ -6735,21 +5983,21 @@ impl Survivors {
             color_end: Vec4::new(0.5, 0.7, 1.0, 0.0),
         };
 
-        self.line_effects.push(effect);
+        self.visuals.line_effects.push(effect);
     }
 
     fn garlic_system(&mut self, world: &mut World, delta: f32) {
-        if self.stats.garlic_level == 0 {
-            if let Some(emitter) = self.garlic_emitter {
+        if self.player.stats.garlic_level == 0 {
+            if let Some(emitter) = self.visuals.garlic_emitter {
                 world.queue_command(WorldCommand::DespawnRecursive { entity: emitter });
-                self.garlic_emitter = None;
+                self.visuals.garlic_emitter = None;
             }
             return;
         }
 
-        if self.garlic_emitter.is_none() {
+        if self.visuals.garlic_emitter.is_none() {
             let particle_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
-            self.garlic_emitter = Some(particle_entity);
+            self.visuals.garlic_emitter = Some(particle_entity);
 
             let garlic_gradient = ColorGradient {
                 colors: vec![
@@ -6764,7 +6012,7 @@ impl Survivors {
                 shape: EmitterShape::Sphere {
                     radius: GARLIC_RADIUS * 0.8,
                 },
-                position: self.player_position,
+                position: self.player.position,
                 direction: Vec3::new(0.0, 1.0, 0.0),
                 spawn_rate: 15.0,
                 burst_count: 0,
@@ -6790,23 +6038,23 @@ impl Survivors {
             world.set_particle_emitter(particle_entity, garlic_emitter);
         }
 
-        if let Some(emitter_entity) = self.garlic_emitter
+        if let Some(emitter_entity) = self.visuals.garlic_emitter
             && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
         {
-            emitter.position = self.player_position;
+            emitter.position = self.player.position;
         }
 
-        self.garlic_timer += delta;
-        if self.garlic_timer < GARLIC_TICK_RATE {
+        self.player.garlic_timer += delta;
+        if self.player.garlic_timer < GARLIC_TICK_RATE {
             return;
         }
-        self.garlic_timer = 0.0;
+        self.player.garlic_timer = 0.0;
 
         let garlic_damage = GARLIC_DAMAGE
-            * self.stats.damage_multiplier
-            * self.stats.buff_damage_multiplier
-            * (1.0 + self.stats.garlic_level as f32 * 0.3);
-        let garlic_radius = GARLIC_RADIUS * (1.0 + self.stats.garlic_level as f32 * 0.2);
+            * self.player.stats.damage_multiplier
+            * self.player.stats.buff_damage_multiplier
+            * (1.0 + self.player.stats.garlic_level as f32 * 0.3);
+        let garlic_radius = GARLIC_RADIUS * (1.0 + self.player.stats.garlic_level as f32 * 0.2);
 
         let enemies: Vec<freecs::Entity> = self
             .game_world
@@ -6817,7 +6065,7 @@ impl Survivors {
 
         for game_entity in enemies {
             let position = self.game_world.get_position(game_entity).unwrap();
-            let distance = nalgebra_glm::distance(&self.player_position, &position.0);
+            let distance = nalgebra_glm::distance(&self.player.position, &position.0);
 
             if distance < garlic_radius {
                 let enemy = self.game_world.get_enemy(game_entity).unwrap();
@@ -6873,17 +6121,17 @@ impl Survivors {
     }
 
     fn bomb_system(&mut self, world: &mut World, delta: f32) {
-        if self.stats.bomb_level == 0 {
+        if self.player.stats.bomb_level == 0 {
             return;
         }
 
-        if self.bomb_cooldown > 0.0 {
-            self.bomb_cooldown -= delta;
+        if self.player.bomb_cooldown > 0.0 {
+            self.player.bomb_cooldown -= delta;
             return;
         }
 
         self.use_bomb(world);
-        self.bomb_cooldown = BOMB_COOLDOWN / self.stats.bomb_level as f32;
+        self.player.bomb_cooldown = BOMB_COOLDOWN / self.player.stats.bomb_level as f32;
     }
 
     fn use_bomb(&mut self, world: &mut World) {
@@ -6892,15 +6140,15 @@ impl Survivors {
         let distance = rng.random_range(BOMB_RADIUS * 0.3..BOMB_RADIUS * 0.8);
 
         let target_position = Vec3::new(
-            self.player_position.x + angle.cos() * distance,
+            self.player.position.x + angle.cos() * distance,
             0.5,
-            self.player_position.z + angle.sin() * distance,
+            self.player.position.z + angle.sin() * distance,
         );
 
         let bomb_entity = spawn_mesh(
             world,
             "Sphere",
-            self.player_position,
+            self.player.position,
             Vec3::new(0.5, 0.5, 0.5),
         );
 
@@ -6950,7 +6198,7 @@ impl Survivors {
         let fuse_emitter = ParticleEmitter {
             emitter_type: EmitterType::Fire,
             shape: EmitterShape::Point,
-            position: self.player_position + Vec3::new(0.0, 0.45, 0.0),
+            position: self.player.position + Vec3::new(0.0, 0.45, 0.0),
             direction: Vec3::new(0.0, 1.0, 0.0),
             spawn_rate: 40.0,
             burst_count: 0,
@@ -6985,7 +6233,7 @@ impl Survivors {
         let smoke_emitter = ParticleEmitter {
             emitter_type: EmitterType::Smoke,
             shape: EmitterShape::Point,
-            position: self.player_position + Vec3::new(0.0, 0.45, 0.0),
+            position: self.player.position + Vec3::new(0.0, 0.45, 0.0),
             direction: Vec3::new(0.0, 1.0, 0.0),
             spawn_rate: 15.0,
             burst_count: 0,
@@ -7011,7 +6259,7 @@ impl Survivors {
 
         let lob_bomb = LobBomb {
             entity: bomb_entity,
-            start_position: self.player_position,
+            start_position: self.player.position,
             target_position,
             flight_time: 0.8,
             elapsed: 0.0,
@@ -7019,11 +6267,11 @@ impl Survivors {
             trail_emitter: Some(fuse_emitter_entity),
             fuse_emitter: Some(smoke_emitter_entity),
         };
-        self.lob_bombs.push(lob_bomb);
+        self.visuals.lob_bombs.push(lob_bomb);
     }
 
     fn detonate_bomb(&mut self, world: &mut World, position: Vec3) {
-        self.camera_shake = 2.0;
+        self.camera.shake = 2.0;
         self.spawn_bomb_effect(world, position);
 
         let enemies: Vec<freecs::Entity> = self
@@ -7081,7 +6329,7 @@ impl Survivors {
     fn update_lob_bombs(&mut self, world: &mut World, delta: f32) {
         let mut exploded_indices = Vec::new();
 
-        for (index, bomb) in self.lob_bombs.iter_mut().enumerate() {
+        for (index, bomb) in self.visuals.lob_bombs.iter_mut().enumerate() {
             bomb.elapsed += delta;
             let progress = (bomb.elapsed / bomb.flight_time).clamp(0.0, 1.0);
 
@@ -7121,7 +6369,7 @@ impl Survivors {
         }
 
         for index in exploded_indices.into_iter().rev() {
-            let bomb = self.lob_bombs.remove(index);
+            let bomb = self.visuals.lob_bombs.remove(index);
             world.queue_command(WorldCommand::DespawnRecursive {
                 entity: bomb.entity,
             });
@@ -7297,7 +6545,7 @@ impl Survivors {
                 color_end: Vec4::new(0.8, 0.2, 0.0, 0.0),
             };
 
-            self.line_effects.push(effect);
+            self.visuals.line_effects.push(effect);
         }
     }
 
@@ -7383,7 +6631,7 @@ impl Survivors {
             color_end: Vec4::new(color.x, color.y, color.z, 0.0),
         };
 
-        self.line_effects.push(effect);
+        self.visuals.line_effects.push(effect);
     }
 
     fn spawn_enemy_shield(
@@ -7423,7 +6671,7 @@ impl Survivors {
         );
         self.apply_material(world, shield_entity, &shield_material_name);
 
-        self.enemy_shield_entities
+        self.visuals.enemy_shield_entities
             .push((game_entity, shield_entity, shield_radius));
     }
 
@@ -7431,7 +6679,7 @@ impl Survivors {
         let mut to_remove = Vec::new();
 
         for (index, (game_entity, shield_entity, base_radius)) in
-            self.enemy_shield_entities.iter().enumerate()
+            self.visuals.enemy_shield_entities.iter().enumerate()
         {
             if let Some(enemy) = self.game_world.get_enemy(*game_entity) {
                 if enemy.shield_hits == 0 {
@@ -7440,12 +6688,12 @@ impl Survivors {
                     });
                     to_remove.push(index);
                 } else {
-                    let pulse = (self.game_time * 2.0).sin() * 0.05 + 1.0;
+                    let pulse = (self.state.time * 2.0).sin() * 0.05 + 1.0;
                     let shield_scale = base_radius * 2.0 * pulse;
                     if let Some(transform) = world.get_local_transform_mut(*shield_entity) {
                         transform.scale = Vec3::new(shield_scale, shield_scale, shield_scale);
                         transform.rotation = nalgebra_glm::quat_angle_axis(
-                            self.game_time * 0.5,
+                            self.state.time * 0.5,
                             &Vec3::new(0.0, 1.0, 0.0),
                         );
                     }
@@ -7460,7 +6708,7 @@ impl Survivors {
         }
 
         for index in to_remove.into_iter().rev() {
-            self.enemy_shield_entities.remove(index);
+            self.visuals.enemy_shield_entities.remove(index);
         }
     }
 
@@ -7503,7 +6751,7 @@ impl Survivors {
 
         world.set_particle_emitter(effect_entity, shield_emitter);
 
-        self.line_effects.push(LineEffect {
+        self.visuals.line_effects.push(LineEffect {
             entity: world.spawn_entities(LINES, 1)[0],
             timer: 0.0,
             max_time: 0.25,
@@ -7557,46 +6805,46 @@ impl Survivors {
     }
 
     fn update_combo(&mut self, delta: f32) {
-        if self.combo_count > 0 {
-            self.combo_timer += delta;
-            if self.combo_timer >= COMBO_DECAY_TIME {
-                if self.combo_count > self.combo_max {
-                    self.combo_max = self.combo_count;
+        if self.player.combo_count > 0 {
+            self.player.combo_timer += delta;
+            if self.player.combo_timer >= COMBO_DECAY_TIME {
+                if self.player.combo_count > self.player.combo_max {
+                    self.player.combo_max = self.player.combo_count;
                 }
-                self.combo_count = 0;
-                self.combo_timer = 0.0;
+                self.player.combo_count = 0;
+                self.player.combo_timer = 0.0;
             }
         }
     }
 
     fn add_kill(&mut self, world: &mut World, is_boss: bool) {
-        self.combo_count += 1;
-        self.combo_timer = 0.0;
-        self.speed_boost_timer = SPEED_BOOST_DURATION;
+        self.player.combo_count += 1;
+        self.player.combo_timer = 0.0;
+        self.player.speed_boost_timer = SPEED_BOOST_DURATION;
 
-        if self.combo_count >= 10 && self.combo_count.is_multiple_of(10) {
+        if self.player.combo_count >= 10 && self.player.combo_count.is_multiple_of(10) {
             self.spawn_combo_milestone_effect(world);
-            let combo_color = if self.combo_count >= 50 {
+            let combo_color = if self.player.combo_count >= 50 {
                 Vec4::new(1.0, 0.4, 1.0, 1.0)
-            } else if self.combo_count >= 30 {
+            } else if self.player.combo_count >= 30 {
                 Vec4::new(1.0, 0.8, 0.2, 1.0)
             } else {
                 Vec4::new(1.0, 0.9, 0.4, 1.0)
             };
             self.spawn_popup_typed(
                 world,
-                self.player_position + Vec3::new(0.0, 4.0, 0.0),
-                format!("{}x COMBO!", self.combo_count),
+                self.player.position + Vec3::new(0.0, 4.0, 0.0),
+                format!("{}x COMBO!", self.player.combo_count),
                 combo_color,
                 PopupType::Combo,
             );
         }
 
         if is_boss {
-            self.camera_shake = 3.0;
-            self.kill_flash_timer = 0.3;
-        } else if self.combo_count >= 5 {
-            self.kill_flash_timer = 0.1;
+            self.camera.shake = 3.0;
+            self.state.kill_flash_timer = 0.3;
+        } else if self.player.combo_count >= 5 {
+            self.state.kill_flash_timer = 0.1;
         }
     }
 
@@ -7615,7 +6863,7 @@ impl Survivors {
         let combo_emitter = ParticleEmitter {
             emitter_type: EmitterType::Sparks,
             shape: EmitterShape::Sphere { radius: 1.0 },
-            position: self.player_position,
+            position: self.player.position,
             direction: Vec3::new(0.0, 1.0, 0.0),
             spawn_rate: 0.0,
             burst_count: 40,
@@ -7642,75 +6890,75 @@ impl Survivors {
     }
 
     fn update_speed_boost(&mut self, delta: f32) {
-        if self.speed_boost_timer > 0.0 {
-            self.speed_boost_timer -= delta;
+        if self.player.speed_boost_timer > 0.0 {
+            self.player.speed_boost_timer -= delta;
         }
     }
 
     fn update_kill_flash(&mut self, delta: f32) {
-        if self.kill_flash_timer > 0.0 {
-            self.kill_flash_timer -= delta;
+        if self.state.kill_flash_timer > 0.0 {
+            self.state.kill_flash_timer -= delta;
         }
     }
 
     fn update_flashes(&mut self, delta: f32) {
-        if self.level_up_flash > 0.0 {
-            self.level_up_flash = (self.level_up_flash - delta * 3.0).max(0.0);
+        if self.state.level_up_flash > 0.0 {
+            self.state.level_up_flash = (self.state.level_up_flash - delta * 3.0).max(0.0);
         }
-        if self.boss_kill_flash > 0.0 {
-            self.boss_kill_flash = (self.boss_kill_flash - delta * 2.0).max(0.0);
+        if self.state.boss_kill_flash > 0.0 {
+            self.state.boss_kill_flash = (self.state.boss_kill_flash - delta * 2.0).max(0.0);
         }
-        if self.new_high_score_timer > 0.0 {
-            self.new_high_score_timer = (self.new_high_score_timer - delta).max(0.0);
-            self.score_popup_scale = 1.0 + (self.new_high_score_timer * 8.0).sin().abs() * 0.3;
+        if self.state.new_high_score_timer > 0.0 {
+            self.state.new_high_score_timer = (self.state.new_high_score_timer - delta).max(0.0);
+            self.state.score_popup_scale = 1.0 + (self.state.new_high_score_timer * 8.0).sin().abs() * 0.3;
         }
     }
 
     fn check_high_scores(&mut self) {
         let kills = self.game_world.resources.enemies_killed;
         let wave = self.game_world.resources.current_wave;
-        let time = self.game_time;
-        let combo = self.combo_max;
+        let time = self.state.time;
+        let combo = self.player.combo_max;
 
         let mut new_record = false;
 
-        if kills > self.high_score_kills {
-            self.high_score_kills = kills;
-            self.new_high_score_type = HighScoreType::Kills;
+        if kills > self.state.high_score_kills {
+            self.state.high_score_kills = kills;
+            self.state.new_high_score_type = HighScoreType::Kills;
             new_record = true;
         }
-        if wave > self.high_score_wave {
-            self.high_score_wave = wave;
+        if wave > self.state.high_score_wave {
+            self.state.high_score_wave = wave;
             if !new_record {
-                self.new_high_score_type = HighScoreType::Wave;
+                self.state.new_high_score_type = HighScoreType::Wave;
             }
             new_record = true;
         }
-        if time > self.high_score_time {
-            self.high_score_time = time;
+        if time > self.state.high_score_time {
+            self.state.high_score_time = time;
             if !new_record {
-                self.new_high_score_type = HighScoreType::Time;
+                self.state.new_high_score_type = HighScoreType::Time;
             }
             new_record = true;
         }
-        if combo > self.high_score_combo {
-            self.high_score_combo = combo;
+        if combo > self.state.high_score_combo {
+            self.state.high_score_combo = combo;
             if !new_record {
-                self.new_high_score_type = HighScoreType::Combo;
+                self.state.new_high_score_type = HighScoreType::Combo;
             }
             new_record = true;
         }
 
         if new_record {
-            self.new_high_score_timer = 5.0;
-            self.score_popup_scale = 1.5;
+            self.state.new_high_score_timer = 5.0;
+            self.state.score_popup_scale = 1.5;
         }
     }
 
     fn update_combo_fire(&mut self, world: &mut World) {
-        let should_have_fire = self.combo_count >= 10 && self.game_state == GameState::Playing;
+        let should_have_fire = self.player.combo_count >= 10 && self.state.state == GameState::Playing;
 
-        if should_have_fire && self.combo_emitter.is_none() {
+        if should_have_fire && self.visuals.combo_emitter.is_none() {
             let particle_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
             let fire_gradient = ColorGradient {
                 colors: vec![
@@ -7721,13 +6969,13 @@ impl Survivors {
                 ],
             };
 
-            let intensity = (self.combo_count as f32 / 20.0).min(2.0);
+            let intensity = (self.player.combo_count as f32 / 20.0).min(2.0);
             let fire_emitter = ParticleEmitter {
                 emitter_type: EmitterType::Fire,
                 shape: EmitterShape::Sphere {
                     radius: PLAYER_RADIUS * 1.2,
                 },
-                position: self.player_position,
+                position: self.player.position,
                 direction: Vec3::new(0.0, 1.0, 0.0),
                 spawn_rate: 30.0 * intensity,
                 burst_count: 0,
@@ -7750,16 +6998,16 @@ impl Survivors {
                 turbulence_frequency: 4.0,
             };
             world.set_particle_emitter(particle_entity, fire_emitter);
-            self.combo_emitter = Some(particle_entity);
-        } else if !should_have_fire && self.combo_emitter.is_some() {
-            if let Some(emitter) = self.combo_emitter.take() {
+            self.visuals.combo_emitter = Some(particle_entity);
+        } else if !should_have_fire && self.visuals.combo_emitter.is_some() {
+            if let Some(emitter) = self.visuals.combo_emitter.take() {
                 world.queue_command(WorldCommand::DespawnRecursive { entity: emitter });
             }
-        } else if let Some(emitter_entity) = self.combo_emitter
+        } else if let Some(emitter_entity) = self.visuals.combo_emitter
             && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
         {
-            emitter.position = self.player_position;
-            let intensity = (self.combo_count as f32 / 20.0).min(2.0);
+            emitter.position = self.player.position;
+            let intensity = (self.player.combo_count as f32 / 20.0).min(2.0);
             emitter.spawn_rate = 30.0 * intensity;
             emitter.emissive_strength = 10.0 * intensity;
         }
@@ -7767,8 +7015,8 @@ impl Survivors {
 
     fn check_wave_announcement(&mut self, world: &mut World) {
         let current_wave = self.game_world.resources.current_wave;
-        if current_wave > self.last_wave_announced && current_wave > 0 {
-            self.last_wave_announced = current_wave;
+        if current_wave > self.state.last_wave_announced && current_wave > 0 {
+            self.state.last_wave_announced = current_wave;
             self.spawn_wave_announcement(world, current_wave);
         }
     }
@@ -7790,14 +7038,14 @@ impl Survivors {
 
         self.spawn_popup_typed(
             world,
-            self.player_position + Vec3::new(0.0, 5.0, 0.0),
+            self.player.position + Vec3::new(0.0, 5.0, 0.0),
             text,
             color,
             PopupType::Wave,
         );
 
         if is_boss_wave {
-            self.camera_shake = 1.5;
+            self.camera.shake = 1.5;
             self.spawn_wave_effect(world, true);
         } else if wave > 1 {
             self.spawn_wave_effect(world, false);
@@ -7830,7 +7078,7 @@ impl Survivors {
         let wave_emitter = ParticleEmitter {
             emitter_type: EmitterType::Sparks,
             shape: EmitterShape::Sphere { radius: 3.0 },
-            position: self.player_position,
+            position: self.player.position,
             direction: Vec3::new(0.0, 1.0, 0.0),
             spawn_rate: 0.0,
             burst_count: if is_boss { 80 } else { 40 },
@@ -7882,7 +7130,7 @@ impl Survivors {
             let confetti_emitter = ParticleEmitter {
                 emitter_type: EmitterType::Sparks,
                 shape: EmitterShape::Point,
-                position: self.player_position + offset,
+                position: self.player.position + offset,
                 direction: Vec3::new(0.0, 1.0, 0.0),
                 spawn_rate: 0.0,
                 burst_count: 20,
@@ -7918,21 +7166,21 @@ impl Survivors {
                 entity: line_entity,
                 timer: -ring_index as f32 * 0.1,
                 max_time: 0.5,
-                center: Vec3::new(self.player_position.x, 0.1, self.player_position.z),
+                center: Vec3::new(self.player.position.x, 0.1, self.player.position.z),
                 start_radius: 0.5,
                 end_radius: 5.0 + ring_index as f32 * 2.0,
                 segments: 32,
                 color_start: Vec4::new(0.3, 1.0, 0.5, 0.8),
                 color_end: Vec4::new(0.2, 0.8, 0.4, 0.0),
             };
-            self.line_effects.push(effect);
+            self.visuals.line_effects.push(effect);
         }
     }
 
     fn update_ambient_particles(&mut self, world: &mut World) {
-        if self.ambient_emitter.is_none() {
+        if self.visuals.ambient_emitter.is_none() {
             let particle_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
-            self.ambient_emitter = Some(particle_entity);
+            self.visuals.ambient_emitter = Some(particle_entity);
 
             let ambient_gradient = ColorGradient {
                 colors: vec![
@@ -7976,8 +7224,8 @@ impl Survivors {
     }
 
     fn spawn_boss_death_effect(&mut self, world: &mut World, position: Vec3) {
-        self.boss_kill_flash = 1.0;
-        self.camera_shake = 2.5;
+        self.state.boss_kill_flash = 1.0;
+        self.camera.shake = 2.5;
 
         for index in 0..5 {
             let particle_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
@@ -8162,7 +7410,7 @@ impl Survivors {
                 && let Some(pos) = self.game_world.get_position(*tree_entity)
             {
                 let distance = nalgebra_glm::distance(
-                    &Vec2::new(self.player_position.x, self.player_position.z),
+                    &Vec2::new(self.player.position.x, self.player.position.z),
                     &Vec2::new(pos.0.x, pos.0.z),
                 );
                 if distance < CHOP_RANGE
@@ -8174,41 +7422,41 @@ impl Survivors {
             }
         }
 
-        self.nearest_tree_entity = nearest_tree.map(|(e, _, _)| e);
+        self.player.nearest_tree_entity = nearest_tree.map(|(e, _, _)| e);
 
         self.update_target_indicator(world, nearest_tree.as_ref().map(|(_, _, pos)| *pos));
 
         if let Some((tree_entity, _, tree_pos)) = nearest_tree {
-            let to_tree = tree_pos - self.player_position;
+            let to_tree = tree_pos - self.player.position;
             let target_facing = nalgebra_glm::normalize(&Vec3::new(to_tree.x, 0.0, to_tree.z));
 
             if chop_pressed {
-                self.is_chopping = true;
-                self.chopping_tree = Some(tree_entity);
+                self.player.is_chopping = true;
+                self.player.chopping_tree = Some(tree_entity);
 
-                self.player_facing = nalgebra_glm::lerp(
-                    &self.player_facing,
+                self.player.facing = nalgebra_glm::lerp(
+                    &self.player.facing,
                     &target_facing,
                     (TURN_SPEED * delta).min(1.0),
                 );
-                self.player_facing = nalgebra_glm::normalize(&self.player_facing);
+                self.player.facing = nalgebra_glm::normalize(&self.player.facing);
 
-                if let Some(entity) = self.player_entity {
+                if let Some(entity) = self.player.entity {
                     if let Some(transform) = world.get_local_transform_mut(entity) {
-                        let facing_angle = self.player_facing.x.atan2(self.player_facing.z);
+                        let facing_angle = self.player.facing.x.atan2(self.player.facing.z);
                         transform.rotation =
                             nalgebra_glm::quat_angle_axis(facing_angle, &Vec3::y());
                     }
                     mark_local_transform_dirty(world, entity);
                 }
 
-                let prev_sin = self.axe_swing_angle.sin();
-                self.axe_swing_angle += AXE_SWING_SPEED * delta;
-                let current_sin = self.axe_swing_angle.sin();
+                let prev_sin = self.player.axe_swing_angle.sin();
+                self.player.axe_swing_angle += AXE_SWING_SPEED * delta;
+                let current_sin = self.player.axe_swing_angle.sin();
 
                 let swing_progress = (current_sin + 1.0) / 2.0;
 
-                if let Some(axe) = self.axe_entity {
+                if let Some(axe) = self.visuals.axe {
                     if let Some(transform) = world.get_local_transform_mut(axe) {
                         let swing_angle = -swing_progress * 1.8 + 0.6;
                         let base_rotation =
@@ -8235,13 +7483,13 @@ impl Survivors {
                     self.game_world.set_tree(tree_entity, tree);
                 }
             } else {
-                self.is_chopping = false;
-                self.chopping_tree = None;
+                self.player.is_chopping = false;
+                self.player.chopping_tree = None;
                 self.reset_axe_position(world);
             }
         } else {
-            self.is_chopping = false;
-            self.chopping_tree = None;
+            self.player.is_chopping = false;
+            self.player.chopping_tree = None;
             self.reset_axe_position(world);
         }
 
@@ -8249,18 +7497,18 @@ impl Survivors {
     }
 
     fn reset_axe_position(&mut self, world: &mut World) {
-        if let Some(axe) = self.axe_entity {
+        if let Some(axe) = self.visuals.axe {
             if let Some(transform) = world.get_local_transform_mut(axe) {
                 transform.rotation =
                     nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::z());
             }
             mark_local_transform_dirty(world, axe);
         }
-        self.axe_swing_angle = 0.0;
+        self.player.axe_swing_angle = 0.0;
     }
 
     fn update_target_indicator(&mut self, world: &mut World, tree_pos: Option<Vec3>) {
-        let Some(indicator) = self.target_indicator_entity else {
+        let Some(indicator) = self.visuals.target_indicator else {
             return;
         };
 
@@ -8269,7 +7517,7 @@ impl Survivors {
         };
 
         if let Some(tree_pos) = tree_pos {
-            let player_pos = self.player_position + Vec3::new(0.0, 0.1, 0.0);
+            let player_pos = self.player.position + Vec3::new(0.0, 0.1, 0.0);
             let to_tree = tree_pos - player_pos;
             let direction = nalgebra_glm::normalize(&Vec3::new(to_tree.x, 0.0, to_tree.z));
             let distance = nalgebra_glm::length(&Vec2::new(to_tree.x, to_tree.z));
@@ -8283,7 +7531,7 @@ impl Survivors {
             let arrow_head_left = arrow_head_back + right * arrow_head_size * 0.5;
             let arrow_head_right = arrow_head_back - right * arrow_head_size * 0.5;
 
-            let color = if self.is_chopping {
+            let color = if self.player.is_chopping {
                 Vec4::new(1.0, 0.8, 0.2, 1.0)
             } else {
                 Vec4::new(0.3, 0.9, 0.3, 1.0)
@@ -8570,7 +7818,6 @@ impl Survivors {
             self.game_world.set_log(
                 game_entity,
                 Log {
-                    twig_entity,
                     base_height,
                     rotation_offset,
                 },
@@ -8622,7 +7869,7 @@ impl Survivors {
         for log_entity in &log_list {
             if let Some(pos) = self.game_world.get_position(*log_entity).copied() {
                 let distance = nalgebra_glm::distance(
-                    &Vec2::new(self.player_position.x, self.player_position.z),
+                    &Vec2::new(self.player.position.x, self.player.position.z),
                     &Vec2::new(pos.0.x, pos.0.z),
                 );
                 if distance < LOG_COLLECT_DISTANCE {
@@ -8630,7 +7877,7 @@ impl Survivors {
                         world.queue_command(WorldCommand::DespawnRecursive { entity: handle.0 });
                     }
                     logs_to_remove.push(*log_entity);
-                    self.log_inventory += 1;
+                    self.player.log_inventory += 1;
                 }
             }
         }
@@ -8645,7 +7892,7 @@ impl Survivors {
     }
 
     fn log_animation_system(&mut self, world: &mut World, _delta: f32) {
-        let time = self.game_time;
+        let time = self.state.time;
         let log_list = self.game_world.resources.log_list.clone();
 
         for log_entity in &log_list {
@@ -8672,7 +7919,7 @@ impl Survivors {
     }
 
     fn draw_tree_health_bar(&self, world: &World, ui: &mut ImmediateUi) {
-        let Some(tree_entity) = self.chopping_tree else {
+        let Some(tree_entity) = self.player.chopping_tree else {
             return;
         };
         let Some(tree) = self.game_world.get_tree(tree_entity) else {
@@ -8689,7 +7936,7 @@ impl Survivors {
             Vec4::new(0.9, 0.2, 0.1, 1.0)
         };
 
-        if self.camera_mode == CameraMode::ThirdPerson {
+        if self.camera.mode == CameraMode::ThirdPerson {
             let bar_width = 200.0;
             let bar_height = 20.0;
 

@@ -1,0 +1,15 @@
+pub const GRAB_RANGE: f32 = 3.0;
+pub const INTERACT_CONE_RADIUS: f32 = 40.0;
+pub const MIN_GRAB_DISTANCE: f32 = 0.8;
+pub const MAX_GRAB_DISTANCE: f32 = 3.0;
+pub const SCROLL_DISTANCE_SPEED: f32 = 0.3;
+pub const THROW_STRENGTH: f32 = 12.0;
+pub const GRAB_STIFFNESS: f32 = 150.0;
+pub const GRAB_DAMPING_RATIO: f32 = 1.0;
+pub const MAX_GRAB_FORCE: f32 = 80.0;
+pub const ANGULAR_DAMPING: f32 = 0.95;
+pub const STANDING_CAMERA_HEIGHT: f32 = 0.8;
+pub const CROUCHING_CAMERA_HEIGHT: f32 = 0.3;
+pub const LEAN_AMOUNT: f32 = 0.4;
+pub const LEAN_ANGLE: f32 = 0.15;
+pub const LEAN_SPEED: f32 = 8.0;

@@ -7,8 +7,8 @@ Example applications built with the [Nightshade](https://github.com/matthewjberg
 
 ## Gallery
 
-[View the gallery here](https://matthewberger.dev/nightshade) 🔎
- 
+[View the gallery here](https://matthewberger.dev/nightshade)
+
 <img width="1238" height="1346" alt="image" src="https://github.com/user-attachments/assets/dcfab536-f067-4988-b3f5-d8839444aaea" />
 
 ## Quickstart
@@ -36,6 +36,22 @@ Install WASM tooling:
 ```bash
 just init-wasm
 ```
+
+## Examples
+
+| Category | Examples |
+|----------|----------|
+| Rendering | `alpha_blending`, `bloom`, `custom_multipass`, `custom_pass`, `decals`, `depth_of_field`, `hiz`, `lights`, `psx`, `render_layers`, `shadows`, `skybox`, `spotlight_shadows`, `sprites`, `ssao`, `textures`, `water` |
+| Games | `block_breaker`, `block_breaker_scripts`, `chess`, `doom`, `farming`, `hex_war`, `jigsaw`, `platformer`, `pong`, `roguelike`, `space_shooter`, `survivors`, `tower_defense` |
+| Bullet Hell | `space_shooter` — Touhou-inspired wave-based bullet hell with data-driven pattern emitters, graze mechanics, bombs, power levels, boss phase transitions, and procedural wave generation |
+| Terminal | `tui_breakout`, `tui_frogger`, `tui_roguelike`, `text_adventure`, `shell`, `speedreader` |
+| 3D Scenes | `asteroid_belt`, `demo_scene`, `horror`, `immersive_sim`, `level`, `maps`, `prefabs`, `winter` |
+| Physics | `physics`, `physics_benchmark`, `navmesh` |
+| UI | `hud_text`, `menu`, `ui`, `sdf_text`, `gizmo`, `picking` |
+| Procedural | `cyberdust`, `fireworks`, `sdf_sculpt`, `terrain`, `voxels`, `lattice` |
+| Audio | `audio` |
+| Benchmarks | `bunnymark`, `physics_benchmark` |
+| Advanced | `morph`, `multi_world`, `dance` |
 
 ## Platform Guides
 

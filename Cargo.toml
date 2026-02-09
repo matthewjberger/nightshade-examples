@@ -1,7 +1,10 @@
 [workspace]
 resolver = "2"
-members = ["examples/*", "examples-native/*"]
+members = ["examples/*", "examples-native/*", "examples-terminal/*"]
 exclude = ["plugins", "examples-native/webview"]
 
 [workspace.dependencies]
 nightshade = { git = "https://github.com/matthewjberger/nightshade.git" }
+
+# [patch."https://github.com/matthewjberger/nightshade.git"]
+# nightshade = { path = "../nightshade/crates/nightshade" }

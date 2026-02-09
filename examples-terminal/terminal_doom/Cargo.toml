@@ -1,0 +1,13 @@
+[package]
+name = "terminal_doom"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[features]
+default = ["terminal"]
+terminal = ["nightshade/terminal"]
+tui = ["nightshade/tui"]
+
+[dependencies]
+nightshade = { workspace = true }

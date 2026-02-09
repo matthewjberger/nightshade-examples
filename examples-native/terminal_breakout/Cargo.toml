@@ -5,4 +5,4 @@ license = "MIT OR Apache-2.0"
 edition = "2024"
 
 [dependencies]
-nightshade = { path = "../../../nightshade/crates/nightshade", default-features = false, features = ["terminal"] }
+nightshade = { workspace = true, features = ["terminal"] }

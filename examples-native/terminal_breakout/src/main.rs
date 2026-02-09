@@ -911,6 +911,6 @@ impl State for GameOverState {
     }
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(Box::new(TitleScreenState { start_game: false }))
 }

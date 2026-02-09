@@ -14,14 +14,24 @@ Example applications built with the [Nightshade](https://github.com/matthewjberg
 ## Quickstart
 
 ```bash
-# native
+# run a specific example
 just run alpha_blending
 
-# wasm (webgpu)
-just run-wasm alpha_blending
+# interactive pickers
+just pick            # pick from examples/
+just pick-wasm       # pick from examples/, serve in browser
+just pick-native     # pick from examples-native/
+just pick-terminal   # pick from examples-terminal/, run in terminal
+just pick-tui        # pick from examples-terminal/, run in a window
+just pick-wasm-tui   # pick from examples-terminal/, serve in browser
 
-# vr (openxr)
-just run-openxr prefabs
+# run by name
+just run alpha_blending              # windowed example
+just run bouncing_balls              # terminal game (in terminal)
+just run-tui bouncing_balls          # terminal game (in a window)
+just run-wasm alpha_blending         # windowed example (in browser)
+just run-wasm-tui bouncing_balls     # terminal game (in browser)
+just run-openxr prefabs              # VR (OpenXR)
 ```
 
 > Run `just` with no arguments to list all commands
@@ -37,32 +47,75 @@ Install WASM tooling:
 just init-wasm
 ```
 
+## Project Structure
+
+Examples are organized into three directories:
+
+| Directory | Description | Run with |
+|-----------|-------------|----------|
+| `examples/` | Windowed examples using the full rendering engine. Run natively, in browser (WASM), or in VR (OpenXR). | `just run <name>` |
+| `examples-native/` | Native-only examples that cannot be compiled to WASM (Steam SDK, raw terminal, etc). | `just run <name>` |
+| `examples-terminal/` | Terminal UI games built with the TUI framework. Run directly in a terminal, in a window via SDF text rendering, or in a browser. | `just run <name>`, `just run-tui <name>`, `just run-wasm-tui <name>` |
+
 ## Examples
+
+### Windowed (`examples/`)
 
 | Category | Examples |
 |----------|----------|
 | Rendering | `alpha_blending`, `bloom`, `custom_multipass`, `custom_pass`, `decals`, `depth_of_field`, `hiz`, `lights`, `psx`, `render_layers`, `shadows`, `skybox`, `spotlight_shadows`, `sprites`, `ssao`, `textures`, `water` |
 | Games | `block_breaker`, `block_breaker_scripts`, `chess`, `doom`, `farming`, `hex_war`, `jigsaw`, `platformer`, `pong`, `roguelike`, `space_shooter`, `survivors`, `tower_defense` |
-| Bullet Hell | `space_shooter` — Touhou-inspired wave-based bullet hell with data-driven pattern emitters, graze mechanics, bombs, power levels, boss phase transitions, and procedural wave generation |
-| Terminal | `tui_breakout`, `tui_frogger`, `tui_roguelike`, `text_adventure`, `shell`, `speedreader` |
+| TUI (windowed) | `tui_breakout`, `tui_frogger`, `tui_roguelike`, `text_adventure`, `shell`, `speedreader` |
 | 3D Scenes | `asteroid_belt`, `demo_scene`, `horror`, `immersive_sim`, `level`, `maps`, `prefabs`, `winter` |
 | Physics | `physics`, `physics_benchmark`, `navmesh` |
 | UI | `hud_text`, `menu`, `ui`, `sdf_text`, `gizmo`, `picking` |
-| Procedural | `cyberdust`, `fireworks`, `sdf_sculpt`, `terrain`, `voxels`, `lattice` |
+| Procedural | `cyberdust`, `fireworks`, `sdf_sculpt`, `terrain`, `voxels`, `lattice`, `city` |
 | Audio | `audio` |
 | Benchmarks | `bunnymark`, `physics_benchmark` |
 | Advanced | `morph`, `multi_world`, `dance` |
+
+### Native-only (`examples-native/`)
+
+| Example | Description |
+|---------|-------------|
+| `benchmark` | Performance benchmark |
+| `multiplayer_pong` | Multiplayer pong (requires Steam SDK) |
+| `steam` | Steam integration (requires Steam SDK) |
+| `terminal_breakout` | Breakout running directly in the terminal |
+
+### Terminal (`examples-terminal/`)
+
+These are TUI games that run in your terminal, in a window (via `just run-tui`), or in a browser (via `just run-wasm-tui`).
+
+| Category | Examples |
+|----------|----------|
+| Arcade | `asteroids`, `breakout`, `flappy_bird`, `frogger`, `pacman`, `space_invaders`, `bouncing_balls` |
+| Puzzle | `match3`, `minesweeper`, `puzzle_2048`, `solitaire`, `terminal_chess`, `terminal_sokoban`, `wordle` |
+| Action | `bomberman`, `bullet_hell`, `terminal_platformer`, `terminal_doom` |
+| Strategy | `colony`, `deck_builder`, `hex_strategy`, `terminal_tower_defense` |
+| RPG | `terminal_roguelike`, `terminal_text_adventure`, `wasteland` |
+| Simulation | `falling_sand`, `game_of_life`, `lemonade`, `pathfinding_demo` |
+| Classic | `snake`, `tetris`, `terminal_pong`, `typing_game`, `rhythm` |
 
 ## Platform Guides
 
 ### Native (Windows/macOS/Linux)
 
-Build and run natively using cargo:
+Build and run natively:
 
 ```bash
-just run alpha_blending  # run an example
-just run picking         # run another example
+just run alpha_blending  # run a windowed example
+just run bouncing_balls  # run a terminal example
 just build               # release build all examples
+```
+
+### Terminal (TUI in a window)
+
+Run terminal games in a native window with SDF text rendering:
+
+```bash
+just run-tui bouncing_balls
+just run-tui snake
 ```
 
 ### WebAssembly (WASM)
@@ -70,8 +123,10 @@ just build               # release build all examples
 Build for web browsers with WebGPU support:
 
 ```bash
-just run-wasm alpha_blending    # serve in browser
-just build-wasm alpha_blending  # build only
+just run-wasm alpha_blending             # serve windowed example in browser
+just run-wasm-tui bouncing_balls    # serve terminal example in browser
+just build-wasm alpha_blending           # build only
+just build-wasm-tui bouncing_balls  # build only
 ```
 
 > All chromium-based browsers like Brave, Vivaldi, Chrome, etc support WebGPU.

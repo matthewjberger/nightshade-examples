@@ -37,9 +37,112 @@ lint:
     cargo clippy --workspace -- -D warnings
     just lint-wasm
 
-# Runs linter for wasm32 target (excludes native-only examples)
+# Runs linter for wasm32 target (excludes native-only and terminal examples)
+[windows]
 lint-wasm:
-    cargo clippy --workspace --target wasm32-unknown-unknown --exclude multiplayer_pong --exclude steam --exclude benchmark -- -D warnings
+    $excludes = @("multiplayer_pong", "steam", "benchmark", "text_adventure", "terminal_breakout"); Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $excludes += $_.Name }; $flags = ($excludes | ForEach-Object { "--exclude $_" }) -join " "; Invoke-Expression "cargo clippy --workspace --target wasm32-unknown-unknown $flags -- -D warnings"
+
+# Runs linter for wasm32 target (excludes native-only and terminal examples)
+[unix]
+lint-wasm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    excludes="--exclude multiplayer_pong --exclude steam --exclude benchmark --exclude text_adventure --exclude terminal_breakout"
+    for dir in examples-terminal/*/; do
+        name=$(basename "$dir")
+        excludes="$excludes --exclude $name"
+    done
+    cargo clippy --workspace --target wasm32-unknown-unknown $excludes -- -D warnings
+
+# Runs a terminal example in TUI mode (windowed with SDF text)
+run-tui $example:
+    cargo run -r -p {{example}} --no-default-features --features tui
+
+# Build a terminal example for WASM
+build-wasm-tui $example:
+    trunk build --release --config examples-terminal/{{example}}/Trunk.toml
+
+# Serve a terminal example in browser
+run-wasm-tui $example:
+    trunk serve --release --open --config examples-terminal/{{example}}/Trunk.toml
+
+# Interactively pick and run an example
+[windows]
+pick:
+    $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a demo> "); if ($example) { cargo run -r -p $example }
+
+# Interactively pick and run an example
+[unix]
+pick:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    example=$(ls -d examples/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a demo> ")
+    [ -n "$example" ] && cargo run -r -p "$example"
+
+# Interactively pick and serve an example in browser
+[windows]
+pick-wasm:
+    $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a WASM demo> "); if ($example) { trunk serve --release --open --config "examples/$example/Trunk.toml" }
+
+# Interactively pick and serve an example in browser
+[unix]
+pick-wasm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    example=$(ls -d examples/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a WASM demo> ")
+    [ -n "$example" ] && trunk serve --release --open --config "examples/$example/Trunk.toml"
+
+# Interactively pick and run a native-only example
+[windows]
+pick-native:
+    $example = (Get-ChildItem -Directory "examples-native" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a native demo> "); if ($example) { cargo run -r -p $example }
+
+# Interactively pick and run a native-only example
+[unix]
+pick-native:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    example=$(ls -d examples-native/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a native demo> ")
+    [ -n "$example" ] && cargo run -r -p "$example"
+
+# Interactively pick and run a terminal example (in terminal)
+[windows]
+pick-terminal:
+    $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a terminal demo> "); if ($example) { cargo run -r -p $example }
+
+# Interactively pick and run a terminal example (in terminal)
+[unix]
+pick-terminal:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    example=$(ls -d examples-terminal/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a terminal demo> ")
+    [ -n "$example" ] && cargo run -r -p "$example"
+
+# Interactively pick and run a terminal example in TUI mode (windowed)
+[windows]
+pick-tui:
+    $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a TUI demo> "); if ($example) { cargo run -r -p $example --no-default-features --features tui }
+
+# Interactively pick and run a terminal example in TUI mode (windowed)
+[unix]
+pick-tui:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    example=$(ls -d examples-terminal/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a TUI demo> ")
+    [ -n "$example" ] && cargo run -r -p "$example" --no-default-features --features tui
+
+# Interactively pick and serve a terminal example in browser
+[windows]
+pick-wasm-tui:
+    $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a WASM TUI demo> "); if ($example) { trunk serve --release --open --config "examples-terminal/$example/Trunk.toml" }
+
+# Interactively pick and serve a terminal example in browser
+[unix]
+pick-wasm-tui:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    example=$(ls -d examples-terminal/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a WASM TUI demo> ")
+    [ -n "$example" ] && trunk serve --release --open --config "examples-terminal/$example/Trunk.toml"
 
 # Runs the specified example
 run $example="alpha_blending":
@@ -60,7 +163,7 @@ run-wasm $example="alpha_blending":
 # Build all examples for WASM (Windows)
 [windows]
 build-all-wasm:
-    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
+    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Get-ChildItem -Path "examples-terminal/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example (terminal) for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
 
 # Build all examples for WASM (Unix)
 [unix]
@@ -69,7 +172,8 @@ build-all-wasm:
     set -euo pipefail
     prefix="${PUBLIC_URL_PREFIX:-}"
     root="$(pwd)"
-    for trunk_file in examples/*/Trunk.toml; do
+    for trunk_file in examples/*/Trunk.toml examples-terminal/*/Trunk.toml; do
+        [ -f "$trunk_file" ] || continue
         example=$(basename "$(dirname "$trunk_file")")
         echo "Building $example for WASM..."
         if [ -n "$prefix" ]; then

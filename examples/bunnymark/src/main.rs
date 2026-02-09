@@ -294,22 +294,20 @@ pub struct EntityHandle(pub Entity);
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BunnyPhysics {
     pub velocity: Vec2,
+    pub rotation_angle: f32,
 }
 
 fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) -> freecs::Entity {
     let mut rng = rand::rng();
 
-    let engine_entity = world.spawn_entities(SPRITE | VISIBILITY, 1)[0];
+    let engine_entity = world.spawn_entities(SPRITE | VISIBILITY | LOCAL_TRANSFORM, 1)[0];
 
     if let Some(sprite) = world.get_sprite_mut(engine_entity) {
-        sprite.position = position;
         sprite.size = Vec2::new(BUNNY_SIZE, BUNNY_SIZE);
-
         sprite.texture_index = 0;
 
         let texture_count = bunny_world.resources.texture_count.max(2);
         sprite.texture_index2 = rng.random_range(1..texture_count);
-
         sprite.blend_factor = rng.random::<f32>() * 0.7;
 
         sprite.color = [
@@ -319,10 +317,6 @@ fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) 
             1.0,
         ];
 
-        sprite.rotation = rng.random::<f32>() * std::f32::consts::TAU;
-        let scale = 0.5 + rng.random::<f32>() * 1.0;
-        sprite.scale = Vec2::new(scale, scale);
-
         let texture_size = 64.0;
         let atlas_slot_size = nightshade::render::SPRITE_ATLAS_SLOT_SIZE;
         sprite.uv_min = Vec2::new(0.0, 0.0);
@@ -331,6 +325,16 @@ fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) 
             texture_size / atlas_slot_size.1 as f32,
         );
     }
+
+    let rotation_angle = rng.random::<f32>() * std::f32::consts::TAU;
+    let scale = 0.5 + rng.random::<f32>() * 1.0;
+
+    if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+        transform.translation = Vec3::new(position.x, position.y, 0.0);
+        transform.rotation = nalgebra_glm::quat_angle_axis(rotation_angle, &Vec3::z());
+        transform.scale = Vec3::new(scale, scale, 1.0);
+    }
+    mark_local_transform_dirty(world, engine_entity);
 
     bunny_world.resources.bunny_counter += 1;
 
@@ -342,7 +346,13 @@ fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) 
     let game_entity = bunny_world.spawn_entities(ENTITY_HANDLE | BUNNY_PHYSICS, 1)[0];
 
     bunny_world.set_entity_handle(game_entity, EntityHandle(engine_entity));
-    bunny_world.set_bunny_physics(game_entity, BunnyPhysics { velocity });
+    bunny_world.set_bunny_physics(
+        game_entity,
+        BunnyPhysics {
+            velocity,
+            rotation_angle,
+        },
+    );
 
     game_entity
 }
@@ -371,29 +381,31 @@ fn update_bunnies_system(world: &mut World, bunny_world: &mut BunnyWorld) {
         let handle = bunny_world.get_entity_handle(entity).copied();
 
         if let (Some(physics), Some(handle)) = (bunny_world.get_bunny_physics_mut(entity), handle)
-            && let Some(sprite) = world.get_sprite_mut(handle.0)
+            && let Some(transform) = world.get_local_transform_mut(handle.0)
         {
             physics.velocity.y += GRAVITY * delta_time;
 
-            sprite.position += physics.velocity * delta_time;
-            sprite.rotation += physics.velocity.x * 0.01 * delta_time;
+            transform.translation.x += physics.velocity.x * delta_time;
+            transform.translation.y += physics.velocity.y * delta_time;
+            physics.rotation_angle += physics.velocity.x * 0.01 * delta_time;
+            transform.rotation = nalgebra_glm::quat_angle_axis(physics.rotation_angle, &Vec3::z());
 
-            if sprite.position.x + BUNNY_SIZE > max_x {
-                sprite.position.x = max_x - BUNNY_SIZE;
+            if transform.translation.x + BUNNY_SIZE > max_x {
+                transform.translation.x = max_x - BUNNY_SIZE;
                 physics.velocity.x *= -0.85;
                 if rng.random::<f32>() > 0.5 {
                     physics.velocity.y = rng.random_range(-300.0..0.0);
                 }
-            } else if sprite.position.x < MIN_X {
-                sprite.position.x = MIN_X;
+            } else if transform.translation.x < MIN_X {
+                transform.translation.x = MIN_X;
                 physics.velocity.x *= -0.85;
                 if rng.random::<f32>() > 0.5 {
                     physics.velocity.y = rng.random_range(-300.0..0.0);
                 }
             }
 
-            if sprite.position.y + BUNNY_SIZE > max_y {
-                sprite.position.y = max_y - BUNNY_SIZE;
+            if transform.translation.y + BUNNY_SIZE > max_y {
+                transform.translation.y = max_y - BUNNY_SIZE;
                 physics.velocity.y *= -0.85;
 
                 if rng.random::<f32>() > 0.5 {
@@ -403,10 +415,12 @@ fn update_bunnies_system(world: &mut World, bunny_world: &mut BunnyWorld) {
                 if physics.velocity.y.abs() < 100.0 && rng.random::<f32>() > 0.8 {
                     physics.velocity.x = rng.random_range(-100.0..100.0);
                 }
-            } else if sprite.position.y < MIN_Y {
-                sprite.position.y = MIN_Y;
+            } else if transform.translation.y < MIN_Y {
+                transform.translation.y = MIN_Y;
                 physics.velocity.y = 0.0;
             }
+
+            mark_local_transform_dirty(world, handle.0);
         }
     }
 }

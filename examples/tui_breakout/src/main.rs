@@ -543,11 +543,11 @@ impl GameplayState {
     }
 
     fn update_attached_ball(&mut self, world: &mut World) {
-        if self.ball_attached {
-            if let Some(position) = world.get_position_mut(self.ball_entity) {
-                position.column = (self.play_offset_x + self.paddle_center) as f64;
-                position.row = (self.play_offset_y + PADDLE_ROW - 1) as f64;
-            }
+        if self.ball_attached
+            && let Some(position) = world.get_position_mut(self.ball_entity)
+        {
+            position.column = (self.play_offset_x + self.paddle_center) as f64;
+            position.row = (self.play_offset_y + PADDLE_ROW - 1) as f64;
         }
     }
 

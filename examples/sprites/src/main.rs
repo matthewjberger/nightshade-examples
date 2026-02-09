@@ -230,18 +230,18 @@ impl State for SpriteDemo {
                 ui.separator();
 
                 if let Some(camera_entity) = self.resources.camera_entity {
-                    if let Some(camera) = world.get_camera(camera_entity) {
-                        if let Projection::Orthographic(ortho) = &camera.projection {
-                            let viewport_width = world
-                                .resources
-                                .window
-                                .handle
-                                .as_ref()
-                                .map(|handle| handle.inner_size().width as f32)
-                                .unwrap_or(1920.0);
-                            let zoom = viewport_width / (2.0 * ortho.x_mag);
-                            ui.label(format!("Zoom: {:.2}x", zoom));
-                        }
+                    if let Some(camera) = world.get_camera(camera_entity)
+                        && let Projection::Orthographic(ortho) = &camera.projection
+                    {
+                        let viewport_width = world
+                            .resources
+                            .window
+                            .handle
+                            .as_ref()
+                            .map(|handle| handle.inner_size().width as f32)
+                            .unwrap_or(1920.0);
+                        let zoom = viewport_width / (2.0 * ortho.x_mag);
+                        ui.label(format!("Zoom: {:.2}x", zoom));
                     }
                     if let Some(transform) = world.get_local_transform(camera_entity) {
                         let right = transform.right_vector();
@@ -265,11 +265,11 @@ impl State for SpriteDemo {
                         transform.translation.x = 0.0;
                         transform.translation.y = 0.0;
                     }
-                    if let Some(camera) = world.get_camera_mut(camera_entity) {
-                        if let Projection::Orthographic(ref mut ortho) = camera.projection {
-                            ortho.x_mag = 960.0;
-                            ortho.y_mag = 540.0;
-                        }
+                    if let Some(camera) = world.get_camera_mut(camera_entity)
+                        && let Projection::Orthographic(ref mut ortho) = camera.projection
+                    {
+                        ortho.x_mag = 960.0;
+                        ortho.y_mag = 540.0;
                     }
                     mark_local_transform_dirty(world, camera_entity);
                 }

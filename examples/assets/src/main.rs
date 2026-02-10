@@ -1,4 +1,7 @@
 use image::GenericImageView;
+use nightshade::ecs::camera::commands::spawn_pan_orbit_camera;
+use nightshade::ecs::camera::systems::pan_orbit_camera_system;
+use nightshade::ecs::prefab::mesh_cache_insert;
 use nightshade::prelude::*;
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -15,14 +18,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
+enum ViewMode {
+    #[default]
+    Browse,
+    Model3d,
+    Skybox,
+}
+
 struct AssetViewer {
     sources: Vec<scanner::AssetSource>,
     selected_source: usize,
     selected_category: Option<usize>,
     selected_pack: Option<usize>,
-    pack_images: Vec<scanner::ImageFile>,
-    selected_image: Option<usize>,
+    pack_assets: Vec<scanner::AssetFile>,
+    selected_asset: Option<usize>,
     thumbnail_cache: HashMap<PathBuf, egui::TextureHandle>,
     stale_textures: Vec<egui::TextureHandle>,
     preview_texture: Option<(egui::TextureHandle, u32, u32)>,
@@ -30,7 +40,40 @@ struct AssetViewer {
     total_to_load: usize,
     pack_filter: String,
     thumbnail_size: f32,
-    camera_entity: Option<Entity>,
+    ortho_camera_entity: Option<Entity>,
+    view_mode: ViewMode,
+    orbit_camera_entity: Option<Entity>,
+    sun_entity: Option<Entity>,
+    model_entity: Option<Entity>,
+    active_model_path: Option<PathBuf>,
+    scene_initialized: bool,
+}
+
+impl Default for AssetViewer {
+    fn default() -> Self {
+        Self {
+            sources: Vec::new(),
+            selected_source: 0,
+            selected_category: None,
+            selected_pack: None,
+            pack_assets: Vec::new(),
+            selected_asset: None,
+            thumbnail_cache: HashMap::new(),
+            stale_textures: Vec::new(),
+            preview_texture: None,
+            load_queue: VecDeque::new(),
+            total_to_load: 0,
+            pack_filter: String::new(),
+            thumbnail_size: 96.0,
+            ortho_camera_entity: None,
+            view_mode: ViewMode::Browse,
+            orbit_camera_entity: None,
+            sun_entity: None,
+            model_entity: None,
+            active_model_path: None,
+            scene_initialized: false,
+        }
+    }
 }
 
 impl AssetViewer {
@@ -41,7 +84,7 @@ impl AssetViewer {
         }
         self.selected_category = Some(category_index);
         self.selected_pack = Some(pack_index);
-        self.selected_image = None;
+        self.selected_asset = None;
         self.preview_texture = None;
         self.stale_textures
             .extend(self.thumbnail_cache.drain().map(|(_, handle)| handle));
@@ -49,23 +92,148 @@ impl AssetViewer {
 
         let source = &self.sources[self.selected_source];
         let pack = &source.categories[category_index].packs[pack_index];
-        self.pack_images = scanner::scan_pack_images(&pack.path);
+        self.pack_assets = scanner::scan_pack_assets(&pack.path);
 
-        self.total_to_load = self.pack_images.len();
-        for index in 0..self.pack_images.len() {
+        self.total_to_load = self.pack_assets.len();
+        for index in 0..self.pack_assets.len() {
             self.load_queue.push_back(index);
         }
     }
 
-    fn select_image(&mut self, index: usize, ctx: &egui::Context) {
-        self.selected_image = Some(index);
-        let Some(image_file) = self.pack_images.get(index) else {
+    fn select_asset(&mut self, index: usize, ctx: &egui::Context, world: &mut World) {
+        self.selected_asset = Some(index);
+        let Some(asset_file) = self.pack_assets.get(index) else {
             return;
         };
 
-        if let Some((handle, width, height)) = load_full_image(ctx, &image_file.path) {
-            self.preview_texture = Some((handle, width, height));
+        let kind = asset_file.kind;
+        let path = asset_file.path.clone();
+
+        match kind {
+            scanner::AssetFileKind::Image => {
+                if self.view_mode != ViewMode::Browse {
+                    self.enter_browse_mode(world);
+                }
+                if let Some((handle, width, height)) = load_full_image(ctx, &path) {
+                    self.preview_texture = Some((handle, width, height));
+                }
+            }
+            scanner::AssetFileKind::Model => {
+                self.preview_texture = None;
+                self.load_model(world, &path);
+            }
+            scanner::AssetFileKind::Hdr => {
+                if let Some((handle, width, height)) = load_full_image(ctx, &path) {
+                    self.preview_texture = Some((handle, width, height));
+                }
+                self.load_skybox(world, &path);
+            }
         }
+    }
+
+    fn ensure_3d_scene(&mut self, world: &mut World) {
+        if !self.scene_initialized {
+            let orbit_camera = spawn_pan_orbit_camera(
+                world,
+                Vec3::new(0.0, 1.0, 0.0),
+                5.0,
+                0.0,
+                0.3,
+                "Orbit Camera".to_string(),
+            );
+            self.orbit_camera_entity = Some(orbit_camera);
+
+            let sun = spawn_sun(world);
+            self.sun_entity = Some(sun);
+
+            self.scene_initialized = true;
+        }
+
+        if let Some(orbit_camera) = self.orbit_camera_entity {
+            world.resources.active_camera = Some(orbit_camera);
+        }
+
+        world.resources.graphics.atmosphere = Atmosphere::Hdr;
+        world.resources.graphics.show_grid = true;
+    }
+
+    fn enter_browse_mode(&mut self, world: &mut World) {
+        if let Some(model) = self.model_entity.take() {
+            despawn_recursive_immediate(world, model);
+        }
+        self.active_model_path = None;
+
+        if let Some(ortho_camera) = self.ortho_camera_entity {
+            world.resources.active_camera = Some(ortho_camera);
+        }
+
+        world.resources.graphics.atmosphere = Atmosphere::None;
+        world.resources.graphics.show_grid = false;
+        self.view_mode = ViewMode::Browse;
+    }
+
+    fn load_model(&mut self, world: &mut World, path: &Path) {
+        if self.active_model_path.as_deref() == Some(path) {
+            return;
+        }
+
+        if let Some(model) = self.model_entity.take() {
+            despawn_recursive_immediate(world, model);
+        }
+
+        self.ensure_3d_scene(world);
+
+        if let Ok(result) = nightshade::ecs::prefab::import_gltf_from_path(path) {
+            for (name, (rgba_data, width, height)) in result.textures {
+                world.queue_command(WorldCommand::LoadTexture {
+                    name,
+                    rgba_data,
+                    width,
+                    height,
+                });
+            }
+
+            for (name, mesh) in result.meshes {
+                mesh_cache_insert(&mut world.resources.mesh_cache, name, mesh);
+            }
+
+            if let Some(prefab) = result.prefabs.first() {
+                let entity = if !result.skins.is_empty() {
+                    nightshade::ecs::prefab::spawn_prefab_with_skins(
+                        world,
+                        prefab,
+                        &result.animations,
+                        &result.skins,
+                        Vec3::zeros(),
+                    )
+                } else {
+                    nightshade::ecs::prefab::spawn_prefab(world, prefab, Vec3::zeros())
+                };
+
+                if let Some(player) = world.get_animation_player_mut(entity)
+                    && !player.clips.is_empty()
+                {
+                    player.play(0);
+                    player.looping = true;
+                }
+
+                self.model_entity = Some(entity);
+            }
+
+            self.active_model_path = Some(path.to_path_buf());
+            self.view_mode = ViewMode::Model3d;
+        }
+    }
+
+    fn load_skybox(&mut self, world: &mut World, path: &Path) {
+        if let Some(model) = self.model_entity.take() {
+            despawn_recursive_immediate(world, model);
+        }
+        self.active_model_path = None;
+
+        self.ensure_3d_scene(world);
+        load_hdr_skybox_from_path(world, path.to_path_buf());
+        self.view_mode = ViewMode::Skybox;
     }
 
     fn process_thumbnail_queue(&mut self, ctx: &egui::Context) {
@@ -76,14 +244,17 @@ impl AssetViewer {
             let Some(index) = self.load_queue.pop_front() else {
                 break;
             };
-            let Some(image_file) = self.pack_images.get(index) else {
+            let Some(asset_file) = self.pack_assets.get(index) else {
                 continue;
             };
-            if self.thumbnail_cache.contains_key(&image_file.path) {
+            if asset_file.kind == scanner::AssetFileKind::Model {
                 continue;
             }
-            if let Some(handle) = load_thumbnail(ctx, &image_file.path) {
-                self.thumbnail_cache.insert(image_file.path.clone(), handle);
+            if self.thumbnail_cache.contains_key(&asset_file.path) {
+                continue;
+            }
+            if let Some(handle) = load_thumbnail(ctx, &asset_file.path) {
+                self.thumbnail_cache.insert(asset_file.path.clone(), handle);
             }
         }
 
@@ -95,8 +266,8 @@ impl AssetViewer {
     fn clear_selection(&mut self) {
         self.selected_category = None;
         self.selected_pack = None;
-        self.selected_image = None;
-        self.pack_images.clear();
+        self.selected_asset = None;
+        self.pack_assets.clear();
         self.stale_textures
             .extend(self.thumbnail_cache.drain().map(|(_, handle)| handle));
         self.preview_texture = None;
@@ -189,10 +360,9 @@ impl State for AssetViewer {
         world.resources.graphics.atmosphere = Atmosphere::None;
         world.resources.graphics.clear_color = [0.1, 0.1, 0.12, 1.0];
         world.resources.user_interface.enabled = true;
-        self.thumbnail_size = 96.0;
 
         let camera = spawn_ortho_camera(world, Vec2::new(0.0, 0.0));
-        self.camera_entity = Some(camera);
+        self.ortho_camera_entity = Some(camera);
 
         if let Some(source) = scanner::scan_kenney(DEFAULT_KENNEY_ROOT) {
             self.sources.push(source);
@@ -203,10 +373,29 @@ impl State for AssetViewer {
     }
 
     fn run_systems(&mut self, world: &mut World) {
-        escape_key_exit_system(world);
+        match self.view_mode {
+            ViewMode::Browse => {
+                escape_key_exit_system(world);
+            }
+            ViewMode::Model3d | ViewMode::Skybox => {
+                pan_orbit_camera_system(world);
+
+                let escape_pressed = world
+                    .resources
+                    .input
+                    .keyboard
+                    .frame_keys
+                    .iter()
+                    .any(|(key, pressed)| *key == KeyCode::Escape && *pressed);
+
+                if escape_pressed {
+                    self.enter_browse_mode(world);
+                }
+            }
+        }
     }
 
-    fn ui(&mut self, _world: &mut World, ctx: &egui::Context) {
+    fn ui(&mut self, world: &mut World, ctx: &egui::Context) {
         self.process_thumbnail_queue(ctx);
 
         let mut source_changed = false;
@@ -216,7 +405,7 @@ impl State for AssetViewer {
                 ui.heading("Asset Browser");
                 ui.separator();
                 for (index, source) in self.sources.iter().enumerate() {
-                    let label = format!("{} ({})", source.name, source.categories.iter().map(|c| c.packs.len()).sum::<usize>());
+                    let label = format!("{} ({})", source.name, source.categories.iter().map(|category| category.packs.len()).sum::<usize>());
                     if ui
                         .selectable_label(self.selected_source == index, label)
                         .clicked()
@@ -305,8 +494,24 @@ impl State for AssetViewer {
 
         if let Some((cat, pack)) = pack_action {
             self.select_pack(cat, pack);
+            if self.view_mode != ViewMode::Browse {
+                self.enter_browse_mode(world);
+            }
         }
 
+        match self.view_mode {
+            ViewMode::Browse => {
+                self.draw_browse_ui(world, ctx);
+            }
+            ViewMode::Model3d | ViewMode::Skybox => {
+                self.draw_3d_overlay_ui(ctx);
+            }
+        }
+    }
+}
+
+impl AssetViewer {
+    fn draw_browse_ui(&mut self, world: &mut World, ctx: &egui::Context) {
         if self.preview_texture.is_some() {
             egui::SidePanel::right("preview")
                 .default_width(350.0)
@@ -315,14 +520,14 @@ impl State for AssetViewer {
                     ui.heading("Preview");
                     ui.separator();
 
-                    if let Some(index) = self.selected_image
-                        && let Some(image_file) = self.pack_images.get(index)
+                    if let Some(index) = self.selected_asset
+                        && let Some(asset_file) = self.pack_assets.get(index)
                     {
-                        ui.label(egui::RichText::new(&image_file.filename).strong());
+                        ui.label(egui::RichText::new(&asset_file.filename).strong());
                         if let Some((_, width, height)) = &self.preview_texture {
                             ui.label(format!("Dimensions: {} x {}", width, height));
                         }
-                        if let Ok(metadata) = std::fs::metadata(&image_file.path) {
+                        if let Ok(metadata) = std::fs::metadata(&asset_file.path) {
                             let size_kb = metadata.len() as f64 / 1024.0;
                             if size_kb > 1024.0 {
                                 ui.label(format!("Size: {:.1} MB", size_kb / 1024.0));
@@ -349,7 +554,7 @@ impl State for AssetViewer {
                 });
         }
 
-        let mut image_action: Option<usize> = None;
+        let mut asset_action: Option<usize> = None;
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -361,7 +566,7 @@ impl State for AssetViewer {
                     let pack = &source.categories[cat_idx].packs[pack_idx];
                     ui.heading(&pack.name);
                     ui.separator();
-                    ui.label(format!("{} images", self.pack_images.len()));
+                    ui.label(format!("{} assets", self.pack_assets.len()));
                 } else {
                     ui.heading("Select a pack to browse");
                 }
@@ -393,37 +598,60 @@ impl State for AssetViewer {
                 ui.add_space(4.0);
             }
 
-            if self.pack_images.is_empty() {
+            if self.pack_assets.is_empty() {
                 if self.selected_pack.is_some() {
                     ui.centered_and_justified(|ui| {
-                        ui.label("No images found in this pack");
+                        ui.label("No assets found in this pack");
                     });
                 }
             } else {
                 draw_thumbnail_grid(
                     ui,
-                    &self.pack_images,
+                    &self.pack_assets,
                     &self.thumbnail_cache,
-                    self.selected_image,
+                    self.selected_asset,
                     self.thumbnail_size,
-                    &mut image_action,
+                    &mut asset_action,
                 );
             }
         });
 
-        if let Some(index) = image_action {
-            self.select_image(index, ctx);
+        if let Some(index) = asset_action {
+            self.select_asset(index, ctx, world);
         }
+    }
+
+    fn draw_3d_overlay_ui(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if let Some(index) = self.selected_asset
+                        && let Some(asset_file) = self.pack_assets.get(index)
+                    {
+                        ui.label(
+                            egui::RichText::new(&asset_file.filename)
+                                .strong()
+                                .color(egui::Color32::WHITE)
+                                .size(16.0),
+                        );
+                    }
+
+                    if ui.button("Back (Esc)").clicked() {
+                        self.view_mode = ViewMode::Browse;
+                    }
+                });
+            });
     }
 }
 
 fn draw_thumbnail_grid(
     ui: &mut egui::Ui,
-    pack_images: &[scanner::ImageFile],
+    pack_assets: &[scanner::AssetFile],
     thumbnail_cache: &HashMap<PathBuf, egui::TextureHandle>,
-    selected_image: Option<usize>,
+    selected_asset: Option<usize>,
     thumbnail_size: f32,
-    image_action: &mut Option<usize>,
+    asset_action: &mut Option<usize>,
 ) {
     let spacing = 8.0;
     let cell_width = thumbnail_size;
@@ -436,7 +664,7 @@ fn draw_thumbnail_grid(
             let columns = ((available_width + spacing) / (cell_width + spacing))
                 .floor()
                 .max(1.0) as usize;
-            let rows = pack_images.len().div_ceil(columns);
+            let rows = pack_assets.len().div_ceil(columns);
 
             for row in 0..rows {
                 ui.horizontal(|ui| {
@@ -444,12 +672,12 @@ fn draw_thumbnail_grid(
 
                     for col in 0..columns {
                         let index = row * columns + col;
-                        if index >= pack_images.len() {
+                        if index >= pack_assets.len() {
                             break;
                         }
 
-                        let image_file = &pack_images[index];
-                        let is_selected = selected_image == Some(index);
+                        let asset_file = &pack_assets[index];
+                        let is_selected = selected_asset == Some(index);
 
                         let (rect, response) = ui.allocate_exact_size(
                             egui::vec2(cell_width, cell_height),
@@ -470,7 +698,15 @@ fn draw_thumbnail_grid(
                         };
                         ui.painter().rect_filled(thumb_rect, 4.0, bg_color);
 
-                        if let Some(handle) = thumbnail_cache.get(&image_file.path) {
+                        if asset_file.kind == scanner::AssetFileKind::Model {
+                            ui.painter().text(
+                                thumb_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "[3D]",
+                                egui::FontId::proportional(16.0),
+                                egui::Color32::from_rgb(150, 200, 255),
+                            );
+                        } else if let Some(handle) = thumbnail_cache.get(&asset_file.path) {
                             let [tw, th] = handle.size();
                             let scale = (thumbnail_size / tw as f32)
                                 .min(thumbnail_size / th as f32)
@@ -503,13 +739,13 @@ fn draw_thumbnail_grid(
 
                         let label_center = egui::pos2(rect.center().x, thumb_rect.max.y + 9.0);
                         let max_chars = (thumbnail_size / 7.0) as usize;
-                        let display_name = if image_file.filename.len() > max_chars {
+                        let display_name = if asset_file.filename.len() > max_chars {
                             format!(
                                 "{}...",
-                                &image_file.filename[..max_chars.saturating_sub(3)]
+                                &asset_file.filename[..max_chars.saturating_sub(3)]
                             )
                         } else {
-                            image_file.filename.clone()
+                            asset_file.filename.clone()
                         };
                         ui.painter().text(
                             label_center,
@@ -524,7 +760,7 @@ fn draw_thumbnail_grid(
                         );
 
                         if response.clicked() {
-                            *image_action = Some(index);
+                            *asset_action = Some(index);
                         }
                     }
                 });

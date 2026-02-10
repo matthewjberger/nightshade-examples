@@ -111,6 +111,7 @@ pub struct ChunkManager {
     fading_entities: Vec<FadeEntry>,
     fading_out_entities: Vec<FadeOutEntry>,
     pregen_budget: usize,
+    pending_pregen: bool,
     scratch_completed_fade_indices: Vec<usize>,
     scratch_completed_fade_out_indices: Vec<usize>,
     scratch_to_cancel: Vec<((i32, i32), LayerKind)>,
@@ -145,6 +146,7 @@ impl ChunkManager {
             fading_entities: Vec::new(),
             fading_out_entities: Vec::new(),
             pregen_budget: MAX_PREGEN_PER_FRAME,
+            pending_pregen: false,
             scratch_completed_fade_indices: Vec::new(),
             scratch_completed_fade_out_indices: Vec::new(),
             scratch_to_cancel: Vec::new(),
@@ -242,10 +244,16 @@ impl ChunkManager {
     fn schedule_fade_out(&mut self, entities: Vec<Entity>) {
         for entity in entities {
             self.fading_entities.retain(|fade| fade.entity != entity);
-            self.fading_out_entities.push(FadeOutEntry {
-                entity,
-                elapsed: 0.0,
-            });
+            if !self
+                .fading_out_entities
+                .iter()
+                .any(|fade| fade.entity == entity)
+            {
+                self.fading_out_entities.push(FadeOutEntry {
+                    entity,
+                    elapsed: 0.0,
+                });
+            }
         }
     }
 
@@ -265,10 +273,12 @@ impl ChunkManager {
             && self.despawning.is_empty()
             && self.fading_entities.is_empty()
             && self.fading_out_entities.is_empty()
+            && !self.pending_pregen
         {
             return;
         }
 
+        self.pending_pregen = false;
         self.pregen_budget = MAX_PREGEN_PER_FRAME;
 
         let delta_time = world.resources.window.timing.delta_time;
@@ -285,31 +295,19 @@ impl ChunkManager {
         self.scratch_to_cancel.clear();
         for &(coords, kind) in self.loading.keys() {
             let distance = chebyshev_distance(coords, camera_chunk);
-            let bias = facing_bias(camera_chunk, coords, &camera_forward_normalized);
-            match kind {
-                LayerKind::Base => {
-                    if !desired_base(distance, false, bias) {
-                        self.scratch_to_cancel.push((coords, kind));
-                    }
+            let should_cancel = match kind {
+                LayerKind::Base => !desired_base(distance, true, 0),
+                LayerKind::Buildings => {
+                    let (want, _) = desired_layers(distance, true, true, 0);
+                    !want
                 }
-                _ => {
-                    let chunk = &self.chunks[&coords];
-                    let (want_buildings, want_detail) = desired_layers(
-                        distance,
-                        !chunk.building_entities.is_empty(),
-                        !chunk.detail_entities.is_empty(),
-                        bias,
-                    );
-                    match kind {
-                        LayerKind::Buildings if !want_buildings => {
-                            self.scratch_to_cancel.push((coords, kind));
-                        }
-                        LayerKind::Detail if !want_detail => {
-                            self.scratch_to_cancel.push((coords, kind));
-                        }
-                        _ => {}
-                    }
+                LayerKind::Detail => {
+                    let (_, want) = desired_layers(distance, true, true, 0);
+                    !want
                 }
+            };
+            if should_cancel {
+                self.scratch_to_cancel.push((coords, kind));
             }
         }
         for index in 0..self.scratch_to_cancel.len() {
@@ -519,24 +517,27 @@ impl ChunkManager {
                     && !has_base
                     && !self.chunks.contains_key(&coords)
                     && !self.loading.contains_key(&(coords, LayerKind::Base))
-                    && self.ensure_pregen(coords)
                 {
-                    self.chunks.insert(
-                        coords,
-                        ChunkState {
-                            base_entities: Vec::new(),
-                            proxy_entities: Vec::new(),
-                            building_entities: Vec::new(),
-                            detail_entities: Vec::new(),
-                        },
-                    );
-                    self.loading.insert(
-                        (coords, LayerKind::Base),
-                        LoadingCursor {
-                            cursor: 0,
-                            entities: Vec::new(),
-                        },
-                    );
+                    if self.ensure_pregen(coords) {
+                        self.chunks.insert(
+                            coords,
+                            ChunkState {
+                                base_entities: Vec::new(),
+                                proxy_entities: Vec::new(),
+                                building_entities: Vec::new(),
+                                detail_entities: Vec::new(),
+                            },
+                        );
+                        self.loading.insert(
+                            (coords, LayerKind::Base),
+                            LoadingCursor {
+                                cursor: 0,
+                                entities: Vec::new(),
+                            },
+                        );
+                    } else {
+                        self.pending_pregen = true;
+                    }
                 }
 
                 if !has_base {
@@ -644,11 +645,10 @@ impl ChunkManager {
 }
 
 fn desired_base(distance: i32, has_base: bool, bias: i32) -> bool {
-    let radius = BASE_RADIUS + bias;
     if has_base {
-        distance <= radius + 2
+        distance <= BASE_RADIUS + FRUSTUM_BIAS_AHEAD + 2
     } else {
-        distance <= radius
+        distance <= BASE_RADIUS + bias
     }
 }
 
@@ -658,19 +658,16 @@ fn desired_layers(
     has_detail: bool,
     bias: i32,
 ) -> (bool, bool) {
-    let building_radius = LOD1_RADIUS + bias;
-    let detail_radius = LOD0_RADIUS + bias;
-
     let want_buildings = if has_buildings {
-        distance <= building_radius + 2
+        distance <= LOD1_RADIUS + FRUSTUM_BIAS_AHEAD + 2
     } else {
-        distance <= building_radius
+        distance <= LOD1_RADIUS + bias
     };
 
     let want_detail = if has_detail {
-        distance <= detail_radius + 2
+        distance <= LOD0_RADIUS + FRUSTUM_BIAS_AHEAD + 2
     } else {
-        distance <= detail_radius
+        distance <= LOD0_RADIUS + bias
     };
 
     (want_buildings, want_detail && want_buildings)

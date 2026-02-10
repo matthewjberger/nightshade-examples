@@ -15,9 +15,17 @@ pub struct Pack {
     pub path: PathBuf,
 }
 
-pub struct ImageFile {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum AssetFileKind {
+    Image,
+    Model,
+    Hdr,
+}
+
+pub struct AssetFile {
     pub path: PathBuf,
     pub filename: String,
+    pub kind: AssetFileKind,
 }
 
 pub fn scan_kenney(root: &str) -> Option<AssetSource> {
@@ -120,46 +128,57 @@ fn read_polyhaven_info(path: &Path) -> Option<(String, u32)> {
     Some((name, asset_type))
 }
 
-pub fn scan_pack_images(pack_path: &Path) -> Vec<ImageFile> {
-    let mut images = Vec::new();
+pub fn scan_pack_assets(pack_path: &Path) -> Vec<AssetFile> {
+    let mut assets = Vec::new();
 
     let png_dir = pack_path.join("PNG");
     if png_dir.exists() {
-        collect_images_recursive(&png_dir, &mut images);
-    } else {
-        collect_images_recursive(pack_path, &mut images);
+        collect_assets_recursive(&png_dir, &mut assets);
     }
 
-    images.sort_by(|a, b| a.filename.cmp(&b.filename));
-    images
+    let glb_dir = pack_path.join("Models").join("GLB format");
+    if glb_dir.exists() {
+        collect_assets_recursive(&glb_dir, &mut assets);
+    }
+
+    if !png_dir.exists() && !glb_dir.exists() {
+        collect_assets_recursive(pack_path, &mut assets);
+    }
+
+    assets.sort_by(|a, b| a.filename.cmp(&b.filename));
+    assets
 }
 
-fn collect_images_recursive(dir: &Path, images: &mut Vec<ImageFile>) {
+fn collect_assets_recursive(dir: &Path, assets: &mut Vec<AssetFile>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
-    let mut entries: Vec<_> = entries.filter_map(|e| e.ok()).collect();
-    entries.sort_by_key(|a| a.file_name());
+    let mut entries: Vec<_> = entries.filter_map(|entry| entry.ok()).collect();
+    entries.sort_by_key(|entry| entry.file_name());
 
     for entry in entries {
         let path = entry.path();
         if path.is_dir() {
-            collect_images_recursive(&path, images);
-        } else if is_image_file(&path) {
+            collect_assets_recursive(&path, assets);
+        } else if let Some(kind) = classify_file(&path) {
             let filename = entry.file_name().to_string_lossy().to_string();
-            images.push(ImageFile { path, filename });
+            assets.push(AssetFile {
+                path,
+                filename,
+                kind,
+            });
         }
     }
 }
 
-fn is_image_file(path: &Path) -> bool {
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| {
-            let lower = ext.to_ascii_lowercase();
-            matches!(lower.as_str(), "png" | "jpg" | "jpeg" | "webp" | "hdr")
-        })
-        .unwrap_or(false)
+fn classify_file(path: &Path) -> Option<AssetFileKind> {
+    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+    match extension.as_str() {
+        "png" | "jpg" | "jpeg" | "webp" => Some(AssetFileKind::Image),
+        "hdr" => Some(AssetFileKind::Hdr),
+        "glb" => Some(AssetFileKind::Model),
+        _ => None,
+    }
 }
 
 fn collect_sorted_dirs(dir: &Path) -> Vec<(String, PathBuf)> {
@@ -167,9 +186,9 @@ fn collect_sorted_dirs(dir: &Path) -> Vec<(String, PathBuf)> {
         return Vec::new();
     };
     let mut dirs: Vec<_> = entries
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().is_dir())
-        .map(|e| (e.file_name().to_string_lossy().to_string(), e.path()))
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| (entry.file_name().to_string_lossy().to_string(), entry.path()))
         .collect();
     dirs.sort_by(|a, b| a.0.cmp(&b.0));
     dirs

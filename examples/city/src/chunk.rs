@@ -372,6 +372,7 @@ impl ChunkManager {
 
             let chunk_allowance = per_chunk_budget.min(spawn_budget);
             let cursor_before = lc.cursor;
+            let mesh_count = data.mesh_count_in_range(cursor_before, chunk_allowance);
             let new_entities = data.instantiate_range(world, cursor_before, chunk_allowance);
             let spawned = new_entities.len();
             for (offset, &entity) in new_entities.iter().enumerate() {
@@ -386,6 +387,12 @@ impl ChunkManager {
                         entity,
                         elapsed: 0.0,
                     });
+                }
+                if offset < mesh_count {
+                    world
+                        .resources
+                        .mesh_render_state
+                        .mark_entity_added(entity);
                 }
             }
             lc.entities.extend(new_entities);

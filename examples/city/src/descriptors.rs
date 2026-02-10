@@ -99,6 +99,13 @@ impl ChunkData {
         self.meshes.len() + self.lights.len() + self.smoke_emitters.len()
     }
 
+    pub fn mesh_count_in_range(&self, start: usize, count: usize) -> usize {
+        let mesh_end = self.meshes.len();
+        let total = mesh_end + self.lights.len() + self.smoke_emitters.len();
+        let range_end = (start + count).min(total);
+        mesh_end.saturating_sub(start).min(range_end.saturating_sub(start))
+    }
+
     pub fn instantiate_range(&self, world: &mut World, start: usize, count: usize) -> Vec<Entity> {
         let mesh_end = self.meshes.len();
         let light_end = mesh_end + self.lights.len();

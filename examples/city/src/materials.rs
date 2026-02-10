@@ -21,7 +21,6 @@ pub fn spawn_city_mesh(world: &mut World, mesh_name: &str, position: Vec3, scale
 
     world.set_render_mesh(entity, RenderMesh::new(mesh_name));
     mark_local_transform_dirty(world, entity);
-    world.resources.mesh_render_state.mark_entity_added(entity);
 
     if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
         *bounding_volume = BoundingVolume::from_mesh_type(mesh_name);

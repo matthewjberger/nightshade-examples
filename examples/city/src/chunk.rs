@@ -13,9 +13,13 @@ use crate::waterfront::{self, EdgeDirection};
 
 const LOD0_RADIUS: i32 = 4;
 const LOD1_RADIUS: i32 = 8;
+const BASE_RADIUS: i32 = LOD1_RADIUS + 2;
+const FRUSTUM_BIAS_AHEAD: i32 = 2;
+const FRUSTUM_BIAS_BEHIND: i32 = -2;
+const MAX_MANAGEMENT_RADIUS: i32 = BASE_RADIUS + FRUSTUM_BIAS_AHEAD + 2;
 
-const MAX_ENTITIES_SPAWN_PER_FRAME: usize = 64;
-const MAX_ENTITIES_DESPAWN_PER_FRAME: usize = 128;
+const COMBINED_BUDGET: usize = 192;
+const MIN_BUDGET_PER_SIDE: usize = 32;
 
 const CITY_HALF: i32 = 8;
 pub const CITY_MIN: i32 = -CITY_HALF;
@@ -27,6 +31,7 @@ const LAMP_GLOBE_RADIUS: f32 = 0.25;
 const SMOKE_PROBABILITY: f32 = 0.40;
 
 const FADE_DURATION: f32 = 0.3;
+const MAX_PREGEN_PER_FRAME: usize = 2;
 
 const SEED_BODY: u64 = 10000;
 const SEED_DETAIL: u64 = 20000;
@@ -57,6 +62,7 @@ const CRANE_COUNTERWEIGHT_SIZE: f32 = 2.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum LayerKind {
+    Base,
     Buildings,
     Detail,
 }
@@ -83,9 +89,14 @@ struct FadeEntry {
     elapsed: f32,
 }
 
+struct FadeOutEntry {
+    entity: Entity,
+    elapsed: f32,
+}
+
 struct PregenChunk {
-    base: ChunkData,
-    proxy: ChunkData,
+    base_proxy: ChunkData,
+    base_count: usize,
     buildings: ChunkData,
     detail: ChunkData,
 }
@@ -98,6 +109,16 @@ pub struct ChunkManager {
     layouts: HashMap<(i32, i32), city::CityChunkLayout>,
     last_camera_chunk: (i32, i32),
     fading_entities: Vec<FadeEntry>,
+    fading_out_entities: Vec<FadeOutEntry>,
+    pregen_budget: usize,
+    scratch_completed_fade_indices: Vec<usize>,
+    scratch_completed_fade_out_indices: Vec<usize>,
+    scratch_to_cancel: Vec<((i32, i32), LayerKind)>,
+    scratch_loading_keys: Vec<((i32, i32), LayerKind)>,
+    scratch_completed_loading: Vec<((i32, i32), LayerKind)>,
+    scratch_finished_despawns: Vec<usize>,
+    scratch_entities_to_fade_out: Vec<Entity>,
+    scratch_chunks_to_unload: Vec<(i32, i32)>,
 }
 
 fn chunk_seed(coords: (i32, i32)) -> u64 {
@@ -114,24 +135,38 @@ impl ChunkManager {
             }
         }
 
-        let mut pregen = HashMap::new();
-        for x in CITY_MIN..=CITY_MAX {
-            for z in CITY_MIN..=CITY_MAX {
-                let coords = (x, z);
-                let layout = &layouts[&coords];
-                pregen.insert(coords, pregen_chunk(layout, coords));
-            }
-        }
-
         Self {
             chunks: HashMap::new(),
             loading: HashMap::new(),
             despawning: Vec::new(),
-            pregen,
+            pregen: HashMap::new(),
             layouts,
             last_camera_chunk: (i32::MAX, i32::MAX),
             fading_entities: Vec::new(),
+            fading_out_entities: Vec::new(),
+            pregen_budget: MAX_PREGEN_PER_FRAME,
+            scratch_completed_fade_indices: Vec::new(),
+            scratch_completed_fade_out_indices: Vec::new(),
+            scratch_to_cancel: Vec::new(),
+            scratch_loading_keys: Vec::new(),
+            scratch_completed_loading: Vec::new(),
+            scratch_finished_despawns: Vec::new(),
+            scratch_entities_to_fade_out: Vec::new(),
+            scratch_chunks_to_unload: Vec::new(),
         }
+    }
+
+    fn ensure_pregen(&mut self, coords: (i32, i32)) -> bool {
+        if self.pregen.contains_key(&coords) {
+            return true;
+        }
+        if self.pregen_budget == 0 {
+            return false;
+        }
+        let layout = &self.layouts[&coords];
+        self.pregen.insert(coords, pregen_chunk(layout, coords));
+        self.pregen_budget -= 1;
+        true
     }
 
     pub fn loaded_chunk_count(&self) -> usize {
@@ -159,11 +194,12 @@ impl ChunkManager {
             .iter()
             .map(|dc| dc.entities.len() - dc.cursor)
             .sum();
-        chunk_entities + loading_entities + despawning_entities
+        let fading_out_entities = self.fading_out_entities.len();
+        chunk_entities + loading_entities + despawning_entities + fading_out_entities
     }
 
     fn advance_fades(&mut self, world: &mut World, delta_time: f32) {
-        let mut completed_indices = Vec::new();
+        self.scratch_completed_fade_indices.clear();
         for (index, fade) in self.fading_entities.iter_mut().enumerate() {
             fade.elapsed += delta_time;
             let alpha = (fade.elapsed / FADE_DURATION).min(1.0);
@@ -172,7 +208,7 @@ impl ChunkManager {
                     .resources
                     .mesh_render_state
                     .mark_entity_fade_complete(fade.entity);
-                completed_indices.push(index);
+                self.scratch_completed_fade_indices.push(index);
             } else {
                 world
                     .resources
@@ -180,8 +216,36 @@ impl ChunkManager {
                     .set_entity_custom_data(fade.entity, [1.0, 1.0, 1.0, alpha]);
             }
         }
-        for index in completed_indices.into_iter().rev() {
+        for &index in self.scratch_completed_fade_indices.iter().rev() {
             self.fading_entities.swap_remove(index);
+        }
+
+        self.scratch_completed_fade_out_indices.clear();
+        for (index, fade) in self.fading_out_entities.iter_mut().enumerate() {
+            fade.elapsed += delta_time;
+            let alpha = 1.0 - (fade.elapsed / FADE_DURATION).min(1.0);
+            if alpha <= 0.0 {
+                world.queue_despawn_entity(fade.entity);
+                self.scratch_completed_fade_out_indices.push(index);
+            } else {
+                world
+                    .resources
+                    .mesh_render_state
+                    .set_entity_custom_data(fade.entity, [1.0, 1.0, 1.0, alpha]);
+            }
+        }
+        for &index in self.scratch_completed_fade_out_indices.iter().rev() {
+            self.fading_out_entities.swap_remove(index);
+        }
+    }
+
+    fn schedule_fade_out(&mut self, entities: Vec<Entity>) {
+        for entity in entities {
+            self.fading_entities.retain(|fade| fade.entity != entity);
+            self.fading_out_entities.push(FadeOutEntry {
+                entity,
+                elapsed: 0.0,
+            });
         }
     }
 
@@ -200,64 +264,15 @@ impl ChunkManager {
             && self.loading.is_empty()
             && self.despawning.is_empty()
             && self.fading_entities.is_empty()
+            && self.fading_out_entities.is_empty()
         {
             return;
         }
 
+        self.pregen_budget = MAX_PREGEN_PER_FRAME;
+
         let delta_time = world.resources.window.timing.delta_time;
         self.advance_fades(world, delta_time);
-
-        for x in CITY_MIN..=CITY_MAX {
-            for z in CITY_MIN..=CITY_MAX {
-                let coords = (x, z);
-                if !self.chunks.contains_key(&coords) {
-                    let pregen = &self.pregen[&coords];
-                    let base_entities =
-                        pregen
-                            .base
-                            .instantiate_range(world, 0, pregen.base.total_count());
-                    let proxy_entities =
-                        pregen
-                            .proxy
-                            .instantiate_range(world, 0, pregen.proxy.total_count());
-                    self.chunks.insert(
-                        coords,
-                        ChunkState {
-                            base_entities,
-                            proxy_entities,
-                            building_entities: Vec::new(),
-                            detail_entities: Vec::new(),
-                        },
-                    );
-                }
-            }
-        }
-
-        let mut to_cancel: Vec<((i32, i32), LayerKind)> = Vec::new();
-        for &(coords, kind) in self.loading.keys() {
-            let distance = chebyshev_distance(coords, camera_chunk);
-            let chunk = &self.chunks[&coords];
-            let (want_buildings, want_detail) = desired_layers(
-                distance,
-                !chunk.building_entities.is_empty(),
-                !chunk.detail_entities.is_empty(),
-            );
-            match kind {
-                LayerKind::Buildings if !want_buildings => to_cancel.push((coords, kind)),
-                LayerKind::Detail if !want_detail => to_cancel.push((coords, kind)),
-                _ => {}
-            }
-        }
-        for key in to_cancel {
-            if let Some(loading) = self.loading.remove(&key)
-                && !loading.entities.is_empty()
-            {
-                self.despawning.push(DespawningChunk {
-                    entities: loading.entities,
-                    cursor: 0,
-                });
-            }
-        }
 
         let camera_forward_xz = Vec3::new(camera_forward.x, 0.0, camera_forward.z);
         let forward_len = nalgebra_glm::length(&camera_forward_xz);
@@ -267,8 +282,57 @@ impl ChunkManager {
             Vec3::new(0.0, 0.0, -1.0)
         };
 
-        let mut loading_keys: Vec<((i32, i32), LayerKind)> = self.loading.keys().copied().collect();
-        loading_keys.sort_by_key(|&(coords, _)| {
+        self.scratch_to_cancel.clear();
+        for &(coords, kind) in self.loading.keys() {
+            let distance = chebyshev_distance(coords, camera_chunk);
+            let bias = facing_bias(camera_chunk, coords, &camera_forward_normalized);
+            match kind {
+                LayerKind::Base => {
+                    if !desired_base(distance, false, bias) {
+                        self.scratch_to_cancel.push((coords, kind));
+                    }
+                }
+                _ => {
+                    let chunk = &self.chunks[&coords];
+                    let (want_buildings, want_detail) = desired_layers(
+                        distance,
+                        !chunk.building_entities.is_empty(),
+                        !chunk.detail_entities.is_empty(),
+                        bias,
+                    );
+                    match kind {
+                        LayerKind::Buildings if !want_buildings => {
+                            self.scratch_to_cancel.push((coords, kind));
+                        }
+                        LayerKind::Detail if !want_detail => {
+                            self.scratch_to_cancel.push((coords, kind));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for index in 0..self.scratch_to_cancel.len() {
+            let key = self.scratch_to_cancel[index];
+            if let Some(loading) = self.loading.remove(&key)
+                && !loading.entities.is_empty()
+            {
+                self.fading_entities
+                    .retain(|fade| !loading.entities.contains(&fade.entity));
+                self.despawning.push(DespawningChunk {
+                    entities: loading.entities,
+                    cursor: 0,
+                });
+            }
+            if key.1 == LayerKind::Base {
+                self.chunks.remove(&key.0);
+            }
+        }
+
+        self.scratch_loading_keys.clear();
+        self.scratch_loading_keys
+            .extend(self.loading.keys().copied());
+        self.scratch_loading_keys.sort_by_key(|&(coords, _)| {
             let distance = chebyshev_distance(coords, camera_chunk);
             let chunk_center = Vec3::new(
                 (coords.0 as f32 + 0.5) * CHUNK_SIZE,
@@ -285,12 +349,14 @@ impl ChunkManager {
             (distance * 1000) - (dot * 500.0) as i32
         });
 
-        let active_count = loading_keys
+        let active_count = self
+            .scratch_loading_keys
             .iter()
             .filter(|key| {
                 let lc = &self.loading[key];
                 let pregen = &self.pregen[&key.0];
                 let total = match key.1 {
+                    LayerKind::Base => pregen.base_proxy.total_count(),
                     LayerKind::Buildings => pregen.buildings.total_count(),
                     LayerKind::Detail => pregen.detail.total_count(),
                 };
@@ -299,12 +365,41 @@ impl ChunkManager {
             .count()
             .max(1);
 
-        let per_chunk_budget = (MAX_ENTITIES_SPAWN_PER_FRAME / active_count).max(1);
-        let mut spawn_budget = MAX_ENTITIES_SPAWN_PER_FRAME;
+        let spawn_queue_depth: usize = self
+            .scratch_loading_keys
+            .iter()
+            .map(|key| {
+                let lc = &self.loading[key];
+                let pregen = &self.pregen[&key.0];
+                let total = match key.1 {
+                    LayerKind::Base => pregen.base_proxy.total_count(),
+                    LayerKind::Buildings => pregen.buildings.total_count(),
+                    LayerKind::Detail => pregen.detail.total_count(),
+                };
+                total.saturating_sub(lc.cursor)
+            })
+            .sum();
+        let despawn_queue_depth: usize = self
+            .despawning
+            .iter()
+            .map(|dc| dc.entities.len().saturating_sub(dc.cursor))
+            .sum();
+        let total_depth = spawn_queue_depth + despawn_queue_depth;
+        let (spawn_budget_max, despawn_budget_max) = if total_depth == 0 {
+            (COMBINED_BUDGET / 2, COMBINED_BUDGET / 2)
+        } else {
+            let spawn_share =
+                (COMBINED_BUDGET * spawn_queue_depth / total_depth).clamp(MIN_BUDGET_PER_SIDE, COMBINED_BUDGET - MIN_BUDGET_PER_SIDE);
+            (spawn_share, COMBINED_BUDGET - spawn_share)
+        };
 
-        let mut completed: Vec<((i32, i32), LayerKind)> = Vec::new();
+        let per_chunk_budget = (spawn_budget_max / active_count).max(1);
+        let mut spawn_budget = spawn_budget_max;
 
-        for key in loading_keys {
+        self.scratch_completed_loading.clear();
+
+        for key_index in 0..self.scratch_loading_keys.len() {
+            let key = self.scratch_loading_keys[key_index];
             if spawn_budget == 0 {
                 break;
             }
@@ -313,54 +408,77 @@ impl ChunkManager {
             let lc = self.loading.get_mut(&key).unwrap();
 
             let data = match key.1 {
+                LayerKind::Base => &pregen.base_proxy,
                 LayerKind::Buildings => &pregen.buildings,
                 LayerKind::Detail => &pregen.detail,
             };
 
             let total = data.total_count();
             if lc.cursor >= total {
-                completed.push(key);
+                self.scratch_completed_loading.push(key);
                 continue;
             }
 
             let chunk_allowance = per_chunk_budget.min(spawn_budget);
-            let new_entities = data.instantiate_range(world, lc.cursor, chunk_allowance);
+            let cursor_before = lc.cursor;
+            let new_entities = data.instantiate_range(world, cursor_before, chunk_allowance);
             let spawned = new_entities.len();
-            for &entity in &new_entities {
-                world
-                    .resources
-                    .mesh_render_state
-                    .set_entity_custom_data(entity, [1.0, 1.0, 1.0, 0.0]);
-                self.fading_entities.push(FadeEntry {
-                    entity,
-                    elapsed: 0.0,
-                });
+            for (offset, &entity) in new_entities.iter().enumerate() {
+                let is_base_geometry = key.1 == LayerKind::Base
+                    && (cursor_before + offset) < pregen.base_count;
+                if !is_base_geometry {
+                    world
+                        .resources
+                        .mesh_render_state
+                        .set_entity_custom_data(entity, [1.0, 1.0, 1.0, 0.0]);
+                    self.fading_entities.push(FadeEntry {
+                        entity,
+                        elapsed: 0.0,
+                    });
+                }
             }
             lc.entities.extend(new_entities);
             lc.cursor += spawned;
             spawn_budget -= spawned;
 
             if lc.cursor >= total {
-                completed.push(key);
+                self.scratch_completed_loading.push(key);
             }
         }
 
-        for key in completed {
+        for index in 0..self.scratch_completed_loading.len() {
+            let key = self.scratch_completed_loading[index];
             let lc = self.loading.remove(&key).unwrap();
-            let chunk = self.chunks.get_mut(&key.0).unwrap();
-
             match key.1 {
+                LayerKind::Base => {
+                    let pregen = &self.pregen[&key.0];
+                    let chunk = self.chunks.get_mut(&key.0).unwrap();
+                    let split_point = pregen.base_count.min(lc.entities.len());
+                    chunk.base_entities = lc.entities[..split_point].to_vec();
+                    chunk.proxy_entities = lc.entities[split_point..].to_vec();
+                }
                 LayerKind::Buildings => {
+                    let chunk = self.chunks.get_mut(&key.0).unwrap();
+                    let proxy_entities: Vec<Entity> = chunk.proxy_entities.clone();
                     chunk.building_entities = lc.entities;
+                    for &proxy in &proxy_entities {
+                        world
+                            .resources
+                            .mesh_render_state
+                            .set_entity_custom_data(proxy, [1.0, 1.0, 1.0, 0.0]);
+                    }
+                    self.fading_entities
+                        .retain(|fade| !proxy_entities.contains(&fade.entity));
                 }
                 LayerKind::Detail => {
+                    let chunk = self.chunks.get_mut(&key.0).unwrap();
                     chunk.detail_entities = lc.entities;
                 }
             }
         }
 
-        let mut despawn_budget = MAX_ENTITIES_DESPAWN_PER_FRAME;
-        let mut finished_despawns = Vec::new();
+        let mut despawn_budget = despawn_budget_max;
+        self.scratch_finished_despawns.clear();
         for (index, chunk) in self.despawning.iter_mut().enumerate() {
             if despawn_budget == 0 {
                 break;
@@ -373,23 +491,63 @@ impl ChunkManager {
             chunk.cursor += to_despawn;
             despawn_budget -= to_despawn;
             if chunk.cursor >= chunk.entities.len() {
-                finished_despawns.push(index);
+                self.scratch_finished_despawns.push(index);
             }
         }
-        for index in finished_despawns.into_iter().rev() {
+        for &index in self.scratch_finished_despawns.iter().rev() {
             self.despawning.swap_remove(index);
         }
 
-        for x in CITY_MIN..=CITY_MAX {
-            for z in CITY_MIN..=CITY_MAX {
+        let scan_min_x = (camera_chunk.0 - MAX_MANAGEMENT_RADIUS).max(CITY_MIN);
+        let scan_max_x = (camera_chunk.0 + MAX_MANAGEMENT_RADIUS).min(CITY_MAX);
+        let scan_min_z = (camera_chunk.1 - MAX_MANAGEMENT_RADIUS).max(CITY_MIN);
+        let scan_max_z = (camera_chunk.1 + MAX_MANAGEMENT_RADIUS).min(CITY_MAX);
+
+        for x in scan_min_x..=scan_max_x {
+            for z in scan_min_z..=scan_max_z {
                 let coords = (x, z);
                 let distance = chebyshev_distance(coords, camera_chunk);
-                let chunk = self.chunks.get_mut(&coords).unwrap();
 
+                let bias = facing_bias(camera_chunk, coords, &camera_forward_normalized);
+                let has_base = self
+                    .chunks
+                    .get(&coords)
+                    .is_some_and(|chunk| !chunk.base_entities.is_empty());
+                let want_base = desired_base(distance, has_base, bias);
+
+                if want_base
+                    && !has_base
+                    && !self.chunks.contains_key(&coords)
+                    && !self.loading.contains_key(&(coords, LayerKind::Base))
+                    && self.ensure_pregen(coords)
+                {
+                    self.chunks.insert(
+                        coords,
+                        ChunkState {
+                            base_entities: Vec::new(),
+                            proxy_entities: Vec::new(),
+                            building_entities: Vec::new(),
+                            detail_entities: Vec::new(),
+                        },
+                    );
+                    self.loading.insert(
+                        (coords, LayerKind::Base),
+                        LoadingCursor {
+                            cursor: 0,
+                            entities: Vec::new(),
+                        },
+                    );
+                }
+
+                if !has_base {
+                    continue;
+                }
+
+                let chunk = self.chunks.get_mut(&coords).unwrap();
                 let has_buildings = !chunk.building_entities.is_empty();
                 let has_detail = !chunk.detail_entities.is_empty();
                 let (want_buildings, want_detail) =
-                    desired_layers(distance, has_buildings, has_detail);
+                    desired_layers(distance, has_buildings, has_detail, bias);
 
                 if want_buildings
                     && !has_buildings
@@ -418,53 +576,101 @@ impl ChunkManager {
                     );
                 }
 
+                self.scratch_entities_to_fade_out.clear();
+
                 if !want_detail && has_detail {
-                    let entities: Vec<Entity> = chunk.detail_entities.drain(..).collect();
-                    if !entities.is_empty() {
-                        self.despawning.push(DespawningChunk {
-                            entities,
-                            cursor: 0,
-                        });
-                    }
+                    self.scratch_entities_to_fade_out
+                        .append(&mut chunk.detail_entities);
                 }
 
                 if !want_buildings && has_buildings {
                     if has_detail {
-                        let detail_entities: Vec<Entity> =
-                            chunk.detail_entities.drain(..).collect();
-                        if !detail_entities.is_empty() {
-                            self.despawning.push(DespawningChunk {
-                                entities: detail_entities,
-                                cursor: 0,
-                            });
-                        }
+                        self.scratch_entities_to_fade_out
+                            .append(&mut chunk.detail_entities);
                     }
-
-                    let building_entities: Vec<Entity> =
-                        chunk.building_entities.drain(..).collect();
-                    if !building_entities.is_empty() {
-                        self.despawning.push(DespawningChunk {
-                            entities: building_entities,
-                            cursor: 0,
-                        });
+                    self.scratch_entities_to_fade_out
+                        .append(&mut chunk.building_entities);
+                    for &proxy in &chunk.proxy_entities {
+                        world
+                            .resources
+                            .mesh_render_state
+                            .mark_entity_fade_complete(proxy);
                     }
                 }
+
+                let fade_entities: Vec<Entity> = self.scratch_entities_to_fade_out.drain(..).collect();
+                self.schedule_fade_out(fade_entities);
+            }
+        }
+
+        self.scratch_chunks_to_unload.clear();
+        for &coords in self.chunks.keys() {
+            let distance = chebyshev_distance(coords, camera_chunk);
+            let bias = facing_bias(camera_chunk, coords, &camera_forward_normalized);
+            let has_base = !self.chunks[&coords].base_entities.is_empty();
+            if !desired_base(distance, has_base, bias) && has_base {
+                self.scratch_chunks_to_unload.push(coords);
+            }
+        }
+        for index in 0..self.scratch_chunks_to_unload.len() {
+            let coords = self.scratch_chunks_to_unload[index];
+            for kind in [LayerKind::Buildings, LayerKind::Detail] {
+                if let Some(loading) = self.loading.remove(&(coords, kind))
+                    && !loading.entities.is_empty()
+                {
+                    self.fading_entities
+                        .retain(|fade| !loading.entities.contains(&fade.entity));
+                    self.despawning.push(DespawningChunk {
+                        entities: loading.entities,
+                        cursor: 0,
+                    });
+                }
+            }
+            if let Some(chunk) = self.chunks.remove(&coords) {
+                if !chunk.base_entities.is_empty() {
+                    self.despawning.push(DespawningChunk {
+                        entities: chunk.base_entities,
+                        cursor: 0,
+                    });
+                }
+                let mut fade_entities = Vec::new();
+                fade_entities.extend(chunk.detail_entities);
+                fade_entities.extend(chunk.building_entities);
+                fade_entities.extend(chunk.proxy_entities);
+                self.schedule_fade_out(fade_entities);
             }
         }
     }
 }
 
-fn desired_layers(distance: i32, has_buildings: bool, has_detail: bool) -> (bool, bool) {
-    let want_buildings = if has_buildings {
-        distance <= LOD1_RADIUS + 1
+fn desired_base(distance: i32, has_base: bool, bias: i32) -> bool {
+    let radius = BASE_RADIUS + bias;
+    if has_base {
+        distance <= radius + 2
     } else {
-        distance <= LOD1_RADIUS
+        distance <= radius
+    }
+}
+
+fn desired_layers(
+    distance: i32,
+    has_buildings: bool,
+    has_detail: bool,
+    bias: i32,
+) -> (bool, bool) {
+    let building_radius = LOD1_RADIUS + bias;
+    let detail_radius = LOD0_RADIUS + bias;
+
+    let want_buildings = if has_buildings {
+        distance <= building_radius + 2
+    } else {
+        distance <= building_radius
     };
 
     let want_detail = if has_detail {
-        distance <= LOD0_RADIUS + 1
+        distance <= detail_radius + 2
     } else {
-        distance <= LOD0_RADIUS
+        distance <= detail_radius
     };
 
     (want_buildings, want_detail && want_buildings)
@@ -475,9 +681,16 @@ fn pregen_chunk(layout: &CityChunkLayout, coords: (i32, i32)) -> PregenChunk {
     let edges = edge_directions(coords);
     let bridge_edges = corner_bridge_edges(coords);
 
+    let mut base_proxy = pregen_base(layout, coords, &edges);
+    let base_count = base_proxy.total_count();
+    let proxy = pregen_proxy(layout);
+    base_proxy.meshes.extend(proxy.meshes);
+    base_proxy.lights.extend(proxy.lights);
+    base_proxy.smoke_emitters.extend(proxy.smoke_emitters);
+
     PregenChunk {
-        base: pregen_base(layout, coords, &edges),
-        proxy: pregen_proxy(layout),
+        base_proxy,
+        base_count,
         buildings: pregen_buildings(layout, coords, seed, &edges, &bridge_edges),
         detail: pregen_detail(layout, coords, seed, &edges),
     }
@@ -818,6 +1031,27 @@ fn describe_construction_cranes(
 
 fn chebyshev_distance(a: (i32, i32), b: (i32, i32)) -> i32 {
     (a.0 - b.0).abs().max((a.1 - b.1).abs())
+}
+
+fn facing_bias(
+    camera_chunk: (i32, i32),
+    target_chunk: (i32, i32),
+    camera_forward_xz: &Vec3,
+) -> i32 {
+    let dx = (target_chunk.0 - camera_chunk.0) as f32;
+    let dz = (target_chunk.1 - camera_chunk.1) as f32;
+    let len = (dx * dx + dz * dz).sqrt();
+    if len < 0.001 {
+        return 0;
+    }
+    let dot = (dx * camera_forward_xz.x + dz * camera_forward_xz.z) / len;
+    if dot > 0.3 {
+        FRUSTUM_BIAS_AHEAD
+    } else if dot < -0.3 {
+        FRUSTUM_BIAS_BEHIND
+    } else {
+        0
+    }
 }
 
 fn edge_directions(coords: (i32, i32)) -> [Option<EdgeDirection>; 4] {

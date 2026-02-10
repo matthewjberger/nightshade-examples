@@ -8,7 +8,7 @@ mod scanner;
 const DEFAULT_KENNEY_ROOT: &str = r"C:\Users\matth\Books\Kenney Game Assets All-in-1 3.2.0";
 const DEFAULT_POLYHAVEN_ROOT: &str = r"C:\Users\matth\Documents\Poly Haven";
 const THUMBNAIL_MAX_SIZE: u32 = 128;
-const THUMBNAILS_PER_FRAME: usize = 10;
+const THUMBNAILS_PER_FRAME: usize = 3;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(AssetViewer::default())?;
@@ -24,8 +24,10 @@ struct AssetViewer {
     pack_images: Vec<scanner::ImageFile>,
     selected_image: Option<usize>,
     thumbnail_cache: HashMap<PathBuf, egui::TextureHandle>,
+    stale_textures: Vec<egui::TextureHandle>,
     preview_texture: Option<(egui::TextureHandle, u32, u32)>,
     load_queue: VecDeque<usize>,
+    total_to_load: usize,
     pack_filter: String,
     thumbnail_size: f32,
     camera_entity: Option<Entity>,
@@ -41,13 +43,15 @@ impl AssetViewer {
         self.selected_pack = Some(pack_index);
         self.selected_image = None;
         self.preview_texture = None;
-        self.thumbnail_cache.clear();
+        self.stale_textures
+            .extend(self.thumbnail_cache.drain().map(|(_, handle)| handle));
         self.load_queue.clear();
 
         let source = &self.sources[self.selected_source];
         let pack = &source.categories[category_index].packs[pack_index];
         self.pack_images = scanner::scan_pack_images(&pack.path);
 
+        self.total_to_load = self.pack_images.len();
         for index in 0..self.pack_images.len() {
             self.load_queue.push_back(index);
         }
@@ -65,6 +69,8 @@ impl AssetViewer {
     }
 
     fn process_thumbnail_queue(&mut self, ctx: &egui::Context) {
+        self.stale_textures.clear();
+
         let count = THUMBNAILS_PER_FRAME.min(self.load_queue.len());
         for _ in 0..count {
             let Some(index) = self.load_queue.pop_front() else {
@@ -80,6 +86,10 @@ impl AssetViewer {
                 self.thumbnail_cache.insert(image_file.path.clone(), handle);
             }
         }
+
+        if !self.load_queue.is_empty() {
+            ctx.request_repaint();
+        }
     }
 
     fn clear_selection(&mut self) {
@@ -87,9 +97,11 @@ impl AssetViewer {
         self.selected_pack = None;
         self.selected_image = None;
         self.pack_images.clear();
-        self.thumbnail_cache.clear();
+        self.stale_textures
+            .extend(self.thumbnail_cache.drain().map(|(_, handle)| handle));
         self.preview_texture = None;
         self.load_queue.clear();
+        self.total_to_load = 0;
     }
 }
 
@@ -362,15 +374,23 @@ impl State for AssetViewer {
             });
             ui.separator();
 
-            if !self.load_queue.is_empty() {
+            if !self.load_queue.is_empty() && self.total_to_load > 0 {
+                let loaded = self.total_to_load - self.load_queue.len();
+                let progress = loaded as f32 / self.total_to_load as f32;
+
                 ui.horizontal(|ui| {
                     ui.spinner();
                     ui.label(format!(
-                        "Loading thumbnails... ({}/{})",
-                        self.thumbnail_cache.len(),
-                        self.pack_images.len()
+                        "Loading thumbnails... {}/{}",
+                        loaded, self.total_to_load
                     ));
                 });
+                ui.add(
+                    egui::ProgressBar::new(progress)
+                        .show_percentage()
+                        .animate(true),
+                );
+                ui.add_space(4.0);
             }
 
             if self.pack_images.is_empty() {

@@ -89,11 +89,6 @@ struct FadeEntry {
     elapsed: f32,
 }
 
-struct FadeOutEntry {
-    entity: Entity,
-    elapsed: f32,
-}
-
 struct PregenChunk {
     base_proxy: ChunkData,
     base_count: usize,
@@ -109,16 +104,13 @@ pub struct ChunkManager {
     layouts: HashMap<(i32, i32), city::CityChunkLayout>,
     last_camera_chunk: (i32, i32),
     fading_entities: Vec<FadeEntry>,
-    fading_out_entities: Vec<FadeOutEntry>,
     pregen_budget: usize,
     pending_pregen: bool,
     scratch_completed_fade_indices: Vec<usize>,
-    scratch_completed_fade_out_indices: Vec<usize>,
     scratch_to_cancel: Vec<((i32, i32), LayerKind)>,
     scratch_loading_keys: Vec<((i32, i32), LayerKind)>,
     scratch_completed_loading: Vec<((i32, i32), LayerKind)>,
     scratch_finished_despawns: Vec<usize>,
-    scratch_entities_to_fade_out: Vec<Entity>,
     scratch_chunks_to_unload: Vec<(i32, i32)>,
 }
 
@@ -144,16 +136,13 @@ impl ChunkManager {
             layouts,
             last_camera_chunk: (i32::MAX, i32::MAX),
             fading_entities: Vec::new(),
-            fading_out_entities: Vec::new(),
             pregen_budget: MAX_PREGEN_PER_FRAME,
             pending_pregen: false,
             scratch_completed_fade_indices: Vec::new(),
-            scratch_completed_fade_out_indices: Vec::new(),
             scratch_to_cancel: Vec::new(),
             scratch_loading_keys: Vec::new(),
             scratch_completed_loading: Vec::new(),
             scratch_finished_despawns: Vec::new(),
-            scratch_entities_to_fade_out: Vec::new(),
             scratch_chunks_to_unload: Vec::new(),
         }
     }
@@ -196,8 +185,7 @@ impl ChunkManager {
             .iter()
             .map(|dc| dc.entities.len() - dc.cursor)
             .sum();
-        let fading_out_entities = self.fading_out_entities.len();
-        chunk_entities + loading_entities + despawning_entities + fading_out_entities
+        chunk_entities + loading_entities + despawning_entities
     }
 
     fn advance_fades(&mut self, world: &mut World, delta_time: f32) {
@@ -221,40 +209,6 @@ impl ChunkManager {
         for &index in self.scratch_completed_fade_indices.iter().rev() {
             self.fading_entities.swap_remove(index);
         }
-
-        self.scratch_completed_fade_out_indices.clear();
-        for (index, fade) in self.fading_out_entities.iter_mut().enumerate() {
-            fade.elapsed += delta_time;
-            let alpha = 1.0 - (fade.elapsed / FADE_DURATION).min(1.0);
-            if alpha <= 0.0 {
-                world.queue_despawn_entity(fade.entity);
-                self.scratch_completed_fade_out_indices.push(index);
-            } else {
-                world
-                    .resources
-                    .mesh_render_state
-                    .set_entity_custom_data(fade.entity, [1.0, 1.0, 1.0, alpha]);
-            }
-        }
-        for &index in self.scratch_completed_fade_out_indices.iter().rev() {
-            self.fading_out_entities.swap_remove(index);
-        }
-    }
-
-    fn schedule_fade_out(&mut self, entities: Vec<Entity>) {
-        for entity in entities {
-            self.fading_entities.retain(|fade| fade.entity != entity);
-            if !self
-                .fading_out_entities
-                .iter()
-                .any(|fade| fade.entity == entity)
-            {
-                self.fading_out_entities.push(FadeOutEntry {
-                    entity,
-                    elapsed: 0.0,
-                });
-            }
-        }
     }
 
     pub fn update(&mut self, world: &mut World, camera_pos: Vec3, camera_forward: Vec3) {
@@ -272,7 +226,6 @@ impl ChunkManager {
             && self.loading.is_empty()
             && self.despawning.is_empty()
             && self.fading_entities.is_empty()
-            && self.fading_out_entities.is_empty()
             && !self.pending_pregen
         {
             return;
@@ -457,16 +410,7 @@ impl ChunkManager {
                 }
                 LayerKind::Buildings => {
                     let chunk = self.chunks.get_mut(&key.0).unwrap();
-                    let proxy_entities: Vec<Entity> = chunk.proxy_entities.clone();
                     chunk.building_entities = lc.entities;
-                    for &proxy in &proxy_entities {
-                        world
-                            .resources
-                            .mesh_render_state
-                            .set_entity_custom_data(proxy, [1.0, 1.0, 1.0, 0.0]);
-                    }
-                    self.fading_entities
-                        .retain(|fade| !proxy_entities.contains(&fade.entity));
                 }
                 LayerKind::Detail => {
                     let chunk = self.chunks.get_mut(&key.0).unwrap();
@@ -577,30 +521,31 @@ impl ChunkManager {
                     );
                 }
 
-                self.scratch_entities_to_fade_out.clear();
-
                 if !want_detail && has_detail {
-                    self.scratch_entities_to_fade_out
-                        .append(&mut chunk.detail_entities);
+                    let entities = std::mem::take(&mut chunk.detail_entities);
+                    self.fading_entities.retain(|fade| !entities.contains(&fade.entity));
+                    self.despawning.push(DespawningChunk {
+                        entities,
+                        cursor: 0,
+                    });
                 }
 
                 if !want_buildings && has_buildings {
                     if has_detail {
-                        self.scratch_entities_to_fade_out
-                            .append(&mut chunk.detail_entities);
+                        let entities = std::mem::take(&mut chunk.detail_entities);
+                        self.fading_entities.retain(|fade| !entities.contains(&fade.entity));
+                        self.despawning.push(DespawningChunk {
+                            entities,
+                            cursor: 0,
+                        });
                     }
-                    self.scratch_entities_to_fade_out
-                        .append(&mut chunk.building_entities);
-                    for &proxy in &chunk.proxy_entities {
-                        world
-                            .resources
-                            .mesh_render_state
-                            .mark_entity_fade_complete(proxy);
-                    }
+                    let entities = std::mem::take(&mut chunk.building_entities);
+                    self.fading_entities.retain(|fade| !entities.contains(&fade.entity));
+                    self.despawning.push(DespawningChunk {
+                        entities,
+                        cursor: 0,
+                    });
                 }
-
-                let fade_entities: Vec<Entity> = self.scratch_entities_to_fade_out.drain(..).collect();
-                self.schedule_fade_out(fade_entities);
             }
         }
 
@@ -628,17 +573,18 @@ impl ChunkManager {
                 }
             }
             if let Some(chunk) = self.chunks.remove(&coords) {
-                if !chunk.base_entities.is_empty() {
+                let mut all_entities = chunk.base_entities;
+                all_entities.extend(chunk.proxy_entities);
+                all_entities.extend(chunk.building_entities);
+                all_entities.extend(chunk.detail_entities);
+                self.fading_entities
+                    .retain(|fade| !all_entities.contains(&fade.entity));
+                if !all_entities.is_empty() {
                     self.despawning.push(DespawningChunk {
-                        entities: chunk.base_entities,
+                        entities: all_entities,
                         cursor: 0,
                     });
                 }
-                let mut fade_entities = Vec::new();
-                fade_entities.extend(chunk.detail_entities);
-                fade_entities.extend(chunk.building_entities);
-                fade_entities.extend(chunk.proxy_entities);
-                self.schedule_fade_out(fade_entities);
             }
         }
     }

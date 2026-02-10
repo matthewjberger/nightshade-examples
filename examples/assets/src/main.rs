@@ -3,187 +3,162 @@ use nightshade::ecs::camera::commands::spawn_pan_orbit_camera;
 use nightshade::ecs::camera::systems::pan_orbit_camera_system;
 use nightshade::ecs::prefab::mesh_cache_insert;
 use nightshade::prelude::*;
-use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 
+mod pane;
 mod scanner;
+mod thumbnail;
+
+use pane::{BrowserPane, ModelViewerPane, Pane, PaneAction};
 
 const DEFAULT_KENNEY_ROOT: &str = r"C:\Users\matth\Books\Kenney Game Assets All-in-1 3.2.0";
 const DEFAULT_POLYHAVEN_ROOT: &str = r"C:\Users\matth\Documents\Poly Haven";
-const THUMBNAIL_MAX_SIZE: u32 = 128;
-const THUMBNAILS_PER_FRAME: usize = 3;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(AssetViewer::default())?;
     Ok(())
 }
 
-#[derive(Default, PartialEq, Eq)]
-enum ViewMode {
-    #[default]
-    Browse,
-    Model3d,
-    Skybox,
-}
-
+#[derive(Default)]
 struct AssetViewer {
     sources: Vec<scanner::AssetSource>,
     selected_source: usize,
-    selected_category: Option<usize>,
-    selected_pack: Option<usize>,
-    pack_assets: Vec<scanner::AssetFile>,
-    selected_asset: Option<usize>,
-    thumbnail_cache: HashMap<PathBuf, egui::TextureHandle>,
-    stale_textures: Vec<egui::TextureHandle>,
-    preview_texture: Option<(egui::TextureHandle, u32, u32)>,
-    load_queue: VecDeque<usize>,
-    total_to_load: usize,
     pack_filter: String,
-    thumbnail_size: f32,
+    tile_tree: Option<egui_tiles::Tree<Pane>>,
     ortho_camera_entity: Option<Entity>,
-    view_mode: ViewMode,
-    orbit_camera_entity: Option<Entity>,
-    sun_entity: Option<Entity>,
-    model_entity: Option<Entity>,
-    active_model_path: Option<PathBuf>,
-    scene_initialized: bool,
+    preview_texture: Option<(egui::TextureHandle, u32, u32)>,
 }
 
-impl Default for AssetViewer {
-    fn default() -> Self {
-        Self {
-            sources: Vec::new(),
-            selected_source: 0,
-            selected_category: None,
-            selected_pack: None,
-            pack_assets: Vec::new(),
-            selected_asset: None,
-            thumbnail_cache: HashMap::new(),
-            stale_textures: Vec::new(),
-            preview_texture: None,
-            load_queue: VecDeque::new(),
-            total_to_load: 0,
-            pack_filter: String::new(),
-            thumbnail_size: 96.0,
-            ortho_camera_entity: None,
-            view_mode: ViewMode::Browse,
-            orbit_camera_entity: None,
-            sun_entity: None,
-            model_entity: None,
-            active_model_path: None,
-            scene_initialized: false,
+struct AssetBrowserBehavior<'a> {
+    viewport_textures: &'a [egui::TextureId],
+    required_cameras: &'a [Entity],
+    actions: Vec<PaneAction>,
+    active_viewer_rect: Option<egui::Rect>,
+    active_viewer_camera: Option<Entity>,
+}
+
+impl<'a> egui_tiles::Behavior<Pane> for AssetBrowserBehavior<'a> {
+    fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
+        match pane {
+            Pane::Browser(_) => "Browser".into(),
+            Pane::ModelViewer(viewer) => viewer.display_name.clone().into(),
         }
+    }
+
+    fn pane_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        _tile_id: egui_tiles::TileId,
+        pane: &mut Pane,
+    ) -> egui_tiles::UiResponse {
+        match pane {
+            Pane::Browser(browser) => {
+                browser.draw_grid_ui(ui, &mut self.actions);
+            }
+            Pane::ModelViewer(viewer) => {
+                self.draw_model_viewer_ui(ui, viewer);
+            }
+        }
+        egui_tiles::UiResponse::None
+    }
+
+    fn simplification_options(&self) -> egui_tiles::SimplificationOptions {
+        egui_tiles::SimplificationOptions {
+            all_panes_must_have_tabs: true,
+            ..Default::default()
+        }
+    }
+
+    fn tab_bar_height(&self, _style: &egui::Style) -> f32 {
+        24.0
+    }
+
+    fn is_tab_closable(
+        &self,
+        tiles: &egui_tiles::Tiles<Pane>,
+        tile_id: egui_tiles::TileId,
+    ) -> bool {
+        matches!(
+            tiles.get(tile_id),
+            Some(egui_tiles::Tile::Pane(Pane::ModelViewer(_)))
+        )
+    }
+
+    fn on_tab_close(
+        &mut self,
+        tiles: &mut egui_tiles::Tiles<Pane>,
+        tile_id: egui_tiles::TileId,
+    ) -> bool {
+        if let Some(egui_tiles::Tile::Pane(Pane::ModelViewer(viewer))) = tiles.get(tile_id) {
+            self.actions.push(PaneAction::CloseModelViewer {
+                orbit_camera: viewer.orbit_camera_entity,
+                sun: viewer.sun_entity,
+                model: viewer.model_entity,
+            });
+        }
+        true
+    }
+}
+
+impl AssetBrowserBehavior<'_> {
+    fn draw_model_viewer_ui(&mut self, ui: &mut egui::Ui, viewer: &ModelViewerPane) {
+        let rect = ui.available_rect_before_wrap();
+
+        let camera_index = self
+            .required_cameras
+            .iter()
+            .position(|&camera| camera == viewer.orbit_camera_entity);
+
+        if let Some(index) = camera_index
+            && let Some(&texture_id) = self.viewport_textures.get(index)
+        {
+            ui.painter().image(
+                texture_id,
+                rect,
+                egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                egui::Color32::WHITE,
+            );
+        }
+
+        let response = ui.allocate_rect(rect, egui::Sense::hover());
+        if response.hovered() {
+            self.active_viewer_rect = Some(rect);
+            self.active_viewer_camera = Some(viewer.orbit_camera_entity);
+        }
+
+        ui.painter().text(
+            rect.left_top() + egui::vec2(8.0, 8.0),
+            egui::Align2::LEFT_TOP,
+            &viewer.display_name,
+            egui::FontId::proportional(14.0),
+            egui::Color32::WHITE,
+        );
     }
 }
 
 impl AssetViewer {
-    fn select_pack(&mut self, category_index: usize, pack_index: usize) {
-        if self.selected_category == Some(category_index) && self.selected_pack == Some(pack_index)
-        {
-            return;
-        }
-        self.selected_category = Some(category_index);
-        self.selected_pack = Some(pack_index);
-        self.selected_asset = None;
-        self.preview_texture = None;
-        self.stale_textures
-            .extend(self.thumbnail_cache.drain().map(|(_, handle)| handle));
-        self.load_queue.clear();
-
-        let source = &self.sources[self.selected_source];
-        let pack = &source.categories[category_index].packs[pack_index];
-        self.pack_assets = scanner::scan_pack_assets(&pack.path);
-
-        self.total_to_load = self.pack_assets.len();
-        for index in 0..self.pack_assets.len() {
-            self.load_queue.push_back(index);
-        }
+    fn has_model_viewer_open(&self) -> bool {
+        self.tile_tree.as_ref().is_some_and(|tree| {
+            tree.tiles
+                .tiles()
+                .any(|tile| matches!(tile, egui_tiles::Tile::Pane(Pane::ModelViewer(_))))
+        })
     }
 
-    fn select_asset(&mut self, index: usize, ctx: &egui::Context, world: &mut World) {
-        self.selected_asset = Some(index);
-        let Some(asset_file) = self.pack_assets.get(index) else {
-            return;
-        };
+    fn open_model_viewer(&mut self, world: &mut World, path: PathBuf, filename: String) {
+        let orbit_camera = spawn_pan_orbit_camera(
+            world,
+            Vec3::new(0.0, 1.0, 0.0),
+            5.0,
+            0.0,
+            0.3,
+            format!("Orbit Camera - {}", filename),
+        );
 
-        let kind = asset_file.kind;
-        let path = asset_file.path.clone();
+        let sun = spawn_sun(world);
 
-        match kind {
-            scanner::AssetFileKind::Image => {
-                if self.view_mode != ViewMode::Browse {
-                    self.enter_browse_mode(world);
-                }
-                if let Some((handle, width, height)) = load_full_image(ctx, &path) {
-                    self.preview_texture = Some((handle, width, height));
-                }
-            }
-            scanner::AssetFileKind::Model => {
-                self.preview_texture = None;
-                self.load_model(world, &path);
-            }
-            scanner::AssetFileKind::Hdr => {
-                if let Some((handle, width, height)) = load_full_image(ctx, &path) {
-                    self.preview_texture = Some((handle, width, height));
-                }
-                self.load_skybox(world, &path);
-            }
-        }
-    }
-
-    fn ensure_3d_scene(&mut self, world: &mut World) {
-        if !self.scene_initialized {
-            let orbit_camera = spawn_pan_orbit_camera(
-                world,
-                Vec3::new(0.0, 1.0, 0.0),
-                5.0,
-                0.0,
-                0.3,
-                "Orbit Camera".to_string(),
-            );
-            self.orbit_camera_entity = Some(orbit_camera);
-
-            let sun = spawn_sun(world);
-            self.sun_entity = Some(sun);
-
-            self.scene_initialized = true;
-        }
-
-        if let Some(orbit_camera) = self.orbit_camera_entity {
-            world.resources.active_camera = Some(orbit_camera);
-        }
-
-        world.resources.graphics.atmosphere = Atmosphere::Hdr;
-        world.resources.graphics.show_grid = true;
-    }
-
-    fn enter_browse_mode(&mut self, world: &mut World) {
-        if let Some(model) = self.model_entity.take() {
-            despawn_recursive_immediate(world, model);
-        }
-        self.active_model_path = None;
-
-        if let Some(ortho_camera) = self.ortho_camera_entity {
-            world.resources.active_camera = Some(ortho_camera);
-        }
-
-        world.resources.graphics.atmosphere = Atmosphere::None;
-        world.resources.graphics.show_grid = false;
-        self.view_mode = ViewMode::Browse;
-    }
-
-    fn load_model(&mut self, world: &mut World, path: &Path) {
-        if self.active_model_path.as_deref() == Some(path) {
-            return;
-        }
-
-        if let Some(model) = self.model_entity.take() {
-            despawn_recursive_immediate(world, model);
-        }
-
-        self.ensure_3d_scene(world);
-
-        if let Ok(result) = nightshade::ecs::prefab::import_gltf_from_path(path) {
+        let mut model_entity = None;
+        if let Ok(result) = nightshade::ecs::prefab::import_gltf_from_path(&path) {
             for (name, (rgba_data, width, height)) in result.textures {
                 world.queue_command(WorldCommand::LoadTexture {
                     name,
@@ -192,11 +167,9 @@ impl AssetViewer {
                     height,
                 });
             }
-
             for (name, mesh) in result.meshes {
                 mesh_cache_insert(&mut world.resources.mesh_cache, name, mesh);
             }
-
             if let Some(prefab) = result.prefabs.first() {
                 let entity = if !result.skins.is_empty() {
                     nightshade::ecs::prefab::spawn_prefab_with_skins(
@@ -217,63 +190,84 @@ impl AssetViewer {
                     player.looping = true;
                 }
 
-                self.model_entity = Some(entity);
+                model_entity = Some(entity);
             }
+        }
 
-            self.active_model_path = Some(path.to_path_buf());
-            self.view_mode = ViewMode::Model3d;
+        world.resources.graphics.atmosphere = Atmosphere::Hdr;
+        world.resources.graphics.show_grid = true;
+
+        let viewer = ModelViewerPane {
+            display_name: filename,
+            orbit_camera_entity: orbit_camera,
+            sun_entity: sun,
+            model_entity,
+        };
+
+        let tree = self.tile_tree.as_mut().unwrap();
+        let new_tile_id = tree.tiles.insert_pane(Pane::ModelViewer(viewer));
+
+        if let Some(root_id) = tree.root {
+            if let Some(egui_tiles::Tile::Container(egui_tiles::Container::Tabs(tabs))) =
+                tree.tiles.get_mut(root_id)
+            {
+                tabs.add_child(new_tile_id);
+                tabs.set_active(new_tile_id);
+            } else {
+                let tab_id = tree.tiles.insert_tab_tile(vec![root_id, new_tile_id]);
+                tree.root = Some(tab_id);
+            }
         }
     }
 
-    fn load_skybox(&mut self, world: &mut World, path: &Path) {
-        if let Some(model) = self.model_entity.take() {
-            despawn_recursive_immediate(world, model);
-        }
-        self.active_model_path = None;
-
-        self.ensure_3d_scene(world);
-        load_hdr_skybox_from_path(world, path.to_path_buf());
-        self.view_mode = ViewMode::Skybox;
-    }
-
-    fn process_thumbnail_queue(&mut self, ctx: &egui::Context) {
-        self.stale_textures.clear();
-
-        let count = THUMBNAILS_PER_FRAME.min(self.load_queue.len());
-        for _ in 0..count {
-            let Some(index) = self.load_queue.pop_front() else {
-                break;
+    fn handle_select_asset(&mut self, index: usize, ctx: &egui::Context, world: &mut World) {
+        let (kind, path) = {
+            let tree = self.tile_tree.as_ref().unwrap();
+            let Some(browser) = get_browser_pane(tree) else {
+                return;
             };
-            let Some(asset_file) = self.pack_assets.get(index) else {
-                continue;
+            let Some(asset_file) = browser.pack_assets.get(index) else {
+                return;
             };
-            if asset_file.kind == scanner::AssetFileKind::Model {
-                continue;
-            }
-            if self.thumbnail_cache.contains_key(&asset_file.path) {
-                continue;
-            }
-            if let Some(handle) = load_thumbnail(ctx, &asset_file.path) {
-                self.thumbnail_cache.insert(asset_file.path.clone(), handle);
-            }
-        }
+            (asset_file.kind, asset_file.path.clone())
+        };
 
-        if !self.load_queue.is_empty() {
-            ctx.request_repaint();
+        match kind {
+            scanner::AssetFileKind::Image => {
+                if let Some((handle, width, height)) = load_full_image(ctx, &path) {
+                    self.preview_texture = Some((handle, width, height));
+                }
+            }
+            scanner::AssetFileKind::Hdr => {
+                if let Some((handle, width, height)) = load_full_image(ctx, &path) {
+                    self.preview_texture = Some((handle, width, height));
+                }
+                load_hdr_skybox_from_path(world, path);
+                world.resources.graphics.atmosphere = Atmosphere::Hdr;
+            }
+            scanner::AssetFileKind::Model => {}
         }
     }
+}
 
-    fn clear_selection(&mut self) {
-        self.selected_category = None;
-        self.selected_pack = None;
-        self.selected_asset = None;
-        self.pack_assets.clear();
-        self.stale_textures
-            .extend(self.thumbnail_cache.drain().map(|(_, handle)| handle));
-        self.preview_texture = None;
-        self.load_queue.clear();
-        self.total_to_load = 0;
-    }
+fn get_browser_pane(tree: &egui_tiles::Tree<Pane>) -> Option<&BrowserPane> {
+    tree.tiles.tiles().find_map(|tile| {
+        if let egui_tiles::Tile::Pane(Pane::Browser(browser)) = tile {
+            Some(browser.as_ref())
+        } else {
+            None
+        }
+    })
+}
+
+fn get_browser_pane_mut(tree: &mut egui_tiles::Tree<Pane>) -> Option<&mut BrowserPane> {
+    tree.tiles.tiles_mut().find_map(|tile| {
+        if let egui_tiles::Tile::Pane(Pane::Browser(browser)) = tile {
+            Some(browser.as_mut())
+        } else {
+            None
+        }
+    })
 }
 
 fn to_displayable_rgba(img: image::DynamicImage) -> image::RgbaImage {
@@ -302,10 +296,10 @@ fn to_displayable_rgba(img: image::DynamicImage) -> image::RgbaImage {
     }
 }
 
-fn load_thumbnail(ctx: &egui::Context, path: &Path) -> Option<egui::TextureHandle> {
+pub fn load_thumbnail(ctx: &egui::Context, path: &Path) -> Option<egui::TextureHandle> {
     let bytes = std::fs::read(path).ok()?;
     let img = image::load_from_memory(&bytes).ok()?;
-    let thumbnail = img.thumbnail(THUMBNAIL_MAX_SIZE, THUMBNAIL_MAX_SIZE);
+    let thumbnail = img.thumbnail(128, 128);
     let rgba = to_displayable_rgba(thumbnail);
     let (width, height) = rgba.dimensions();
 
@@ -370,42 +364,43 @@ impl State for AssetViewer {
         if let Some(source) = scanner::scan_polyhaven(DEFAULT_POLYHAVEN_ROOT) {
             self.sources.push(source);
         }
+
+        let mut tiles = egui_tiles::Tiles::default();
+        let browser = tiles.insert_pane(Pane::Browser(Box::new(BrowserPane::new())));
+        self.tile_tree = Some(egui_tiles::Tree::new("asset_tiles", browser, tiles));
     }
 
     fn run_systems(&mut self, world: &mut World) {
-        match self.view_mode {
-            ViewMode::Browse => {
-                escape_key_exit_system(world);
-            }
-            ViewMode::Model3d | ViewMode::Skybox => {
-                pan_orbit_camera_system(world);
+        pan_orbit_camera_system(world);
 
-                let escape_pressed = world
-                    .resources
-                    .input
-                    .keyboard
-                    .frame_keys
-                    .iter()
-                    .any(|(key, pressed)| *key == KeyCode::Escape && *pressed);
-
-                if escape_pressed {
-                    self.enter_browse_mode(world);
-                }
-            }
+        if !self.has_model_viewer_open() {
+            escape_key_exit_system(world);
         }
     }
 
     fn ui(&mut self, world: &mut World, ctx: &egui::Context) {
-        self.process_thumbnail_queue(ctx);
+        let mut tree = self.tile_tree.take().unwrap();
+
+        if let Some(browser) = get_browser_pane_mut(&mut tree) {
+            browser.process_thumbnail_queue(ctx);
+            browser.process_model_thumbnail_queue(ctx);
+        }
 
         let mut source_changed = false;
-
         egui::TopBottomPanel::top("source_tabs").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("Asset Browser");
                 ui.separator();
                 for (index, source) in self.sources.iter().enumerate() {
-                    let label = format!("{} ({})", source.name, source.categories.iter().map(|category| category.packs.len()).sum::<usize>());
+                    let label = format!(
+                        "{} ({})",
+                        source.name,
+                        source
+                            .categories
+                            .iter()
+                            .map(|category| category.packs.len())
+                            .sum::<usize>()
+                    );
                     if ui
                         .selectable_label(self.selected_source == index, label)
                         .clicked()
@@ -425,10 +420,18 @@ impl State for AssetViewer {
         });
 
         if source_changed {
-            self.clear_selection();
+            if let Some(browser) = get_browser_pane_mut(&mut tree) {
+                browser.clear_selection();
+            }
+            self.preview_texture = None;
         }
 
         let mut pack_action: Option<(usize, usize)> = None;
+
+        let browser_selected_category =
+            get_browser_pane(&tree).and_then(|browser| browser.selected_category);
+        let browser_selected_pack =
+            get_browser_pane(&tree).and_then(|browser| browser.selected_pack);
 
         egui::SidePanel::left("browser")
             .default_width(280.0)
@@ -476,8 +479,8 @@ impl State for AssetViewer {
                                     for &pack_index in &matching_packs {
                                         let pack = &category.packs[pack_index];
                                         let is_selected =
-                                            self.selected_category == Some(cat_index)
-                                                && self.selected_pack == Some(pack_index);
+                                            browser_selected_category == Some(cat_index)
+                                                && browser_selected_pack == Some(pack_index);
 
                                         if ui
                                             .selectable_label(is_selected, &pack.name)
@@ -493,25 +496,21 @@ impl State for AssetViewer {
             });
 
         if let Some((cat, pack)) = pack_action {
-            self.select_pack(cat, pack);
-            if self.view_mode != ViewMode::Browse {
-                self.enter_browse_mode(world);
+            if let Some(browser) = get_browser_pane_mut(&mut tree) {
+                browser.select_pack(cat, pack, &self.sources[self.selected_source]);
             }
+            self.preview_texture = None;
         }
 
-        match self.view_mode {
-            ViewMode::Browse => {
-                self.draw_browse_ui(world, ctx);
-            }
-            ViewMode::Model3d | ViewMode::Skybox => {
-                self.draw_3d_overlay_ui(ctx);
-            }
-        }
-    }
-}
+        let preview_info = get_browser_pane(&tree).and_then(|browser| {
+            browser.selected_asset.and_then(|index| {
+                browser
+                    .pack_assets
+                    .get(index)
+                    .map(|asset_file| (asset_file.filename.clone(), asset_file.path.clone()))
+            })
+        });
 
-impl AssetViewer {
-    fn draw_browse_ui(&mut self, world: &mut World, ctx: &egui::Context) {
         if self.preview_texture.is_some() {
             egui::SidePanel::right("preview")
                 .default_width(350.0)
@@ -520,14 +519,12 @@ impl AssetViewer {
                     ui.heading("Preview");
                     ui.separator();
 
-                    if let Some(index) = self.selected_asset
-                        && let Some(asset_file) = self.pack_assets.get(index)
-                    {
-                        ui.label(egui::RichText::new(&asset_file.filename).strong());
+                    if let Some((ref filename, ref path)) = preview_info {
+                        ui.label(egui::RichText::new(filename).strong());
                         if let Some((_, width, height)) = &self.preview_texture {
                             ui.label(format!("Dimensions: {} x {}", width, height));
                         }
-                        if let Ok(metadata) = std::fs::metadata(&asset_file.path) {
+                        if let Ok(metadata) = std::fs::metadata(path) {
                             let size_kb = metadata.len() as f64 / 1024.0;
                             if size_kb > 1024.0 {
                                 ui.label(format!("Size: {:.1} MB", size_kb / 1024.0));
@@ -554,216 +551,79 @@ impl AssetViewer {
                 });
         }
 
-        let mut asset_action: Option<usize> = None;
+        let required_cameras: Vec<Entity> = tree
+            .tiles
+            .tiles()
+            .filter_map(|tile| {
+                if let egui_tiles::Tile::Pane(Pane::ModelViewer(viewer)) = tile {
+                    Some(viewer.orbit_camera_entity)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        world.resources.user_interface.required_cameras = required_cameras.clone();
+        let viewport_textures = world.resources.user_interface.viewport_textures.clone();
+
+        let mut behavior = AssetBrowserBehavior {
+            viewport_textures: &viewport_textures,
+            required_cameras: &required_cameras,
+            actions: Vec::new(),
+            active_viewer_rect: None,
+            active_viewer_camera: None,
+        };
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if let Some(cat_idx) = self.selected_category
-                    && let Some(pack_idx) = self.selected_pack
-                    && self.selected_source < self.sources.len()
-                {
-                    let source = &self.sources[self.selected_source];
-                    let pack = &source.categories[cat_idx].packs[pack_idx];
-                    ui.heading(&pack.name);
-                    ui.separator();
-                    ui.label(format!("{} assets", self.pack_assets.len()));
-                } else {
-                    ui.heading("Select a pack to browse");
-                }
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add(
-                        egui::Slider::new(&mut self.thumbnail_size, 48.0..=256.0).text("Size"),
-                    );
-                });
-            });
-            ui.separator();
-
-            if !self.load_queue.is_empty() && self.total_to_load > 0 {
-                let loaded = self.total_to_load - self.load_queue.len();
-                let progress = loaded as f32 / self.total_to_load as f32;
-
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(format!(
-                        "Loading thumbnails... {}/{}",
-                        loaded, self.total_to_load
-                    ));
-                });
-                ui.add(
-                    egui::ProgressBar::new(progress)
-                        .show_percentage()
-                        .animate(true),
-                );
-                ui.add_space(4.0);
-            }
-
-            if self.pack_assets.is_empty() {
-                if self.selected_pack.is_some() {
-                    ui.centered_and_justified(|ui| {
-                        ui.label("No assets found in this pack");
-                    });
-                }
-            } else {
-                draw_thumbnail_grid(
-                    ui,
-                    &self.pack_assets,
-                    &self.thumbnail_cache,
-                    self.selected_asset,
-                    self.thumbnail_size,
-                    &mut asset_action,
-                );
-            }
+            tree.ui(&mut behavior, ui);
         });
 
-        if let Some(index) = asset_action {
-            self.select_asset(index, ctx, world);
+        let actions = behavior.actions;
+        let active_viewer_rect = behavior.active_viewer_rect;
+        let active_viewer_camera = behavior.active_viewer_camera;
+
+        let pixels_per_point = ctx.pixels_per_point();
+        if let Some(rect) = active_viewer_rect {
+            world.resources.window.active_viewport_rect = Some(ViewportRect {
+                x: rect.min.x * pixels_per_point,
+                y: rect.min.y * pixels_per_point,
+                width: rect.width() * pixels_per_point,
+                height: rect.height() * pixels_per_point,
+            });
+            world.resources.active_camera = active_viewer_camera;
+        } else {
+            world.resources.window.active_viewport_rect = None;
+            if let Some(ortho) = self.ortho_camera_entity {
+                world.resources.active_camera = Some(ortho);
+            }
+        }
+
+        self.tile_tree = Some(tree);
+
+        for action in actions {
+            match action {
+                PaneAction::OpenModelViewer { path, filename } => {
+                    self.open_model_viewer(world, path, filename);
+                }
+                PaneAction::CloseModelViewer {
+                    orbit_camera,
+                    sun,
+                    model,
+                } => {
+                    despawn_recursive_immediate(world, orbit_camera);
+                    despawn_recursive_immediate(world, sun);
+                    if let Some(model_entity) = model {
+                        despawn_recursive_immediate(world, model_entity);
+                    }
+                    if !self.has_model_viewer_open() {
+                        world.resources.graphics.atmosphere = Atmosphere::None;
+                        world.resources.graphics.show_grid = false;
+                    }
+                }
+                PaneAction::SelectAsset { index } => {
+                    self.handle_select_asset(index, ctx, world);
+                }
+            }
         }
     }
-
-    fn draw_3d_overlay_ui(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    if let Some(index) = self.selected_asset
-                        && let Some(asset_file) = self.pack_assets.get(index)
-                    {
-                        ui.label(
-                            egui::RichText::new(&asset_file.filename)
-                                .strong()
-                                .color(egui::Color32::WHITE)
-                                .size(16.0),
-                        );
-                    }
-
-                    if ui.button("Back (Esc)").clicked() {
-                        self.view_mode = ViewMode::Browse;
-                    }
-                });
-            });
-    }
-}
-
-fn draw_thumbnail_grid(
-    ui: &mut egui::Ui,
-    pack_assets: &[scanner::AssetFile],
-    thumbnail_cache: &HashMap<PathBuf, egui::TextureHandle>,
-    selected_asset: Option<usize>,
-    thumbnail_size: f32,
-    asset_action: &mut Option<usize>,
-) {
-    let spacing = 8.0;
-    let cell_width = thumbnail_size;
-    let cell_height = thumbnail_size + 18.0;
-
-    egui::ScrollArea::vertical()
-        .auto_shrink(false)
-        .show(ui, |ui| {
-            let available_width = ui.available_width();
-            let columns = ((available_width + spacing) / (cell_width + spacing))
-                .floor()
-                .max(1.0) as usize;
-            let rows = pack_assets.len().div_ceil(columns);
-
-            for row in 0..rows {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(spacing, spacing);
-
-                    for col in 0..columns {
-                        let index = row * columns + col;
-                        if index >= pack_assets.len() {
-                            break;
-                        }
-
-                        let asset_file = &pack_assets[index];
-                        let is_selected = selected_asset == Some(index);
-
-                        let (rect, response) = ui.allocate_exact_size(
-                            egui::vec2(cell_width, cell_height),
-                            egui::Sense::click(),
-                        );
-
-                        let thumb_rect = egui::Rect::from_min_size(
-                            rect.min,
-                            egui::vec2(thumbnail_size, thumbnail_size),
-                        );
-
-                        let bg_color = if is_selected {
-                            egui::Color32::from_rgba_premultiplied(50, 70, 110, 200)
-                        } else if response.hovered() {
-                            egui::Color32::from_gray(45)
-                        } else {
-                            egui::Color32::from_gray(30)
-                        };
-                        ui.painter().rect_filled(thumb_rect, 4.0, bg_color);
-
-                        if asset_file.kind == scanner::AssetFileKind::Model {
-                            ui.painter().text(
-                                thumb_rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                "[3D]",
-                                egui::FontId::proportional(16.0),
-                                egui::Color32::from_rgb(150, 200, 255),
-                            );
-                        } else if let Some(handle) = thumbnail_cache.get(&asset_file.path) {
-                            let [tw, th] = handle.size();
-                            let scale = (thumbnail_size / tw as f32)
-                                .min(thumbnail_size / th as f32)
-                                .min(1.0);
-                            let img_size = egui::vec2(tw as f32 * scale, th as f32 * scale);
-                            let img_rect =
-                                egui::Rect::from_center_size(thumb_rect.center(), img_size);
-                            ui.painter().image(
-                                handle.id(),
-                                img_rect,
-                                egui::Rect::from_min_max(
-                                    egui::pos2(0.0, 0.0),
-                                    egui::pos2(1.0, 1.0),
-                                ),
-                                egui::Color32::WHITE,
-                            );
-                        }
-
-                        if is_selected {
-                            ui.painter().rect_stroke(
-                                thumb_rect,
-                                4.0,
-                                egui::Stroke::new(
-                                    2.0,
-                                    egui::Color32::from_rgb(100, 150, 255),
-                                ),
-                                egui::StrokeKind::Outside,
-                            );
-                        }
-
-                        let label_center = egui::pos2(rect.center().x, thumb_rect.max.y + 9.0);
-                        let max_chars = (thumbnail_size / 7.0) as usize;
-                        let display_name = if asset_file.filename.len() > max_chars {
-                            format!(
-                                "{}...",
-                                &asset_file.filename[..max_chars.saturating_sub(3)]
-                            )
-                        } else {
-                            asset_file.filename.clone()
-                        };
-                        ui.painter().text(
-                            label_center,
-                            egui::Align2::CENTER_CENTER,
-                            &display_name,
-                            egui::FontId::proportional(11.0),
-                            if is_selected {
-                                egui::Color32::WHITE
-                            } else {
-                                egui::Color32::GRAY
-                            },
-                        );
-
-                        if response.clicked() {
-                            *asset_action = Some(index);
-                        }
-                    }
-                });
-            }
-        });
 }

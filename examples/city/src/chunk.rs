@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use nightshade::ecs::world::WorldCommand;
 use nightshade::prelude::*;
 use noise::Perlin;
 use rand::{Rng, SeedableRng};
@@ -176,25 +177,25 @@ impl ChunkStreamer {
                 .chain(chunk.building_entities.iter())
                 .chain(chunk.detail_entities.iter())
             {
-                world.queue_despawn_entity(*entity);
+                world.queue_command(WorldCommand::DespawnRecursive { entity: *entity });
             }
         }
 
         for (_, entities) in self.persistent_proxies.drain() {
             for entity in &entities {
-                world.queue_despawn_entity(*entity);
+                world.queue_command(WorldCommand::DespawnRecursive { entity: *entity });
             }
         }
 
         for (_, loading) in self.loading.drain() {
             for entity in &loading.entities {
-                world.queue_despawn_entity(*entity);
+                world.queue_command(WorldCommand::DespawnRecursive { entity: *entity });
             }
         }
 
         for despawning in self.despawning.drain(..) {
             for entity in &despawning.entities[despawning.cursor..] {
-                world.queue_despawn_entity(*entity);
+                world.queue_command(WorldCommand::DespawnRecursive { entity: *entity });
             }
         }
 
@@ -226,11 +227,7 @@ impl ChunkStreamer {
                     + chunk.detail_entities.len()
             })
             .sum();
-        let proxy_entities: usize = self
-            .persistent_proxies
-            .values()
-            .map(|v| v.len())
-            .sum();
+        let proxy_entities: usize = self.persistent_proxies.values().map(|v| v.len()).sum();
         let loading_entities: usize = self.loading.values().map(|lc| lc.entities.len()).sum();
         let despawning_entities: usize = self
             .despawning
@@ -247,8 +244,7 @@ impl ChunkStreamer {
                 let layout = &self.layouts[&coords];
                 let proxy_data = pregen_proxy(layout);
                 let mesh_count = proxy_data.meshes.len();
-                let entities =
-                    proxy_data.instantiate_range(world, 0, proxy_data.total_count());
+                let entities = proxy_data.instantiate_range(world, 0, proxy_data.total_count());
                 for (index, &entity) in entities.iter().enumerate() {
                     if index < mesh_count {
                         world.resources.mesh_render_state.mark_entity_added(entity);
@@ -498,7 +494,7 @@ impl ChunkStreamer {
             let remaining = chunk.entities.len() - chunk.cursor;
             let to_despawn = remaining.min(despawn_budget);
             for entity in &chunk.entities[chunk.cursor..chunk.cursor + to_despawn] {
-                world.queue_despawn_entity(*entity);
+                world.queue_command(WorldCommand::DespawnRecursive { entity: *entity });
             }
             chunk.cursor += to_despawn;
             despawn_budget -= to_despawn;

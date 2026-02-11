@@ -21,7 +21,7 @@ const MAX_MANAGEMENT_RADIUS: i32 = BASE_RADIUS + FRUSTUM_BIAS_AHEAD + 2;
 const COMBINED_BUDGET: usize = 192;
 const MIN_BUDGET_PER_SIDE: usize = 32;
 
-const CITY_HALF: i32 = 8;
+const CITY_HALF: i32 = 16;
 pub const CITY_MIN: i32 = -CITY_HALF;
 pub const CITY_MAX: i32 = CITY_HALF - 1;
 

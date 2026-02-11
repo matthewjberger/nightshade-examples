@@ -2,7 +2,7 @@ use nightshade::prelude::*;
 use rand::{Rng, SeedableRng};
 
 const BLOCK_SIZE: f32 = 16.0;
-const CITY_HALF_EXTENT: f32 = 8.0 * 64.0;
+const CITY_HALF_EXTENT: f32 = 16.0 * 64.0;
 
 const DRIVE_SPEED: f32 = 8.0;
 const DRIVE_HEIGHT: f32 = 2.5;
@@ -179,7 +179,7 @@ impl CameraController {
     fn update_orbit(&self) -> (Vec3, nalgebra_glm::Qua<f32>) {
         let time = self.time;
 
-        let radius = 350.0;
+        let radius = 700.0;
         let altitude = 80.0;
         let angular_speed = 0.08;
         let angle = time * angular_speed;

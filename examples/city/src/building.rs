@@ -71,91 +71,8 @@ pub fn describe_building_proxy(data: &mut ChunkData, spec: &BuildingSpec) {
                 ),
                 spec.body_material,
             );
-
-            if matches!(
-                spec.building_type,
-                BuildingType::Skyscraper
-                    | BuildingType::OfficeTower
-                    | BuildingType::LowRiseOffice
-                    | BuildingType::ApartmentBlock
-            ) {
-                describe_proxy_window_strips(data, spec);
-            }
         }
     }
-}
-
-fn describe_proxy_window_strips(data: &mut ChunkData, spec: &BuildingSpec) {
-    let half_width = spec.width * PROXY_SCALE / 2.0;
-    let half_depth = spec.depth * PROXY_SCALE / 2.0;
-    let strip_y_base = FLOOR_HEIGHT;
-    let strip_height = spec.height * PROXY_HEIGHT_SCALE - FLOOR_HEIGHT;
-
-    if strip_height <= 0.0 {
-        return;
-    }
-
-    let strip_center_y = strip_y_base + strip_height / 2.0;
-
-    data.mesh(
-        "Cube",
-        Vec3::new(
-            spec.x + half_width + WINDOW_SURFACE_OFFSET,
-            strip_center_y,
-            spec.z,
-        ),
-        Vec3::new(
-            WINDOW_SURFACE_OFFSET,
-            strip_height,
-            spec.depth * PROXY_SCALE * 0.85,
-        ),
-        "WindowDark",
-    );
-
-    data.mesh(
-        "Cube",
-        Vec3::new(
-            spec.x - half_width - WINDOW_SURFACE_OFFSET,
-            strip_center_y,
-            spec.z,
-        ),
-        Vec3::new(
-            WINDOW_SURFACE_OFFSET,
-            strip_height,
-            spec.depth * PROXY_SCALE * 0.85,
-        ),
-        "WindowDark",
-    );
-
-    data.mesh(
-        "Cube",
-        Vec3::new(
-            spec.x,
-            strip_center_y,
-            spec.z + half_depth + WINDOW_SURFACE_OFFSET,
-        ),
-        Vec3::new(
-            spec.width * PROXY_SCALE * 0.85,
-            strip_height,
-            WINDOW_SURFACE_OFFSET,
-        ),
-        "WindowDark",
-    );
-
-    data.mesh(
-        "Cube",
-        Vec3::new(
-            spec.x,
-            strip_center_y,
-            spec.z - half_depth - WINDOW_SURFACE_OFFSET,
-        ),
-        Vec3::new(
-            spec.width * PROXY_SCALE * 0.85,
-            strip_height,
-            WINDOW_SURFACE_OFFSET,
-        ),
-        "WindowDark",
-    );
 }
 
 pub fn describe_building_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
@@ -351,10 +268,12 @@ fn describe_skyscraper_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut
         );
     }
 
+    let &(_, _, top_width, top_depth) = sections.last().unwrap();
+
     let top_choice = rng.random_range(0u32..3);
     match top_choice {
         0 => {
-            let sphere_radius = spec.width.min(spec.depth) * 0.4;
+            let sphere_radius = top_width.min(top_depth) * 0.4;
             data.mesh(
                 "Sphere",
                 Vec3::new(spec.x, spec.height + sphere_radius * 0.5, spec.z),
@@ -368,7 +287,7 @@ fn describe_skyscraper_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut
         }
         1 => {
             let cyl_height = rng.random_range(2.0..5.0);
-            let cyl_radius = spec.width.min(spec.depth) * 0.25;
+            let cyl_radius = top_width.min(top_depth) * 0.25;
             data.mesh(
                 "Cylinder",
                 Vec3::new(spec.x, spec.height + cyl_height / 2.0, spec.z),

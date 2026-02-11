@@ -182,7 +182,7 @@ impl State for CityDemo {
         world.resources.graphics.ssao_radius = 0.5;
         world.resources.graphics.ssao_intensity = 0.5;
         world.resources.graphics.ambient_light = [0.25, 0.22, 0.20, 1.0];
-        world.resources.graphics.occlusion_culling_enabled = false;
+        world.resources.graphics.occlusion_culling_enabled = true;
         world.resources.graphics.color_grading = ColorGradingPreset::Cinematic.to_color_grading();
         world.resources.graphics.depth_of_field = self.depth_of_field;
         world.resources.graphics.ssgi_enabled = self.ssgi_enabled;
@@ -230,6 +230,7 @@ impl State for CityDemo {
         );
 
         let mut streamer = ChunkStreamer::new();
+        streamer.load_all_proxies(world);
         streamer.update(world, Vec3::new(0.0, 30.0, 0.0), Vec3::new(0.0, 0.0, -1.0));
         self.chunk_streamer = Some(streamer);
     }

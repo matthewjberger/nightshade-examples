@@ -18,7 +18,7 @@ const FRUSTUM_BIAS_AHEAD: i32 = 2;
 const FRUSTUM_BIAS_BEHIND: i32 = -2;
 const MAX_MANAGEMENT_RADIUS: i32 = BASE_RADIUS + FRUSTUM_BIAS_AHEAD + 2;
 
-const COMBINED_BUDGET: usize = 192;
+const COMBINED_BUDGET: usize = 320;
 const MIN_BUDGET_PER_SIDE: usize = 32;
 
 const CITY_HALF: i32 = 16;
@@ -31,7 +31,7 @@ const LAMP_GLOBE_RADIUS: f32 = 0.25;
 const SMOKE_PROBABILITY: f32 = 0.40;
 
 const FADE_DURATION: f32 = 0.3;
-const MAX_PREGEN_PER_FRAME: usize = 2;
+const MAX_PREGEN_PER_FRAME: usize = 4;
 
 const SEED_BODY: u64 = 10000;
 const SEED_DETAIL: u64 = 20000;
@@ -69,7 +69,6 @@ enum LayerKind {
 
 struct ChunkState {
     base_entities: Vec<Entity>,
-    proxy_entities: Vec<Entity>,
     building_entities: Vec<Entity>,
     detail_entities: Vec<Entity>,
 }
@@ -90,8 +89,7 @@ struct FadeEntry {
 }
 
 struct PregenChunk {
-    base_proxy: ChunkData,
-    base_count: usize,
+    base: ChunkData,
     buildings: ChunkData,
     detail: ChunkData,
 }
@@ -102,6 +100,7 @@ pub struct ChunkStreamer {
     despawning: Vec<DespawningChunk>,
     pregen: HashMap<(i32, i32), PregenChunk>,
     layouts: HashMap<(i32, i32), city::CityChunkLayout>,
+    persistent_proxies: HashMap<(i32, i32), Vec<Entity>>,
     last_camera_chunk: (i32, i32),
     fading_entities: Vec<FadeEntry>,
     pregen_budget: usize,
@@ -134,6 +133,7 @@ impl ChunkStreamer {
             despawning: Vec::new(),
             pregen: HashMap::new(),
             layouts,
+            persistent_proxies: HashMap::new(),
             last_camera_chunk: (i32::MAX, i32::MAX),
             fading_entities: Vec::new(),
             pregen_budget: MAX_PREGEN_PER_FRAME,
@@ -173,10 +173,15 @@ impl ChunkStreamer {
             for entity in chunk
                 .base_entities
                 .iter()
-                .chain(chunk.proxy_entities.iter())
                 .chain(chunk.building_entities.iter())
                 .chain(chunk.detail_entities.iter())
             {
+                world.queue_despawn_entity(*entity);
+            }
+        }
+
+        for (_, entities) in self.persistent_proxies.drain() {
+            for entity in &entities {
                 world.queue_despawn_entity(*entity);
             }
         }
@@ -205,6 +210,8 @@ impl ChunkStreamer {
             }
         }
 
+        self.load_all_proxies(world);
+
         self.last_camera_chunk = (i32::MAX, i32::MAX);
         self.pending_pregen = false;
     }
@@ -215,10 +222,14 @@ impl ChunkStreamer {
             .values()
             .map(|chunk| {
                 chunk.base_entities.len()
-                    + chunk.proxy_entities.len()
                     + chunk.building_entities.len()
                     + chunk.detail_entities.len()
             })
+            .sum();
+        let proxy_entities: usize = self
+            .persistent_proxies
+            .values()
+            .map(|v| v.len())
             .sum();
         let loading_entities: usize = self.loading.values().map(|lc| lc.entities.len()).sum();
         let despawning_entities: usize = self
@@ -226,7 +237,26 @@ impl ChunkStreamer {
             .iter()
             .map(|dc| dc.entities.len() - dc.cursor)
             .sum();
-        chunk_entities + loading_entities + despawning_entities
+        chunk_entities + proxy_entities + loading_entities + despawning_entities
+    }
+
+    pub fn load_all_proxies(&mut self, world: &mut World) {
+        for x in CITY_MIN..=CITY_MAX {
+            for z in CITY_MIN..=CITY_MAX {
+                let coords = (x, z);
+                let layout = &self.layouts[&coords];
+                let proxy_data = pregen_proxy(layout);
+                let mesh_count = proxy_data.meshes.len();
+                let entities =
+                    proxy_data.instantiate_range(world, 0, proxy_data.total_count());
+                for (index, &entity) in entities.iter().enumerate() {
+                    if index < mesh_count {
+                        world.resources.mesh_render_state.mark_entity_added(entity);
+                    }
+                }
+                self.persistent_proxies.insert(coords, entities);
+            }
+        }
     }
 
     fn advance_fades(&mut self, world: &mut World, delta_time: f32) {
@@ -348,7 +378,7 @@ impl ChunkStreamer {
                 let lc = &self.loading[key];
                 let pregen = &self.pregen[&key.0];
                 let total = match key.1 {
-                    LayerKind::Base => pregen.base_proxy.total_count(),
+                    LayerKind::Base => pregen.base.total_count(),
                     LayerKind::Buildings => pregen.buildings.total_count(),
                     LayerKind::Detail => pregen.detail.total_count(),
                 };
@@ -364,7 +394,7 @@ impl ChunkStreamer {
                 let lc = &self.loading[key];
                 let pregen = &self.pregen[&key.0];
                 let total = match key.1 {
-                    LayerKind::Base => pregen.base_proxy.total_count(),
+                    LayerKind::Base => pregen.base.total_count(),
                     LayerKind::Buildings => pregen.buildings.total_count(),
                     LayerKind::Detail => pregen.detail.total_count(),
                 };
@@ -400,7 +430,7 @@ impl ChunkStreamer {
             let lc = self.loading.get_mut(&key).unwrap();
 
             let data = match key.1 {
-                LayerKind::Base => &pregen.base_proxy,
+                LayerKind::Base => &pregen.base,
                 LayerKind::Buildings => &pregen.buildings,
                 LayerKind::Detail => &pregen.detail,
             };
@@ -417,9 +447,7 @@ impl ChunkStreamer {
             let new_entities = data.instantiate_range(world, cursor_before, chunk_allowance);
             let spawned = new_entities.len();
             for (offset, &entity) in new_entities.iter().enumerate() {
-                let is_base_geometry =
-                    key.1 == LayerKind::Base && (cursor_before + offset) < pregen.base_count;
-                if !is_base_geometry {
+                if key.1 != LayerKind::Base {
                     world
                         .resources
                         .mesh_render_state
@@ -447,11 +475,8 @@ impl ChunkStreamer {
             let lc = self.loading.remove(&key).unwrap();
             match key.1 {
                 LayerKind::Base => {
-                    let pregen = &self.pregen[&key.0];
                     let chunk = self.chunks.get_mut(&key.0).unwrap();
-                    let split_point = pregen.base_count.min(lc.entities.len());
-                    chunk.base_entities = lc.entities[..split_point].to_vec();
-                    chunk.proxy_entities = lc.entities[split_point..].to_vec();
+                    chunk.base_entities = lc.entities;
                 }
                 LayerKind::Buildings => {
                     let chunk = self.chunks.get_mut(&key.0).unwrap();
@@ -512,7 +537,6 @@ impl ChunkStreamer {
                             coords,
                             ChunkState {
                                 base_entities: Vec::new(),
-                                proxy_entities: Vec::new(),
                                 building_entities: Vec::new(),
                                 detail_entities: Vec::new(),
                             },
@@ -622,7 +646,6 @@ impl ChunkStreamer {
             }
             if let Some(chunk) = self.chunks.remove(&coords) {
                 let mut all_entities = chunk.base_entities;
-                all_entities.extend(chunk.proxy_entities);
                 all_entities.extend(chunk.building_entities);
                 all_entities.extend(chunk.detail_entities);
                 self.fading_entities
@@ -667,16 +690,8 @@ fn pregen_chunk(layout: &CityChunkLayout, coords: (i32, i32)) -> PregenChunk {
     let edges = edge_directions(coords);
     let bridge_edges = corner_bridge_edges(coords);
 
-    let mut base_proxy = pregen_base(layout, coords, &edges);
-    let base_count = base_proxy.total_count();
-    let proxy = pregen_proxy(layout);
-    base_proxy.meshes.extend(proxy.meshes);
-    base_proxy.lights.extend(proxy.lights);
-    base_proxy.smoke_emitters.extend(proxy.smoke_emitters);
-
     PregenChunk {
-        base_proxy,
-        base_count,
+        base: pregen_base(layout, coords, &edges),
         buildings: pregen_buildings(layout, coords, seed, &edges, &bridge_edges),
         detail: pregen_detail(layout, coords, seed, &edges),
     }

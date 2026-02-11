@@ -40,14 +40,14 @@ lint:
 # Runs linter for wasm32 target (excludes native-only and terminal examples)
 [windows]
 lint-wasm:
-    $excludes = @("multiplayer_pong", "steam", "benchmark", "text_adventure", "terminal_breakout"); Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $excludes += $_.Name }; $flags = ($excludes | ForEach-Object { "--exclude $_" }) -join " "; Invoke-Expression "cargo clippy --workspace --target wasm32-unknown-unknown $flags -- -D warnings"
+    $excludes = @("multiplayer_pong", "steam", "benchmark", "text_adventure", "terminal_breakout", "assets"); Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $excludes += $_.Name }; $flags = ($excludes | ForEach-Object { "--exclude $_" }) -join " "; Invoke-Expression "cargo clippy --workspace --target wasm32-unknown-unknown $flags -- -D warnings"
 
 # Runs linter for wasm32 target (excludes native-only and terminal examples)
 [unix]
 lint-wasm:
     #!/usr/bin/env bash
     set -euo pipefail
-    excludes="--exclude multiplayer_pong --exclude steam --exclude benchmark --exclude text_adventure --exclude terminal_breakout"
+    excludes="--exclude multiplayer_pong --exclude steam --exclude benchmark --exclude text_adventure --exclude terminal_breakout --exclude assets"
     for dir in examples-terminal/*/; do
         name=$(basename "$dir")
         excludes="$excludes --exclude $name"
@@ -63,7 +63,7 @@ build-wasm-tui $example:
     trunk build --release --config examples-terminal/{{example}}/Trunk.toml
 
 # Serve a terminal example in browser
-run-wasm-tui $example:
+run-tui-wasm $example:
     trunk serve --release --open --config examples-terminal/{{example}}/Trunk.toml
 
 # Interactively pick and run an example

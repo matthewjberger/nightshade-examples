@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["examples/*", "examples-native/*", "examples-terminal/*"]
+members = ["examples/*", "examples-native/*"]
 exclude = ["plugins", "examples-native/webview"]
 
 [workspace.dependencies]

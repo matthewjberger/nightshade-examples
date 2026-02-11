@@ -19,6 +19,7 @@ pub struct Pack {
 pub enum AssetFileKind {
     Image,
     Model,
+    Fbx,
     Hdr,
 }
 
@@ -26,6 +27,55 @@ pub struct AssetFile {
     pub path: PathBuf,
     pub filename: String,
     pub kind: AssetFileKind,
+}
+
+pub struct AnimatedCharacterPackInfo {
+    pub model_files: Vec<PathBuf>,
+    pub animation_files: Vec<PathBuf>,
+}
+
+pub fn detect_animated_character_pack(pack_path: &Path) -> Option<AnimatedCharacterPackInfo> {
+    let model_dir = pack_path.join("Model");
+    let animations_dir = pack_path.join("Animations");
+
+    if !model_dir.exists() || !animations_dir.exists() {
+        return None;
+    }
+
+    let mut model_files = Vec::new();
+    collect_fbx_files(&model_dir, &mut model_files);
+
+    let mut animation_files = Vec::new();
+    collect_fbx_files(&animations_dir, &mut animation_files);
+
+    if model_files.is_empty() {
+        return None;
+    }
+
+    model_files.sort();
+    animation_files.sort();
+
+    Some(AnimatedCharacterPackInfo {
+        model_files,
+        animation_files,
+    })
+}
+
+fn collect_fbx_files(dir: &Path, files: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_fbx_files(&path, files);
+        } else if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("fbx"))
+        {
+            files.push(path);
+        }
+    }
 }
 
 pub fn scan_kenney(root: &str) -> Option<AssetSource> {
@@ -130,18 +180,38 @@ fn read_polyhaven_info(path: &Path) -> Option<(String, u32)> {
 
 pub fn scan_pack_assets(pack_path: &Path) -> Vec<AssetFile> {
     let mut assets = Vec::new();
+    let mut found_specific_dir = false;
 
     let png_dir = pack_path.join("PNG");
     if png_dir.exists() {
         collect_assets_recursive(&png_dir, &mut assets);
+        found_specific_dir = true;
     }
 
     let glb_dir = pack_path.join("Models").join("GLB format");
     if glb_dir.exists() {
         collect_assets_recursive(&glb_dir, &mut assets);
+        found_specific_dir = true;
     }
 
-    if !png_dir.exists() && !glb_dir.exists() {
+    let fbx_dir = pack_path.join("Models").join("FBX format");
+    if fbx_dir.exists() {
+        collect_assets_recursive(&fbx_dir, &mut assets);
+        found_specific_dir = true;
+    }
+
+    let model_dir = pack_path.join("Model");
+    if model_dir.exists() {
+        collect_assets_recursive(&model_dir, &mut assets);
+        found_specific_dir = true;
+    }
+
+    let animations_dir = pack_path.join("Animations");
+    if animations_dir.exists() {
+        found_specific_dir = true;
+    }
+
+    if !found_specific_dir {
         collect_assets_recursive(pack_path, &mut assets);
     }
 
@@ -176,7 +246,8 @@ fn classify_file(path: &Path) -> Option<AssetFileKind> {
     match extension.as_str() {
         "png" | "jpg" | "jpeg" | "webp" => Some(AssetFileKind::Image),
         "hdr" => Some(AssetFileKind::Hdr),
-        "glb" => Some(AssetFileKind::Model),
+        "glb" | "gltf" => Some(AssetFileKind::Model),
+        "fbx" => Some(AssetFileKind::Fbx),
         _ => None,
     }
 }

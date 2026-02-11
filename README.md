@@ -30,7 +30,7 @@ just run alpha_blending              # windowed example
 just run bouncing_balls              # terminal game (in terminal)
 just run-tui bouncing_balls          # terminal game (in a window)
 just run-wasm alpha_blending         # windowed example (in browser)
-just run-wasm-tui bouncing_balls     # terminal game (in browser)
+just run-tui-wasm bouncing_balls     # terminal game (in browser)
 just run-openxr prefabs              # VR (OpenXR)
 ```
 
@@ -55,7 +55,7 @@ Examples are organized into three directories:
 |-----------|-------------|----------|
 | `examples/` | Windowed examples using the full rendering engine. Run natively, in browser (WASM), or in VR (OpenXR). | `just run <name>` |
 | `examples-native/` | Native-only examples that cannot be compiled to WASM (Steam SDK, raw terminal, etc). | `just run <name>` |
-| `examples-terminal/` | Terminal UI games built with the TUI framework. Run directly in a terminal, in a window via SDF text rendering, or in a browser. | `just run <name>`, `just run-tui <name>`, `just run-wasm-tui <name>` |
+| `examples-terminal/` | Terminal UI games built with the TUI framework. Run directly in a terminal, in a window via SDF text rendering, or in a browser. | `just run <name>`, `just run-tui <name>`, `just run-tui-wasm <name>` |
 
 ## Examples
 
@@ -85,7 +85,7 @@ Examples are organized into three directories:
 
 ### Terminal (`examples-terminal/`)
 
-These are TUI games that run in your terminal, in a window (via `just run-tui`), or in a browser (via `just run-wasm-tui`).
+These are TUI games that run in your terminal, in a window (via `just run-tui`), or in a browser (via `just run-tui-wasm`).
 
 | Category | Examples |
 |----------|----------|
@@ -124,7 +124,7 @@ Build for web browsers with WebGPU support:
 
 ```bash
 just run-wasm alpha_blending             # serve windowed example in browser
-just run-wasm-tui bouncing_balls    # serve terminal example in browser
+just run-tui-wasm bouncing_balls    # serve terminal example in browser
 just build-wasm alpha_blending           # build only
 just build-wasm-tui bouncing_balls  # build only
 ```

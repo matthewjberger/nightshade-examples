@@ -1,6 +1,6 @@
 use nightshade::prelude::*;
 use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::scanner;
 use crate::thumbnail::GpuThumbnail;
@@ -8,18 +8,49 @@ use crate::thumbnail::GpuThumbnail;
 const THUMBNAILS_PER_FRAME: usize = 3;
 
 pub enum PaneAction {
-    OpenModelViewer { path: PathBuf, filename: String },
+    OpenModelViewer {
+        path: PathBuf,
+        filename: String,
+    },
+    OpenFbxCharacter {
+        path: PathBuf,
+        filename: String,
+        pack_path: PathBuf,
+    },
     CloseModelViewer,
-    SelectAsset { index: usize },
+    CloseAssetZoo,
+    SelectAsset {
+        index: usize,
+    },
+    LoadHdrSkybox {
+        path: PathBuf,
+        filename: String,
+    },
+    PlayAnimation {
+        clip_index: usize,
+    },
+    ExportGlb,
+    GenerateAssetZoo,
 }
 
 pub enum Pane {
     Browser(Box<BrowserPane>),
     ModelViewer(ModelViewerPane),
+    AssetZoo(AssetZooPane),
 }
 
 pub struct ModelViewerPane {
     pub display_name: String,
+    pub is_animated_character: bool,
+    pub animation_filter: String,
+}
+
+pub struct AssetZooPane {
+    pub source_name: String,
+    pub output_path: String,
+    pub placed_count: usize,
+    pub total_count: usize,
+    pub log_messages: Vec<String>,
 }
 
 pub struct BrowserPane {
@@ -34,6 +65,10 @@ pub struct BrowserPane {
     pub total_to_load: usize,
     pub thumbnail_size: f32,
     pub model_thumbnail_queue: VecDeque<usize>,
+    pub filter_images: bool,
+    pub filter_models: bool,
+    pub filter_fbx: bool,
+    pub filter_hdr: bool,
 }
 
 impl BrowserPane {
@@ -50,6 +85,10 @@ impl BrowserPane {
             total_to_load: 0,
             thumbnail_size: 96.0,
             model_thumbnail_queue: VecDeque::new(),
+            filter_images: true,
+            filter_models: true,
+            filter_fbx: true,
+            filter_hdr: true,
         }
     }
 
@@ -105,7 +144,9 @@ impl BrowserPane {
             let Some(asset_file) = self.pack_assets.get(index) else {
                 continue;
             };
-            if asset_file.kind == scanner::AssetFileKind::Model {
+            if asset_file.kind == scanner::AssetFileKind::Model
+                || asset_file.kind == scanner::AssetFileKind::Fbx
+            {
                 self.model_thumbnail_queue.push_back(index);
                 continue;
             }
@@ -122,17 +163,38 @@ impl BrowserPane {
         }
     }
 
+    fn should_show_kind(&self, kind: scanner::AssetFileKind) -> bool {
+        match kind {
+            scanner::AssetFileKind::Image => self.filter_images,
+            scanner::AssetFileKind::Model => self.filter_models,
+            scanner::AssetFileKind::Fbx => self.filter_fbx,
+            scanner::AssetFileKind::Hdr => self.filter_hdr,
+        }
+    }
+
     pub fn draw_grid_ui(
         &mut self,
         ui: &mut egui::Ui,
         actions: &mut Vec<PaneAction>,
         gpu_thumbnails: &HashMap<PathBuf, GpuThumbnail>,
     ) {
+        let filtered_indices: Vec<usize> = (0..self.pack_assets.len())
+            .filter(|&index| self.should_show_kind(self.pack_assets[index].kind))
+            .collect();
+
         ui.horizontal(|ui| {
             if !self.current_pack_name.is_empty() {
                 ui.heading(&self.current_pack_name);
                 ui.separator();
-                ui.label(format!("{} assets", self.pack_assets.len()));
+                if filtered_indices.len() == self.pack_assets.len() {
+                    ui.label(format!("{} assets", self.pack_assets.len()));
+                } else {
+                    ui.label(format!(
+                        "{}/{} assets",
+                        filtered_indices.len(),
+                        self.pack_assets.len()
+                    ));
+                }
             } else {
                 ui.heading("Select a pack to browse");
             }
@@ -141,6 +203,17 @@ impl BrowserPane {
                 ui.add(egui::Slider::new(&mut self.thumbnail_size, 48.0..=256.0).text("Size"));
             });
         });
+
+        if !self.pack_assets.is_empty() {
+            ui.horizontal(|ui| {
+                ui.label("Show:");
+                ui.toggle_value(&mut self.filter_images, "PNG");
+                ui.toggle_value(&mut self.filter_models, "GLB");
+                ui.toggle_value(&mut self.filter_fbx, "FBX");
+                ui.toggle_value(&mut self.filter_hdr, "HDR");
+            });
+        }
+
         ui.separator();
 
         if !self.load_queue.is_empty() && self.total_to_load > 0 {
@@ -168,8 +241,12 @@ impl BrowserPane {
                     ui.label("No assets found in this pack");
                 });
             }
+        } else if filtered_indices.is_empty() {
+            ui.centered_and_justified(|ui| {
+                ui.label("No assets match the current filters");
+            });
         } else {
-            self.draw_thumbnail_grid(ui, actions, gpu_thumbnails);
+            self.draw_thumbnail_grid(ui, actions, gpu_thumbnails, &filtered_indices);
         }
     }
 
@@ -178,6 +255,7 @@ impl BrowserPane {
         ui: &mut egui::Ui,
         actions: &mut Vec<PaneAction>,
         gpu_thumbnails: &HashMap<PathBuf, GpuThumbnail>,
+        filtered_indices: &[usize],
     ) {
         let spacing = 8.0;
         let cell_width = self.thumbnail_size;
@@ -191,17 +269,18 @@ impl BrowserPane {
                 let columns = ((available_width + spacing) / (cell_width + spacing))
                     .floor()
                     .max(1.0) as usize;
-                let rows = self.pack_assets.len().div_ceil(columns);
+                let rows = filtered_indices.len().div_ceil(columns);
 
                 for row in 0..rows {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing = egui::vec2(spacing, spacing);
 
                         for col in 0..columns {
-                            let index = row * columns + col;
-                            if index >= self.pack_assets.len() {
+                            let filtered_pos = row * columns + col;
+                            if filtered_pos >= filtered_indices.len() {
                                 break;
                             }
+                            let index = filtered_indices[filtered_pos];
 
                             let is_selected = self.selected_asset == Some(index);
 
@@ -227,7 +306,9 @@ impl BrowserPane {
                             let asset_kind = self.pack_assets[index].kind;
                             let asset_path = &self.pack_assets[index].path;
 
-                            if asset_kind == scanner::AssetFileKind::Model {
+                            if asset_kind == scanner::AssetFileKind::Model
+                                || asset_kind == scanner::AssetFileKind::Fbx
+                            {
                                 if let Some(gpu_thumb) = gpu_thumbnails.get(asset_path) {
                                     let uv = egui::Rect::from_min_max(
                                         egui::pos2(0.0, 0.0),
@@ -240,10 +321,15 @@ impl BrowserPane {
                                         egui::Color32::WHITE,
                                     );
                                 } else {
+                                    let label = if asset_kind == scanner::AssetFileKind::Fbx {
+                                        "[FBX]"
+                                    } else {
+                                        "[3D]"
+                                    };
                                     ui.painter().text(
                                         thumb_rect.center(),
                                         egui::Align2::CENTER_CENTER,
-                                        "[3D]",
+                                        label,
                                         egui::FontId::proportional(16.0),
                                         egui::Color32::from_rgb(150, 200, 255),
                                     );
@@ -286,15 +372,41 @@ impl BrowserPane {
 
                             if response.clicked() {
                                 self.selected_asset = Some(index);
-                                if asset_kind == scanner::AssetFileKind::Model {
-                                    actions.push(PaneAction::OpenModelViewer {
-                                        path: self.pack_assets[index].path.clone(),
-                                        filename: self.pack_assets[index].filename.clone(),
-                                    });
-                                } else {
-                                    actions.push(PaneAction::SelectAsset { index });
+                                match asset_kind {
+                                    scanner::AssetFileKind::Model => {
+                                        actions.push(PaneAction::OpenModelViewer {
+                                            path: self.pack_assets[index].path.clone(),
+                                            filename: self.pack_assets[index].filename.clone(),
+                                        });
+                                    }
+                                    scanner::AssetFileKind::Fbx => {
+                                        let asset_path = &self.pack_assets[index].path;
+                                        let pack_path = derive_pack_path(asset_path);
+                                        actions.push(PaneAction::OpenFbxCharacter {
+                                            path: asset_path.clone(),
+                                            filename: self.pack_assets[index].filename.clone(),
+                                            pack_path,
+                                        });
+                                    }
+                                    scanner::AssetFileKind::Hdr => {
+                                        actions.push(PaneAction::LoadHdrSkybox {
+                                            path: self.pack_assets[index].path.clone(),
+                                            filename: self.pack_assets[index].filename.clone(),
+                                        });
+                                    }
+                                    _ => {
+                                        actions.push(PaneAction::SelectAsset { index });
+                                    }
                                 }
                             }
+
+                            let context_path = self.pack_assets[index].path.clone();
+                            response.context_menu(|ui| {
+                                if ui.button("Reveal in File Explorer").clicked() {
+                                    reveal_in_file_explorer(&context_path);
+                                    ui.close();
+                                }
+                            });
                         }
                     });
                 }
@@ -319,5 +431,51 @@ impl BrowserPane {
             egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
             egui::Color32::WHITE,
         );
+    }
+}
+
+fn derive_pack_path(asset_path: &Path) -> PathBuf {
+    let mut current = asset_path.parent();
+    while let Some(parent) = current {
+        if parent.join("Model").exists() || parent.join("Animations").exists() {
+            return parent.to_path_buf();
+        }
+        let dir_name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if matches!(dir_name, "Models" | "Model" | "FBX format" | "GLB format") {
+            current = parent.parent();
+            continue;
+        }
+        return parent.to_path_buf();
+    }
+    asset_path.parent().unwrap_or(asset_path).to_path_buf()
+}
+
+fn reveal_in_file_explorer(path: &Path) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("explorer")
+            .arg("/select,")
+            .arg(path)
+            .spawn();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("-R")
+            .arg(path)
+            .spawn();
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(parent) = path.parent() {
+            let _ = std::process::Command::new("xdg-open").arg(parent).spawn();
+        }
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = path;
     }
 }

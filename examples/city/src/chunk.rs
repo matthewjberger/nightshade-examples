@@ -22,9 +22,6 @@ const MAX_MANAGEMENT_RADIUS: i32 = BASE_RADIUS + FRUSTUM_BIAS_AHEAD + 2;
 const COMBINED_BUDGET: usize = 320;
 const MIN_BUDGET_PER_SIDE: usize = 32;
 
-const CITY_HALF: i32 = 16;
-pub const CITY_MIN: i32 = -CITY_HALF;
-pub const CITY_MAX: i32 = CITY_HALF - 1;
 
 const LAMP_POLE_HEIGHT: f32 = 3.5;
 const LAMP_GLOBE_RADIUS: f32 = 0.25;
@@ -96,6 +93,8 @@ struct PregenChunk {
 }
 
 pub struct ChunkStreamer {
+    city_min: i32,
+    city_max: i32,
     chunks: HashMap<(i32, i32), ChunkState>,
     loading: HashMap<((i32, i32), LayerKind), LoadingCursor>,
     despawning: Vec<DespawningChunk>,
@@ -119,16 +118,20 @@ fn chunk_seed(coords: (i32, i32)) -> u64 {
 }
 
 impl ChunkStreamer {
-    pub fn new() -> Self {
-        let noise = Perlin::new(42);
+    pub fn new(city_half: i32, seed: u32) -> Self {
+        let city_min = -city_half;
+        let city_max = city_half - 1;
+        let noise = Perlin::new(seed);
         let mut layouts = HashMap::new();
-        for x in CITY_MIN..=CITY_MAX {
-            for z in CITY_MIN..=CITY_MAX {
+        for x in city_min..=city_max {
+            for z in city_min..=city_max {
                 layouts.insert((x, z), generate_chunk_layout(x, z, &noise));
             }
         }
 
         Self {
+            city_min,
+            city_max,
             chunks: HashMap::new(),
             loading: HashMap::new(),
             despawning: Vec::new(),
@@ -148,6 +151,14 @@ impl ChunkStreamer {
         }
     }
 
+    pub fn city_min(&self) -> i32 {
+        self.city_min
+    }
+
+    pub fn city_max(&self) -> i32 {
+        self.city_max
+    }
+
     fn ensure_pregen(&mut self, coords: (i32, i32)) -> bool {
         if self.pregen.contains_key(&coords) {
             return true;
@@ -156,7 +167,8 @@ impl ChunkStreamer {
             return false;
         }
         let layout = &self.layouts[&coords];
-        self.pregen.insert(coords, pregen_chunk(layout, coords));
+        self.pregen
+            .insert(coords, pregen_chunk(layout, coords, self.city_min, self.city_max));
         self.pregen_budget -= 1;
         true
     }
@@ -169,7 +181,7 @@ impl ChunkStreamer {
         &self.layouts
     }
 
-    pub fn regenerate(&mut self, world: &mut World, seed: u32) {
+    pub fn despawn_all(&mut self, world: &mut World) {
         for (_, chunk) in self.chunks.drain() {
             for entity in chunk
                 .base_entities
@@ -201,20 +213,6 @@ impl ChunkStreamer {
 
         self.fading_entities.clear();
         self.pregen.clear();
-
-        let noise = Perlin::new(seed);
-        self.layouts.clear();
-        for x in CITY_MIN..=CITY_MAX {
-            for z in CITY_MIN..=CITY_MAX {
-                self.layouts
-                    .insert((x, z), generate_chunk_layout(x, z, &noise));
-            }
-        }
-
-        self.load_all_proxies(world);
-
-        self.last_camera_chunk = (i32::MAX, i32::MAX);
-        self.pending_pregen = false;
     }
 
     pub fn entity_count(&self) -> usize {
@@ -238,8 +236,8 @@ impl ChunkStreamer {
     }
 
     pub fn load_all_proxies(&mut self, world: &mut World) {
-        for x in CITY_MIN..=CITY_MAX {
-            for z in CITY_MIN..=CITY_MAX {
+        for x in self.city_min..=self.city_max {
+            for z in self.city_min..=self.city_max {
                 let coords = (x, z);
                 let layout = &self.layouts[&coords];
                 let proxy_data = pregen_proxy(layout);
@@ -506,10 +504,10 @@ impl ChunkStreamer {
             self.despawning.swap_remove(index);
         }
 
-        let scan_min_x = (camera_chunk.0 - MAX_MANAGEMENT_RADIUS).max(CITY_MIN);
-        let scan_max_x = (camera_chunk.0 + MAX_MANAGEMENT_RADIUS).min(CITY_MAX);
-        let scan_min_z = (camera_chunk.1 - MAX_MANAGEMENT_RADIUS).max(CITY_MIN);
-        let scan_max_z = (camera_chunk.1 + MAX_MANAGEMENT_RADIUS).min(CITY_MAX);
+        let scan_min_x = (camera_chunk.0 - MAX_MANAGEMENT_RADIUS).max(self.city_min);
+        let scan_max_x = (camera_chunk.0 + MAX_MANAGEMENT_RADIUS).min(self.city_max);
+        let scan_min_z = (camera_chunk.1 - MAX_MANAGEMENT_RADIUS).max(self.city_min);
+        let scan_max_z = (camera_chunk.1 + MAX_MANAGEMENT_RADIUS).min(self.city_max);
 
         for x in scan_min_x..=scan_max_x {
             for z in scan_min_z..=scan_max_z {
@@ -681,10 +679,15 @@ fn desired_layers(distance: i32, has_buildings: bool, has_detail: bool, bias: i3
     (want_buildings, want_detail && want_buildings)
 }
 
-fn pregen_chunk(layout: &CityChunkLayout, coords: (i32, i32)) -> PregenChunk {
+fn pregen_chunk(
+    layout: &CityChunkLayout,
+    coords: (i32, i32),
+    city_min: i32,
+    city_max: i32,
+) -> PregenChunk {
     let seed = chunk_seed(coords);
-    let edges = edge_directions(coords);
-    let bridge_edges = corner_bridge_edges(coords);
+    let edges = edge_directions(coords, city_min, city_max);
+    let bridge_edges = corner_bridge_edges(coords, city_min, city_max);
 
     PregenChunk {
         base: pregen_base(layout, coords, &edges),
@@ -1051,24 +1054,24 @@ fn facing_bias(
     }
 }
 
-fn edge_directions(coords: (i32, i32)) -> [Option<EdgeDirection>; 4] {
+fn edge_directions(coords: (i32, i32), city_min: i32, city_max: i32) -> [Option<EdgeDirection>; 4] {
     [
-        if coords.0 == CITY_MIN {
+        if coords.0 == city_min {
             Some(EdgeDirection::West)
         } else {
             None
         },
-        if coords.0 == CITY_MAX {
+        if coords.0 == city_max {
             Some(EdgeDirection::East)
         } else {
             None
         },
-        if coords.1 == CITY_MIN {
+        if coords.1 == city_min {
             Some(EdgeDirection::North)
         } else {
             None
         },
-        if coords.1 == CITY_MAX {
+        if coords.1 == city_max {
             Some(EdgeDirection::South)
         } else {
             None
@@ -1076,18 +1079,22 @@ fn edge_directions(coords: (i32, i32)) -> [Option<EdgeDirection>; 4] {
     ]
 }
 
-fn corner_bridge_edges(coords: (i32, i32)) -> Option<(EdgeDirection, EdgeDirection)> {
+fn corner_bridge_edges(
+    coords: (i32, i32),
+    city_min: i32,
+    city_max: i32,
+) -> Option<(EdgeDirection, EdgeDirection)> {
     match coords {
-        (x, z) if x == CITY_MIN && z == CITY_MIN => {
+        (x, z) if x == city_min && z == city_min => {
             Some((EdgeDirection::West, EdgeDirection::North))
         }
-        (x, z) if x == CITY_MIN && z == CITY_MAX => {
+        (x, z) if x == city_min && z == city_max => {
             Some((EdgeDirection::West, EdgeDirection::South))
         }
-        (x, z) if x == CITY_MAX && z == CITY_MIN => {
+        (x, z) if x == city_max && z == city_min => {
             Some((EdgeDirection::East, EdgeDirection::North))
         }
-        (x, z) if x == CITY_MAX && z == CITY_MAX => {
+        (x, z) if x == city_max && z == city_max => {
             Some((EdgeDirection::East, EdgeDirection::South))
         }
         _ => None,

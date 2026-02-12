@@ -107,9 +107,7 @@ impl ObserverCamera {
                 Projection::Perspective(persp) if persp.z_far.is_none() => {
                     let aspect_ratio = persp
                         .aspect_ratio
-                        .unwrap_or_else(|| {
-                            query_window_aspect_ratio(world).unwrap_or(16.0 / 9.0)
-                        });
+                        .unwrap_or_else(|| query_window_aspect_ratio(world).unwrap_or(16.0 / 9.0));
                     PerspectiveCamera {
                         z_far: Some(visualization_far),
                         ..*persp
@@ -147,25 +145,89 @@ impl ObserverCamera {
         let hatch_steps = 8;
         let mut lines = Vec::with_capacity(12 + 4 + hatch_steps * 4);
 
-        lines.push(Line { start: ntl, end: ntr, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: ntr, end: nbr, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: nbr, end: nbl, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: nbl, end: ntl, color: FRUSTUM_NEAR_COLOR });
+        lines.push(Line {
+            start: ntl,
+            end: ntr,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: ntr,
+            end: nbr,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: nbr,
+            end: nbl,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: nbl,
+            end: ntl,
+            color: FRUSTUM_NEAR_COLOR,
+        });
 
-        lines.push(Line { start: ftl, end: ftr, color: FRUSTUM_FAR_COLOR });
-        lines.push(Line { start: ftr, end: fbr, color: FRUSTUM_FAR_COLOR });
-        lines.push(Line { start: fbr, end: fbl, color: FRUSTUM_FAR_COLOR });
-        lines.push(Line { start: fbl, end: ftl, color: FRUSTUM_FAR_COLOR });
+        lines.push(Line {
+            start: ftl,
+            end: ftr,
+            color: FRUSTUM_FAR_COLOR,
+        });
+        lines.push(Line {
+            start: ftr,
+            end: fbr,
+            color: FRUSTUM_FAR_COLOR,
+        });
+        lines.push(Line {
+            start: fbr,
+            end: fbl,
+            color: FRUSTUM_FAR_COLOR,
+        });
+        lines.push(Line {
+            start: fbl,
+            end: ftl,
+            color: FRUSTUM_FAR_COLOR,
+        });
 
-        lines.push(Line { start: ntl, end: ftl, color: FRUSTUM_COLOR });
-        lines.push(Line { start: ntr, end: ftr, color: FRUSTUM_COLOR });
-        lines.push(Line { start: nbl, end: fbl, color: FRUSTUM_COLOR });
-        lines.push(Line { start: nbr, end: fbr, color: FRUSTUM_COLOR });
+        lines.push(Line {
+            start: ntl,
+            end: ftl,
+            color: FRUSTUM_COLOR,
+        });
+        lines.push(Line {
+            start: ntr,
+            end: ftr,
+            color: FRUSTUM_COLOR,
+        });
+        lines.push(Line {
+            start: nbl,
+            end: fbl,
+            color: FRUSTUM_COLOR,
+        });
+        lines.push(Line {
+            start: nbr,
+            end: fbr,
+            color: FRUSTUM_COLOR,
+        });
 
-        lines.push(Line { start: ntl, end: nbr, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: ntr, end: nbl, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: ftl, end: fbr, color: FRUSTUM_FAR_COLOR });
-        lines.push(Line { start: ftr, end: fbl, color: FRUSTUM_FAR_COLOR });
+        lines.push(Line {
+            start: ntl,
+            end: nbr,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: ntr,
+            end: nbl,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: ftl,
+            end: fbr,
+            color: FRUSTUM_FAR_COLOR,
+        });
+        lines.push(Line {
+            start: ftr,
+            end: fbl,
+            color: FRUSTUM_FAR_COLOR,
+        });
 
         let hatch_color = Vec4::new(1.0, 1.0, 0.0, 0.4);
         for step in 1..=hatch_steps {
@@ -174,10 +236,26 @@ impl ObserverCamera {
             let right_top = nalgebra_glm::lerp(&ntr, &ftr, t);
             let left_bottom = nalgebra_glm::lerp(&nbl, &fbl, t);
             let right_bottom = nalgebra_glm::lerp(&nbr, &fbr, t);
-            lines.push(Line { start: left_top, end: right_top, color: hatch_color });
-            lines.push(Line { start: left_bottom, end: right_bottom, color: hatch_color });
-            lines.push(Line { start: left_top, end: left_bottom, color: hatch_color });
-            lines.push(Line { start: right_top, end: right_bottom, color: hatch_color });
+            lines.push(Line {
+                start: left_top,
+                end: right_top,
+                color: hatch_color,
+            });
+            lines.push(Line {
+                start: left_bottom,
+                end: right_bottom,
+                color: hatch_color,
+            });
+            lines.push(Line {
+                start: left_top,
+                end: left_bottom,
+                color: hatch_color,
+            });
+            lines.push(Line {
+                start: right_top,
+                end: right_bottom,
+                color: hatch_color,
+            });
         }
 
         if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
@@ -259,6 +337,7 @@ impl ObserverCamera {
 
         let saved_camera = world.resources.active_camera;
         world.resources.active_camera = Some(self.camera_entity);
+        world.resources.graphics.culling_camera_override = Some(main_camera);
 
         let _ = renderer.render_world_to_texture(
             world,
@@ -268,6 +347,7 @@ impl ObserverCamera {
         );
 
         world.resources.active_camera = saved_camera;
+        world.resources.graphics.culling_camera_override = None;
 
         if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
             lines_component.lines.clear();

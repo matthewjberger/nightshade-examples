@@ -2,7 +2,6 @@ use nightshade::prelude::*;
 use rand::{Rng, SeedableRng};
 
 const BLOCK_SIZE: f32 = 16.0;
-const CITY_HALF_EXTENT: f32 = 16.0 * 64.0;
 
 const DRIVE_SPEED: f32 = 8.0;
 const DRIVE_HEIGHT: f32 = 2.5;
@@ -53,10 +52,11 @@ pub struct CameraController {
     mode: CinematicMode,
     time: f32,
     drive: DriveState,
+    city_half_extent: f32,
 }
 
 impl CameraController {
-    pub fn new(mode: CinematicMode, camera_position: Vec3) -> Self {
+    pub fn new(mode: CinematicMode, camera_position: Vec3, city_half_extent: f32) -> Self {
         let road_x = (camera_position.x / BLOCK_SIZE).round() * BLOCK_SIZE;
         let road_z = (camera_position.z / BLOCK_SIZE).round() * BLOCK_SIZE;
         Self {
@@ -72,6 +72,7 @@ impl CameraController {
                 look_z: 0.0,
                 rng: rand::rngs::StdRng::seed_from_u64(42),
             },
+            city_half_extent,
         }
     }
 
@@ -134,7 +135,7 @@ impl CameraController {
                 self.drive.direction_z = new_dz;
             }
 
-            let bound = CITY_HALF_EXTENT - BLOCK_SIZE * 3.0;
+            let bound = self.city_half_extent - BLOCK_SIZE * 3.0;
             if self.drive.road_x.abs() > bound || self.drive.road_z.abs() > bound {
                 self.drive.direction_x = -self.drive.direction_x;
                 self.drive.direction_z = -self.drive.direction_z;

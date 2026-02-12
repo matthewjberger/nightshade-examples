@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use nightshade::ecs::camera::queries::query_camera_frustum;
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::world::resources::MouseState;
+use nightshade::ecs::world::WorldCommand;
 use nightshade::prelude::*;
 
 const OBSERVER_WIDTH: u32 = 640;
@@ -116,25 +117,89 @@ impl ObserverCamera {
         let hatch_steps = 8;
         let mut lines = Vec::with_capacity(12 + 4 + hatch_steps * 4);
 
-        lines.push(Line { start: ntl, end: ntr, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: ntr, end: nbr, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: nbr, end: nbl, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: nbl, end: ntl, color: FRUSTUM_NEAR_COLOR });
+        lines.push(Line {
+            start: ntl,
+            end: ntr,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: ntr,
+            end: nbr,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: nbr,
+            end: nbl,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: nbl,
+            end: ntl,
+            color: FRUSTUM_NEAR_COLOR,
+        });
 
-        lines.push(Line { start: ftl, end: ftr, color: FRUSTUM_FAR_COLOR });
-        lines.push(Line { start: ftr, end: fbr, color: FRUSTUM_FAR_COLOR });
-        lines.push(Line { start: fbr, end: fbl, color: FRUSTUM_FAR_COLOR });
-        lines.push(Line { start: fbl, end: ftl, color: FRUSTUM_FAR_COLOR });
+        lines.push(Line {
+            start: ftl,
+            end: ftr,
+            color: FRUSTUM_FAR_COLOR,
+        });
+        lines.push(Line {
+            start: ftr,
+            end: fbr,
+            color: FRUSTUM_FAR_COLOR,
+        });
+        lines.push(Line {
+            start: fbr,
+            end: fbl,
+            color: FRUSTUM_FAR_COLOR,
+        });
+        lines.push(Line {
+            start: fbl,
+            end: ftl,
+            color: FRUSTUM_FAR_COLOR,
+        });
 
-        lines.push(Line { start: ntl, end: ftl, color: FRUSTUM_COLOR });
-        lines.push(Line { start: ntr, end: ftr, color: FRUSTUM_COLOR });
-        lines.push(Line { start: nbl, end: fbl, color: FRUSTUM_COLOR });
-        lines.push(Line { start: nbr, end: fbr, color: FRUSTUM_COLOR });
+        lines.push(Line {
+            start: ntl,
+            end: ftl,
+            color: FRUSTUM_COLOR,
+        });
+        lines.push(Line {
+            start: ntr,
+            end: ftr,
+            color: FRUSTUM_COLOR,
+        });
+        lines.push(Line {
+            start: nbl,
+            end: fbl,
+            color: FRUSTUM_COLOR,
+        });
+        lines.push(Line {
+            start: nbr,
+            end: fbr,
+            color: FRUSTUM_COLOR,
+        });
 
-        lines.push(Line { start: ntl, end: nbr, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: ntr, end: nbl, color: FRUSTUM_NEAR_COLOR });
-        lines.push(Line { start: ftl, end: fbr, color: FRUSTUM_FAR_COLOR });
-        lines.push(Line { start: ftr, end: fbl, color: FRUSTUM_FAR_COLOR });
+        lines.push(Line {
+            start: ntl,
+            end: nbr,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: ntr,
+            end: nbl,
+            color: FRUSTUM_NEAR_COLOR,
+        });
+        lines.push(Line {
+            start: ftl,
+            end: fbr,
+            color: FRUSTUM_FAR_COLOR,
+        });
+        lines.push(Line {
+            start: ftr,
+            end: fbl,
+            color: FRUSTUM_FAR_COLOR,
+        });
 
         let hatch_color = Vec4::new(1.0, 1.0, 0.0, 0.4);
         for step in 1..=hatch_steps {
@@ -143,10 +208,26 @@ impl ObserverCamera {
             let right_top = nalgebra_glm::lerp(&ntr, &ftr, t);
             let left_bottom = nalgebra_glm::lerp(&nbl, &fbl, t);
             let right_bottom = nalgebra_glm::lerp(&nbr, &fbr, t);
-            lines.push(Line { start: left_top, end: right_top, color: hatch_color });
-            lines.push(Line { start: left_bottom, end: right_bottom, color: hatch_color });
-            lines.push(Line { start: left_top, end: left_bottom, color: hatch_color });
-            lines.push(Line { start: right_top, end: right_bottom, color: hatch_color });
+            lines.push(Line {
+                start: left_top,
+                end: right_top,
+                color: hatch_color,
+            });
+            lines.push(Line {
+                start: left_bottom,
+                end: right_bottom,
+                color: hatch_color,
+            });
+            lines.push(Line {
+                start: left_top,
+                end: left_bottom,
+                color: hatch_color,
+            });
+            lines.push(Line {
+                start: right_top,
+                end: right_bottom,
+                color: hatch_color,
+            });
         }
 
         if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
@@ -230,6 +311,7 @@ impl ObserverCamera {
         let saved_fog = world.resources.graphics.fog.take();
 
         world.resources.active_camera = Some(self.camera_entity);
+        world.resources.graphics.culling_camera_override = Some(main_camera);
 
         let _ = renderer.render_world_to_texture(
             world,
@@ -240,11 +322,21 @@ impl ObserverCamera {
 
         world.resources.active_camera = saved_camera;
         world.resources.graphics.fog = saved_fog;
+        world.resources.graphics.culling_camera_override = None;
 
         if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
             lines_component.lines.clear();
             lines_component.mark_dirty();
         }
+    }
+
+    pub fn despawn(self, world: &mut World) {
+        world.queue_command(WorldCommand::DespawnRecursive {
+            entity: self.camera_entity,
+        });
+        world.queue_command(WorldCommand::DespawnRecursive {
+            entity: self.frustum_lines_entity,
+        });
     }
 
     pub fn draw_ui(&self, ui_context: &egui::Context, minimap_enabled: bool) {
@@ -256,11 +348,7 @@ impl ObserverCamera {
         let pip_width = 480.0;
         let pip_height = pip_width * (OBSERVER_HEIGHT as f32 / OBSERVER_WIDTH as f32);
 
-        let minimap_offset = if minimap_enabled {
-            218.0 + 10.0
-        } else {
-            0.0
-        };
+        let minimap_offset = if minimap_enabled { 218.0 + 10.0 } else { 0.0 };
 
         egui::Area::new(egui::Id::new("observer_pip"))
             .anchor(
@@ -311,8 +399,7 @@ fn fly_cam_look(world: &mut World) {
                     .set_cursor_grab(winit::window::CursorGrabMode::Locked)
                     .is_err()
                 {
-                    let _ =
-                        window_handle.set_cursor_grab(winit::window::CursorGrabMode::Confined);
+                    let _ = window_handle.set_cursor_grab(winit::window::CursorGrabMode::Confined);
                 }
                 window_handle.set_cursor_visible(false);
             }
@@ -395,10 +482,7 @@ fn fly_cam_look(world: &mut World) {
             let Some(local_transform) = world.get_local_transform(camera_entity) else {
                 return;
             };
-            (
-                local_transform.right_vector(),
-                local_transform.up_vector(),
-            )
+            (local_transform.right_vector(), local_transform.up_vector())
         };
 
         let mut delta =

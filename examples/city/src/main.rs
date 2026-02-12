@@ -11,7 +11,7 @@ mod waterfront;
 use chunk::ChunkStreamer;
 use nightshade::ecs::graphics::resources::{DepthOfField, DepthOfFieldQuality};
 use nightshade::ecs::water::Water;
-use nightshade::ecs::world::WATER;
+use nightshade::ecs::world::{WATER, WorldCommand};
 use nightshade::prelude::*;
 
 const MIN_CAMERA_Y: f32 = 2.0;
@@ -31,6 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 struct CityDemo {
     camera_entity: Option<Entity>,
     sun_entity: Option<Entity>,
+    ocean_entity: Option<Entity>,
     chunk_streamer: Option<ChunkStreamer>,
     minimap_enabled: bool,
     camera_controller: Option<camera::CameraController>,
@@ -38,7 +39,9 @@ struct CityDemo {
     time_speed: f32,
     auto_time: bool,
     next_seed: u32,
-    regenerate_requested: bool,
+    generate_requested: bool,
+    city_half: i32,
+    pending_city_half: i32,
     depth_of_field: DepthOfField,
     ssgi_enabled: bool,
     ssgi_intensity: f32,
@@ -53,14 +56,17 @@ impl Default for CityDemo {
         Self {
             camera_entity: None,
             sun_entity: None,
+            ocean_entity: None,
             chunk_streamer: None,
             minimap_enabled: false,
             camera_controller: None,
             current_hour: 18.0,
             time_speed: 0.5,
             auto_time: true,
-            next_seed: 1,
-            regenerate_requested: false,
+            next_seed: 0,
+            generate_requested: false,
+            city_half: 16,
+            pending_city_half: 16,
             depth_of_field: DepthOfField {
                 enabled: true,
                 focus_distance: 3.5,
@@ -199,45 +205,7 @@ impl State for CityDemo {
 
         materials::create_materials(world);
 
-        let camera = spawn_camera(world, Vec3::new(0.0, 30.0, 0.0), "City Camera".to_string());
-        if let Some(camera_component) = world.get_camera_mut(camera) {
-            camera_component.projection = Projection::Perspective(PerspectiveCamera {
-                aspect_ratio: None,
-                y_fov_rad: 60.0_f32.to_radians(),
-                z_far: Some(2000.0),
-                z_near: 1.0,
-            });
-        }
-        world.resources.active_camera = Some(camera);
-        self.camera_entity = Some(camera);
-
-        let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
-            light.cast_shadows = true;
-            light.intensity = 3.5;
-            light.shadow_bias = 0.008;
-        }
-        self.sun_entity = Some(sun);
-        self.update_sun_for_hour(world);
-
-        let ocean = world.spawn_entities(WATER | NAME, 1)[0];
-        world.set_name(ocean, Name("Ocean".to_string()));
-        world.set_water(
-            ocean,
-            Water {
-                base_height: -2.0,
-                wave_height: 0.3,
-                choppy: 2.0,
-                speed: 0.5,
-                frequency: 0.12,
-                ..Default::default()
-            },
-        );
-
-        let mut streamer = ChunkStreamer::new();
-        streamer.load_all_proxies(world);
-        streamer.update(world, Vec3::new(0.0, 30.0, 0.0), Vec3::new(0.0, 0.0, -1.0));
-        self.chunk_streamer = Some(streamer);
+        self.setup_world(world);
     }
 
     fn pre_render(&mut self, renderer: &mut dyn Render, world: &mut World) {
@@ -276,13 +244,29 @@ impl State for CityDemo {
         world.resources.graphics.ssgi_radius = self.ssgi_radius;
         world.resources.graphics.ssgi_max_steps = self.ssgi_max_steps;
 
-        if self.regenerate_requested {
-            self.regenerate_requested = false;
-            if let Some(streamer) = &mut self.chunk_streamer {
-                let seed = self.next_seed;
-                self.next_seed += 1;
-                streamer.regenerate(world, seed);
+        if self.generate_requested {
+            self.generate_requested = false;
+            self.city_half = self.pending_city_half;
+            self.next_seed += 1;
+
+            if let Some(mut streamer) = self.chunk_streamer.take() {
+                streamer.despawn_all(world);
             }
+            if let Some(entity) = self.camera_entity.take() {
+                world.queue_command(WorldCommand::DespawnRecursive { entity });
+            }
+            if let Some(entity) = self.sun_entity.take() {
+                world.queue_command(WorldCommand::DespawnRecursive { entity });
+            }
+            if let Some(entity) = self.ocean_entity.take() {
+                world.queue_command(WorldCommand::DespawnRecursive { entity });
+            }
+            if let Some(observer) = self.observer.take() {
+                observer.despawn(world);
+            }
+            self.camera_controller = None;
+
+            self.setup_world(world);
         }
 
         if let Some(camera) = self.camera_entity {
@@ -448,8 +432,11 @@ impl State for CityDemo {
 
             ui.separator();
 
-            if ui.button("Regenerate City").clicked() {
-                self.regenerate_requested = true;
+            let total_size = self.pending_city_half * 2;
+            ui.label(format!("Map Size: {total_size}\u{00d7}{total_size} chunks"));
+            ui.add(egui::Slider::new(&mut self.pending_city_half, 4..=32));
+            if ui.button("Generate City").clicked() {
+                self.generate_requested = true;
             }
 
             ui.separator();
@@ -458,9 +445,11 @@ impl State for CityDemo {
             let mut auto_cam = auto_camera_active;
             if ui.checkbox(&mut auto_cam, "Auto Camera").changed() {
                 if auto_cam {
+                    let city_half_extent = self.city_half as f32 * city::CHUNK_SIZE;
                     self.camera_controller = Some(camera::CameraController::new(
                         camera::CinematicMode::Drive,
                         camera_pos,
+                        city_half_extent,
                     ));
                 } else {
                     self.camera_controller = None;
@@ -487,8 +476,8 @@ impl State for CityDemo {
                     camera_z: camera_pos.z,
                     camera_forward_x: camera_forward.x,
                     camera_forward_z: camera_forward.z,
-                    city_min: chunk::CITY_MIN,
-                    city_max: chunk::CITY_MAX,
+                    city_min: streamer.city_min(),
+                    city_max: streamer.city_max(),
                 },
             );
         }
@@ -502,6 +491,49 @@ impl State for CityDemo {
 }
 
 impl CityDemo {
+    fn setup_world(&mut self, world: &mut World) {
+        let camera = spawn_camera(world, Vec3::new(0.0, 30.0, 0.0), "City Camera".to_string());
+        if let Some(camera_component) = world.get_camera_mut(camera) {
+            camera_component.projection = Projection::Perspective(PerspectiveCamera {
+                aspect_ratio: None,
+                y_fov_rad: 60.0_f32.to_radians(),
+                z_far: Some(2000.0),
+                z_near: 1.0,
+            });
+        }
+        world.resources.active_camera = Some(camera);
+        self.camera_entity = Some(camera);
+
+        let sun = spawn_sun(world);
+        if let Some(light) = world.get_light_mut(sun) {
+            light.cast_shadows = true;
+            light.intensity = 3.5;
+            light.shadow_bias = 0.008;
+        }
+        self.sun_entity = Some(sun);
+        self.update_sun_for_hour(world);
+
+        let ocean = world.spawn_entities(WATER | NAME, 1)[0];
+        world.set_name(ocean, Name("Ocean".to_string()));
+        world.set_water(
+            ocean,
+            Water {
+                base_height: -2.0,
+                wave_height: 0.3,
+                choppy: 2.0,
+                speed: 0.5,
+                frequency: 0.12,
+                ..Default::default()
+            },
+        );
+        self.ocean_entity = Some(ocean);
+
+        let mut streamer = ChunkStreamer::new(self.city_half, self.next_seed);
+        streamer.load_all_proxies(world);
+        streamer.update(world, Vec3::new(0.0, 30.0, 0.0), Vec3::new(0.0, 0.0, -1.0));
+        self.chunk_streamer = Some(streamer);
+    }
+
     fn get_sun_direction(hour: f32) -> Vec3 {
         let pi = std::f32::consts::PI;
         if !(6.0..=18.0).contains(&hour) {

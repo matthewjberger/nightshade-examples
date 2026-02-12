@@ -5,6 +5,7 @@ mod city;
 mod descriptors;
 mod materials;
 mod minimap;
+mod observer;
 mod waterfront;
 
 use chunk::ChunkStreamer;
@@ -43,6 +44,8 @@ struct CityDemo {
     ssgi_intensity: f32,
     ssgi_radius: f32,
     ssgi_max_steps: u32,
+    observer: Option<observer::ObserverCamera>,
+    observer_enabled: bool,
 }
 
 impl Default for CityDemo {
@@ -77,6 +80,8 @@ impl Default for CityDemo {
             ssgi_intensity: 0.5,
             ssgi_radius: 2.0,
             ssgi_max_steps: 16,
+            observer: None,
+            observer_enabled: false,
         }
     }
 }
@@ -235,6 +240,20 @@ impl State for CityDemo {
         self.chunk_streamer = Some(streamer);
     }
 
+    fn pre_render(&mut self, renderer: &mut dyn Render, world: &mut World) {
+        if self.observer.is_none() {
+            self.observer = Some(observer::ObserverCamera::new(renderer, world));
+        }
+        if let Some(observer) = &mut self.observer {
+            observer.enabled = self.observer_enabled;
+            if observer.enabled
+                && let Some(main_camera) = self.camera_entity
+            {
+                observer.render(renderer, world, main_camera);
+            }
+        }
+    }
+
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
 
@@ -273,6 +292,13 @@ impl State for CityDemo {
                     transform.translation = position;
                     transform.rotation = rotation;
                 }
+            } else if self.observer_enabled {
+                observer::fly_camera_keyboard_mouse_only(world);
+                if let Some(transform) = world.get_local_transform_mut(camera)
+                    && transform.translation.y < MIN_CAMERA_Y
+                {
+                    transform.translation.y = MIN_CAMERA_Y;
+                }
             } else {
                 fly_camera_system(world);
                 if let Some(transform) = world.get_local_transform_mut(camera)
@@ -282,6 +308,12 @@ impl State for CityDemo {
                 }
             }
             mark_local_transform_dirty(world, camera);
+
+            if self.observer_enabled
+                && let Some(observer) = &mut self.observer
+            {
+                observer.update(world, delta_time);
+            }
 
             let camera_pos = world
                 .get_local_transform(camera)
@@ -412,6 +444,8 @@ impl State for CityDemo {
                 self.minimap_enabled = minimap_on;
             }
 
+            ui.checkbox(&mut self.observer_enabled, "Observer Camera");
+
             ui.separator();
 
             if ui.button("Regenerate City").clicked() {
@@ -457,6 +491,12 @@ impl State for CityDemo {
                     city_max: chunk::CITY_MAX,
                 },
             );
+        }
+
+        if self.observer_enabled
+            && let Some(observer) = &self.observer
+        {
+            observer.draw_ui(ui_context, self.minimap_enabled);
         }
     }
 }

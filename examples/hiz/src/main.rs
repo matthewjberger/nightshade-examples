@@ -1,3 +1,5 @@
+mod observer;
+
 use nightshade::prelude::*;
 use std::collections::{HashMap, HashSet};
 
@@ -11,7 +13,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[derive(Default)]
 struct HizDemo {
     chunks: HashMap<(i32, i32), Vec<Entity>>,
     total_cubes: usize,
@@ -20,6 +21,26 @@ struct HizDemo {
     last_chunk_x: i32,
     last_chunk_z: i32,
     initialized: bool,
+    main_camera: Option<Entity>,
+    observer: Option<observer::ObserverCamera>,
+    observer_enabled: bool,
+}
+
+impl Default for HizDemo {
+    fn default() -> Self {
+        Self {
+            chunks: HashMap::new(),
+            total_cubes: 0,
+            fps: 0.0,
+            delta_time: 0.0,
+            last_chunk_x: i32::MIN,
+            last_chunk_z: i32::MIN,
+            initialized: false,
+            main_camera: None,
+            observer: None,
+            observer_enabled: false,
+        }
+    }
 }
 
 impl State for HizDemo {
@@ -35,23 +56,58 @@ impl State for HizDemo {
         let camera_position = Vec3::new(0.0, 20.0, 50.0);
         let main_camera = spawn_camera(world, camera_position, "Main Camera".to_string());
         world.resources.active_camera = Some(main_camera);
+        self.main_camera = Some(main_camera);
 
         spawn_sun(world);
+    }
 
-        self.last_chunk_x = i32::MIN;
-        self.last_chunk_z = i32::MIN;
+    fn pre_render(&mut self, renderer: &mut dyn Render, world: &mut World) {
+        if self.observer.is_none() {
+            self.observer = Some(observer::ObserverCamera::new(renderer, world));
+        }
+        if let Some(observer) = &mut self.observer {
+            observer.enabled = self.observer_enabled;
+            if observer.enabled
+                && let Some(main_camera) = self.main_camera
+            {
+                observer.render(renderer, world, main_camera);
+            }
+        }
     }
 
     fn run_systems(&mut self, world: &mut World) {
         self.fps = world.resources.window.timing.frames_per_second;
         self.delta_time = world.resources.window.timing.delta_time;
+
+        let saved_gamepad_id = if self.observer_enabled {
+            world.resources.input.gamepad.gamepad.take()
+        } else {
+            None
+        };
+
         fly_camera_system(world);
+
+        if saved_gamepad_id.is_some() {
+            world.resources.input.gamepad.gamepad = saved_gamepad_id;
+        }
+
+        if self.observer_enabled
+            && let Some(observer) = &mut self.observer
+        {
+            observer.update(world, self.delta_time);
+        }
 
         self.update_chunks(world);
     }
 
     fn ui(&mut self, world: &mut World, ctx: &egui::Context) {
         self.render_ui(world, ctx);
+
+        if self.observer_enabled
+            && let Some(observer) = &self.observer
+        {
+            observer.draw_ui(ctx);
+        }
     }
 }
 
@@ -154,7 +210,7 @@ impl HizDemo {
         entities
     }
 
-    fn render_ui(&self, _world: &mut World, ctx: &egui::Context) {
+    fn render_ui(&mut self, _world: &mut World, ctx: &egui::Context) {
         egui::Window::new("Hi-Z Occlusion Culling - Infinite Grid")
             .default_pos([10.0, 10.0])
             .default_width(350.0)
@@ -203,10 +259,16 @@ impl HizDemo {
                 });
 
                 ui.separator();
+                ui.checkbox(&mut self.observer_enabled, "Observer Camera");
+
+                ui.separator();
                 ui.heading("Controls");
                 ui.label("WASD: Move camera");
                 ui.label("Mouse: Look around (hold click)");
                 ui.label("Space/Shift: Up/Down");
+                if self.observer_enabled {
+                    ui.label("Gamepad: Control observer camera");
+                }
             });
     }
 }

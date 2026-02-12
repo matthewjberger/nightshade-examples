@@ -5,6 +5,6 @@ license = "MIT OR Apache-2.0"
 edition = "2024"
 
 [dependencies]
-nightshade = { workspace = true, features = ["egui"] }
+nightshade = { workspace = true, features = ["egui", "gamepad"] }
 noise = "0.9"
 rand = "0.9"

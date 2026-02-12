@@ -44,6 +44,8 @@ pub fn spawn_snow_blizzard(world: &mut World) {
         has_fired: false,
         turbulence_strength: 1.8,
         turbulence_frequency: 0.5,
+
+        ..Default::default()
     };
 
     world.set_particle_emitter(snow_entity, snow_emitter);
@@ -86,6 +88,8 @@ pub fn spawn_snow_blizzard(world: &mut World) {
         has_fired: false,
         turbulence_strength: 2.5,
         turbulence_frequency: 0.8,
+
+        ..Default::default()
     };
 
     world.set_particle_emitter(snow_entity_2, sparkle_emitter);
@@ -128,6 +132,8 @@ pub fn spawn_footprint_emitter(game_world: &mut GameWorld, world: &mut World) {
         has_fired: false,
         turbulence_strength: 0.0,
         turbulence_frequency: 0.0,
+
+        ..Default::default()
     };
 
     world.set_particle_emitter(footprint_entity, footprint_emitter);

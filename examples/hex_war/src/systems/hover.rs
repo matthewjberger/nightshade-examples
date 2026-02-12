@@ -28,7 +28,7 @@ fn find_tile_under_cursor(
     let rough_hit = ray.intersect_ground_plane(0.0)?;
     let rough_coord = world_to_hex(rough_hit.x, rough_hit.z, hex_width, hex_depth);
 
-    let tile_surface_y = 5.0;
+    let tile_surface_y = 0.05;
 
     let reference_world_pos = Vec3::new(rough_hit.x, tile_surface_y, rough_hit.z);
     let reference_screen = world_to_screen(world, reference_world_pos)?;

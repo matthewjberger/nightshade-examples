@@ -53,6 +53,11 @@ struct SmokeEffect {
     time_remaining: f32,
 }
 
+struct SpriteEffect {
+    entity: Entity,
+    _label: &'static str,
+}
+
 struct SubShell {
     entity: Entity,
     position: Vec3,
@@ -84,6 +89,7 @@ struct FireworksDemo {
     sub_shells: Vec<SubShell>,
     fire_effects: Vec<FireEffect>,
     smoke_effects: Vec<SmokeEffect>,
+    sprite_effects: Vec<SpriteEffect>,
     next_launch_time: f32,
     auto_launch: bool,
     launch_interval: f32,
@@ -190,6 +196,9 @@ impl State for FireworksDemo {
             self.spawn_smoke_effect(world, Vec3::new(-30.0, 3.0, 5.0));
             self.spawn_smoke_effect(world, Vec3::new(30.0, 3.0, 5.0));
         }
+
+        Self::load_all_particle_textures(world);
+        self.spawn_all_sprite_effects(world);
 
         spawn_hud_text_with_properties(
             world,
@@ -507,6 +516,18 @@ impl State for FireworksDemo {
                 ui.label(format!("Active shells: {}", self.shells.len()));
                 ui.label(format!("Sub-shells: {}", self.sub_shells.len()));
                 ui.label(format!("Fire effects: {}", self.fire_effects.len()));
+                ui.label(format!(
+                    "Sprite effects: {} ({} entities)",
+                    self.sprite_effects.len(),
+                    self.sprite_effects
+                        .iter()
+                        .filter(|effect| {
+                            world
+                                .get_particle_emitter(effect.entity)
+                                .is_some_and(|emitter| emitter.enabled)
+                        })
+                        .count()
+                ));
                 ui.label(format!("Smoke effects: {}", self.smoke_effects.len()));
 
                 let emitter_count = world.query_entities(PARTICLE_EMITTER).count();
@@ -1676,6 +1697,443 @@ impl FireworksDemo {
             entity,
             time_remaining: f32::INFINITY,
         });
+    }
+
+    fn load_particle_texture(world: &mut World, slot: u32, png_bytes: &[u8]) {
+        let img = nightshade::prelude::image::load_from_memory(png_bytes)
+            .expect("Failed to decode particle texture")
+            .to_rgba8();
+        let (width, height) = img.dimensions();
+        world
+            .resources
+            .pending_particle_textures
+            .push(ParticleTextureUpload {
+                slot,
+                rgba_data: img.into_raw(),
+                width,
+                height,
+            });
+    }
+
+    fn load_all_particle_textures(world: &mut World) {
+        let textures: &[(u32, &[u8])] = &[
+            (1, include_bytes!("../assets/particles/flame_01.png")),
+            (2, include_bytes!("../assets/particles/flame_02.png")),
+            (3, include_bytes!("../assets/particles/flame_06.png")),
+            (4, include_bytes!("../assets/particles/smoke_01.png")),
+            (5, include_bytes!("../assets/particles/smoke_04.png")),
+            (6, include_bytes!("../assets/particles/smoke_07.png")),
+            (7, include_bytes!("../assets/particles/spark_01.png")),
+            (8, include_bytes!("../assets/particles/spark_05.png")),
+            (9, include_bytes!("../assets/particles/star_04.png")),
+            (10, include_bytes!("../assets/particles/star_06.png")),
+            (11, include_bytes!("../assets/particles/twirl_01.png")),
+            (12, include_bytes!("../assets/particles/magic_01.png")),
+            (13, include_bytes!("../assets/particles/magic_04.png")),
+            (14, include_bytes!("../assets/particles/circle_01.png")),
+            (15, include_bytes!("../assets/particles/circle_05.png")),
+            (16, include_bytes!("../assets/particles/flare_01.png")),
+            (17, include_bytes!("../assets/particles/light_01.png")),
+            (18, include_bytes!("../assets/particles/fire_01.png")),
+            (19, include_bytes!("../assets/particles/scorch_01.png")),
+            (20, include_bytes!("../assets/particles/slash_01.png")),
+            (21, include_bytes!("../assets/particles/symbol_01.png")),
+            (22, include_bytes!("../assets/particles/trace_05.png")),
+            (23, include_bytes!("../assets/particles/muzzle_03.png")),
+            (24, include_bytes!("../assets/particles/window_01.png")),
+        ];
+        for &(slot, bytes) in textures {
+            Self::load_particle_texture(world, slot, bytes);
+        }
+    }
+
+    fn spawn_sprite_effect(
+        &mut self,
+        world: &mut World,
+        emitter: ParticleEmitter,
+        label: &'static str,
+    ) {
+        let entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
+        world.set_particle_emitter(entity, emitter);
+        self.sprite_effects.push(SpriteEffect {
+            entity,
+            _label: label,
+        });
+    }
+
+    fn spawn_sprite_label(world: &mut World, position: Vec3, text: &str) {
+        spawn_3d_billboard_text_with_properties(
+            world,
+            text,
+            position,
+            TextProperties {
+                font_size: 24.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 0.9),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+    }
+
+    fn spawn_all_sprite_effects(&mut self, world: &mut World) {
+        let ground_z = 25.0;
+        let spacing = 15.0;
+        let start_x = -4.0 * spacing;
+        let label_height = 12.0;
+
+        Self::spawn_sprite_label(world, Vec3::new(start_x, label_height, ground_z), "star_04");
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Sparks,
+                shape: EmitterShape::Point,
+                position: Vec3::new(start_x, 0.0, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 15.0,
+                particle_lifetime_min: 0.8,
+                particle_lifetime_max: 1.8,
+                initial_velocity_min: 4.0,
+                initial_velocity_max: 10.0,
+                velocity_spread: 0.5,
+                gravity: Vec3::new(0.0, -6.0, 0.0),
+                drag: 0.1,
+                size_start: 3.0,
+                size_end: 0.5,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(1.0, 1.0, 1.0, 1.0)),
+                        (0.2, Vec4::new(1.0, 0.95, 0.4, 1.0)),
+                        (0.6, Vec4::new(1.0, 0.7, 0.1, 0.9)),
+                        (1.0, Vec4::new(0.8, 0.3, 0.0, 0.0)),
+                    ],
+                },
+                emissive_strength: 12.0,
+                turbulence_strength: 0.0,
+                turbulence_frequency: 0.0,
+                texture_index: 9,
+                ..Default::default()
+            },
+            "4-Point Stars",
+        );
+
+        Self::spawn_sprite_label(
+            world,
+            Vec3::new(start_x + spacing, label_height, ground_z),
+            "symbol_01",
+        );
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Fire,
+                shape: EmitterShape::Sphere { radius: 0.5 },
+                position: Vec3::new(start_x + spacing, 0.5, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 8.0,
+                particle_lifetime_min: 2.0,
+                particle_lifetime_max: 4.0,
+                initial_velocity_min: 0.5,
+                initial_velocity_max: 2.0,
+                velocity_spread: 0.8,
+                gravity: Vec3::new(0.0, 1.5, 0.0),
+                drag: 0.3,
+                size_start: 2.5,
+                size_end: 5.0,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(1.0, 0.3, 0.5, 0.9)),
+                        (0.3, Vec4::new(1.0, 0.2, 0.4, 0.8)),
+                        (0.7, Vec4::new(0.9, 0.1, 0.3, 0.5)),
+                        (1.0, Vec4::new(0.6, 0.0, 0.2, 0.0)),
+                    ],
+                },
+                emissive_strength: 6.0,
+                turbulence_strength: 0.8,
+                turbulence_frequency: 0.8,
+                texture_index: 21,
+                ..Default::default()
+            },
+            "Rising Hearts",
+        );
+
+        Self::spawn_sprite_label(
+            world,
+            Vec3::new(start_x + 2.0 * spacing, label_height, ground_z),
+            "magic_01",
+        );
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Fire,
+                shape: EmitterShape::Sphere { radius: 1.5 },
+                position: Vec3::new(start_x + 2.0 * spacing, 2.0, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 6.0,
+                particle_lifetime_min: 2.5,
+                particle_lifetime_max: 5.0,
+                initial_velocity_min: 0.3,
+                initial_velocity_max: 1.5,
+                velocity_spread: std::f32::consts::PI,
+                gravity: Vec3::new(0.0, 0.3, 0.0),
+                drag: 0.2,
+                size_start: 3.0,
+                size_end: 6.0,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(0.5, 0.2, 1.0, 0.8)),
+                        (0.3, Vec4::new(0.7, 0.3, 1.0, 0.7)),
+                        (0.6, Vec4::new(0.9, 0.5, 1.0, 0.4)),
+                        (1.0, Vec4::new(1.0, 0.8, 1.0, 0.0)),
+                    ],
+                },
+                emissive_strength: 5.0,
+                turbulence_strength: 1.0,
+                turbulence_frequency: 0.5,
+                texture_index: 12,
+                ..Default::default()
+            },
+            "Magic Pentagons",
+        );
+
+        Self::spawn_sprite_label(
+            world,
+            Vec3::new(start_x + 3.0 * spacing, label_height, ground_z),
+            "star_06",
+        );
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Sparks,
+                shape: EmitterShape::Point,
+                position: Vec3::new(start_x + 3.0 * spacing, 0.0, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 12.0,
+                particle_lifetime_min: 1.0,
+                particle_lifetime_max: 2.5,
+                initial_velocity_min: 3.0,
+                initial_velocity_max: 8.0,
+                velocity_spread: 0.7,
+                gravity: Vec3::new(0.0, -4.0, 0.0),
+                drag: 0.15,
+                size_start: 3.5,
+                size_end: 1.0,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(1.0, 1.0, 1.0, 1.0)),
+                        (0.15, Vec4::new(0.6, 0.8, 1.0, 1.0)),
+                        (0.5, Vec4::new(0.3, 0.5, 1.0, 0.8)),
+                        (1.0, Vec4::new(0.1, 0.2, 0.8, 0.0)),
+                    ],
+                },
+                emissive_strength: 10.0,
+                turbulence_strength: 0.0,
+                turbulence_frequency: 0.0,
+                texture_index: 10,
+                ..Default::default()
+            },
+            "Diamond Stars",
+        );
+
+        Self::spawn_sprite_label(
+            world,
+            Vec3::new(start_x + 4.0 * spacing, label_height, ground_z),
+            "circle_05",
+        );
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Smoke,
+                shape: EmitterShape::Sphere { radius: 1.0 },
+                position: Vec3::new(start_x + 4.0 * spacing, 1.0, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 8.0,
+                particle_lifetime_min: 3.0,
+                particle_lifetime_max: 6.0,
+                initial_velocity_min: 0.2,
+                initial_velocity_max: 1.0,
+                velocity_spread: std::f32::consts::PI,
+                gravity: Vec3::new(0.0, 0.5, 0.0),
+                drag: 0.1,
+                size_start: 2.0,
+                size_end: 5.0,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(0.2, 0.9, 1.0, 0.7)),
+                        (0.3, Vec4::new(0.3, 0.8, 1.0, 0.6)),
+                        (0.6, Vec4::new(0.1, 0.6, 0.9, 0.4)),
+                        (1.0, Vec4::new(0.05, 0.3, 0.7, 0.0)),
+                    ],
+                },
+                emissive_strength: 3.0,
+                turbulence_strength: 0.5,
+                turbulence_frequency: 0.3,
+                texture_index: 15,
+                ..Default::default()
+            },
+            "Ring Bubbles",
+        );
+
+        Self::spawn_sprite_label(
+            world,
+            Vec3::new(start_x + 5.0 * spacing, label_height, ground_z),
+            "scorch_01",
+        );
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Fire,
+                shape: EmitterShape::Sphere { radius: 0.5 },
+                position: Vec3::new(start_x + 5.0 * spacing, 0.5, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 10.0,
+                particle_lifetime_min: 0.8,
+                particle_lifetime_max: 2.0,
+                initial_velocity_min: 1.0,
+                initial_velocity_max: 4.0,
+                velocity_spread: std::f32::consts::PI,
+                gravity: Vec3::new(0.0, -2.0, 0.0),
+                drag: 0.2,
+                size_start: 4.0,
+                size_end: 1.5,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(1.0, 1.0, 0.9, 1.0)),
+                        (0.2, Vec4::new(1.0, 0.8, 0.3, 0.9)),
+                        (0.5, Vec4::new(1.0, 0.5, 0.1, 0.7)),
+                        (1.0, Vec4::new(0.6, 0.15, 0.0, 0.0)),
+                    ],
+                },
+                emissive_strength: 8.0,
+                turbulence_strength: 0.3,
+                turbulence_frequency: 1.0,
+                texture_index: 19,
+                ..Default::default()
+            },
+            "Starburst",
+        );
+
+        Self::spawn_sprite_label(
+            world,
+            Vec3::new(start_x + 6.0 * spacing, label_height, ground_z),
+            "twirl_01",
+        );
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Fire,
+                shape: EmitterShape::Sphere { radius: 0.5 },
+                position: Vec3::new(start_x + 6.0 * spacing, 0.5, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 10.0,
+                particle_lifetime_min: 2.0,
+                particle_lifetime_max: 4.0,
+                initial_velocity_min: 0.5,
+                initial_velocity_max: 2.5,
+                velocity_spread: std::f32::consts::PI,
+                gravity: Vec3::new(0.0, 1.0, 0.0),
+                drag: 0.25,
+                size_start: 2.5,
+                size_end: 4.5,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(0.1, 1.0, 0.6, 0.7)),
+                        (0.3, Vec4::new(0.2, 0.9, 0.8, 0.6)),
+                        (0.6, Vec4::new(0.3, 0.8, 1.0, 0.4)),
+                        (1.0, Vec4::new(0.5, 1.0, 0.9, 0.0)),
+                    ],
+                },
+                emissive_strength: 4.0,
+                turbulence_strength: 1.5,
+                turbulence_frequency: 0.8,
+                texture_index: 11,
+                ..Default::default()
+            },
+            "Crescent Wisps",
+        );
+
+        Self::spawn_sprite_label(
+            world,
+            Vec3::new(start_x + 7.0 * spacing, label_height, ground_z),
+            "muzzle_03",
+        );
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Sparks,
+                shape: EmitterShape::Cone {
+                    angle: 0.3,
+                    height: 0.1,
+                },
+                position: Vec3::new(start_x + 7.0 * spacing, 0.0, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 12.0,
+                particle_lifetime_min: 0.5,
+                particle_lifetime_max: 1.5,
+                initial_velocity_min: 5.0,
+                initial_velocity_max: 12.0,
+                velocity_spread: 0.4,
+                gravity: Vec3::new(0.0, -8.0, 0.0),
+                drag: 0.05,
+                size_start: 3.5,
+                size_end: 1.0,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(1.0, 1.0, 1.0, 1.0)),
+                        (0.15, Vec4::new(1.0, 0.8, 0.2, 1.0)),
+                        (0.4, Vec4::new(1.0, 0.5, 0.05, 0.9)),
+                        (0.7, Vec4::new(1.0, 0.2, 0.0, 0.6)),
+                        (1.0, Vec4::new(0.5, 0.05, 0.0, 0.0)),
+                    ],
+                },
+                emissive_strength: 10.0,
+                turbulence_strength: 0.0,
+                turbulence_frequency: 0.0,
+                texture_index: 23,
+                ..Default::default()
+            },
+            "Flame Tongues",
+        );
+
+        Self::spawn_sprite_label(
+            world,
+            Vec3::new(start_x + 8.0 * spacing, label_height, ground_z),
+            "window_01",
+        );
+        self.spawn_sprite_effect(
+            world,
+            ParticleEmitter {
+                emitter_type: EmitterType::Sparks,
+                shape: EmitterShape::Sphere { radius: 0.3 },
+                position: Vec3::new(start_x + 8.0 * spacing, 0.0, ground_z),
+                direction: Vec3::new(0.0, 1.0, 0.0),
+                spawn_rate: 6.0,
+                particle_lifetime_min: 2.0,
+                particle_lifetime_max: 4.0,
+                initial_velocity_min: 2.0,
+                initial_velocity_max: 5.0,
+                velocity_spread: 0.6,
+                gravity: Vec3::new(0.0, -3.0, 0.0),
+                drag: 0.15,
+                size_start: 4.0,
+                size_end: 2.0,
+                color_gradient: ColorGradient {
+                    colors: vec![
+                        (0.0, Vec4::new(1.0, 1.0, 1.0, 0.9)),
+                        (0.2, Vec4::new(1.0, 0.9, 0.6, 0.8)),
+                        (0.5, Vec4::new(0.9, 0.8, 0.4, 0.6)),
+                        (1.0, Vec4::new(0.6, 0.5, 0.2, 0.0)),
+                    ],
+                },
+                emissive_strength: 5.0,
+                turbulence_strength: 0.5,
+                turbulence_frequency: 0.5,
+                texture_index: 24,
+                ..Default::default()
+            },
+            "Window Panes",
+        );
     }
 
     fn cleanup_expired_effects(&mut self, world: &mut World, delta_time: f32) {

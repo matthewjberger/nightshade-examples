@@ -14,7 +14,8 @@ use nightshade::ecs::world::{
 use nightshade::prelude::*;
 use std::collections::HashMap;
 
-const HEX_OUTLINE_HEIGHT: f32 = 5.0;
+const HEX_OUTLINE_HEIGHT: f32 = 0.05;
+const SEA_OUTLINE_HEIGHT: f32 = 0.01;
 const SEA_EXTENSION: i32 = 30;
 
 pub struct MapEntities {
@@ -45,7 +46,10 @@ pub fn generate_game_map(
 
     for (&coord, &base_type) in &generated.tiles {
         let tile_type = determine_tile_type(base_type, coord, &generated);
-        tile_positions.push((coord, tile_type));
+
+        if tile_type != TileType::Sea {
+            tile_positions.push((coord, tile_type));
+        }
 
         if tile_type == TileType::Port {
             port_coords.push(coord);
@@ -53,8 +57,13 @@ pub fn generate_game_map(
 
         spawn_tile(game_world, coord, tile_type);
 
+        let outline_height = if tile_type == TileType::Sea {
+            SEA_OUTLINE_HEIGHT
+        } else {
+            HEX_OUTLINE_HEIGHT
+        };
         let position = hex_to_world_position(coord.column, coord.row, hex_width, hex_depth);
-        let hex_lines = generate_hex_outline(position, hex_width, hex_depth, HEX_OUTLINE_HEIGHT);
+        let hex_lines = generate_hex_outline(position, hex_width, hex_depth, outline_height);
         all_hex_lines.extend(hex_lines);
     }
 
@@ -64,11 +73,9 @@ pub fn generate_game_map(
             if generated.tiles.contains_key(&coord) {
                 continue;
             }
-            tile_positions.push((coord, TileType::Sea));
-
             let position = hex_to_world_position(coord.column, coord.row, hex_width, hex_depth);
             let hex_lines =
-                generate_hex_outline(position, hex_width, hex_depth, HEX_OUTLINE_HEIGHT);
+                generate_hex_outline(position, hex_width, hex_depth, SEA_OUTLINE_HEIGHT);
             all_hex_lines.extend(hex_lines);
         }
     }
@@ -137,7 +144,7 @@ fn spawn_hidden_lines_entity(world: &mut World) -> Entity {
     entity
 }
 
-const PORT_LABEL_HEIGHT: f32 = 100.0;
+const PORT_LABEL_HEIGHT: f32 = 1.0;
 
 fn spawn_port_labels(
     world: &mut World,
@@ -157,7 +164,7 @@ fn spawn_port_labels(
             "PORT",
             label_position,
             TextProperties {
-                font_size: 8000.0,
+                font_size: 80.0,
                 color: nalgebra_glm::vec4(0.3, 0.7, 1.0, 1.0),
                 alignment: TextAlignment::Center,
                 outline_width: 0.15,
@@ -201,7 +208,7 @@ fn generate_playable_boundary_lines(
 ) -> Vec<Line> {
     let mut lines = Vec::new();
     let boundary_color = nalgebra_glm::vec4(1.0, 0.5, 0.0, 1.0);
-    let boundary_y = 10.0;
+    let boundary_y = 0.1;
 
     let is_flat_top = hex_width > hex_depth;
 

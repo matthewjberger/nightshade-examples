@@ -34,6 +34,11 @@ const WINDOW_SKIP_THRESHOLD: f32 = 24.0;
 
 const NEON_MATERIALS: &[&str] = &["NeonRed", "NeonBlue", "NeonPink"];
 
+const SHOP_NAMES: &[&str] = &[
+    "CAFE", "BAR", "HOTEL", "DINER", "PIZZA", "SUSHI", "OPEN", "CLUB", "GYM", "SPA", "NEWS",
+    "BOOKS", "MUSIC", "JAZZ", "LOANS", "WINE", "TAXI", "NAILS", "SALON", "PUB",
+];
+
 const SHOPFRONT_HEIGHT: f32 = 2.0;
 const SHOPFRONT_Y: f32 = 1.5;
 const SHOPFRONT_OFFSET: f32 = 0.10;
@@ -46,32 +51,27 @@ const RAILING_THICKNESS: f32 = 0.05;
 
 const BILLBOARD_MATERIALS: &[&str] = &["BillboardWhite", "BillboardYellow"];
 const BILLBOARD_PROBABILITY: f32 = 0.15;
+const SCREEN_BILLBOARD_PROBABILITY: f32 = 0.20;
 
 const PROXY_SCALE: f32 = 0.90;
 const PROXY_HEIGHT_SCALE: f32 = 0.95;
 
-pub fn describe_building_proxy(data: &mut ChunkData, spec: &BuildingSpec) {
+pub fn proxy_material_position_scale(spec: &BuildingSpec) -> (&'static str, Vec3, Vec3) {
     match spec.building_type {
-        BuildingType::Park => {
-            data.mesh(
-                "Cube",
-                Vec3::new(spec.x, 0.05, spec.z),
-                Vec3::new(spec.width * PROXY_SCALE, 0.1, spec.depth * PROXY_SCALE),
-                "ParkGreen",
-            );
-        }
-        _ => {
-            data.mesh(
-                "Cube",
-                Vec3::new(spec.x, spec.height * PROXY_HEIGHT_SCALE / 2.0, spec.z),
-                Vec3::new(
-                    spec.width * PROXY_SCALE,
-                    spec.height * PROXY_HEIGHT_SCALE,
-                    spec.depth * PROXY_SCALE,
-                ),
-                spec.body_material,
-            );
-        }
+        BuildingType::Park => (
+            "ParkGreen",
+            Vec3::new(spec.x, 0.05, spec.z),
+            Vec3::new(spec.width * PROXY_SCALE, 0.1, spec.depth * PROXY_SCALE),
+        ),
+        _ => (
+            spec.body_material,
+            Vec3::new(spec.x, spec.height * PROXY_HEIGHT_SCALE / 2.0, spec.z),
+            Vec3::new(
+                spec.width * PROXY_SCALE,
+                spec.height * PROXY_HEIGHT_SCALE,
+                spec.depth * PROXY_SCALE,
+            ),
+        ),
     }
 }
 
@@ -185,6 +185,8 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
             flower_material,
         );
     }
+
+    data.campfire(Vec3::new(spec.x, 0.3, spec.z));
 }
 
 fn describe_house_body(data: &mut ChunkData, spec: &BuildingSpec) {
@@ -315,6 +317,10 @@ fn describe_skyscraper_detail(data: &mut ChunkData, spec: &BuildingSpec, rng: &m
     if rng.random_range(0.0f32..1.0) < 0.20 {
         describe_neon_sign(data, spec, rng);
     }
+
+    if rng.random_range(0.0f32..1.0) < SCREEN_BILLBOARD_PROBABILITY {
+        describe_screen_billboard(data, spec, rng);
+    }
 }
 
 fn describe_generic_building_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
@@ -354,6 +360,12 @@ fn describe_generic_building_detail(data: &mut ChunkData, spec: &BuildingSpec, r
 
     if rng.random_range(0.0f32..1.0) < 0.20 {
         describe_neon_sign(data, spec, rng);
+    }
+
+    if matches!(spec.building_type, BuildingType::OfficeTower)
+        && rng.random_range(0.0f32..1.0) < SCREEN_BILLBOARD_PROBABILITY * 0.5
+    {
+        describe_screen_billboard(data, spec, rng);
     }
 }
 
@@ -460,11 +472,12 @@ fn describe_window_strips_at(data: &mut ChunkData, params: &WindowStripParams, r
             let is_lit = rng.random_range(0.0f32..1.0) < WINDOW_LIT_PROBABILITY;
             let material = if is_lit { "WindowLit" } else { "WindowDark" };
 
-            data.mesh(
+            data.instance(
                 "Cube",
                 Vec3::new(face.x, floor_y, face.z),
                 Vec3::new(face.scale_x, WINDOW_BAND_HEIGHT, face.scale_z),
                 material,
+                None,
             );
         }
     }
@@ -473,49 +486,53 @@ fn describe_window_strips_at(data: &mut ChunkData, params: &WindowStripParams, r
 fn describe_neon_sign(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
     let face_choice = rng.random_range(0u32..4);
     let sign_y = FLOOR_HEIGHT;
-    let sign_width: f32 = 2.0;
-    let sign_height: f32 = 0.8;
-    let sign_thickness: f32 = 0.05;
-    let offset: f32 = 0.1;
+    let offset: f32 = 0.15;
 
     let half_width = spec.width / 2.0;
     let half_depth = spec.depth / 2.0;
 
-    let (x, z, sx, sz) = match face_choice {
+    let (x, z, rotation) = match face_choice {
         0 => (
             spec.x + half_width + offset,
             spec.z,
-            sign_thickness,
-            sign_width.min(spec.depth * 0.6),
+            nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::y()),
         ),
         1 => (
             spec.x - half_width - offset,
             spec.z,
-            sign_thickness,
-            sign_width.min(spec.depth * 0.6),
+            nalgebra_glm::quat_angle_axis(-std::f32::consts::FRAC_PI_2, &Vec3::y()),
         ),
         2 => (
             spec.x,
             spec.z + half_depth + offset,
-            sign_width.min(spec.width * 0.6),
-            sign_thickness,
+            nalgebra_glm::quat_identity(),
         ),
         _ => (
             spec.x,
             spec.z - half_depth - offset,
-            sign_width.min(spec.width * 0.6),
-            sign_thickness,
+            nalgebra_glm::quat_angle_axis(std::f32::consts::PI, &Vec3::y()),
         ),
     };
 
     let material = NEON_MATERIALS[rng.random_range(0..NEON_MATERIALS.len())];
+    let text = SHOP_NAMES[rng.random_range(0..SHOP_NAMES.len())];
 
-    data.mesh(
-        "Cube",
+    data.neon_sign(text, Vec3::new(x, sign_y, z), material, 0.8, rotation);
+
+    data.light(
         Vec3::new(x, sign_y, z),
-        Vec3::new(sx, sign_height, sz),
-        material,
+        match material {
+            "NeonRed" => Vec3::new(1.0, 0.15, 0.1),
+            "NeonBlue" => Vec3::new(0.1, 0.3, 1.0),
+            _ => Vec3::new(1.0, 0.2, 0.6),
+        },
+        3.0,
+        8.0,
     );
+
+    if rng.random_range(0.0f32..1.0) < 0.20 {
+        data.sparks(Vec3::new(x, sign_y + 0.3, z));
+    }
 }
 
 fn describe_shopfront(data: &mut ChunkData, spec: &BuildingSpec) {
@@ -550,11 +567,12 @@ fn describe_shopfront(data: &mut ChunkData, spec: &BuildingSpec) {
     ];
 
     for (x, z, sx, sz) in faces {
-        data.mesh(
+        data.instance(
             "Cube",
             Vec3::new(x, SHOPFRONT_Y, z),
             Vec3::new(sx, SHOPFRONT_HEIGHT, sz),
             "ShopfrontLit",
+            None,
         );
     }
 }
@@ -584,11 +602,12 @@ fn describe_balconies(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 (BALCONY_WIDTH, BALCONY_DEPTH)
             };
 
-            data.mesh(
+            data.instance(
                 "Cube",
                 Vec3::new(balcony_x, balcony_y, balcony_z),
                 Vec3::new(sx, BALCONY_HEIGHT, sz),
                 "ConcreteMedium",
+                None,
             );
 
             let railing_x = base_x + normal_x * BALCONY_DEPTH;
@@ -600,11 +619,12 @@ fn describe_balconies(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 (BALCONY_WIDTH, RAILING_THICKNESS)
             };
 
-            data.mesh(
+            data.instance(
                 "Cube",
                 Vec3::new(railing_x, balcony_y + RAILING_HEIGHT / 2.0, railing_z),
                 Vec3::new(rsx, RAILING_HEIGHT, rsz),
                 "DockMetal",
+                None,
             );
         }
     }
@@ -693,4 +713,48 @@ fn describe_rooftop_detail(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut 
             );
         }
     }
+}
+
+fn describe_screen_billboard(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
+    let face = rng.random_range(0u32..4);
+    let sign_y = spec.height * 0.65;
+    let screen_half_width = 2.0_f32.min(spec.width * 0.3);
+    let screen_half_height = 1.2_f32.min(spec.height * 0.06);
+    let offset = 0.15;
+
+    let half_width = spec.width / 2.0;
+    let half_depth = spec.depth / 2.0;
+
+    let vertical =
+        nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::new(1.0, 0.0, 0.0));
+
+    let (x, z, rotation) = match face {
+        0 => (
+            spec.x + half_width + offset,
+            spec.z,
+            nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::y()) * vertical,
+        ),
+        1 => (
+            spec.x - half_width - offset,
+            spec.z,
+            nalgebra_glm::quat_angle_axis(-std::f32::consts::FRAC_PI_2, &Vec3::y()) * vertical,
+        ),
+        2 => (spec.x, spec.z + half_depth + offset, vertical),
+        _ => (
+            spec.x,
+            spec.z - half_depth - offset,
+            nalgebra_glm::quat_angle_axis(std::f32::consts::PI, &Vec3::y()) * vertical,
+        ),
+    };
+
+    let material_index = rng.random_range(0..crate::billboard::SCREEN_MATERIALS.len());
+    let material = crate::billboard::SCREEN_MATERIALS[material_index];
+
+    data.mesh_rotated(
+        "Plane",
+        Vec3::new(x, sign_y, z),
+        Vec3::new(screen_half_width, 1.0, screen_half_height),
+        material,
+        rotation,
+    );
 }

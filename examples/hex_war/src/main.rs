@@ -41,6 +41,26 @@ use systems::{
 };
 use tiles::despawn_all_tiles;
 
+fn spawn_ocean(world: &mut World) -> Entity {
+    use nightshade::ecs::water::Water;
+    use nightshade::ecs::world::WATER;
+
+    let entity = world.spawn_entities(WATER | NAME, 1)[0];
+    world.set_name(entity, Name("Ocean".to_string()));
+    world.set_water(
+        entity,
+        Water {
+            base_height: -0.2,
+            wave_height: 0.03,
+            choppy: 2.0,
+            speed: 0.5,
+            frequency: 1.2,
+            ..Default::default()
+        },
+    );
+    entity
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(HexWarGame::default())
 }
@@ -122,6 +142,7 @@ struct HexWarGame {
     fps_entity: Option<Entity>,
     fps_visible: bool,
     sun_entity: Option<Entity>,
+    ocean_entity: Option<Entity>,
     speech_requested: bool,
     player_faction: Faction,
     pending_spawns: Vec<PendingSpawn>,
@@ -142,6 +163,7 @@ impl Default for HexWarGame {
             fps_entity: None,
             fps_visible: false,
             sun_entity: None,
+            ocean_entity: None,
             speech_requested: false,
             player_faction: Faction::default(),
             pending_spawns: Vec::new(),
@@ -211,6 +233,9 @@ fn game_cleanup_game_world(game: &mut HexWarGame, world: &mut World) {
     if let Some(sun) = game.sun_entity.take() {
         world.queue_command(WorldCommand::DespawnRecursive { entity: sun });
     }
+    if let Some(ocean) = game.ocean_entity.take() {
+        world.queue_command(WorldCommand::DespawnRecursive { entity: ocean });
+    }
 
     despawn_game_hud(&mut game.game_hud, world);
     despawn_event_log_ui(world, &mut game.event_log);
@@ -226,6 +251,7 @@ fn game_handle_menu_action(game: &mut HexWarGame, world: &mut World, action: Men
 
             world.resources.graphics.atmosphere = Atmosphere::Nebula;
             game.sun_entity = Some(spawn_sun(world));
+            game.ocean_entity = Some(spawn_ocean(world));
             game.map_entities = Some(generate_game_map(
                 &mut game.game_world,
                 world,
@@ -310,11 +336,19 @@ impl State for HexWarGame {
         let camera_entity = spawn_pan_orbit_camera(
             world,
             nalgebra_glm::vec3(0.0, 0.0, 0.0),
-            4000.0,
+            50.0,
             0.0,
             std::f32::consts::FRAC_PI_2 - 0.01,
             "Hex War Camera".to_string(),
         );
+        if let Some(camera) = world.get_camera_mut(camera_entity) {
+            camera.projection = Projection::Perspective(PerspectiveCamera {
+                aspect_ratio: None,
+                y_fov_rad: 45.0_f32.to_radians(),
+                z_far: Some(2000.0),
+                z_near: 0.1,
+            });
+        }
         world.resources.active_camera = Some(camera_entity);
 
         self.fps_entity = Some(spawn_fps_display(world));

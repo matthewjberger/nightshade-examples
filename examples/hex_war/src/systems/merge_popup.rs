@@ -2,7 +2,7 @@ use crate::ecs::{FLOATING_POPUP, FloatingPopup, GameWorld, TileType};
 use nightshade::prelude::*;
 
 const POPUP_LIFETIME: f32 = 1.5;
-const POPUP_FLOAT_SPEED: f32 = 50.0;
+const POPUP_FLOAT_SPEED: f32 = 0.5;
 
 fn spawn_floating_popup(
     game_world: &mut GameWorld,
@@ -12,7 +12,7 @@ fn spawn_floating_popup(
     color: Vec4,
     font_size: f32,
 ) {
-    let text_position = position + nalgebra_glm::vec3(0.0, 150.0, 0.0);
+    let text_position = position + nalgebra_glm::vec3(0.0, 1.5, 0.0);
 
     let text_entity = spawn_3d_billboard_text_with_properties(
         world,
@@ -47,7 +47,7 @@ pub fn spawn_merge_popup(
 ) {
     let text = format!("+{}", amount);
     let color = nalgebra_glm::vec4(0.2, 1.0, 0.2, 1.0);
-    spawn_floating_popup(game_world, world, position, &text, color, 15000.0);
+    spawn_floating_popup(game_world, world, position, &text, color, 150.0);
 }
 
 pub fn spawn_capture_popup(
@@ -57,9 +57,9 @@ pub fn spawn_capture_popup(
     tile_type: TileType,
 ) {
     let (text, color, font_size) = match tile_type {
-        TileType::Capital => ("CAPITAL!", nalgebra_glm::vec4(1.0, 0.85, 0.0, 1.0), 20000.0),
-        TileType::City => ("City", nalgebra_glm::vec4(0.3, 0.8, 1.0, 1.0), 15000.0),
-        TileType::Port => ("Port", nalgebra_glm::vec4(0.4, 0.7, 0.9, 1.0), 15000.0),
+        TileType::Capital => ("CAPITAL!", nalgebra_glm::vec4(1.0, 0.85, 0.0, 1.0), 200.0),
+        TileType::City => ("City", nalgebra_glm::vec4(0.3, 0.8, 1.0, 1.0), 150.0),
+        TileType::Port => ("Port", nalgebra_glm::vec4(0.4, 0.7, 0.9, 1.0), 150.0),
         _ => return,
     };
     spawn_floating_popup(game_world, world, position, text, color, font_size);

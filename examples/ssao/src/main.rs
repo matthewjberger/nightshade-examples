@@ -16,12 +16,13 @@ impl State for SsaoDemo {
         world.resources.graphics.ssao_radius = 0.5;
         world.resources.graphics.ssao_bias = 0.025;
         world.resources.graphics.ssao_intensity = 1.5;
+        world.resources.graphics.ssao_sample_count = 64;
 
         let camera = spawn_pan_orbit_camera(
             world,
-            Vec3::new(0.0, 2.0, 0.0),
-            15.0,
-            0.5,
+            Vec3::new(0.0, 3.0, 0.0),
+            12.0,
+            0.4,
             0.3,
             "Main Camera".to_string(),
         );
@@ -43,23 +44,60 @@ impl State for SsaoDemo {
                 let graphics = &mut world.resources.graphics;
 
                 ui.checkbox(&mut graphics.ssao_enabled, "SSAO Enabled");
-                ui.add_space(10.0);
+                ui.checkbox(&mut graphics.ssao_visualization, "Show AO Buffer");
 
-                ui.add(egui::Slider::new(&mut graphics.ssao_radius, 0.1..=2.0).text("Radius"));
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(8.0);
 
+                ui.add(egui::Slider::new(&mut graphics.ssao_radius, 0.1..=5.0).text("Radius"));
                 ui.add(egui::Slider::new(&mut graphics.ssao_bias, 0.001..=0.1).text("Bias"));
-
                 ui.add(
-                    egui::Slider::new(&mut graphics.ssao_intensity, 0.5..=3.0).text("Intensity"),
+                    egui::Slider::new(&mut graphics.ssao_intensity, 0.5..=5.0).text("Intensity"),
                 );
 
-                ui.add_space(10.0);
-                ui.separator();
-                ui.add_space(10.0);
+                let mut sample_count_f32 = graphics.ssao_sample_count as f32;
+                if ui
+                    .add(
+                        egui::Slider::new(&mut sample_count_f32, 16.0..=64.0)
+                            .step_by(16.0)
+                            .text("Samples"),
+                    )
+                    .changed()
+                {
+                    graphics.ssao_sample_count = sample_count_f32 as u32;
+                }
 
+                ui.add_space(8.0);
+                ui.separator();
+                ui.label("Presets:");
+                ui.horizontal(|ui| {
+                    if ui.button("Subtle").clicked() {
+                        graphics.ssao_radius = 0.3;
+                        graphics.ssao_bias = 0.025;
+                        graphics.ssao_intensity = 1.0;
+                        graphics.ssao_sample_count = 32;
+                    }
+                    if ui.button("Medium").clicked() {
+                        graphics.ssao_radius = 0.5;
+                        graphics.ssao_bias = 0.025;
+                        graphics.ssao_intensity = 1.5;
+                        graphics.ssao_sample_count = 64;
+                    }
+                    if ui.button("Strong").clicked() {
+                        graphics.ssao_radius = 1.0;
+                        graphics.ssao_bias = 0.01;
+                        graphics.ssao_intensity = 3.0;
+                        graphics.ssao_sample_count = 64;
+                    }
+                });
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(4.0);
                 ui.label("Camera Controls:");
-                ui.label("  Left mouse drag: Rotate camera");
-                ui.label("  Mouse scroll: Zoom in/out");
+                ui.label("  Left drag: Rotate");
+                ui.label("  Scroll: Zoom");
             });
     }
 
@@ -98,6 +136,8 @@ impl State for SsaoDemo {
         graph
             .pass(Box::new(ssao_blur_pass))
             .read("ssao_raw", resources.ssao_raw)
+            .read("depth", resources.depth)
+            .read("view_normals", resources.view_normals)
             .write("ssao", resources.ssao);
 
         let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.3);
@@ -111,30 +151,30 @@ impl State for SsaoDemo {
 }
 
 fn create_scene(world: &mut World) {
-    let white_material = Material {
-        base_color: [0.9, 0.9, 0.9, 1.0],
-        roughness: 0.8,
+    let white = Material {
+        base_color: [0.85, 0.85, 0.85, 1.0],
+        roughness: 0.9,
         metallic: 0.0,
         ..Default::default()
     };
 
-    let red_material = Material {
-        base_color: [0.8, 0.2, 0.2, 1.0],
-        roughness: 0.6,
+    let red = Material {
+        base_color: [0.65, 0.05, 0.05, 1.0],
+        roughness: 0.9,
         metallic: 0.0,
         ..Default::default()
     };
 
-    let green_material = Material {
-        base_color: [0.2, 0.8, 0.2, 1.0],
-        roughness: 0.6,
+    let green = Material {
+        base_color: [0.12, 0.45, 0.15, 1.0],
+        roughness: 0.9,
         metallic: 0.0,
         ..Default::default()
     };
 
-    let blue_material = Material {
-        base_color: [0.2, 0.2, 0.8, 1.0],
-        roughness: 0.6,
+    let grey = Material {
+        base_color: [0.6, 0.6, 0.6, 1.0],
+        roughness: 0.7,
         metallic: 0.0,
         ..Default::default()
     };
@@ -143,129 +183,110 @@ fn create_scene(world: &mut World) {
         world,
         "Plane",
         Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(20.0, 1.0, 20.0),
+        Vec3::new(10.0, 1.0, 10.0),
     );
-    spawn_material(
-        world,
-        floor,
-        "white_floor".to_string(),
-        white_material.clone(),
-    );
+    spawn_material(world, floor, "floor".to_string(), white.clone());
 
-    let left_wall = spawn_mesh_at(
+    let ceiling = spawn_mesh_at(
         world,
-        "Cube",
-        Vec3::new(-10.0, 5.0, 0.0),
-        Vec3::new(1.0, 10.0, 20.0),
+        "Plane",
+        Vec3::new(0.0, 10.0, 0.0),
+        Vec3::new(10.0, 1.0, 10.0),
     );
-    spawn_material(
-        world,
-        left_wall,
-        "white_left_wall".to_string(),
-        white_material.clone(),
-    );
-
-    let right_wall = spawn_mesh_at(
-        world,
-        "Cube",
-        Vec3::new(10.0, 5.0, 0.0),
-        Vec3::new(1.0, 10.0, 20.0),
-    );
-    spawn_material(
-        world,
-        right_wall,
-        "white_right_wall".to_string(),
-        white_material.clone(),
-    );
+    spawn_material(world, ceiling, "ceiling".to_string(), white.clone());
 
     let back_wall = spawn_mesh_at(
         world,
         "Cube",
-        Vec3::new(0.0, 5.0, -10.0),
-        Vec3::new(20.0, 10.0, 1.0),
+        Vec3::new(0.0, 5.0, -5.0),
+        Vec3::new(10.0, 10.0, 0.5),
     );
-    spawn_material(
-        world,
-        back_wall,
-        "white_back_wall".to_string(),
-        white_material.clone(),
-    );
+    spawn_material(world, back_wall, "back_wall".to_string(), white.clone());
 
-    let front_wall = spawn_mesh_at(
+    let left_wall = spawn_mesh_at(
         world,
         "Cube",
-        Vec3::new(0.0, 5.0, 10.0),
-        Vec3::new(20.0, 10.0, 1.0),
+        Vec3::new(-5.0, 5.0, 0.0),
+        Vec3::new(0.5, 10.0, 10.0),
     );
-    spawn_material(
-        world,
-        front_wall,
-        "white_front_wall".to_string(),
-        white_material,
-    );
+    spawn_material(world, left_wall, "left_wall".to_string(), red);
 
-    let sphere1 = spawn_mesh_at(
-        world,
-        "Sphere",
-        Vec3::new(-7.0, 1.5, -7.0),
-        Vec3::new(1.5, 1.5, 1.5),
-    );
-    spawn_material(
-        world,
-        sphere1,
-        "red_sphere1".to_string(),
-        red_material.clone(),
-    );
-
-    let sphere2 = spawn_mesh_at(
-        world,
-        "Sphere",
-        Vec3::new(7.0, 1.5, -7.0),
-        Vec3::new(1.5, 1.5, 1.5),
-    );
-    spawn_material(
-        world,
-        sphere2,
-        "green_sphere".to_string(),
-        green_material.clone(),
-    );
-
-    let sphere3 = spawn_mesh_at(
-        world,
-        "Sphere",
-        Vec3::new(-7.0, 1.5, 7.0),
-        Vec3::new(1.5, 1.5, 1.5),
-    );
-    spawn_material(
-        world,
-        sphere3,
-        "blue_sphere".to_string(),
-        blue_material.clone(),
-    );
-
-    let sphere4 = spawn_mesh_at(
-        world,
-        "Sphere",
-        Vec3::new(7.0, 1.5, 7.0),
-        Vec3::new(1.5, 1.5, 1.5),
-    );
-    spawn_material(world, sphere4, "red_sphere2".to_string(), red_material);
-
-    let cube1 = spawn_mesh_at(
+    let right_wall = spawn_mesh_at(
         world,
         "Cube",
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(2.0, 2.0, 2.0),
+        Vec3::new(5.0, 5.0, 0.0),
+        Vec3::new(0.5, 10.0, 10.0),
     );
-    spawn_material(world, cube1, "green_cube".to_string(), green_material);
+    spawn_material(world, right_wall, "right_wall".to_string(), green);
 
-    let cube2 = spawn_mesh_at(
+    let tall_box = spawn_mesh_at(
         world,
         "Cube",
-        Vec3::new(3.0, 0.75, 2.0),
-        Vec3::new(1.5, 1.5, 1.5),
+        Vec3::new(1.5, 3.0, -1.5),
+        Vec3::new(3.0, 6.0, 3.0),
     );
-    spawn_material(world, cube2, "blue_cube".to_string(), blue_material);
+    spawn_material(world, tall_box, "tall_box".to_string(), white.clone());
+
+    let short_box = spawn_mesh_at(
+        world,
+        "Cube",
+        Vec3::new(-1.5, 1.5, 1.5),
+        Vec3::new(3.0, 3.0, 3.0),
+    );
+    spawn_material(world, short_box, "short_box".to_string(), white.clone());
+
+    let corner_sphere = spawn_mesh_at(
+        world,
+        "Sphere",
+        Vec3::new(-3.5, 0.8, -3.5),
+        Vec3::new(0.8, 0.8, 0.8),
+    );
+    spawn_material(
+        world,
+        corner_sphere,
+        "corner_sphere".to_string(),
+        grey.clone(),
+    );
+
+    let wall_sphere = spawn_mesh_at(
+        world,
+        "Sphere",
+        Vec3::new(3.5, 1.0, 2.0),
+        Vec3::new(1.0, 1.0, 1.0),
+    );
+    spawn_material(world, wall_sphere, "wall_sphere".to_string(), grey.clone());
+
+    let cylinder = spawn_mesh_at(
+        world,
+        "Cylinder",
+        Vec3::new(-2.5, 1.0, -1.0),
+        Vec3::new(0.8, 2.0, 0.8),
+    );
+    spawn_material(world, cylinder, "cylinder".to_string(), grey.clone());
+
+    let top_sphere = spawn_mesh_at(
+        world,
+        "Sphere",
+        Vec3::new(-1.5, 3.7, 1.5),
+        Vec3::new(0.7, 0.7, 0.7),
+    );
+    spawn_material(world, top_sphere, "top_sphere".to_string(), grey.clone());
+
+    let torus = spawn_mesh_at(
+        world,
+        "Torus",
+        Vec3::new(2.0, 0.4, 3.0),
+        Vec3::new(1.0, 1.0, 1.0),
+    );
+    spawn_material(world, torus, "torus".to_string(), grey);
+
+    let small_cube = spawn_mesh_at(
+        world,
+        "Cube",
+        Vec3::new(-4.0, 0.5, 3.5),
+        Vec3::new(1.0, 1.0, 1.0),
+    );
+    spawn_material(world, small_cube, "small_cube".to_string(), white);
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -10,9 +10,9 @@ use crate::systems::find_path;
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::prelude::*;
 
-pub const UNIT_BASE_RADIUS: f32 = 25.0;
-pub const UNIT_MAX_RADIUS: f32 = 50.0;
-pub const UNIT_TEXT_HEIGHT_OFFSET: f32 = 200.0;
+pub const UNIT_BASE_RADIUS: f32 = 0.25;
+pub const UNIT_MAX_RADIUS: f32 = 0.5;
+pub const UNIT_TEXT_HEIGHT_OFFSET: f32 = 2.0;
 pub const UNIT_SELECTED_COLOR: [f32; 4] = [1.0, 0.8, 0.2, 1.0];
 
 pub fn unit_radius_for_soldiers(soldiers: i32) -> f32 {
@@ -114,7 +114,7 @@ pub fn spawn_unit(
 
 pub fn font_size_for_soldiers(soldiers: i32) -> f32 {
     let t = (soldiers as f32 / MAX_SOLDIERS as f32).clamp(0.0, 1.0);
-    15000.0 + 5000.0 * t
+    150.0 + 50.0 * t
 }
 
 pub fn despawn_unit(game_world: &mut GameWorld, world: &mut World, entity: freecs::Entity) {

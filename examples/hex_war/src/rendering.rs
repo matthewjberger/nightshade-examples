@@ -69,7 +69,7 @@ pub fn generate_range_circle_lines(
     color: Vec4,
 ) -> Vec<Line> {
     let mut lines = Vec::new();
-    let y_offset = 10.0;
+    let y_offset = 0.1;
 
     for coord in tiles_in_range {
         let tile_center = hex_to_world_position(coord.column, coord.row, hex_width, hex_depth);

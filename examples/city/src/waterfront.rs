@@ -163,7 +163,7 @@ fn dock_platform_position_and_size(chunk_coords: (i32, i32), edge: EdgeDirection
 
 fn describe_dock_platform(data: &mut ChunkData, chunk_coords: (i32, i32), edge: EdgeDirection) {
     let (position, scale) = dock_platform_position_and_size(chunk_coords, edge);
-    data.mesh("Cube", position, scale, "DockConcrete");
+    data.instance("Cube", position, scale, "DockConcrete", None);
 }
 
 fn describe_dock_supports(data: &mut ChunkData, chunk_coords: (i32, i32), edge: EdgeDirection) {
@@ -196,11 +196,12 @@ fn describe_dock_supports(data: &mut ChunkData, chunk_coords: (i32, i32), edge: 
             }
         };
 
-        data.mesh(
+        data.instance(
             "Cylinder",
             position,
             Vec3::new(SUPPORT_RADIUS * 2.0, SUPPORT_HEIGHT, SUPPORT_RADIUS * 2.0),
             "DockMetal",
+            None,
         );
     }
 }
@@ -248,18 +249,19 @@ fn describe_dock_details(
         match detail_type {
             0 => {
                 let bollard_height = 0.8;
-                data.mesh(
+                data.instance(
                     "Cylinder",
                     Vec3::new(x, top_y + bollard_height / 2.0, z),
                     Vec3::new(0.3, bollard_height, 0.3),
                     "DockMetal",
+                    None,
                 );
             }
             1 => {
                 let crate_size = rng.random_range(0.6..1.2);
                 let stack_count = rng.random_range(1u32..3);
                 for stack_index in 0..stack_count {
-                    data.mesh(
+                    data.instance(
                         "Cube",
                         Vec3::new(
                             x,
@@ -268,6 +270,7 @@ fn describe_dock_details(
                         ),
                         Vec3::new(crate_size, crate_size, crate_size),
                         "DockWood",
+                        None,
                     );
                 }
             }
@@ -457,15 +460,15 @@ fn describe_boats(
 
         let rotation = nalgebra_glm::quat_angle_axis(rotation_jitter, &Vec3::y());
 
-        data.mesh_rotated(
+        data.instance(
             "Cube",
             Vec3::new(boat_x, BOAT_WATER_Y, boat_z),
             Vec3::new(BOAT_HULL_WIDTH, BOAT_HULL_HEIGHT, BOAT_HULL_DEPTH),
             "BoatHull",
-            rotation,
+            Some(rotation),
         );
 
-        data.mesh_rotated(
+        data.instance(
             "Cube",
             Vec3::new(
                 boat_x,
@@ -474,7 +477,7 @@ fn describe_boats(
             ),
             Vec3::new(BOAT_CABIN_WIDTH, BOAT_CABIN_HEIGHT, BOAT_CABIN_DEPTH),
             "BoatCabin",
-            rotation,
+            Some(rotation),
         );
     }
 }

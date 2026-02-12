@@ -2,7 +2,7 @@ use crate::ecs::{Faction, TileType, faction_color};
 use nightshade::ecs::particles::components::{ColorGradient, EmitterShape, EmitterType};
 use nightshade::prelude::*;
 
-const SCALE: f32 = 30.0;
+const SCALE: f32 = 0.3;
 
 pub struct FireworkShell {
     pub entity: Entity,
@@ -50,6 +50,8 @@ fn create_shell_trail(position: Vec3) -> ParticleEmitter {
         has_fired: false,
         turbulence_strength: 0.3,
         turbulence_frequency: 2.0,
+
+        ..Default::default()
     }
 }
 
@@ -81,8 +83,8 @@ pub fn spawn_capture_firework(
 
     for shell_index in 0..shell_count {
         let mut rng = rand::rng();
-        let x_spread = rng.random_range(-200.0..200.0);
-        let z_spread = rng.random_range(-200.0..200.0);
+        let x_spread = rng.random_range(-2.0..2.0);
+        let z_spread = rng.random_range(-2.0..2.0);
         let shell_launch_pos = nalgebra_glm::vec3(
             launch_pos.x + x_spread,
             launch_pos.y,
@@ -90,12 +92,12 @@ pub fn spawn_capture_firework(
         );
 
         let velocity = nalgebra_glm::vec3(
-            rng.random_range(-50.0..50.0),
-            rng.random_range(400.0..600.0),
-            rng.random_range(-50.0..50.0),
+            rng.random_range(-0.5..0.5),
+            rng.random_range(4.0..6.0),
+            rng.random_range(-0.5..0.5),
         );
 
-        let target_height = rng.random_range(400.0..700.0);
+        let target_height = rng.random_range(4.0..7.0);
         let fuse_time = target_height / velocity.y + (shell_index as f32) * 0.2;
 
         let entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
@@ -120,7 +122,7 @@ pub fn update_firework_shells(shells: &mut Vec<FireworkShell>, world: &mut World
     for shell in shells.iter_mut() {
         shell.fuse_time -= delta_time;
         shell.position += shell.velocity * delta_time;
-        shell.velocity.y -= 200.0 * delta_time;
+        shell.velocity.y -= 2.0 * delta_time;
 
         if let Some(emitter) = world.get_particle_emitter_mut(shell.entity) {
             emitter.position = shell.position;

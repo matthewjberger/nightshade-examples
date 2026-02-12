@@ -2189,6 +2189,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.4,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(pillar_entity, pillar_emitter);
     }
@@ -2713,6 +2715,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.0,
             turbulence_frequency: 0.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(trail_entity, trail_emitter);
 
@@ -2772,6 +2776,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.3,
             turbulence_frequency: 5.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, flash_emitter);
@@ -3073,6 +3079,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.8,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(particle_entity, death_emitter);
     }
@@ -3161,6 +3169,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(particle_entity, gem_emitter);
 
@@ -3372,6 +3382,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(particle_entity, crystal_emitter);
 
@@ -3496,6 +3508,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(particle_entity, health_emitter);
 
@@ -3644,6 +3658,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(particle_entity, heal_emitter);
     }
@@ -3741,6 +3757,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(particle_entity, break_emitter);
     }
@@ -3922,6 +3940,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.3,
             turbulence_frequency: 1.5,
+
+            ..Default::default()
         };
         world.set_particle_emitter(particle_entity, powerup_emitter);
 
@@ -4235,6 +4255,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.4,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, collect_emitter);
@@ -4305,6 +4327,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, levelup_emitter);
@@ -4347,6 +4371,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 4.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, hit_emitter);
@@ -4717,6 +4743,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.3,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(effect_entity, shield_emitter);
@@ -5318,6 +5346,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.6,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, pulse_emitter);
@@ -5358,6 +5388,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.2,
             turbulence_frequency: 1.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(ring_entity, ring_emitter);
@@ -5551,6 +5583,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.4,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, damage_emitter);
@@ -5699,6 +5733,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.4,
             turbulence_frequency: 5.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, whip_emitter);
@@ -5740,6 +5776,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.3,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(trail_entity, trail_emitter);
@@ -5931,6 +5969,8 @@ impl Survivors {
                 has_fired: false,
                 turbulence_strength: 0.8,
                 turbulence_frequency: 6.0,
+
+                ..Default::default()
             };
 
             world.set_particle_emitter(particle_entity, lightning_emitter);
@@ -5970,6 +6010,8 @@ impl Survivors {
                 has_fired: false,
                 turbulence_strength: 0.5,
                 turbulence_frequency: 4.0,
+
+                ..Default::default()
             };
 
             world.set_particle_emitter(impact_entity, impact_emitter);
@@ -6100,6 +6142,8 @@ impl Survivors {
                 has_fired: false,
                 turbulence_strength: 0.3,
                 turbulence_frequency: 2.0,
+
+                ..Default::default()
             };
 
             world.set_particle_emitter(particle_entity, garlic_emitter);
@@ -6286,6 +6330,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.4,
             turbulence_frequency: 5.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(fuse_emitter_entity, fuse_emitter);
 
@@ -6321,6 +6367,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.3,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
         world.set_particle_emitter(smoke_emitter_entity, smoke_emitter);
 
@@ -6495,6 +6543,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.7,
             turbulence_frequency: 4.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(ring_entity, ring_emitter);
@@ -6535,6 +6585,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.9,
             turbulence_frequency: 5.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(core_entity, core_emitter);
@@ -6576,6 +6628,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.4,
             turbulence_frequency: 1.5,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(smoke_entity, smoke_emitter);
@@ -6671,6 +6725,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, spawn_emitter);
@@ -6814,6 +6870,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.3,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(effect_entity, shield_emitter);
@@ -6866,6 +6924,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.2,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, dust_emitter);
@@ -6951,6 +7011,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, combo_emitter);
@@ -7063,6 +7125,8 @@ impl Survivors {
                 has_fired: false,
                 turbulence_strength: 0.5,
                 turbulence_frequency: 4.0,
+
+                ..Default::default()
             };
             world.set_particle_emitter(particle_entity, fire_emitter);
             self.combo_emitter = Some(particle_entity);
@@ -7166,6 +7230,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.4,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(particle_entity, wave_emitter);
@@ -7218,6 +7284,8 @@ impl Survivors {
                 has_fired: false,
                 turbulence_strength: 0.5,
                 turbulence_frequency: 3.0,
+
+                ..Default::default()
             };
 
             world.set_particle_emitter(particle_entity, confetti_emitter);
@@ -7284,6 +7352,8 @@ impl Survivors {
                 has_fired: false,
                 turbulence_strength: 0.2,
                 turbulence_frequency: 0.5,
+
+                ..Default::default()
             };
 
             world.set_particle_emitter(particle_entity, ambient_emitter);
@@ -7335,6 +7405,8 @@ impl Survivors {
                 has_fired: false,
                 turbulence_strength: 0.8,
                 turbulence_frequency: 4.0,
+
+                ..Default::default()
             };
 
             world.set_particle_emitter(particle_entity, boss_emitter);
@@ -7376,6 +7448,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.2,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(shockwave_entity, shockwave_emitter);
@@ -7416,6 +7490,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 1.0,
             turbulence_frequency: 5.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(core_flash_entity, core_flash_emitter);
@@ -7455,6 +7531,8 @@ impl Survivors {
             has_fired: false,
             turbulence_strength: 0.5,
             turbulence_frequency: 3.0,
+
+            ..Default::default()
         };
 
         world.set_particle_emitter(debris_entity, debris_emitter);

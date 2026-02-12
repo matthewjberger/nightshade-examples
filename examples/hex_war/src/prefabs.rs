@@ -1,3 +1,4 @@
+use crate::constants::WORLD_SCALE;
 use crate::ecs::TileType;
 use nightshade::ecs::generational_registry::registry_entry_by_name;
 use nightshade::ecs::prefab::{
@@ -36,14 +37,14 @@ pub fn load_tile_prefabs(world: &mut World) -> Option<LoadedPrefabs> {
                 .values()
                 .next()
                 .and_then(|prefab| calculate_prefab_bounds(prefab, &world.resources.mesh_cache))
-                .map(|(min_x, max_x, _, _)| max_x - min_x)
-                .unwrap_or(173.205);
+                .map(|(min_x, max_x, _, _)| (max_x - min_x) * WORLD_SCALE)
+                .unwrap_or(173.205 * WORLD_SCALE);
             let hex_depth = tile_prefabs
                 .values()
                 .next()
                 .and_then(|prefab| calculate_prefab_bounds(prefab, &world.resources.mesh_cache))
-                .map(|(_, _, min_z, max_z)| max_z - min_z)
-                .unwrap_or(200.0);
+                .map(|(_, _, min_z, max_z)| (max_z - min_z) * WORLD_SCALE)
+                .unwrap_or(200.0 * WORLD_SCALE);
 
             Some(LoadedPrefabs {
                 tile_prefabs,

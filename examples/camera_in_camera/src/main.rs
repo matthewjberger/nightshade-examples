@@ -544,6 +544,8 @@ fn spawn_campfire_particles(world: &mut World) {
             has_fired: false,
             turbulence_strength: 0.3,
             turbulence_frequency: 0.8,
+
+            ..Default::default()
         },
     );
 }

@@ -369,21 +369,12 @@ impl State for CustomPassDemo {
     ) {
         tracing::info!("Adding custom pass to render graph");
 
-        let blit_pipeline =
-            passes::BlitPass::create_pipeline(device, wgpu::TextureFormat::Rgba8Unorm);
-        let edge_pass =
-            EdgeDetectionPass::new(device, wgpu::TextureFormat::Rgba8Unorm, blit_pipeline);
+        let blit_pipeline = passes::BlitPass::create_pipeline(device, surface_format);
+        let edge_pass = EdgeDetectionPass::new(device, surface_format, blit_pipeline);
 
         graph
             .pass(Box::new(edge_pass))
             .read("input", resources.scene_color)
-            .write("output", resources.swapchain);
-
-        let final_blit = passes::BlitPass::new(device, surface_format);
-
-        graph
-            .pass(Box::new(final_blit))
-            .read("input", resources.compute_output)
             .write("output", resources.swapchain);
 
         tracing::info!("Custom pass pipeline configured");

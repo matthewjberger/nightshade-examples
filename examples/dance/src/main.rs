@@ -117,6 +117,8 @@ impl State for DanceState {
         graph
             .pass(Box::new(ssao_blur_pass))
             .read("ssao_raw", resources.ssao_raw)
+            .read("depth", resources.depth)
+            .read("view_normals", resources.view_normals)
             .write("ssao", resources.ssao);
 
         let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.08);

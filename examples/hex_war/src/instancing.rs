@@ -1,3 +1,4 @@
+use crate::constants::WORLD_SCALE;
 use crate::ecs::TileType;
 use crate::hex::{HexCoord, hex_to_world_position};
 use nightshade::ecs::material::resources::material_registry_insert;
@@ -114,12 +115,16 @@ pub fn create_instanced_tiles(
 
             let instance = InstanceTransform::new(
                 nalgebra_glm::vec3(
-                    tile_world_pos.x + extracted.local_transform.translation.x,
-                    tile_world_pos.y + extracted.local_transform.translation.y,
-                    tile_world_pos.z + extracted.local_transform.translation.z,
+                    tile_world_pos.x + extracted.local_transform.translation.x * WORLD_SCALE,
+                    tile_world_pos.y + extracted.local_transform.translation.y * WORLD_SCALE,
+                    tile_world_pos.z + extracted.local_transform.translation.z * WORLD_SCALE,
                 ),
                 extracted.local_transform.rotation,
-                extracted.local_transform.scale,
+                nalgebra_glm::vec3(
+                    extracted.local_transform.scale.x * WORLD_SCALE,
+                    extracted.local_transform.scale.y * WORLD_SCALE,
+                    extracted.local_transform.scale.z * WORLD_SCALE,
+                ),
             );
 
             let entry = mesh_instances

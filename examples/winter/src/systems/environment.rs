@@ -388,6 +388,8 @@ fn spawn_bauble(
             has_fired: false,
             turbulence_strength: 0.3,
             turbulence_frequency: 2.0,
+
+            ..Default::default()
         },
     );
 }
@@ -667,6 +669,8 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             has_fired: false,
             turbulence_strength: 1.2,
             turbulence_frequency: 4.5,
+
+            ..Default::default()
         },
     );
 
@@ -707,6 +711,8 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             has_fired: false,
             turbulence_strength: 1.5,
             turbulence_frequency: 4.0,
+
+            ..Default::default()
         },
     );
 
@@ -746,6 +752,8 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             has_fired: false,
             turbulence_strength: 2.5,
             turbulence_frequency: 5.5,
+
+            ..Default::default()
         },
     );
 
@@ -787,6 +795,8 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             has_fired: false,
             turbulence_strength: 0.6,
             turbulence_frequency: 0.2,
+
+            ..Default::default()
         },
     );
 
@@ -827,6 +837,8 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             has_fired: false,
             turbulence_strength: 1.0,
             turbulence_frequency: 1.0,
+
+            ..Default::default()
         },
     );
 }

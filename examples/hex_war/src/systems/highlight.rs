@@ -112,7 +112,7 @@ pub fn hover_outline_system(
             let hex_width = game_world.resources.hex_width;
             let hex_depth = game_world.resources.hex_depth;
             let tile_center = hex_to_world_position(coord.column, coord.row, hex_width, hex_depth);
-            let outline_lines = generate_hex_outline(tile_center, hex_width, hex_depth, 6.0);
+            let outline_lines = generate_hex_outline(tile_center, hex_width, hex_depth, 0.06);
             let yellow_lines: Vec<Line> = outline_lines
                 .into_iter()
                 .map(|mut line| {

@@ -399,8 +399,8 @@ impl State for BlurDemo {
             device,
             "vertical_blur",
             VERTICAL_BLUR_SHADER,
-            blur_format,
-            passes::BlitPass::create_pipeline(device, blur_format),
+            surface_format,
+            passes::BlitPass::create_pipeline(device, surface_format),
         );
 
         graph

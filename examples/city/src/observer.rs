@@ -2,8 +2,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use nightshade::ecs::camera::queries::query_camera_frustum;
 use nightshade::ecs::input::queries::query_active_gamepad;
-use nightshade::ecs::world::resources::MouseState;
 use nightshade::ecs::world::WorldCommand;
+use nightshade::ecs::world::resources::MouseState;
 use nightshade::prelude::*;
 
 const OBSERVER_WIDTH: u32 = 640;

@@ -1,11 +1,16 @@
+mod atmosphere;
+mod billboard;
 mod building;
 mod camera;
 mod chunk;
 mod city;
 mod descriptors;
+mod districts;
 mod materials;
 mod minimap;
 mod observer;
+mod stroke_font;
+mod tube_mesh;
 mod waterfront;
 
 use chunk::ChunkStreamer;
@@ -49,6 +54,11 @@ struct CityDemo {
     ssgi_max_steps: u32,
     observer: Option<observer::ObserverCamera>,
     observer_enabled: bool,
+    sun_shadows: bool,
+    bird_system: atmosphere::BirdSystem,
+    leaf_system: atmosphere::LeafSystem,
+    district_hud: Option<districts::DistrictHud>,
+    billboard_textures: billboard::BillboardTextures,
 }
 
 impl Default for CityDemo {
@@ -65,8 +75,8 @@ impl Default for CityDemo {
             auto_time: true,
             next_seed: 0,
             generate_requested: false,
-            city_half: 16,
-            pending_city_half: 16,
+            city_half: 4,
+            pending_city_half: 4,
             depth_of_field: DepthOfField {
                 enabled: true,
                 focus_distance: 3.5,
@@ -88,6 +98,11 @@ impl Default for CityDemo {
             ssgi_max_steps: 16,
             observer: None,
             observer_enabled: false,
+            sun_shadows: true,
+            bird_system: atmosphere::BirdSystem::new(),
+            leaf_system: atmosphere::LeafSystem::new(),
+            district_hud: None,
+            billboard_textures: billboard::BillboardTextures::new(),
         }
     }
 }
@@ -139,6 +154,8 @@ impl State for CityDemo {
         graph
             .pass(Box::new(ssao_blur_pass))
             .read("ssao_raw", resources.ssao_raw)
+            .read("depth", resources.depth)
+            .read("view_normals", resources.view_normals)
             .write("ssao", resources.ssao);
 
         let ssgi_pass = passes::SsgiPass::new(device);
@@ -204,6 +221,7 @@ impl State for CityDemo {
         self.minimap_enabled = true;
 
         materials::create_materials(world);
+        billboard::register_screen_materials(world);
 
         self.setup_world(world);
     }
@@ -220,6 +238,9 @@ impl State for CityDemo {
                 observer.render(renderer, world, main_camera);
             }
         }
+
+        self.billboard_textures.initialize(renderer, world);
+        self.billboard_textures.register_textures(renderer);
     }
 
     fn run_systems(&mut self, world: &mut World) {
@@ -237,6 +258,7 @@ impl State for CityDemo {
         world.resources.graphics.day_night_hour = self.current_hour;
         self.update_sun_for_hour(world);
         self.update_environment_for_hour(world);
+        atmosphere::update_window_emissive(world, self.current_hour);
 
         world.resources.graphics.depth_of_field = self.depth_of_field;
         world.resources.graphics.ssgi_enabled = self.ssgi_enabled;
@@ -264,7 +286,11 @@ impl State for CityDemo {
             if let Some(observer) = self.observer.take() {
                 observer.despawn(world);
             }
+            self.bird_system.despawn(world);
+            self.leaf_system.despawn(world);
+            self.billboard_textures.reset();
             self.camera_controller = None;
+            self.district_hud = None;
 
             self.setup_world(world);
         }
@@ -315,6 +341,33 @@ impl State for CityDemo {
             }
         }
 
+        let uptime = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
+        let camera_pos = self
+            .camera_entity
+            .and_then(|entity| world.get_local_transform(entity))
+            .map(|t| t.translation)
+            .unwrap_or(Vec3::zeros());
+
+        atmosphere::update_campfire_lights(world, uptime);
+
+        let city_center = Vec3::new(
+            (self.city_half as f32 - 0.5) * city::CHUNK_SIZE / 2.0,
+            0.0,
+            (self.city_half as f32 - 0.5) * city::CHUNK_SIZE / 2.0,
+        );
+        self.bird_system.initialize(world, city_center);
+        self.bird_system.update(world, delta_time, city_center);
+
+        self.leaf_system.initialize(world);
+        self.leaf_system.update(world, camera_pos);
+
+        if self.district_hud.is_none() {
+            self.district_hud = Some(districts::DistrictHud::new(self.next_seed));
+        }
+        if let Some(hud) = &mut self.district_hud {
+            hud.update(camera_pos, delta_time);
+        }
+
         update_particle_emitters(world, delta_time);
     }
 
@@ -338,8 +391,12 @@ impl State for CityDemo {
             ));
 
             if let Some(streamer) = &self.chunk_streamer {
-                ui.label(format!("Chunks: {}", streamer.loaded_chunk_count()));
-                ui.label(format!("Entities: {}", streamer.entity_count()));
+                if streamer.is_ready() {
+                    ui.label(format!("Chunks: {}", streamer.loaded_chunk_count()));
+                    ui.label(format!("Entities: {}", streamer.entity_count()));
+                } else {
+                    ui.label("Generating layouts...");
+                }
             }
 
             let fps = world.resources.window.timing.frames_per_second;
@@ -349,6 +406,8 @@ impl State for CityDemo {
                 egui::Color32::from_rgb(255, 165, 0)
             };
             ui.colored_label(fps_color, format!("FPS: {:.0}", fps));
+
+            ui.checkbox(&mut self.sun_shadows, "Sun Shadows");
 
             ui.separator();
             ui.label("Time of Day");
@@ -467,6 +526,7 @@ impl State for CityDemo {
 
         if self.minimap_enabled
             && let Some(streamer) = &self.chunk_streamer
+            && streamer.is_ready()
         {
             minimap::draw(
                 ui_context,
@@ -486,6 +546,10 @@ impl State for CityDemo {
             && let Some(observer) = &self.observer
         {
             observer.draw_ui(ui_context, self.minimap_enabled);
+        }
+
+        if let Some(hud) = &self.district_hud {
+            hud.draw(ui_context);
         }
     }
 }
@@ -528,9 +592,7 @@ impl CityDemo {
         );
         self.ocean_entity = Some(ocean);
 
-        let mut streamer = ChunkStreamer::new(self.city_half, self.next_seed);
-        streamer.load_all_proxies(world);
-        streamer.update(world, Vec3::new(0.0, 30.0, 0.0), Vec3::new(0.0, 0.0, -1.0));
+        let streamer = ChunkStreamer::new(self.city_half, self.next_seed);
         self.chunk_streamer = Some(streamer);
     }
 
@@ -571,6 +633,7 @@ impl CityDemo {
         if let Some(light) = world.get_light_mut(sun) {
             light.intensity = sun_intensity;
             light.color = sun_color;
+            light.cast_shadows = self.sun_shadows;
         }
 
         let sun_position = sun_dir * 100.0;

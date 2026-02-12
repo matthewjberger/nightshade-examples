@@ -1,0 +1,13 @@
+[package]
+name = "shader_studio"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+
+[dependencies]
+nightshade = { workspace = true, features = ["egui", "tracing"] }
+naga = { version = "27", features = ["wgsl-in"] }
+bytemuck = { version = "1", features = ["derive"] }
+image = "0.25"
+egui-snarl = "0.9"
+pollster = "0.4"

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use nightshade::ecs::camera::commands::spawn_pan_orbit_camera;
 use nightshade::ecs::camera::components::Projection;
 use nightshade::ecs::camera::queries::query_active_camera_matrices;
+use nightshade::ecs::camera::systems::pan_orbit_camera_system;
 use nightshade::ecs::mesh::components::Mesh;
 use nightshade::ecs::prefab::commands::{
     GltfLoadResult, import_gltf_from_bytes, import_gltf_from_path,
@@ -17,6 +18,7 @@ use nightshade::render::wgpu::passes;
 mod geometry;
 mod graph;
 mod presets;
+mod sdf_editor;
 mod shader_pass;
 mod syntax;
 
@@ -49,13 +51,10 @@ struct ShaderStudio {
     shuffle: bool,
     shuffle_timer: f32,
     graph: graph::PipelineGraph,
-    orbit_yaw: f32,
-    orbit_pitch: f32,
-    orbit_distance: f32,
     source_history: Vec<String>,
     save_status: Option<(String, std::time::Instant)>,
     previous_atmosphere: Atmosphere,
-    camera_entity: Option<Entity>,
+    sdf_editor: sdf_editor::SdfEditor,
 }
 
 impl Default for ShaderStudio {
@@ -110,13 +109,10 @@ impl Default for ShaderStudio {
             shuffle: false,
             shuffle_timer: 0.0,
             graph: graph::PipelineGraph::new(),
-            orbit_yaw: 0.0,
-            orbit_pitch: 0.3,
-            orbit_distance: 3.0,
             source_history: Vec::new(),
             save_status: None,
             previous_atmosphere: Atmosphere::Sky,
-            camera_entity: None,
+            sdf_editor: sdf_editor::SdfEditor::default(),
         }
     }
 }
@@ -146,13 +142,12 @@ impl State for ShaderStudio {
         let camera_entity = spawn_pan_orbit_camera(
             world,
             Vec3::new(0.0, 0.0, 0.0),
-            self.orbit_distance,
-            self.orbit_yaw,
-            self.orbit_pitch,
+            3.0,
+            0.0,
+            0.3,
             "Shader Studio Camera".to_string(),
         );
         world.resources.active_camera = Some(camera_entity);
-        self.camera_entity = Some(camera_entity);
 
         if let Some(camera) = world.get_camera_mut(camera_entity)
             && let Projection::Perspective(ref mut perspective) = camera.projection
@@ -260,34 +255,21 @@ impl State for ShaderStudio {
             let rotation = nalgebra_glm::quat_angle_axis(time * 0.5, &Vec3::y());
             let rotation_matrix = nalgebra_glm::quat_to_mat4(&rotation);
             shared.uniforms.model = mat4_to_arrays(&rotation_matrix);
+        }
 
-            let eye_x = self.orbit_distance * self.orbit_pitch.cos() * self.orbit_yaw.sin();
-            let eye_y = self.orbit_distance * self.orbit_pitch.sin();
-            let eye_z = self.orbit_distance * self.orbit_pitch.cos() * self.orbit_yaw.cos();
-            let eye = nalgebra_glm::vec3(eye_x, eye_y, eye_z);
+        drop(shared);
+        pan_orbit_camera_system(world);
+        update_global_transforms_system(world);
+        let mut shared = self.shared.lock().unwrap();
 
-            if let Some(camera_entity) = self.camera_entity {
-                let center = nalgebra_glm::vec3(0.0, 0.0, 0.0);
-                let look_dir = nalgebra_glm::normalize(&(center - eye));
-                let camera_rotation =
-                    nalgebra_glm::quat_look_at(&look_dir, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
-                if let Some(transform) = world.get_local_transform_mut(camera_entity) {
-                    transform.translation = eye;
-                    transform.rotation = camera_rotation;
-                }
-                world.mark_local_transform_dirty(camera_entity);
-                update_global_transforms_system(world);
-
-                if let Some(matrices) = query_active_camera_matrices(world) {
-                    shared.uniforms.view = mat4_to_arrays(&matrices.view);
-                    shared.uniforms.projection = mat4_to_arrays(&matrices.projection);
-                    shared.uniforms.camera_position = [
-                        matrices.camera_position.x,
-                        matrices.camera_position.y,
-                        matrices.camera_position.z,
-                    ];
-                }
-            }
+        if let Some(matrices) = query_active_camera_matrices(world) {
+            shared.uniforms.view = mat4_to_arrays(&matrices.view);
+            shared.uniforms.projection = mat4_to_arrays(&matrices.projection);
+            shared.uniforms.camera_position = [
+                matrices.camera_position.x,
+                matrices.camera_position.y,
+                matrices.camera_position.z,
+            ];
         }
 
         for row in 0..4 {
@@ -340,6 +322,7 @@ impl State for ShaderStudio {
                 shared.pass_is_compiling[pass_index] = true;
                 let common = shared.common_source.clone();
                 let source = shared.pass_sources[pass_index].clone();
+                let generation = shared.compilation_generation;
                 let shared_clone = self.shared.clone();
                 std::thread::spawn(move || {
                     let full_source = if common.is_empty() {
@@ -350,6 +333,9 @@ impl State for ShaderStudio {
                     let result = shader_pass::validate_shader(&full_source);
                     let mut shared = shared_clone.lock().unwrap();
                     shared.pass_is_compiling[pass_index] = false;
+                    if shared.compilation_generation != generation {
+                        return;
+                    }
                     match result {
                         Ok(mode) => {
                             shared.pass_compilation_errors[pass_index] = None;
@@ -372,7 +358,6 @@ impl State for ShaderStudio {
             self.left_panel(ui_context, world);
         }
         self.graph.show(ui_context, &self.shared);
-        self.handle_camera_input(ui_context);
     }
 
     fn on_dropped_file(&mut self, world: &mut World, path: &std::path::Path) {
@@ -474,35 +459,6 @@ impl ShaderStudio {
                     drop(shared);
                     self.save_shader_to_file(&source);
                 }
-            }
-        });
-    }
-
-    fn handle_camera_input(&mut self, ui_context: &egui::Context) {
-        if ui_context.is_pointer_over_area() {
-            return;
-        }
-
-        let is_geometry = {
-            let shared = self.shared.lock().unwrap();
-            shared.render_mode == RenderMode::Geometry
-        };
-        if !is_geometry {
-            return;
-        }
-
-        ui_context.input(|input| {
-            if input.pointer.button_down(egui::PointerButton::Primary)
-                || input.pointer.button_down(egui::PointerButton::Middle)
-            {
-                let delta = input.pointer.delta();
-                self.orbit_yaw += delta.x * 0.01;
-                self.orbit_pitch = (self.orbit_pitch - delta.y * 0.01).clamp(-1.5, 1.5);
-            }
-
-            let scroll = input.smooth_scroll_delta.y;
-            if scroll != 0.0 {
-                self.orbit_distance = (self.orbit_distance - scroll * 0.01).clamp(0.5, 20.0);
             }
         });
     }
@@ -976,6 +932,8 @@ impl ShaderStudio {
                                 ui.add_space(8.0);
                             }
                         }
+                        self.sdf_editor_section(ui);
+                        ui.add_space(8.0);
                         self.uniforms_section(ui);
                         ui.add_space(8.0);
                         self.textures_section(ui);
@@ -1242,6 +1200,27 @@ impl ShaderStudio {
             });
     }
 
+    fn sdf_editor_section(&mut self, ui: &mut egui::Ui) {
+        if presets::PRESETS[self.selected_preset].name != "SDF Editor" {
+            return;
+        }
+
+        egui::CollapsingHeader::new(
+            egui::RichText::new("SDF Scene Editor")
+                .strong()
+                .color(egui::Color32::from_rgb(0x4E, 0xC9, 0xB0)),
+        )
+        .default_open(true)
+        .show(ui, |ui| {
+            if self.sdf_editor.ui(ui) {
+                let generated = self.sdf_editor.generate_full_shader().to_string();
+                let mut shared = self.shared.lock().unwrap();
+                shared.pass_sources[0] = generated;
+                shared.pass_needs_recompile[0] = true;
+            }
+        });
+    }
+
     fn error_details_section(&self, ui: &mut egui::Ui) {
         let shared = self.shared.lock().unwrap();
         let active = shared.active_tab;
@@ -1338,6 +1317,8 @@ impl ShaderStudio {
         let preset = &presets::PRESETS[index];
         let mut shared = self.shared.lock().unwrap();
 
+        shared.compilation_generation += 1;
+
         self.source_history.push(shared.pass_sources[0].clone());
         if self.source_history.len() > 32 {
             self.source_history.remove(0);
@@ -1425,6 +1406,12 @@ impl ShaderStudio {
             if slider_index < 16 {
                 self.custom_sliders[slider_index] = value;
             }
+        }
+
+        if preset.name == "SDF Editor" {
+            self.sdf_editor.dirty = true;
+            let generated = self.sdf_editor.generate_full_shader().to_string();
+            shared.pass_sources[0] = generated;
         }
     }
 }

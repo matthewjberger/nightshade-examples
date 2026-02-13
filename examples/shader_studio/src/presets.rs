@@ -104,6 +104,422 @@ fn vertex_main(input: VertexInput) -> VertexOutput {
     };
 }
 
+macro_rules! sdf_library_3d {
+    () => {
+        r"
+fn dot2_v2(v: vec2<f32>) -> f32 { return dot(v, v); }
+fn dot2_v3(v: vec3<f32>) -> f32 { return dot(v, v); }
+fn ndot(a: vec2<f32>, b: vec2<f32>) -> f32 { return a.x * b.x - a.y * b.y; }
+
+fn rot_x(p: vec3<f32>, a: f32) -> vec3<f32> {
+    let c = cos(a); let s = sin(a);
+    return vec3<f32>(p.x, c * p.y - s * p.z, s * p.y + c * p.z);
+}
+fn rot_y(p: vec3<f32>, a: f32) -> vec3<f32> {
+    let c = cos(a); let s = sin(a);
+    return vec3<f32>(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
+}
+fn rot_z(p: vec3<f32>, a: f32) -> vec3<f32> {
+    let c = cos(a); let s = sin(a);
+    return vec3<f32>(c * p.x - s * p.y, s * p.x + c * p.y, p.z);
+}
+
+fn sd_sphere(p: vec3<f32>, s: f32) -> f32 { return length(p) - s; }
+
+fn sd_box(p: vec3<f32>, b: vec3<f32>) -> f32 {
+    let q = abs(p) - b;
+    return length(max(q, vec3<f32>(0.0, 0.0, 0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+fn sd_round_box(p: vec3<f32>, b: vec3<f32>, r: f32) -> f32 {
+    let q = abs(p) - b;
+    return length(max(q, vec3<f32>(0.0, 0.0, 0.0))) + min(max(q.x, max(q.y, q.z)), 0.0) - r;
+}
+
+fn sd_box_frame(p: vec3<f32>, b: vec3<f32>, e: f32) -> f32 {
+    let q = abs(p) - b;
+    let w = abs(q + e) - e;
+    return min(min(
+        length(max(vec3<f32>(q.x, w.y, w.z), vec3<f32>(0.0, 0.0, 0.0))) + min(max(q.x, max(w.y, w.z)), 0.0),
+        length(max(vec3<f32>(w.x, q.y, w.z), vec3<f32>(0.0, 0.0, 0.0))) + min(max(w.x, max(q.y, w.z)), 0.0)),
+        length(max(vec3<f32>(w.x, w.y, q.z), vec3<f32>(0.0, 0.0, 0.0))) + min(max(w.x, max(w.y, q.z)), 0.0));
+}
+
+fn sd_torus(p: vec3<f32>, t: vec2<f32>) -> f32 {
+    let q = vec2<f32>(length(p.xz) - t.x, p.y);
+    return length(q) - t.y;
+}
+
+fn sd_capped_torus(p_in: vec3<f32>, sc: vec2<f32>, ra: f32, rb: f32) -> f32 {
+    let p = vec3<f32>(abs(p_in.x), p_in.y, p_in.z);
+    let k = select(length(p.xy), dot(p.xy, sc), sc.y * p.x > sc.x * p.y);
+    return sqrt(dot(p, p) + ra * ra - 2.0 * ra * k) - rb;
+}
+
+fn sd_link(p: vec3<f32>, le: f32, r1: f32, r2: f32) -> f32 {
+    let q = vec3<f32>(p.x, max(abs(p.y) - le, 0.0), p.z);
+    return length(vec2<f32>(length(q.xy) - r1, q.z)) - r2;
+}
+
+fn sd_infinite_cylinder(p: vec3<f32>, c: vec3<f32>) -> f32 {
+    return length(p.xz - c.xy) - c.z;
+}
+
+fn sd_cone(p: vec3<f32>, c: vec2<f32>, h: f32) -> f32 {
+    let q = h * vec2<f32>(c.x / c.y, -1.0);
+    let w = vec2<f32>(length(p.xz), p.y);
+    let a = w - q * clamp(dot(w, q) / dot(q, q), 0.0, 1.0);
+    let b = w - q * vec2<f32>(clamp(w.x / q.x, 0.0, 1.0), 1.0);
+    let k = sign(q.y);
+    let d = min(dot(a, a), dot(b, b));
+    let s = max(k * (w.x * q.y - w.y * q.x), k * (w.y - q.y));
+    return sqrt(d) * sign(s);
+}
+
+fn sd_plane(p: vec3<f32>, n: vec3<f32>, h: f32) -> f32 { return dot(p, n) + h; }
+
+fn sd_hex_prism(p_in: vec3<f32>, h: vec2<f32>) -> f32 {
+    let k = vec3<f32>(-0.8660254, 0.5, 0.57735);
+    var p = abs(p_in);
+    let fxy = 2.0 * min(dot(k.xy, p.xy), 0.0) * k.xy;
+    p = vec3<f32>(p.x - fxy.x, p.y - fxy.y, p.z);
+    let d = vec2<f32>(
+        length(p.xy - vec2<f32>(clamp(p.x, -k.z * h.x, k.z * h.x), h.x)) * sign(p.y - h.x),
+        p.z - h.y);
+    return min(max(d.x, d.y), 0.0) + length(max(d, vec2<f32>(0.0, 0.0)));
+}
+
+fn sd_tri_prism(p: vec3<f32>, h: vec2<f32>) -> f32 {
+    let q = abs(p);
+    return max(q.z - h.y, max(q.x * 0.866025 + p.y * 0.5, -p.y) - h.x * 0.5);
+}
+
+fn sd_capsule(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>, r: f32) -> f32 {
+    let pa = p - a; let ba = b - a;
+    let h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h) - r;
+}
+
+fn sd_vertical_capsule(p: vec3<f32>, h: f32, r: f32) -> f32 {
+    return length(vec3<f32>(p.x, p.y - clamp(p.y, 0.0, h), p.z)) - r;
+}
+
+fn sd_capped_cylinder(p: vec3<f32>, h: f32, r: f32) -> f32 {
+    let d = abs(vec2<f32>(length(p.xz), p.y)) - vec2<f32>(r, h);
+    return min(max(d.x, d.y), 0.0) + length(max(d, vec2<f32>(0.0, 0.0)));
+}
+
+fn sd_rounded_cylinder(p: vec3<f32>, ra: f32, rb: f32, h: f32) -> f32 {
+    let d = vec2<f32>(length(p.xz) - 2.0 * ra + rb, abs(p.y) - h);
+    return min(max(d.x, d.y), 0.0) + length(max(d, vec2<f32>(0.0, 0.0))) - rb;
+}
+
+fn sd_capped_cone(p: vec3<f32>, h: f32, r1: f32, r2: f32) -> f32 {
+    let q = vec2<f32>(length(p.xz), p.y);
+    let k1 = vec2<f32>(r2, h);
+    let k2 = vec2<f32>(r2 - r1, 2.0 * h);
+    let ca = vec2<f32>(q.x - min(q.x, select(r2, r1, q.y < 0.0)), abs(q.y) - h);
+    let cb = q - k1 + k2 * clamp(dot(k1 - q, k2) / dot2_v2(k2), 0.0, 1.0);
+    let s = select(1.0, -1.0, cb.x < 0.0 && ca.y < 0.0);
+    return s * sqrt(min(dot2_v2(ca), dot2_v2(cb)));
+}
+
+fn sd_solid_angle(p: vec3<f32>, c: vec2<f32>, ra: f32) -> f32 {
+    let q = vec2<f32>(length(p.xz), p.y);
+    let l = length(q) - ra;
+    let m = length(q - c * clamp(dot(q, c), 0.0, ra));
+    return max(l, m * sign(c.y * q.x - c.x * q.y));
+}
+
+fn sd_cut_sphere(p: vec3<f32>, r: f32, h: f32) -> f32 {
+    let w = sqrt(r * r - h * h);
+    let q = vec2<f32>(length(p.xz), p.y);
+    let s = max((h - r) * q.x * q.x + w * w * (h + r - 2.0 * q.y), h * q.x - w * q.y);
+    if s < 0.0 { return length(q) - r; }
+    else if q.x < w { return h - q.y; }
+    else { return length(q - vec2<f32>(w, h)); }
+}
+
+fn sd_cut_hollow_sphere(p: vec3<f32>, r: f32, h: f32, t: f32) -> f32 {
+    let w = sqrt(r * r - h * h);
+    let q = vec2<f32>(length(p.xz), p.y);
+    return select(abs(length(q) - r), length(q - vec2<f32>(w, h)), h * q.x < w * q.y) - t;
+}
+
+fn sd_death_star(p_in: vec3<f32>, ra: f32, rb: f32, d: f32) -> f32 {
+    let a = (ra * ra - rb * rb + d * d) / (2.0 * d);
+    let b = sqrt(max(ra * ra - a * a, 0.0));
+    let p = vec2<f32>(p_in.x, length(p_in.yz));
+    if p.x * b - p.y * a > d * max(b - p.y, 0.0) { return length(p - vec2<f32>(a, b)); }
+    return max(length(p) - ra, -(length(p - vec2<f32>(d, 0.0)) - rb));
+}
+
+fn sd_round_cone(p: vec3<f32>, r1: f32, r2: f32, h: f32) -> f32 {
+    let b = (r1 - r2) / h;
+    let a = sqrt(1.0 - b * b);
+    let q = vec2<f32>(length(p.xz), p.y);
+    let k = dot(q, vec2<f32>(-b, a));
+    if k < 0.0 { return length(q) - r1; }
+    if k > a * h { return length(q - vec2<f32>(0.0, h)) - r2; }
+    return dot(q, vec2<f32>(a, b)) - r1;
+}
+
+fn sd_ellipsoid(p: vec3<f32>, r: vec3<f32>) -> f32 {
+    let k0 = length(p / r);
+    let k1 = length(p / (r * r));
+    return k0 * (k0 - 1.0) / k1;
+}
+
+fn sd_rhombus(p_in: vec3<f32>, la: f32, lb: f32, h: f32, ra: f32) -> f32 {
+    let p = abs(p_in);
+    let b = vec2<f32>(la, lb);
+    let f = clamp(ndot(b, b - 2.0 * p.xz) / dot(b, b), -1.0, 1.0);
+    let q = vec2<f32>(
+        length(p.xz - 0.5 * b * vec2<f32>(1.0 - f, 1.0 + f)) * sign(p.x * b.y + p.z * b.x - b.x * b.y) - ra,
+        p.y - h);
+    return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0, 0.0)));
+}
+
+fn sd_octahedron(p_in: vec3<f32>, s: f32) -> f32 {
+    let p = abs(p_in);
+    let m = p.x + p.y + p.z - s;
+    var q: vec3<f32>;
+    if 3.0 * p.x < m { q = p.xyz; }
+    else if 3.0 * p.y < m { q = p.yzx; }
+    else if 3.0 * p.z < m { q = p.zxy; }
+    else { return m * 0.57735027; }
+    let k = clamp(0.5 * (q.z - q.y + s), 0.0, s);
+    return length(vec3<f32>(q.x, q.y - s + k, q.z - k));
+}
+
+fn sd_pyramid(p_in: vec3<f32>, h: f32) -> f32 {
+    let m2 = h * h + 0.25;
+    var px = abs(p_in.x); var pz = abs(p_in.z);
+    if pz > px { let tmp = px; px = pz; pz = tmp; }
+    px -= 0.5; pz -= 0.5;
+    let q = vec3<f32>(pz, h * p_in.y - 0.5 * px, h * px + 0.5 * p_in.y);
+    let s = max(-q.x, 0.0);
+    let t = clamp((q.y - 0.5 * pz) / (m2 + 0.25), 0.0, 1.0);
+    let a = m2 * (q.x + s) * (q.x + s) + q.y * q.y;
+    let b = m2 * (q.x + 0.5 * t) * (q.x + 0.5 * t) + (q.y - m2 * t) * (q.y - m2 * t);
+    let d2 = select(min(a, b), 0.0, min(q.y, -q.x * m2 - q.y * 0.5) > 0.0);
+    return sqrt((d2 + q.z * q.z) / m2) * sign(max(q.z, -p_in.y));
+}
+
+fn ud_triangle(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>) -> f32 {
+    let ba = b - a; let pa = p - a;
+    let cb = c - b; let pb = p - b;
+    let ac = a - c; let pc = p - c;
+    let nor = cross(ba, ac);
+    if sign(dot(cross(ba, nor), pa)) + sign(dot(cross(cb, nor), pb)) + sign(dot(cross(ac, nor), pc)) < 2.0 {
+        return sqrt(min(min(
+            dot2_v3(ba * clamp(dot(ba, pa) / dot2_v3(ba), 0.0, 1.0) - pa),
+            dot2_v3(cb * clamp(dot(cb, pb) / dot2_v3(cb), 0.0, 1.0) - pb)),
+            dot2_v3(ac * clamp(dot(ac, pc) / dot2_v3(ac), 0.0, 1.0) - pc)));
+    }
+    return sqrt(dot(nor, pa) * dot(nor, pa) / dot2_v3(nor));
+}
+
+fn ud_quad(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> f32 {
+    let ba = b - a; let pa = p - a;
+    let cb = c - b; let pb = p - b;
+    let dc = d - c; let pc = p - c;
+    let ad = a - d; let pd = p - d;
+    let nor = cross(ba, ad);
+    if sign(dot(cross(ba, nor), pa)) + sign(dot(cross(cb, nor), pb)) + sign(dot(cross(dc, nor), pc)) + sign(dot(cross(ad, nor), pd)) < 3.0 {
+        return sqrt(min(min(min(
+            dot2_v3(ba * clamp(dot(ba, pa) / dot2_v3(ba), 0.0, 1.0) - pa),
+            dot2_v3(cb * clamp(dot(cb, pb) / dot2_v3(cb), 0.0, 1.0) - pb)),
+            dot2_v3(dc * clamp(dot(dc, pc) / dot2_v3(dc), 0.0, 1.0) - pc)),
+            dot2_v3(ad * clamp(dot(ad, pd) / dot2_v3(ad), 0.0, 1.0) - pd)));
+    }
+    return sqrt(dot(nor, pa) * dot(nor, pa) / dot2_v3(nor));
+}
+
+fn sd_vesica_segment(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>, w: f32) -> f32 {
+    let c = (a + b) * 0.5;
+    let l = length(b - a);
+    let v = (b - a) / l;
+    let y = dot(p - c, v);
+    let q = vec2<f32>(length(p - c - y * v), abs(y));
+    let r = 0.5 * l;
+    let d = 0.5 * (r * r - w * w) / w;
+    let h = select(vec3<f32>(-d, 0.0, d + w), vec3<f32>(0.0, r, 0.0), r * q.x < d * q.y);
+    return length(q - h.xy) - h.z;
+}
+
+fn op_union(d1: f32, d2: f32) -> f32 { return min(d1, d2); }
+fn op_subtraction(d1: f32, d2: f32) -> f32 { return max(-d1, d2); }
+fn op_intersection(d1: f32, d2: f32) -> f32 { return max(d1, d2); }
+fn op_xor(d1: f32, d2: f32) -> f32 { return max(min(d1, d2), -max(d1, d2)); }
+
+fn op_smooth_union(d1: f32, d2: f32, k: f32) -> f32 {
+    let h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
+    return mix(d2, d1, h) - k * h * (1.0 - h);
+}
+fn op_smooth_subtraction(d1: f32, d2: f32, k: f32) -> f32 {
+    let h = clamp(0.5 - 0.5 * (d2 + d1) / k, 0.0, 1.0);
+    return mix(d2, -d1, h) + k * h * (1.0 - h);
+}
+fn op_smooth_intersection(d1: f32, d2: f32, k: f32) -> f32 {
+    let h = clamp(0.5 - 0.5 * (d2 - d1) / k, 0.0, 1.0);
+    return mix(d2, d1, h) + k * h * (1.0 - h);
+}
+
+fn op_rep(p: vec3<f32>, c: vec3<f32>) -> vec3<f32> { return p - c * round(p / c); }
+fn op_rep_lim(p: vec3<f32>, c: f32, l: vec3<f32>) -> vec3<f32> { return p - c * clamp(round(p / c), -l, l); }
+fn op_sym_x(p: vec3<f32>) -> vec3<f32> { return vec3<f32>(abs(p.x), p.y, p.z); }
+fn op_sym_xz(p: vec3<f32>) -> vec3<f32> { return vec3<f32>(abs(p.x), p.y, abs(p.z)); }
+
+fn op_twist(p: vec3<f32>, k: f32) -> vec3<f32> {
+    let c = cos(k * p.y); let s = sin(k * p.y);
+    let q = mat2x2<f32>(c, s, -s, c) * p.xz;
+    return vec3<f32>(q.x, p.y, q.y);
+}
+fn op_cheap_bend(p: vec3<f32>, k: f32) -> vec3<f32> {
+    let c = cos(k * p.x); let s = sin(k * p.x);
+    let q = mat2x2<f32>(c, s, -s, c) * p.xy;
+    return vec3<f32>(q.x, q.y, p.z);
+}
+
+fn op_round(d: f32, r: f32) -> f32 { return d - r; }
+fn op_onion(d: f32, r: f32) -> f32 { return abs(d) - r; }
+fn op_elongate(p: vec3<f32>, h: vec3<f32>) -> vec3<f32> { return p - clamp(p, -h, h); }
+fn op_revolution(p: vec3<f32>, o: f32) -> vec2<f32> { return vec2<f32>(length(p.xz) - o, p.y); }
+fn op_extrusion(p: vec3<f32>, d: f32, h: f32) -> f32 {
+    let w = vec2<f32>(d, abs(p.z) - h);
+    return min(max(w.x, w.y), 0.0) + length(max(w, vec2<f32>(0.0, 0.0)));
+}
+"
+    };
+}
+
+macro_rules! sdf_raymarcher {
+    () => {
+        r"
+fn calc_normal(p: vec3<f32>) -> vec3<f32> {
+    let e = vec2<f32>(0.0005, 0.0);
+    return normalize(vec3<f32>(
+        sdf_scene(p + e.xyy).x - sdf_scene(p - e.xyy).x,
+        sdf_scene(p + e.yxy).x - sdf_scene(p - e.yxy).x,
+        sdf_scene(p + e.yyx).x - sdf_scene(p - e.yyx).x,
+    ));
+}
+fn calc_ao(pos: vec3<f32>, nor: vec3<f32>) -> f32 {
+    var occ = 0.0;
+    var sca = 1.0;
+    for (var step = 0u; step < 5u; step++) {
+        let h = 0.01 + 0.12 * f32(step) / 4.0;
+        let d = sdf_scene(pos + h * nor).x;
+        occ += (h - d) * sca;
+        sca *= 0.95;
+        if occ > 0.35 { break; }
+    }
+    return clamp(1.0 - 3.0 * occ, 0.0, 1.0) * (0.5 + 0.5 * nor.y);
+}
+fn calc_soft_shadow(ro: vec3<f32>, rd: vec3<f32>, mint: f32, tmax: f32) -> f32 {
+    var res = 1.0; var t = mint; var ph = 1e20;
+    for (var step = 0u; step < 32u; step++) {
+        let h = sdf_scene(ro + rd * t).x;
+        if h < 0.001 { return 0.0; }
+        let y = h * h / (2.0 * ph);
+        let d = sqrt(h * h - y * y);
+        res = min(res, 10.0 * d / max(0.0, t - y));
+        ph = h; t += h;
+        if t > tmax { break; }
+    }
+    return clamp(res, 0.0, 1.0);
+}
+fn get_material_color(mat_id: f32) -> vec3<f32> {
+    if mat_id < 0.5 { return vec3<f32>(0.45, 0.42, 0.4); }
+    if mat_id < 1.5 { return vec3<f32>(0.8, 0.2, 0.15); }
+    if mat_id < 2.5 { return vec3<f32>(0.15, 0.6, 0.85); }
+    if mat_id < 3.5 { return vec3<f32>(0.9, 0.6, 0.1); }
+    if mat_id < 4.5 { return vec3<f32>(0.4, 0.8, 0.4); }
+    if mat_id < 5.5 { return vec3<f32>(0.7, 0.3, 0.7); }
+    if mat_id < 6.5 { return vec3<f32>(0.9, 0.5, 0.2); }
+    if mat_id < 7.5 { return vec3<f32>(0.3, 0.7, 0.9); }
+    return vec3<f32>(0.7, 0.7, 0.7);
+}
+"
+    };
+}
+
+pub const SDF_COMMON_LIBRARY: &str = sdf_library_3d!();
+
+pub const SDF_EDITOR_HEADER: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    sdf_raymarcher!(),
+);
+
+pub const SDF_EDITOR_FOOTER: &str = r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0);
+    let camera_pos = uniforms.camera_position;
+    let right = vec3<f32>(uniforms.view[0][0], uniforms.view[1][0], uniforms.view[2][0]);
+    let up_vec = vec3<f32>(uniforms.view[0][1], uniforms.view[1][1], uniforms.view[2][1]);
+    let fwd = -vec3<f32>(uniforms.view[0][2], uniforms.view[1][2], uniforms.view[2][2]);
+    let ray_dir = normalize(fwd * 1.5 + uv.x * right + uv.y * up_vec);
+
+    var total_dist = 0.0;
+    var material_id = -1.0;
+    var hit = false;
+    var position = camera_pos;
+    for (var step = 0u; step < 128u; step++) {
+        let result = sdf_scene(position);
+        if result.x < 0.0005 { hit = true; material_id = result.y; break; }
+        if total_dist > 50.0 { break; }
+        total_dist += result.x;
+        position = camera_pos + ray_dir * total_dist;
+    }
+
+    if !hit {
+        let sky_grad = 0.5 + 0.5 * ray_dir.y;
+        let sky = mix(vec3<f32>(0.5, 0.7, 0.9), vec3<f32>(0.1, 0.25, 0.55), sky_grad);
+        let sun_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+        let sun = pow(max(dot(ray_dir, sun_dir), 0.0), 128.0);
+        return vec4<f32>(sky + vec3<f32>(1.0, 0.9, 0.7) * sun * 2.0, 1.0);
+    }
+
+    let normal = calc_normal(position);
+    let base_color = get_material_color(material_id);
+    if material_id < 0.5 {
+        let checker = step(0.0, sin(position.x * 3.14159 * 2.0) * sin(position.z * 3.14159 * 2.0));
+        var floor_color = mix(vec3<f32>(0.35, 0.32, 0.3), vec3<f32>(0.55, 0.52, 0.5), checker);
+        let light_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+        let diff = max(dot(normal, light_dir), 0.0);
+        let shadow = calc_soft_shadow(position + normal * 0.002, light_dir, 0.02, 10.0);
+        let ao = calc_ao(position, normal);
+        floor_color *= (0.2 + 0.8 * diff * shadow) * ao;
+        let fog = exp(-total_dist * 0.04);
+        return vec4<f32>(mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, floor_color, fog), 1.0);
+    }
+    let light_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let shadow = calc_soft_shadow(position + normal * 0.002, light_dir, 0.02, 10.0);
+    let ao = calc_ao(position, normal);
+    let view_dir = normalize(camera_pos - position);
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 64.0);
+    let back_light = max(dot(normal, normalize(vec3<f32>(-0.5, 0.2, -0.3))), 0.0);
+    var color = base_color * (0.15 * ao);
+    color += base_color * diffuse * shadow * 0.8;
+    color += vec3<f32>(1.0, 0.95, 0.85) * specular * shadow * 0.6;
+    color += base_color * back_light * 0.15;
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 4.0);
+    color += vec3<f32>(0.3, 0.5, 0.7) * fresnel * 0.2 * ao;
+    color *= ao;
+    let fog = exp(-total_dist * 0.04);
+    color = mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, color, fog);
+    color = pow(color, vec3<f32>(0.4545));
+    return vec4<f32>(color, 1.0);
+}
+";
+
 pub const PRESETS: &[ShaderPreset] = &[
     ShaderPreset {
         name: "Plasma",
@@ -253,6 +669,81 @@ pub const PRESETS: &[ShaderPreset] = &[
         buffer_c_source: None,
         buffer_d_source: None,
         common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "SDF Primitives (IQ)",
+        description: "Browse all Inigo Quilez 3D SDF primitives with slider",
+        source: SDF_PRIMITIVES_SOURCE,
+        is_geometry: false,
+        category: "SDF (IQ)",
+        slider_labels: &[(0, "Shape (0-24)")],
+        slider_defaults: &[(0, 0.0)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: Some(SDF_COMMON_LIBRARY),
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "SDF Boolean Ops (IQ)",
+        description: "Union, subtraction, intersection, smooth blending",
+        source: SDF_OPS_SOURCE,
+        is_geometry: false,
+        category: "SDF (IQ)",
+        slider_labels: &[(0, "Operation (0-6)"), (1, "Blend K")],
+        slider_defaults: &[(0, 0.0), (1, 0.3)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: Some(SDF_COMMON_LIBRARY),
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "SDF Domain Ops (IQ)",
+        description: "Repetition, symmetry, twist, bend, elongation, rounding, onion",
+        source: SDF_DOMAIN_SOURCE,
+        is_geometry: false,
+        category: "SDF (IQ)",
+        slider_labels: &[(0, "Effect (0-10)"), (1, "Amount")],
+        slider_defaults: &[(0, 0.0), (1, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: Some(SDF_COMMON_LIBRARY),
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "SDF World",
+        description: "Interactive SDF dungeon built from IQ distance functions",
+        source: SDF_WORLD_SOURCE,
+        is_geometry: false,
+        category: "SDF (IQ)",
+        slider_labels: &[],
+        slider_defaults: &[],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: Some(SDF_COMMON_LIBRARY),
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "SDF Editor",
+        description: "Compose SDF scenes with the node editor",
+        source: SDF_EDITOR_PLACEHOLDER,
+        is_geometry: false,
+        category: "SDF (IQ)",
+        slider_labels: &[],
+        slider_defaults: &[],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: Some(SDF_COMMON_LIBRARY),
         channel_bindings: None,
     },
     ShaderPreset {
@@ -454,7 +945,18 @@ pub const PRESETS: &[ShaderPreset] = &[
         buffer_c_source: None,
         buffer_d_source: None,
         common_source: None,
-        channel_bindings: None,
+        channel_bindings: Some([
+            [
+                ChannelSource::Texture0,
+                ChannelSource::Texture1,
+                ChannelSource::None,
+                ChannelSource::None,
+            ],
+            [ChannelSource::None; 4],
+            [ChannelSource::None; 4],
+            [ChannelSource::None; 4],
+            [ChannelSource::None; 4],
+        ]),
     },
     ShaderPreset {
         name: "08: 3D Geometry",
@@ -500,6 +1002,112 @@ pub const PRESETS: &[ShaderPreset] = &[
             (4, "Rim Intensity"),
         ],
         slider_defaults: &[(0, 0.7), (1, 0.3), (2, 0.2), (3, 0.0), (4, 0.0)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "11: Noise & Procedural",
+        description: "Hash functions, value noise, and fractal brownian motion",
+        source: TUTORIAL_NOISE,
+        is_geometry: false,
+        category: "Tutorial",
+        slider_labels: &[
+            (0, "Octaves"),
+            (1, "Scale"),
+            (2, "Speed"),
+            (3, "Lacunarity"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.4), (2, 0.2), (3, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "12: 2D SDF Shapes",
+        description: "Signed distance functions for crisp, resolution-independent shapes",
+        source: TUTORIAL_SDF_2D,
+        is_geometry: false,
+        category: "Tutorial",
+        slider_labels: &[(0, "Roundness"), (1, "Glow"), (2, "Outline"), (3, "Rotate")],
+        slider_defaults: &[(0, 0.0), (1, 0.3), (2, 0.3), (3, 0.0)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "13: Multipass / Buffers",
+        description: "Use buffer feedback loops for simulation and persistence",
+        source: TUTORIAL_MULTIPASS_IMAGE,
+        is_geometry: false,
+        category: "Tutorial",
+        slider_labels: &[(0, "Decay"), (1, "Radius"), (2, "Color Cycle")],
+        slider_defaults: &[(0, 0.95), (1, 0.3), (2, 0.5)],
+        buffer_a_source: Some(TUTORIAL_MULTIPASS_BUFFER_A),
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: Some([
+            [
+                ChannelSource::BufferA,
+                ChannelSource::None,
+                ChannelSource::None,
+                ChannelSource::None,
+            ],
+            [
+                ChannelSource::BufferA,
+                ChannelSource::None,
+                ChannelSource::None,
+                ChannelSource::None,
+            ],
+            [ChannelSource::None; 4],
+            [ChannelSource::None; 4],
+            [ChannelSource::None; 4],
+        ]),
+    },
+    ShaderPreset {
+        name: "14: Vertex Deformation",
+        description: "Modify mesh vertices in the vertex shader for animated effects",
+        source: TUTORIAL_VERTEX_DEFORM,
+        is_geometry: true,
+        category: "Tutorial",
+        slider_labels: &[
+            (0, "Wave Height"),
+            (1, "Wave Speed"),
+            (2, "Wave Scale"),
+            (3, "Twist"),
+        ],
+        slider_defaults: &[(0, 0.3), (1, 0.5), (2, 0.4), (3, 0.0)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "15: Raymarching Intro",
+        description: "Walk rays through a distance field to render 3D shapes without geometry",
+        source: TUTORIAL_RAYMARCHING,
+        is_geometry: false,
+        category: "Tutorial",
+        slider_labels: &[
+            (0, "Sphere Size"),
+            (1, "Box Size"),
+            (2, "Smoothness"),
+            (3, "Speed"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.4), (2, 0.3), (3, 0.3)],
         buffer_a_source: None,
         buffer_b_source: None,
         buffer_c_source: None,
@@ -2068,19 +2676,21 @@ const TUTORIAL_TEXTURES: &str = concat!(
     r"
 // TUTORIAL 7: Texture Sampling
 // ==============================
-// Drag and drop an image file (PNG, JPG, BMP, TGA)
-// onto the window to load it into a texture slot.
+// Shader Studio includes 2 built-in textures:
+//   texture_0 = gradient noise     texture_1 = colored dot grid
+// You can also drag & drop images (PNG, JPG, BMP, TGA)
+// to replace or fill additional slots (up to 4 total).
 //
-// 4 slots available in the Textures panel:
-//   texture_0 / sampler_0  ..  texture_3 / sampler_3
+// Access in WGSL:
+//   textureSample(texture_0, sampler_0, uv) -> vec4 (RGBA)
+//   textureSample(texture_1, sampler_1, uv) -> vec4 (RGBA)
 //
-// textureSample(texture, sampler, uv) returns vec4 (RGBA)
 // The sampler uses linear filtering and repeat wrapping,
 // so UVs outside 0..1 tile the texture seamlessly.
 //
-// Without a texture loaded, you'll see a magenta placeholder.
+// Channels panel controls which textures the shader sees.
 //
-// TRY: Drop an image, then try scrolling/scaling the UVs!
+// TRY: Change the UV scale, scroll speed, or mix ratio!
 
 @fragment
 fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -2241,6 +2851,551 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
     color += vec3<f32>(1.0, 0.95, 0.9) * specular * 0.4;
     color += surface_color * emission * pulse * 0.5;
     color += vec3<f32>(0.3, 0.5, 1.0) * fresnel * (0.2 + rim_intensity);
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const TUTORIAL_NOISE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    r"
+// TUTORIAL 11: Noise & Procedural Generation
+// ============================================
+// Noise is the foundation of procedural textures, terrain,
+// clouds, fire, water, and countless other effects.
+//
+// HASH:  Pseudorandom number from a 2D input.
+//        fract(sin(dot(p, big_primes)) * 43758.5453)
+//        Looks random but is deterministic for any input.
+//
+// VALUE NOISE: Smooth noise by interpolating hash values
+//        at grid corners using smoothstep for continuity.
+//
+// FBM:   Fractal Brownian Motion = layered noise octaves.
+//        Each octave has 2x frequency, 0.5x amplitude.
+//        More octaves = more fine detail.
+//
+// Slider 0: Octaves (detail), Slider 1: Scale
+// Slider 2: Speed,            Slider 3: Lacunarity
+//
+// TRY: Max octaves for clouds, low octaves for soft blobs.
+//      Change lacunarity (frequency multiplier per octave).
+
+fn hash_2d(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+fn value_noise(p: vec2<f32>) -> f32 {
+    let integer_part = floor(p);
+    let frac_part = p - integer_part;
+    let smooth = frac_part * frac_part * (3.0 - 2.0 * frac_part);
+
+    let bl = hash_2d(integer_part + vec2<f32>(0.0, 0.0));
+    let br = hash_2d(integer_part + vec2<f32>(1.0, 0.0));
+    let tl = hash_2d(integer_part + vec2<f32>(0.0, 1.0));
+    let tr = hash_2d(integer_part + vec2<f32>(1.0, 1.0));
+
+    let bottom = mix(bl, br, smooth.x);
+    let top = mix(tl, tr, smooth.x);
+    return mix(bottom, top, smooth.y);
+}
+
+fn fbm(p: vec2<f32>, octave_count: i32, lacunarity: f32) -> f32 {
+    var value = 0.0;
+    var amplitude = 0.5;
+    var current = p;
+    for (var octave = 0; octave < octave_count; octave++) {
+        value += amplitude * value_noise(current);
+        current *= lacunarity;
+        amplitude *= 0.5;
+    }
+    return value;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let octaves = i32(uniforms.custom[0].x * 12.0) + 1;
+    let scale = uniforms.custom[0].y * 15.0 + 1.0;
+    let speed = uniforms.custom[0].z * 3.0;
+    let lacunarity = uniforms.custom[0].w * 3.0 + 1.0;
+
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = in.uv * vec2<f32>(aspect, 1.0) * scale;
+    let animated_uv = uv + vec2<f32>(uniforms.time * speed * 0.1, uniforms.time * speed * 0.07);
+
+    let noise_val = fbm(animated_uv, octaves, lacunarity);
+
+    let warm = vec3<f32>(1.0, 0.6, 0.15);
+    let cool = vec3<f32>(0.1, 0.2, 0.45);
+    let mid = vec3<f32>(0.8, 0.3, 0.1);
+
+    var color: vec3<f32>;
+    if noise_val < 0.4 {
+        color = mix(cool, mid, noise_val / 0.4);
+    } else {
+        color = mix(mid, warm, (noise_val - 0.4) / 0.6);
+    }
+
+    color *= 0.7 + 0.3 * noise_val;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const TUTORIAL_SDF_2D: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    r"
+// TUTORIAL 12: 2D Signed Distance Functions (SDFs)
+// ==================================================
+// An SDF returns the shortest distance from a point to a shape.
+//   distance > 0  = outside the shape
+//   distance < 0  = inside the shape
+//   distance == 0 = on the boundary
+//
+// Why SDFs are powerful:
+//   - Resolution independent (no jagged edges!)
+//   - Easy to combine: union, subtraction, intersection
+//   - Smooth blending with 'smooth min'
+//   - Cheap outlines, glows, and shadows
+//
+// BASIC SHAPES:
+//   Circle: length(p) - radius
+//   Box:    max(abs(p) - size)  (component-wise)
+//   Line:   project point onto line segment, measure distance
+//
+// COMBINING:
+//   Union:        min(d1, d2)
+//   Subtraction:  max(d1, -d2)
+//   Intersection: max(d1, d2)
+//   Smooth union: smin(d1, d2, k) — blends with roundness k
+//
+// Slider 0: Roundness, Slider 1: Glow intensity
+// Slider 2: Outline width, Slider 3: Rotation speed
+//
+// TRY: Change shapes, combine them differently, animate positions!
+
+fn sd_circle(p: vec2<f32>, radius: f32) -> f32 {
+    return length(p) - radius;
+}
+
+fn sd_box(p: vec2<f32>, half_size: vec2<f32>) -> f32 {
+    let d = abs(p) - half_size;
+    return length(max(d, vec2<f32>(0.0))) + min(max(d.x, d.y), 0.0);
+}
+
+fn sd_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
+    let pa = p - a;
+    let ba = b - a;
+    let h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
+}
+
+fn sd_equilateral_triangle(p_in: vec2<f32>, radius: f32) -> f32 {
+    let k = sqrt(3.0);
+    var p = vec2<f32>(abs(p_in.x) - radius, p_in.y + radius / k);
+    if p.x + k * p.y > 0.0 {
+        p = vec2<f32>(p.x - k * p.y, -k * p.x - p.y) / 2.0;
+    }
+    p.x -= clamp(p.x, -2.0 * radius, 0.0);
+    return -length(p) * sign(p.y);
+}
+
+fn smin(a: f32, b: f32, k: f32) -> f32 {
+    let h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+fn rot2d(angle: f32) -> mat2x2<f32> {
+    let c = cos(angle);
+    let s = sin(angle);
+    return mat2x2<f32>(c, s, -s, c);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let roundness = uniforms.custom[0].x * 0.3;
+    let glow_strength = uniforms.custom[0].y * 0.05 + 0.002;
+    let outline_width = uniforms.custom[0].z * 0.04 + 0.005;
+    let rotation_speed = uniforms.custom[0].w * 3.0;
+
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0) * 2.5;
+    let time = uniforms.time;
+
+    let rot = rot2d(time * rotation_speed);
+
+    let p1 = uv - vec2<f32>(-0.7, 0.0);
+    let circle = sd_circle(p1, 0.35) - roundness;
+
+    var p2 = uv - vec2<f32>(0.7, 0.0);
+    p2 = rot * p2;
+    let box_dist = sd_box(p2, vec2<f32>(0.3, 0.3)) - roundness;
+
+    let p3 = uv - vec2<f32>(0.0, -0.8);
+    let tri = sd_equilateral_triangle(p3, 0.4) - roundness;
+
+    let k = 0.2 + roundness;
+    var scene = smin(circle, box_dist, k);
+    scene = smin(scene, tri, k);
+
+    let star_a = sd_segment(uv - vec2<f32>(0.0, 0.7), vec2<f32>(-0.3, 0.0), vec2<f32>(0.3, 0.0)) - 0.02;
+    let star_b = sd_segment(uv - vec2<f32>(0.0, 0.7), vec2<f32>(0.0, -0.25), vec2<f32>(0.0, 0.25)) - 0.02;
+    let star = min(star_a, star_b);
+    scene = min(scene, star);
+
+    let bg = vec3<f32>(0.08, 0.08, 0.12);
+    let shape_color = vec3<f32>(0.2, 0.5, 0.9);
+    let outline_color = vec3<f32>(1.0, 0.8, 0.3);
+
+    let fill = smoothstep(0.002, -0.002, scene);
+    let outline = smoothstep(outline_width + 0.002, outline_width, abs(scene));
+    let glow = glow_strength / (abs(scene) + glow_strength);
+
+    var color = bg;
+    color = mix(color, shape_color * 0.6, fill);
+    color += outline_color * outline * 0.8;
+    color += vec3<f32>(0.3, 0.5, 1.0) * glow * 0.5;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const TUTORIAL_MULTIPASS_IMAGE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    r"
+// TUTORIAL 13: Multipass / Buffer Feedback
+// ==========================================
+// Shader Studio supports up to 4 buffers (A-D) plus Image.
+// Each buffer renders to its own texture each frame.
+// Buffers can READ their own previous frame = feedback loop!
+//
+// HOW IT WORKS:
+//   1. Right-click 'Buf A' tab to enable it
+//   2. Write a shader in Buf A that reads its own output
+//      via texture_0 (set Channel 0 = Buffer A)
+//   3. In the Image tab, read Buffer A to display it
+//
+// This preset is pre-configured:
+//   Buffer A: Paints trails and fades them (reads itself)
+//   Image:    Displays Buffer A with color grading
+//
+// The key idea: Buffer A reads its OWN previous frame,
+// adds new content, and applies decay. Over time, this
+// creates trails, simulations, and persistent effects.
+//
+// Slider 0: Trail decay (higher = longer trails)
+// Slider 1: Brush radius
+// Slider 2: Color cycling speed
+//
+// TRY: Move your mouse to paint! Adjust decay for short
+//      vs long trails. Try editing the Buffer A shader.
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let buffer = textureSample(texture_0, sampler_0, in.uv);
+
+    let luminance = dot(buffer.rgb, vec3<f32>(0.299, 0.587, 0.114));
+    let warm = vec3<f32>(1.0, 0.5, 0.1);
+    let cool = vec3<f32>(0.1, 0.3, 0.8);
+    let hot = vec3<f32>(1.0, 1.0, 0.9);
+
+    var color: vec3<f32>;
+    if luminance < 0.3 {
+        color = mix(cool * 0.3, cool, luminance / 0.3);
+    } else if luminance < 0.7 {
+        color = mix(cool, warm, (luminance - 0.3) / 0.4);
+    } else {
+        color = mix(warm, hot, (luminance - 0.7) / 0.3);
+    }
+
+    color *= 0.8 + 0.2 * luminance;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const TUTORIAL_MULTIPASS_BUFFER_A: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let decay = uniforms.custom[0].x * 0.04 + 0.93;
+    let radius = uniforms.custom[0].y * 0.08 + 0.02;
+    let color_speed = uniforms.custom[0].z * 4.0;
+
+    let previous = textureSample(texture_0, sampler_0, in.uv);
+
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0);
+    let mouse = (uniforms.mouse - 0.5) * vec2<f32>(aspect, 1.0);
+
+    let dist = distance(uv, mouse);
+    let brush = smoothstep(radius, radius * 0.3, dist);
+
+    let time = uniforms.time;
+    let hue = fract(time * color_speed * 0.1 + dist * 2.0);
+    let paint_r = abs(hue * 6.0 - 3.0) - 1.0;
+    let paint_g = 2.0 - abs(hue * 6.0 - 2.0);
+    let paint_b = 2.0 - abs(hue * 6.0 - 4.0);
+    let paint = clamp(vec3<f32>(paint_r, paint_g, paint_b), vec3<f32>(0.0), vec3<f32>(1.0));
+
+    let trail = previous.rgb * decay;
+    let combined = max(trail, paint * brush);
+
+    if uniforms.frame < 2u {
+        return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    }
+    return vec4<f32>(combined, 1.0);
+}
+"
+);
+
+const TUTORIAL_VERTEX_DEFORM: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    r"
+// TUTORIAL 14: Vertex Deformation
+// =================================
+// In geometry mode, vertex_main runs per vertex BEFORE
+// the triangle is rasterized. You can modify the vertex
+// position to create animated mesh effects.
+//
+// Common techniques:
+//   - Displace along the normal for inflation/spikes
+//   - Use sin/cos waves for ripple and wave effects
+//   - Twist: rotate around an axis based on height
+//   - The displaced position should be used for BOTH
+//     clip_position (rendering) and world_position (lighting)
+//
+// Slider 0: Wave height  Slider 1: Wave speed
+// Slider 2: Wave scale   Slider 3: Twist amount
+//
+// TRY: Try different geometry (Sphere, Torus) in the panel!
+//      Combine wave + twist for organic movement.
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_position: vec3<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+}
+
+@vertex
+fn vertex_main(input: VertexInput) -> VertexOutput {
+    let wave_height = uniforms.custom[0].x * 0.5;
+    let wave_speed = uniforms.custom[0].y * 6.0 + 1.0;
+    let wave_scale = uniforms.custom[0].z * 15.0 + 2.0;
+    let twist_amount = uniforms.custom[0].w * 6.0;
+
+    var pos = input.position;
+    var norm = input.normal;
+
+    let twist_angle = pos.y * twist_amount;
+    let twist_cos = cos(twist_angle);
+    let twist_sin = sin(twist_angle);
+    let twisted_x = pos.x * twist_cos - pos.z * twist_sin;
+    let twisted_z = pos.x * twist_sin + pos.z * twist_cos;
+    pos.x = twisted_x;
+    pos.z = twisted_z;
+    let norm_x = norm.x * twist_cos - norm.z * twist_sin;
+    let norm_z = norm.x * twist_sin + norm.z * twist_cos;
+    norm.x = norm_x;
+    norm.z = norm_z;
+
+    let wave_input = pos.x * wave_scale + pos.z * wave_scale * 0.7 + uniforms.time * wave_speed;
+    let displacement = sin(wave_input) * wave_height;
+    pos += norm * displacement;
+
+    let model_pos = uniforms.model * vec4<f32>(pos, 1.0);
+
+    var output: VertexOutput;
+    output.clip_position = uniforms.projection * uniforms.view * model_pos;
+    output.world_position = model_pos.xyz;
+    output.world_normal = (uniforms.model * vec4<f32>(norm, 0.0)).xyz;
+    output.uv = input.uv;
+    return output;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(2.0, 3.0, 1.5));
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let half_dir = normalize(light_dir + view_dir);
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 32.0);
+
+    let height = in.world_position.y;
+    let low = vec3<f32>(0.1, 0.4, 0.8);
+    let mid = vec3<f32>(0.2, 0.7, 0.3);
+    let high = vec3<f32>(1.0, 0.6, 0.1);
+    var base: vec3<f32>;
+    if height < 0.0 {
+        base = mix(low, mid, clamp(height + 1.0, 0.0, 1.0));
+    } else {
+        base = mix(mid, high, clamp(height, 0.0, 1.0));
+    }
+
+    let ambient = 0.12;
+    var color = base * (ambient + diffuse * 0.7);
+    color += vec3<f32>(1.0, 0.95, 0.9) * specular * 0.4;
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 3.0);
+    color += vec3<f32>(0.2, 0.4, 0.8) * fresnel * 0.3;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const TUTORIAL_RAYMARCHING: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    r"
+// TUTORIAL 15: Raymarching (Sphere Tracing)
+// ===========================================
+// Raymarching renders 3D scenes WITHOUT triangles.
+// Instead, it walks a ray through a distance field.
+//
+// ALGORITHM (per pixel):
+//   1. Create a ray from the camera through this pixel
+//   2. Start at the camera position
+//   3. Evaluate the SDF (signed distance function) at current pos
+//   4. March forward by that distance (safe — nothing is closer)
+//   5. Repeat until distance < epsilon (hit!) or too far (miss)
+//
+// SDF SCENE: returns the shortest distance to any surface.
+//   Combine shapes with min() for union, max() for intersection.
+//
+// NORMALS: estimated by sampling the SDF at tiny offsets
+//   (the gradient of the distance field = surface normal)
+//
+// This is the foundation for the SDF presets in Shader Studio!
+//
+// Slider 0: Sphere size   Slider 1: Box size
+// Slider 2: Smoothness    Slider 3: Rotation speed
+//
+// TRY: Add more shapes, try subtraction with max(a, -b),
+//      or animate positions with sin(time)!
+
+fn sd_sphere(p: vec3<f32>, radius: f32) -> f32 {
+    return length(p) - radius;
+}
+
+fn sd_box_3d(p: vec3<f32>, half_size: vec3<f32>) -> f32 {
+    let q = abs(p) - half_size;
+    return length(max(q, vec3<f32>(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
+fn smooth_min(a: f32, b: f32, k: f32) -> f32 {
+    let h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+fn sdf_scene(p: vec3<f32>) -> f32 {
+    let sphere_r = uniforms.custom[0].x + 0.3;
+    let box_s = uniforms.custom[0].y * 0.8 + 0.2;
+    let smoothness = uniforms.custom[0].z * 0.5 + 0.05;
+    let speed = uniforms.custom[0].w * 3.0 + 0.5;
+
+    let orbit = vec3<f32>(
+        sin(uniforms.time * speed * 0.4) * 1.2,
+        cos(uniforms.time * speed * 0.3) * 0.5,
+        cos(uniforms.time * speed * 0.4) * 1.2,
+    );
+    let sphere = sd_sphere(p - orbit, sphere_r);
+    let box_shape = sd_box_3d(p, vec3<f32>(box_s));
+
+    let ground = p.y + 1.5;
+
+    var scene = smooth_min(sphere, box_shape, smoothness);
+    scene = min(scene, ground);
+    return scene;
+}
+
+fn calc_normal(p: vec3<f32>) -> vec3<f32> {
+    let epsilon = 0.001;
+    let dx = vec3<f32>(epsilon, 0.0, 0.0);
+    let dy = vec3<f32>(0.0, epsilon, 0.0);
+    let dz = vec3<f32>(0.0, 0.0, epsilon);
+    return normalize(vec3<f32>(
+        sdf_scene(p + dx) - sdf_scene(p - dx),
+        sdf_scene(p + dy) - sdf_scene(p - dy),
+        sdf_scene(p + dz) - sdf_scene(p - dz),
+    ));
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0);
+
+    let camera_pos = uniforms.camera_position;
+    let right = vec3<f32>(uniforms.view[0][0], uniforms.view[1][0], uniforms.view[2][0]);
+    let up_vec = vec3<f32>(uniforms.view[0][1], uniforms.view[1][1], uniforms.view[2][1]);
+    let fwd = -vec3<f32>(uniforms.view[0][2], uniforms.view[1][2], uniforms.view[2][2]);
+    let ray_dir = normalize(fwd * 1.5 + uv.x * right + uv.y * up_vec);
+
+    var total_dist = 0.0;
+    var hit = false;
+    var position = camera_pos;
+    for (var step = 0u; step < 100u; step++) {
+        let dist = sdf_scene(position);
+        if dist < 0.001 {
+            hit = true;
+            break;
+        }
+        if total_dist > 40.0 { break; }
+        total_dist += dist;
+        position = camera_pos + ray_dir * total_dist;
+    }
+
+    if !hit {
+        let sky = 0.5 + 0.5 * ray_dir.y;
+        return vec4<f32>(mix(vec3<f32>(0.5, 0.7, 0.9), vec3<f32>(0.15, 0.25, 0.5), sky), 1.0);
+    }
+
+    let normal = calc_normal(position);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let view_dir = normalize(camera_pos - position);
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 48.0);
+
+    let is_ground = position.y < -1.49;
+    var base: vec3<f32>;
+    if is_ground {
+        let checker = step(0.0, sin(position.x * 3.14159) * sin(position.z * 3.14159));
+        base = mix(vec3<f32>(0.3, 0.3, 0.35), vec3<f32>(0.5, 0.5, 0.55), checker);
+    } else {
+        base = vec3<f32>(0.3, 0.5, 0.9);
+    }
+
+    var color = base * (0.15 + diffuse * 0.7);
+    color += vec3<f32>(1.0, 0.95, 0.9) * specular * 0.5;
+
+    let fog = exp(-total_dist * 0.06);
+    color = mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, color, fog);
 
     return vec4<f32>(color, 1.0);
 }
@@ -3301,6 +4456,514 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 3.0);
     color += vec3<f32>(0.5, 0.1, 0.0) * fresnel * 0.4;
 
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const SDF_PRIMITIVES_SOURCE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    sdf_raymarcher!(),
+    r"
+fn sdf_scene(p: vec3<f32>) -> vec2<f32> {
+    let time = uniforms.time;
+    let shape = u32(uniforms.custom[0].x * 24.0);
+    let rp = rot_y(p, time * 0.5);
+
+    var d = 1e10;
+    switch shape {
+        case 0u: { d = sd_sphere(rp, 0.8); }
+        case 1u: { d = sd_box(rp, vec3<f32>(0.6, 0.6, 0.6)); }
+        case 2u: { d = sd_round_box(rp, vec3<f32>(0.5, 0.5, 0.5), 0.1); }
+        case 3u: { d = sd_box_frame(rp, vec3<f32>(0.6, 0.6, 0.6), 0.08); }
+        case 4u: { d = sd_torus(rp, vec2<f32>(0.5, 0.15)); }
+        case 5u: { d = sd_capped_torus(rp, vec2<f32>(0.866, 0.5), 0.5, 0.12); }
+        case 6u: { d = sd_link(rp, 0.2, 0.4, 0.12); }
+        case 7u: { d = sd_cone(rp - vec3<f32>(0.0, -0.4, 0.0), vec2<f32>(0.5, 0.866), 0.8); }
+        case 8u: { d = sd_hex_prism(rp, vec2<f32>(0.5, 0.3)); }
+        case 9u: { d = sd_tri_prism(rp, vec2<f32>(0.7, 0.3)); }
+        case 10u: { d = sd_capsule(rp, vec3<f32>(-0.3, -0.3, 0.0), vec3<f32>(0.3, 0.3, 0.0), 0.2); }
+        case 11u: { d = sd_capped_cylinder(rp, 0.5, 0.3); }
+        case 12u: { d = sd_rounded_cylinder(rp, 0.3, 0.08, 0.4); }
+        case 13u: { d = sd_capped_cone(rp - vec3<f32>(0.0, -0.35, 0.0), 0.7, 0.5, 0.15); }
+        case 14u: { d = sd_solid_angle(rp, vec2<f32>(0.707, 0.707), 0.8); }
+        case 15u: { d = sd_cut_sphere(rp, 0.8, 0.2); }
+        case 16u: { d = sd_cut_hollow_sphere(rp, 0.8, 0.3, 0.05); }
+        case 17u: { d = sd_death_star(rp, 0.8, 0.6, 0.5); }
+        case 18u: { d = sd_round_cone(rp - vec3<f32>(0.0, -0.4, 0.0), 0.4, 0.15, 0.8); }
+        case 19u: { d = sd_ellipsoid(rp, vec3<f32>(0.6, 0.4, 0.3)); }
+        case 20u: { d = sd_rhombus(rp, 0.6, 0.3, 0.08, 0.04); }
+        case 21u: { d = sd_octahedron(rp, 0.7); }
+        case 22u: { d = sd_pyramid(rp - vec3<f32>(0.0, -0.5, 0.0), 1.0); }
+        case 23u: { d = sd_vertical_capsule(rp - vec3<f32>(0.0, -0.4, 0.0), 0.8, 0.2); }
+        case 24u: { d = max(sd_infinite_cylinder(rp, vec3<f32>(0.0, 0.0, 0.3)), sd_box(rp, vec3<f32>(1.0, 0.8, 1.0))); }
+        default: { d = sd_sphere(rp, 0.8); }
+    }
+
+    let plane = p.y + 1.2;
+    if plane < d { return vec2<f32>(plane, 0.0); }
+    return vec2<f32>(d, 1.0);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0);
+    let time = uniforms.time;
+
+    let camera_angle = time * 0.2;
+    let camera_pos = vec3<f32>(4.0 * sin(camera_angle), 2.0, 4.0 * cos(camera_angle));
+    let look_at = vec3<f32>(0.0, 0.0, 0.0);
+    let forward = normalize(look_at - camera_pos);
+    let right = normalize(cross(forward, vec3<f32>(0.0, 1.0, 0.0)));
+    let up = cross(right, forward);
+    let ray_dir = normalize(forward * 1.5 + uv.x * right + uv.y * up);
+
+    var total_dist = 0.0;
+    var material_id = -1.0;
+    var hit = false;
+    var position = camera_pos;
+    for (var step = 0u; step < 128u; step++) {
+        let result = sdf_scene(position);
+        if result.x < 0.0005 { hit = true; material_id = result.y; break; }
+        if total_dist > 40.0 { break; }
+        total_dist += result.x;
+        position = camera_pos + ray_dir * total_dist;
+    }
+
+    if !hit {
+        let sky_grad = 0.5 + 0.5 * ray_dir.y;
+        let sky = mix(vec3<f32>(0.5, 0.7, 0.9), vec3<f32>(0.1, 0.25, 0.55), sky_grad);
+        return vec4<f32>(sky, 1.0);
+    }
+
+    let normal = calc_normal(position);
+    let base_color = get_material_color(material_id);
+    let light_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let shadow = calc_soft_shadow(position + normal * 0.002, light_dir, 0.02, 10.0);
+    let ao = calc_ao(position, normal);
+    let view_dir = normalize(camera_pos - position);
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 64.0);
+
+    var color = base_color * 0.15 * ao;
+    color += base_color * diffuse * shadow * 0.8;
+    color += vec3<f32>(1.0) * specular * shadow * 0.5;
+    color *= ao;
+    let fog = exp(-total_dist * 0.04);
+    color = mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, color, fog);
+    color = pow(color, vec3<f32>(0.4545));
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const SDF_OPS_SOURCE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    sdf_raymarcher!(),
+    r"
+fn sdf_scene(p: vec3<f32>) -> vec2<f32> {
+    let time = uniforms.time;
+    let op_id = u32(uniforms.custom[0].x * 6.0);
+    let k = 0.05 + uniforms.custom[0].y * 0.95;
+
+    let rp = rot_y(p, time * 0.3);
+    let d1 = sd_sphere(rp, 0.7);
+    let d2 = sd_box(rp - vec3<f32>(0.5, 0.0, 0.0), vec3<f32>(0.45, 0.45, 0.45));
+
+    var d = d1;
+    switch op_id {
+        case 0u: { d = op_union(d1, d2); }
+        case 1u: { d = op_subtraction(d2, d1); }
+        case 2u: { d = op_intersection(d1, d2); }
+        case 3u: { d = op_xor(d1, d2); }
+        case 4u: { d = op_smooth_union(d1, d2, k); }
+        case 5u: { d = op_smooth_subtraction(d2, d1, k); }
+        case 6u: { d = op_smooth_intersection(d1, d2, k); }
+        default: { d = op_union(d1, d2); }
+    }
+
+    let plane = p.y + 1.2;
+    if plane < d { return vec2<f32>(plane, 0.0); }
+    return vec2<f32>(d, 1.0);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0);
+    let time = uniforms.time;
+    let camera_angle = time * 0.2;
+    let camera_pos = vec3<f32>(4.0 * sin(camera_angle), 2.0, 4.0 * cos(camera_angle));
+    let look_at = vec3<f32>(0.0, 0.0, 0.0);
+    let forward = normalize(look_at - camera_pos);
+    let right = normalize(cross(forward, vec3<f32>(0.0, 1.0, 0.0)));
+    let up = cross(right, forward);
+    let ray_dir = normalize(forward * 1.5 + uv.x * right + uv.y * up);
+
+    var total_dist = 0.0; var material_id = -1.0; var hit = false; var position = camera_pos;
+    for (var step = 0u; step < 128u; step++) {
+        let result = sdf_scene(position);
+        if result.x < 0.0005 { hit = true; material_id = result.y; break; }
+        if total_dist > 40.0 { break; }
+        total_dist += result.x;
+        position = camera_pos + ray_dir * total_dist;
+    }
+    if !hit {
+        let sky = mix(vec3<f32>(0.5, 0.7, 0.9), vec3<f32>(0.1, 0.25, 0.55), 0.5 + 0.5 * ray_dir.y);
+        return vec4<f32>(sky, 1.0);
+    }
+    let normal = calc_normal(position);
+    let base_color = get_material_color(material_id);
+    let light_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let shadow = calc_soft_shadow(position + normal * 0.002, light_dir, 0.02, 10.0);
+    let ao = calc_ao(position, normal);
+    let view_dir = normalize(camera_pos - position);
+    let specular = pow(max(dot(normal, normalize(light_dir + view_dir)), 0.0), 64.0);
+    var color = base_color * 0.15 * ao;
+    color += base_color * diffuse * shadow * 0.8;
+    color += vec3<f32>(1.0) * specular * shadow * 0.5;
+    color *= ao;
+    color = mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, color, exp(-total_dist * 0.04));
+    color = pow(color, vec3<f32>(0.4545));
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const SDF_DOMAIN_SOURCE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    sdf_raymarcher!(),
+    r"
+fn sdf_scene(p: vec3<f32>) -> vec2<f32> {
+    let time = uniforms.time;
+    let effect = u32(uniforms.custom[0].x * 10.0);
+    let amount = uniforms.custom[0].y;
+
+    var q = p;
+    var d = 1e10;
+
+    switch effect {
+        case 0u: {
+            let spacing = 2.0 + amount * 4.0;
+            q = op_rep(p, vec3<f32>(spacing, 0.0, spacing));
+            q.y = p.y;
+            d = sd_sphere(q, 0.5);
+        }
+        case 1u: {
+            let lim = 1.0 + amount * 4.0;
+            q = op_rep_lim(p, 2.0, vec3<f32>(lim, 0.0, lim));
+            q.y = p.y;
+            d = sd_box(q, vec3<f32>(0.4, 0.4, 0.4));
+        }
+        case 2u: {
+            q = op_sym_x(p);
+            d = sd_torus(rot_y(q - vec3<f32>(1.0, 0.0, 0.0), time * 0.5), vec2<f32>(0.5, 0.15));
+        }
+        case 3u: {
+            q = op_sym_xz(p);
+            d = sd_octahedron(q - vec3<f32>(1.5, 0.5, 1.5), 0.5);
+        }
+        case 4u: {
+            let k = 1.0 + amount * 6.0;
+            q = op_twist(p, k);
+            d = sd_box(q, vec3<f32>(0.5, 1.0, 0.5));
+        }
+        case 5u: {
+            let k = 0.5 + amount * 3.0;
+            q = op_cheap_bend(p, k);
+            d = sd_box(q, vec3<f32>(1.0, 0.3, 0.5));
+        }
+        case 6u: {
+            let h = vec3<f32>(amount * 0.5, 0.0, amount * 0.5);
+            q = op_elongate(p, h);
+            d = sd_sphere(q, 0.5);
+        }
+        case 7u: {
+            let r = 0.02 + amount * 0.2;
+            d = op_round(sd_box(rot_y(p, time * 0.5), vec3<f32>(0.5, 0.5, 0.5)), r);
+        }
+        case 8u: {
+            let r = 0.05 + amount * 0.15;
+            d = op_onion(sd_sphere(p, 0.7), r);
+            d = op_onion(d, r * 0.6);
+        }
+        case 9u: {
+            let rev = op_revolution(p, 0.6 + amount * 0.3);
+            d = length(rev) - 0.15;
+        }
+        case 10u: {
+            let ext_d = length(p.xy) - 0.5;
+            d = op_extrusion(p, ext_d, 0.3 + amount * 0.5);
+        }
+        default: {
+            d = sd_sphere(p, 0.8);
+        }
+    }
+
+    let plane = p.y + 1.5;
+    if plane < d { return vec2<f32>(plane, 0.0); }
+    return vec2<f32>(d, 1.0);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0);
+    let time = uniforms.time;
+    let camera_angle = time * 0.15;
+    let camera_pos = vec3<f32>(6.0 * sin(camera_angle), 3.0, 6.0 * cos(camera_angle));
+    let look_at = vec3<f32>(0.0, 0.0, 0.0);
+    let forward = normalize(look_at - camera_pos);
+    let right = normalize(cross(forward, vec3<f32>(0.0, 1.0, 0.0)));
+    let up = cross(right, forward);
+    let ray_dir = normalize(forward * 1.5 + uv.x * right + uv.y * up);
+
+    var total_dist = 0.0; var material_id = -1.0; var hit = false; var position = camera_pos;
+    for (var step = 0u; step < 128u; step++) {
+        let result = sdf_scene(position);
+        if result.x < 0.0005 { hit = true; material_id = result.y; break; }
+        if total_dist > 60.0 { break; }
+        total_dist += result.x;
+        position = camera_pos + ray_dir * total_dist;
+    }
+    if !hit {
+        let sky = mix(vec3<f32>(0.5, 0.7, 0.9), vec3<f32>(0.1, 0.25, 0.55), 0.5 + 0.5 * ray_dir.y);
+        return vec4<f32>(sky, 1.0);
+    }
+    let normal = calc_normal(position);
+    let base_color = get_material_color(material_id);
+    let light_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let shadow = calc_soft_shadow(position + normal * 0.002, light_dir, 0.02, 10.0);
+    let ao = calc_ao(position, normal);
+    let view_dir = normalize(camera_pos - position);
+    let specular = pow(max(dot(normal, normalize(light_dir + view_dir)), 0.0), 64.0);
+    var color = base_color * 0.15 * ao;
+    color += base_color * diffuse * shadow * 0.8;
+    color += vec3<f32>(1.0) * specular * shadow * 0.5;
+    color *= ao;
+    color = mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, color, exp(-total_dist * 0.04));
+    color = pow(color, vec3<f32>(0.4545));
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const SDF_WORLD_SOURCE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    sdf_raymarcher!(),
+    r"
+fn sdf_scene(p: vec3<f32>) -> vec2<f32> {
+    let time = uniforms.time;
+    var result = vec2<f32>(p.y, 0.0);
+
+    let platform = sd_round_box(p - vec3<f32>(0.0, -0.5, 0.0), vec3<f32>(4.0, 0.5, 4.0), 0.15);
+    if platform < result.x { result = vec2<f32>(platform, 1.0); }
+
+    for (var index = 0u; index < 4u; index++) {
+        let angle = f32(index) * 1.5707963 + 0.7853981;
+        let pos = vec3<f32>(cos(angle) * 3.0, 0.0, sin(angle) * 3.0);
+        let pillar = sd_capped_cylinder(p - pos, 2.0, 0.18);
+        if pillar < result.x { result = vec2<f32>(pillar, 2.0); }
+        let cap = sd_torus(p - pos - vec3<f32>(0.0, 2.0, 0.0), vec2<f32>(0.25, 0.06));
+        if cap < result.x { result = vec2<f32>(cap, 2.0); }
+    }
+
+    let artifact_p = p - vec3<f32>(0.0, 1.2 + 0.2 * sin(time), 0.0);
+    let rp = rot_y(artifact_p, time * 0.8);
+    let octa = sd_octahedron(rot_x(rp, time * 0.3), 0.45);
+    let ring = sd_torus(rp, vec2<f32>(0.6, 0.04));
+    let ring2 = sd_torus(rot_x(rp, 1.5707963), vec2<f32>(0.6, 0.04));
+    var artifact = op_smooth_union(octa, ring, 0.08);
+    artifact = op_smooth_union(artifact, ring2, 0.08);
+    if artifact < result.x { result = vec2<f32>(artifact, 3.0); }
+
+    let ds_p = rot_y(p - vec3<f32>(7.0, 1.5, 0.0), time * 0.2);
+    let ds = sd_death_star(ds_p, 0.9, 0.7, 0.5);
+    if ds < result.x { result = vec2<f32>(ds, 4.0); }
+
+    let tc_p = p - vec3<f32>(-7.0, 0.0, 0.0);
+    let twisted = sd_capped_cylinder(op_twist(tc_p, 1.5 + 0.5 * sin(time * 0.5)), 2.0, 0.25);
+    if twisted < result.x { result = vec2<f32>(twisted, 5.0); }
+
+    let rep_p = op_rep_lim(p - vec3<f32>(0.0, 0.5, 10.0), 2.5, vec3<f32>(3.0, 0.0, 2.0));
+    let frames = sd_box_frame(rot_y(rep_p, time * 0.15), vec3<f32>(0.6, 0.6, 0.6), 0.04);
+    if frames < result.x { result = vec2<f32>(frames, 6.0); }
+
+    let pyr_p = p - vec3<f32>(0.0, 0.0, -7.0);
+    let pyr = sd_pyramid(pyr_p, 2.0);
+    if pyr < result.x { result = vec2<f32>(pyr, 7.0); }
+
+    let link_p = rot_y(p - vec3<f32>(5.0, 1.0, 5.0), time * 0.4);
+    let chain = sd_link(link_p, 0.3, 0.5, 0.15);
+    if chain < result.x { result = vec2<f32>(chain, 3.0); }
+
+    let bent_p = p - vec3<f32>(-5.0, 0.0, -5.0);
+    let bent = sd_round_box(op_cheap_bend(bent_p, 0.5 + 0.3 * sin(time * 0.7)), vec3<f32>(1.5, 0.2, 0.5), 0.05);
+    if bent < result.x { result = vec2<f32>(bent, 6.0); }
+
+    return result;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0);
+    let camera_pos = uniforms.camera_position;
+    let right = vec3<f32>(uniforms.view[0][0], uniforms.view[1][0], uniforms.view[2][0]);
+    let up_vec = vec3<f32>(uniforms.view[0][1], uniforms.view[1][1], uniforms.view[2][1]);
+    let fwd = -vec3<f32>(uniforms.view[0][2], uniforms.view[1][2], uniforms.view[2][2]);
+    let ray_dir = normalize(fwd * 1.5 + uv.x * right + uv.y * up_vec);
+
+    var total_dist = 0.0; var material_id = -1.0; var hit = false; var position = camera_pos;
+    for (var step = 0u; step < 128u; step++) {
+        let result = sdf_scene(position);
+        if result.x < 0.0005 { hit = true; material_id = result.y; break; }
+        if total_dist > 80.0 { break; }
+        total_dist += result.x;
+        position = camera_pos + ray_dir * total_dist;
+    }
+    if !hit {
+        let sky_grad = 0.5 + 0.5 * ray_dir.y;
+        let sky = mix(vec3<f32>(0.5, 0.7, 0.9), vec3<f32>(0.1, 0.25, 0.55), sky_grad);
+        let sun_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+        let sun = pow(max(dot(ray_dir, sun_dir), 0.0), 128.0);
+        return vec4<f32>(sky + vec3<f32>(1.0, 0.9, 0.7) * sun * 2.0, 1.0);
+    }
+    let normal = calc_normal(position);
+    let base_color = get_material_color(material_id);
+    if material_id < 0.5 {
+        let checker = step(0.0, sin(position.x * 3.14159 * 2.0) * sin(position.z * 3.14159 * 2.0));
+        var fc = mix(vec3<f32>(0.35, 0.32, 0.3), vec3<f32>(0.55, 0.52, 0.5), checker);
+        let ld = normalize(vec3<f32>(0.8, 0.4, 0.5));
+        fc *= (0.2 + 0.8 * max(dot(normal, ld), 0.0) * calc_soft_shadow(position + normal * 0.002, ld, 0.02, 10.0)) * calc_ao(position, normal);
+        return vec4<f32>(mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, fc, exp(-total_dist * 0.03)), 1.0);
+    }
+    let light_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let shadow = calc_soft_shadow(position + normal * 0.002, light_dir, 0.02, 10.0);
+    let ao = calc_ao(position, normal);
+    let view_dir = normalize(camera_pos - position);
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 64.0);
+    let back_light = max(dot(normal, normalize(vec3<f32>(-0.5, 0.2, -0.3))), 0.0);
+    var color = base_color * 0.15 * ao;
+    color += base_color * diffuse * shadow * 0.8;
+    color += vec3<f32>(1.0, 0.95, 0.85) * specular * shadow * 0.6;
+    color += base_color * back_light * 0.15;
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 4.0);
+    color += vec3<f32>(0.3, 0.5, 0.7) * fresnel * 0.2 * ao;
+    color *= ao;
+    color = mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, color, exp(-total_dist * 0.03));
+    color = pow(color, vec3<f32>(0.4545));
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const SDF_EDITOR_PLACEHOLDER: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    fullscreen_vertex!(),
+    sdf_raymarcher!(),
+    r"
+fn sdf_scene(p: vec3<f32>) -> vec2<f32> {
+    let time = uniforms.time;
+    var d = 1e10;
+    var mat_id = 0.0;
+
+    {
+        var q = p - vec3<f32>(0.0, 0.0, 0.0);
+        q = rot_y(q, time * 0.3);
+        var shape_d = sd_sphere(q, 0.8);
+        d = shape_d;
+        mat_id = 1.0;
+    }
+
+    {
+        var q = p - vec3<f32>(1.8, 0.0, 0.0);
+        q = rot_y(q, time * 0.4);
+        var shape_d = sd_round_box(q, vec3<f32>(0.5, 0.5, 0.5), 0.1);
+        let prev_d = d;
+        d = op_smooth_union(d, shape_d, 0.3);
+        if d != prev_d { mat_id = 2.0; }
+    }
+
+    {
+        var q = p - vec3<f32>(-1.8, 0.0, 0.0);
+        q = rot_y(q, time * 0.5);
+        var shape_d = sd_torus(q, vec2<f32>(0.5, 0.15));
+        let prev_d = d;
+        d = op_union(d, shape_d);
+        if d != prev_d { mat_id = 3.0; }
+    }
+
+    let ground = p.y + 1.5;
+    if ground < d { d = ground; mat_id = 0.0; }
+
+    return vec2<f32>(d, mat_id);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let aspect = uniforms.resolution.x / uniforms.resolution.y;
+    let uv = (in.uv - 0.5) * vec2<f32>(aspect, 1.0);
+    let camera_pos = uniforms.camera_position;
+    let right = vec3<f32>(uniforms.view[0][0], uniforms.view[1][0], uniforms.view[2][0]);
+    let up_vec = vec3<f32>(uniforms.view[0][1], uniforms.view[1][1], uniforms.view[2][1]);
+    let fwd = -vec3<f32>(uniforms.view[0][2], uniforms.view[1][2], uniforms.view[2][2]);
+    let ray_dir = normalize(fwd * 1.5 + uv.x * right + uv.y * up_vec);
+
+    var total_dist = 0.0; var material_id = -1.0; var hit = false; var position = camera_pos;
+    for (var step = 0u; step < 128u; step++) {
+        let result = sdf_scene(position);
+        if result.x < 0.0005 { hit = true; material_id = result.y; break; }
+        if total_dist > 50.0 { break; }
+        total_dist += result.x;
+        position = camera_pos + ray_dir * total_dist;
+    }
+    if !hit {
+        let sky = mix(vec3<f32>(0.5, 0.7, 0.9), vec3<f32>(0.1, 0.25, 0.55), 0.5 + 0.5 * ray_dir.y);
+        let sun_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+        let sun = pow(max(dot(ray_dir, sun_dir), 0.0), 128.0);
+        return vec4<f32>(sky + vec3<f32>(1.0, 0.9, 0.7) * sun * 2.0, 1.0);
+    }
+    let normal = calc_normal(position);
+    let base_color = get_material_color(material_id);
+    if material_id < 0.5 {
+        let checker = step(0.0, sin(position.x * 3.14159 * 2.0) * sin(position.z * 3.14159 * 2.0));
+        var fc = mix(vec3<f32>(0.35, 0.32, 0.3), vec3<f32>(0.55, 0.52, 0.5), checker);
+        let ld = normalize(vec3<f32>(0.8, 0.4, 0.5));
+        fc *= (0.2 + 0.8 * max(dot(normal, ld), 0.0) * calc_soft_shadow(position + normal * 0.002, ld, 0.02, 10.0)) * calc_ao(position, normal);
+        return vec4<f32>(mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, fc, exp(-total_dist * 0.04)), 1.0);
+    }
+    let light_dir = normalize(vec3<f32>(0.8, 0.4, 0.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let shadow = calc_soft_shadow(position + normal * 0.002, light_dir, 0.02, 10.0);
+    let ao = calc_ao(position, normal);
+    let view_dir = normalize(camera_pos - position);
+    let specular = pow(max(dot(normal, normalize(light_dir + view_dir)), 0.0), 64.0);
+    let back_light = max(dot(normal, normalize(vec3<f32>(-0.5, 0.2, -0.3))), 0.0);
+    var color = base_color * 0.15 * ao;
+    color += base_color * diffuse * shadow * 0.8;
+    color += vec3<f32>(1.0, 0.95, 0.85) * specular * shadow * 0.6;
+    color += base_color * back_light * 0.15;
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 4.0);
+    color += vec3<f32>(0.3, 0.5, 0.7) * fresnel * 0.2 * ao;
+    color *= ao;
+    color = mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, color, exp(-total_dist * 0.04));
+    color = pow(color, vec3<f32>(0.4545));
     return vec4<f32>(color, 1.0);
 }
 "

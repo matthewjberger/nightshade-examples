@@ -348,7 +348,7 @@ impl ObserverCamera {
         let pip_width = 480.0;
         let pip_height = pip_width * (OBSERVER_HEIGHT as f32 / OBSERVER_WIDTH as f32);
 
-        let minimap_offset = if minimap_enabled { 218.0 + 10.0 } else { 0.0 };
+        let minimap_offset = if minimap_enabled { 220.0 + 14.0 } else { 0.0 };
 
         egui::Area::new(egui::Id::new("observer_pip"))
             .anchor(

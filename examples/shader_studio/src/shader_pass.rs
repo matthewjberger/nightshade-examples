@@ -185,6 +185,7 @@ pub struct SharedState {
     pub custom_mesh_data: Option<crate::geometry::MeshData>,
     pub custom_mesh_name: Option<String>,
     pub upload_custom_mesh: bool,
+    pub compilation_generation: u64,
 }
 
 pub struct PendingTexture {
@@ -228,6 +229,7 @@ impl Default for SharedState {
             custom_mesh_data: None,
             custom_mesh_name: None,
             upload_custom_mesh: false,
+            compilation_generation: 0,
         }
     }
 }

@@ -14,6 +14,7 @@ pub enum BuildingType {
     Park,
 }
 
+#[derive(Clone)]
 pub struct BuildingSpec {
     pub building_type: BuildingType,
     pub x: f32,
@@ -76,6 +77,11 @@ pub fn proxy_material_position_scale(spec: &BuildingSpec) -> (&'static str, Vec3
 }
 
 pub fn describe_building_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
+    if crate::interiors::building_has_interior(spec) {
+        crate::interiors::describe_interior_shell(data, spec);
+        return;
+    }
+
     match spec.building_type {
         BuildingType::Park => describe_park(data, spec, rng),
         BuildingType::House => describe_house_body(data, spec),
@@ -85,6 +91,15 @@ pub fn describe_building_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &m
 }
 
 pub fn describe_building_detail(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
+    if crate::interiors::building_has_interior(spec) {
+        crate::interiors::describe_interior_furnishings(data, spec, rng);
+        return;
+    }
+
+    if !matches!(spec.building_type, BuildingType::Park) {
+        crate::interiors::describe_exterior_door(data, spec);
+    }
+
     match spec.building_type {
         BuildingType::Park | BuildingType::House | BuildingType::Warehouse => {}
         BuildingType::Skyscraper => describe_skyscraper_detail(data, spec, rng),

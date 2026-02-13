@@ -6,15 +6,23 @@ mod chunk;
 mod city;
 mod descriptors;
 mod districts;
+mod first_person;
+mod interiors;
 mod materials;
 mod minimap;
 mod observer;
+mod player_data;
+mod player_hud;
+mod player_systems;
 mod stroke_font;
 mod tube_mesh;
 mod waterfront;
 
+use std::collections::HashMap;
+
 use chunk::ChunkStreamer;
 use nightshade::ecs::graphics::resources::{DepthOfField, DepthOfFieldQuality};
+use nightshade::ecs::physics::{physics_debug_draw_system, run_physics_systems};
 use nightshade::ecs::water::Water;
 use nightshade::ecs::world::{WATER, WorldCommand};
 use nightshade::prelude::*;
@@ -59,6 +67,19 @@ struct CityDemo {
     leaf_system: atmosphere::LeafSystem,
     district_hud: Option<districts::DistrictHud>,
     billboard_textures: billboard::BillboardTextures,
+
+    first_person_mode: bool,
+    player_entity: Option<Entity>,
+    player_camera_entity: Option<Entity>,
+    hands_entity: Option<Entity>,
+    flashlight_entity: Option<Entity>,
+    flashlight_on: bool,
+    flashlight_key_was_pressed: bool,
+    lean_state: player_systems::LeanState,
+    show_collision: bool,
+    player_progress: player_data::PlayerProgress,
+    collision_entities: Vec<Entity>,
+    chunk_collision_entities: HashMap<(i32, i32), Vec<Entity>>,
 }
 
 impl Default for CityDemo {
@@ -103,6 +124,19 @@ impl Default for CityDemo {
             leaf_system: atmosphere::LeafSystem::new(),
             district_hud: None,
             billboard_textures: billboard::BillboardTextures::new(),
+
+            first_person_mode: false,
+            player_entity: None,
+            player_camera_entity: None,
+            hands_entity: None,
+            flashlight_entity: None,
+            flashlight_on: true,
+            flashlight_key_was_pressed: false,
+            lean_state: player_systems::LeanState::new(),
+            show_collision: false,
+            player_progress: player_data::PlayerProgress::default(),
+            collision_entities: Vec::new(),
+            chunk_collision_entities: HashMap::new(),
         }
     }
 }
@@ -271,6 +305,10 @@ impl State for CityDemo {
             self.city_half = self.pending_city_half;
             self.next_seed += 1;
 
+            if self.first_person_mode {
+                first_person::exit_first_person(self, world);
+            }
+
             if let Some(mut streamer) = self.chunk_streamer.take() {
                 streamer.despawn_all(world);
             }
@@ -295,58 +333,14 @@ impl State for CityDemo {
             self.setup_world(world);
         }
 
-        if let Some(camera) = self.camera_entity {
-            if let Some(controller) = &mut self.camera_controller {
-                let (position, rotation) = controller.update(delta_time);
-                if let Some(transform) = world.get_local_transform_mut(camera) {
-                    transform.translation = position;
-                    transform.rotation = rotation;
-                }
-            } else if self.observer_enabled {
-                observer::fly_camera_keyboard_mouse_only(world);
-                if let Some(transform) = world.get_local_transform_mut(camera)
-                    && transform.translation.y < MIN_CAMERA_Y
-                {
-                    transform.translation.y = MIN_CAMERA_Y;
-                }
-            } else {
-                fly_camera_system(world);
-                if let Some(transform) = world.get_local_transform_mut(camera)
-                    && transform.translation.y < MIN_CAMERA_Y
-                {
-                    transform.translation.y = MIN_CAMERA_Y;
-                }
-            }
-            mark_local_transform_dirty(world, camera);
-
-            if self.observer_enabled
-                && let Some(observer) = &mut self.observer
-            {
-                observer.update(world, delta_time);
-            }
-
-            let camera_pos = world
-                .get_local_transform(camera)
-                .map(|t| t.translation)
-                .unwrap_or(Vec3::zeros());
-
-            if let Some(streamer) = &mut self.chunk_streamer {
-                let camera_forward = world
-                    .get_local_transform(camera)
-                    .map(|t| {
-                        nalgebra_glm::quat_rotate_vec3(&t.rotation, &Vec3::new(0.0, 0.0, -1.0))
-                    })
-                    .unwrap_or(Vec3::new(0.0, 0.0, -1.0));
-                streamer.update(world, camera_pos, camera_forward);
-            }
+        if self.first_person_mode {
+            run_first_person_systems(self, world);
+        } else {
+            run_fly_camera_systems(self, world);
         }
 
         let uptime = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
-        let camera_pos = self
-            .camera_entity
-            .and_then(|entity| world.get_local_transform(entity))
-            .map(|t| t.translation)
-            .unwrap_or(Vec3::zeros());
+        let camera_pos = self.active_camera_position(world);
 
         atmosphere::update_campfire_lights(world, uptime);
 
@@ -372,17 +366,12 @@ impl State for CityDemo {
     }
 
     fn ui(&mut self, world: &mut World, ui_context: &egui::Context) {
-        let camera_pos = self
-            .camera_entity
-            .and_then(|entity| world.get_local_transform(entity))
-            .map(|t| t.translation)
-            .unwrap_or(Vec3::zeros());
+        let camera_pos = self.active_camera_position(world);
+        let camera_forward = self.active_camera_forward(world);
 
-        let camera_forward = self
-            .camera_entity
-            .and_then(|entity| world.get_local_transform(entity))
-            .map(|t| nalgebra_glm::quat_rotate_vec3(&t.rotation, &Vec3::new(0.0, 0.0, -1.0)))
-            .unwrap_or(Vec3::new(0.0, 0.0, -1.0));
+        if self.first_person_mode {
+            player_hud::draw_game_hud(&self.player_progress, ui_context);
+        }
 
         egui::Window::new("City Info").show(ui_context, |ui| {
             ui.label(format!(
@@ -408,6 +397,21 @@ impl State for CityDemo {
             ui.colored_label(fps_color, format!("FPS: {:.0}", fps));
 
             ui.checkbox(&mut self.sun_shadows, "Sun Shadows");
+
+            ui.separator();
+
+            let mut fp_toggle = self.first_person_mode;
+            if ui.checkbox(&mut fp_toggle, "First Person").changed() {
+                if fp_toggle && !self.first_person_mode {
+                    first_person::enter_first_person(self, world);
+                } else if !fp_toggle && self.first_person_mode {
+                    first_person::exit_first_person(self, world);
+                }
+            }
+
+            if self.first_person_mode {
+                ui.checkbox(&mut self.show_collision, "Show Collision");
+            }
 
             ui.separator();
             ui.label("Time of Day");
@@ -460,7 +464,7 @@ impl State for CityDemo {
                 ui.add_enabled_ui(dof.tilt_shift_enabled, |ui| {
                     ui.add(
                         egui::Slider::new(&mut dof.tilt_shift_angle, -90.0..=90.0)
-                            .suffix("°")
+                            .suffix("\u{00b0}")
                             .text("Angle"),
                     );
                     ui.add(
@@ -487,7 +491,9 @@ impl State for CityDemo {
                 self.minimap_enabled = minimap_on;
             }
 
-            ui.checkbox(&mut self.observer_enabled, "Observer Camera");
+            if !self.first_person_mode {
+                ui.checkbox(&mut self.observer_enabled, "Observer Camera");
+            }
 
             ui.separator();
 
@@ -498,27 +504,29 @@ impl State for CityDemo {
                 self.generate_requested = true;
             }
 
-            ui.separator();
+            if !self.first_person_mode {
+                ui.separator();
 
-            let auto_camera_active = self.camera_controller.is_some();
-            let mut auto_cam = auto_camera_active;
-            if ui.checkbox(&mut auto_cam, "Auto Camera").changed() {
-                if auto_cam {
-                    let city_half_extent = self.city_half as f32 * city::CHUNK_SIZE;
-                    self.camera_controller = Some(camera::CameraController::new(
-                        camera::CinematicMode::Drive,
-                        camera_pos,
-                        city_half_extent,
-                    ));
-                } else {
-                    self.camera_controller = None;
+                let auto_camera_active = self.camera_controller.is_some();
+                let mut auto_cam = auto_camera_active;
+                if ui.checkbox(&mut auto_cam, "Auto Camera").changed() {
+                    if auto_cam {
+                        let city_half_extent = self.city_half as f32 * city::CHUNK_SIZE;
+                        self.camera_controller = Some(camera::CameraController::new(
+                            camera::CinematicMode::Drive,
+                            camera_pos,
+                            city_half_extent,
+                        ));
+                    } else {
+                        self.camera_controller = None;
+                    }
                 }
-            }
 
-            if let Some(controller) = &mut self.camera_controller {
-                for &mode in camera::CinematicMode::ALL {
-                    if ui.radio(controller.mode() == mode, mode.label()).clicked() {
-                        controller.set_mode(mode, camera_pos);
+                if let Some(controller) = &mut self.camera_controller {
+                    for &mode in camera::CinematicMode::ALL {
+                        if ui.radio(controller.mode() == mode, mode.label()).clicked() {
+                            controller.set_mode(mode, camera_pos);
+                        }
                     }
                 }
             }
@@ -542,7 +550,8 @@ impl State for CityDemo {
             );
         }
 
-        if self.observer_enabled
+        if !self.first_person_mode
+            && self.observer_enabled
             && let Some(observer) = &self.observer
         {
             observer.draw_ui(ui_context, self.minimap_enabled);
@@ -554,7 +563,106 @@ impl State for CityDemo {
     }
 }
 
+fn run_first_person_systems(demo: &mut CityDemo, world: &mut World) {
+    run_physics_systems(world);
+
+    player_systems::camera_look_system(demo, world);
+    player_systems::lean_system(demo, world);
+    player_systems::crouch_camera_system(demo, world);
+    player_systems::update_flashlight(demo, world);
+
+    if demo.show_collision {
+        world.resources.physics.debug_draw = true;
+        physics_debug_draw_system(world);
+    } else {
+        world.resources.physics.debug_draw = false;
+    }
+
+    let camera_pos = demo.active_camera_position(world);
+    let camera_forward = demo.active_camera_forward(world);
+
+    if let Some(streamer) = &mut demo.chunk_streamer {
+        streamer.update(world, camera_pos, camera_forward);
+    }
+}
+
+fn run_fly_camera_systems(demo: &mut CityDemo, world: &mut World) {
+    let delta_time = world.resources.window.timing.delta_time;
+
+    if let Some(camera) = demo.camera_entity {
+        if let Some(controller) = &mut demo.camera_controller {
+            let (position, rotation) = controller.update(delta_time);
+            if let Some(transform) = world.get_local_transform_mut(camera) {
+                transform.translation = position;
+                transform.rotation = rotation;
+            }
+        } else if demo.observer_enabled {
+            observer::fly_camera_keyboard_mouse_only(world);
+            if let Some(transform) = world.get_local_transform_mut(camera)
+                && transform.translation.y < MIN_CAMERA_Y
+            {
+                transform.translation.y = MIN_CAMERA_Y;
+            }
+        } else {
+            fly_camera_system(world);
+            if let Some(transform) = world.get_local_transform_mut(camera)
+                && transform.translation.y < MIN_CAMERA_Y
+            {
+                transform.translation.y = MIN_CAMERA_Y;
+            }
+        }
+        mark_local_transform_dirty(world, camera);
+
+        if demo.observer_enabled
+            && let Some(observer) = &mut demo.observer
+        {
+            observer.update(world, delta_time);
+        }
+
+        let camera_pos = world
+            .get_local_transform(camera)
+            .map(|t| t.translation)
+            .unwrap_or(Vec3::zeros());
+
+        if let Some(streamer) = &mut demo.chunk_streamer {
+            let camera_forward = world
+                .get_local_transform(camera)
+                .map(|t| nalgebra_glm::quat_rotate_vec3(&t.rotation, &Vec3::new(0.0, 0.0, -1.0)))
+                .unwrap_or(Vec3::new(0.0, 0.0, -1.0));
+            streamer.update(world, camera_pos, camera_forward);
+        }
+    }
+}
+
 impl CityDemo {
+    fn active_camera_position(&self, world: &World) -> Vec3 {
+        if self.first_person_mode {
+            self.player_camera_entity
+                .and_then(|entity| world.get_global_transform(entity))
+                .map(|t| t.translation())
+                .unwrap_or(Vec3::zeros())
+        } else {
+            self.camera_entity
+                .and_then(|entity| world.get_local_transform(entity))
+                .map(|t| t.translation)
+                .unwrap_or(Vec3::zeros())
+        }
+    }
+
+    fn active_camera_forward(&self, world: &World) -> Vec3 {
+        if self.first_person_mode {
+            self.player_camera_entity
+                .and_then(|entity| world.get_global_transform(entity))
+                .map(|t| t.forward_vector())
+                .unwrap_or(Vec3::new(0.0, 0.0, -1.0))
+        } else {
+            self.camera_entity
+                .and_then(|entity| world.get_local_transform(entity))
+                .map(|t| nalgebra_glm::quat_rotate_vec3(&t.rotation, &Vec3::new(0.0, 0.0, -1.0)))
+                .unwrap_or(Vec3::new(0.0, 0.0, -1.0))
+        }
+    }
+
     fn setup_world(&mut self, world: &mut World) {
         let camera = spawn_camera(world, Vec3::new(0.0, 30.0, 0.0), "City Camera".to_string());
         if let Some(camera_component) = world.get_camera_mut(camera) {
@@ -686,11 +794,7 @@ impl CityDemo {
             ([0.7, 0.75, 0.8], 1.2)
         };
 
-        let camera_y = self
-            .camera_entity
-            .and_then(|entity| world.get_local_transform(entity))
-            .map(|t| t.translation.y)
-            .unwrap_or(30.0);
+        let camera_y = self.active_camera_position(world).y;
 
         let height_factor =
             ((camera_y - FOG_HEIGHT_LOW) / (FOG_HEIGHT_HIGH - FOG_HEIGHT_LOW)).clamp(0.0, 1.0);

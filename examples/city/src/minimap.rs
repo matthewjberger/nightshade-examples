@@ -4,10 +4,13 @@ use nightshade::prelude::*;
 
 use crate::building::BuildingType;
 use crate::city::{CHUNK_SIZE, CityChunkLayout};
+use crate::interiors;
 
-const MINIMAP_SIZE: f32 = 200.0;
-const MINIMAP_PADDING: f32 = 4.0;
-const MINIMAP_MARGIN: f32 = 10.0;
+const MINIMAP_SIZE: f32 = 220.0;
+const MINIMAP_MARGIN: f32 = 14.0;
+const VIEW_RADIUS: f32 = 128.0;
+const BORDER_WIDTH: f32 = 3.5;
+const MASK_SEGMENTS: usize = 64;
 
 pub struct MinimapState {
     pub camera_x: f32,
@@ -23,7 +26,9 @@ pub fn draw(
     layouts: &HashMap<(i32, i32), CityChunkLayout>,
     state: &MinimapState,
 ) {
-    let outer_size = MINIMAP_SIZE + MINIMAP_PADDING * 2.0;
+    let diameter = MINIMAP_SIZE;
+    let radius = diameter / 2.0;
+    let content_radius = radius - BORDER_WIDTH;
 
     egui::Area::new(egui::Id::new("minimap"))
         .anchor(
@@ -33,109 +38,227 @@ pub fn draw(
         .interactable(false)
         .show(ui_context, |ui| {
             let (response, painter) =
-                ui.allocate_painter(egui::vec2(outer_size, outer_size), egui::Sense::hover());
+                ui.allocate_painter(egui::vec2(diameter, diameter), egui::Sense::hover());
 
             let outer_rect = response.rect;
-            let map_rect = outer_rect.shrink(MINIMAP_PADDING);
+            let center = outer_rect.center();
+            let bg_color = egui::Color32::from_rgba_unmultiplied(8, 12, 24, 230);
 
-            painter.rect_filled(
-                outer_rect,
-                6.0,
-                egui::Color32::from_rgba_unmultiplied(8, 10, 18, 220),
-            );
-            painter.rect_stroke(
-                outer_rect,
-                6.0,
-                egui::Stroke::new(1.5, egui::Color32::from_rgba_unmultiplied(60, 70, 90, 180)),
-                egui::StrokeKind::Inside,
-            );
+            painter.circle_filled(center, radius, bg_color);
 
-            painter.rect_filled(map_rect, 2.0, egui::Color32::from_rgb(18, 30, 48));
-
-            let world_min = state.city_min as f32 * CHUNK_SIZE;
-            let world_span = (state.city_max - state.city_min + 1) as f32 * CHUNK_SIZE;
+            let scale = content_radius / VIEW_RADIUS;
+            let content_radius_sq = content_radius * content_radius;
 
             let world_to_map = |wx: f32, wz: f32| -> egui::Pos2 {
-                let nx = (wx - world_min) / world_span;
-                let nz = (wz - world_min) / world_span;
-                egui::pos2(
-                    map_rect.min.x + nx * map_rect.width(),
-                    map_rect.min.y + nz * map_rect.height(),
-                )
+                let dx = wx - state.camera_x;
+                let dz = wz - state.camera_z;
+                egui::pos2(center.x + dx * scale, center.y + dz * scale)
             };
 
-            let ground_min = world_to_map(world_min, world_min);
-            let ground_max = world_to_map(world_min + world_span, world_min + world_span);
-            painter.rect_filled(
-                egui::Rect::from_min_max(ground_min, ground_max),
-                0.0,
-                egui::Color32::from_rgb(28, 28, 34),
-            );
+            let center_in_circle = |pos: egui::Pos2| -> bool {
+                let dx = pos.x - center.x;
+                let dy = pos.y - center.y;
+                dx * dx + dy * dy <= content_radius_sq
+            };
 
-            let grid_color = egui::Color32::from_rgba_unmultiplied(45, 45, 55, 60);
-            for grid_x in state.city_min..=state.city_max + 1 {
-                let x_world = grid_x as f32 * CHUNK_SIZE;
-                let top = world_to_map(x_world, world_min);
-                let bottom = world_to_map(x_world, world_min + world_span);
-                painter.line_segment([top, bottom], egui::Stroke::new(0.5, grid_color));
-            }
-            for grid_z in state.city_min..=state.city_max + 1 {
-                let z_world = grid_z as f32 * CHUNK_SIZE;
-                let left = world_to_map(world_min, z_world);
-                let right = world_to_map(world_min + world_span, z_world);
-                painter.line_segment([left, right], egui::Stroke::new(0.5, grid_color));
-            }
+            let chunk_radius = (VIEW_RADIUS / CHUNK_SIZE).ceil() as i32 + 1;
+            let camera_chunk_x = (state.camera_x / CHUNK_SIZE).floor() as i32;
+            let camera_chunk_z = (state.camera_z / CHUNK_SIZE).floor() as i32;
 
-            for layout in layouts.values() {
-                for building in &layout.buildings {
-                    let color = building_color(building.building_type, building.height);
-                    let min_pos = world_to_map(
-                        building.x - building.width / 2.0,
-                        building.z - building.depth / 2.0,
-                    );
-                    let max_pos = world_to_map(
-                        building.x + building.width / 2.0,
-                        building.z + building.depth / 2.0,
-                    );
-                    let mut rect = egui::Rect::from_min_max(min_pos, max_pos);
-                    if rect.width() < 1.0 {
-                        rect = rect.expand2(egui::vec2(0.5, 0.0));
+            let visible_min_x = (camera_chunk_x - chunk_radius).max(state.city_min);
+            let visible_max_x = (camera_chunk_x + chunk_radius).min(state.city_max);
+            let visible_min_z = (camera_chunk_z - chunk_radius).max(state.city_min);
+            let visible_max_z = (camera_chunk_z + chunk_radius).min(state.city_max);
+
+            let road_color = egui::Color32::from_rgb(35, 38, 48);
+            let sidewalk_color = egui::Color32::from_rgb(48, 50, 56);
+            for chunk_x in visible_min_x..=visible_max_x {
+                for chunk_z in visible_min_z..=visible_max_z {
+                    if let Some(layout) = layouts.get(&(chunk_x, chunk_z)) {
+                        for segment in &layout.road_segments {
+                            let seg_center = world_to_map(segment.x, segment.z);
+                            if !center_in_circle(seg_center) {
+                                continue;
+                            }
+                            let min_pos = world_to_map(
+                                segment.x - segment.width / 2.0,
+                                segment.z - segment.depth / 2.0,
+                            );
+                            let max_pos = world_to_map(
+                                segment.x + segment.width / 2.0,
+                                segment.z + segment.depth / 2.0,
+                            );
+                            let color = if segment.is_sidewalk {
+                                sidewalk_color
+                            } else {
+                                road_color
+                            };
+                            let mut rect = egui::Rect::from_min_max(min_pos, max_pos);
+                            if rect.width() < 0.8 {
+                                rect = rect.expand2(egui::vec2(0.4, 0.0));
+                            }
+                            if rect.height() < 0.8 {
+                                rect = rect.expand2(egui::vec2(0.0, 0.4));
+                            }
+                            painter.rect_filled(rect, 0.0, color);
+                        }
                     }
-                    if rect.height() < 1.0 {
-                        rect = rect.expand2(egui::vec2(0.0, 0.5));
-                    }
-                    painter.rect_filled(rect, 0.0, color);
                 }
             }
 
-            let cam_raw = world_to_map(state.camera_x, state.camera_z);
-            let cam_pos = egui::pos2(
-                cam_raw.x.clamp(map_rect.min.x + 2.0, map_rect.max.x - 2.0),
-                cam_raw.y.clamp(map_rect.min.y + 2.0, map_rect.max.y - 2.0),
+            for chunk_x in visible_min_x..=visible_max_x {
+                for chunk_z in visible_min_z..=visible_max_z {
+                    if let Some(layout) = layouts.get(&(chunk_x, chunk_z)) {
+                        for building in &layout.buildings {
+                            let building_center = world_to_map(building.x, building.z);
+                            if !center_in_circle(building_center) {
+                                continue;
+                            }
+                            let color = building_color(building.building_type, building.height);
+                            let min_pos = world_to_map(
+                                building.x - building.width / 2.0,
+                                building.z - building.depth / 2.0,
+                            );
+                            let max_pos = world_to_map(
+                                building.x + building.width / 2.0,
+                                building.z + building.depth / 2.0,
+                            );
+                            let mut rect = egui::Rect::from_min_max(min_pos, max_pos);
+                            if rect.width() < 1.5 {
+                                rect = rect.expand2(egui::vec2(0.75, 0.0));
+                            }
+                            if rect.height() < 1.5 {
+                                rect = rect.expand2(egui::vec2(0.0, 0.75));
+                            }
+                            painter.rect_filled(rect, 0.5, color);
+
+                            if interiors::building_has_interior(building) {
+                                painter.rect_stroke(
+                                    rect.expand(1.0),
+                                    0.5,
+                                    egui::Stroke::new(1.5, egui::Color32::from_rgb(255, 200, 50)),
+                                    egui::StrokeKind::Outside,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            draw_circle_mask(&painter, center, content_radius, outer_rect, bg_color);
+
+            painter.circle_stroke(
+                center,
+                radius - BORDER_WIDTH / 2.0,
+                egui::Stroke::new(
+                    BORDER_WIDTH,
+                    egui::Color32::from_rgba_unmultiplied(60, 80, 110, 200),
+                ),
             );
 
-            let fov_length = 14.0;
+            let fov_length = 22.0;
             let half_fov = 30.0_f32.to_radians();
             let forward_angle = state.camera_forward_z.atan2(state.camera_forward_x);
             let left_angle = forward_angle + half_fov;
             let right_angle = forward_angle - half_fov;
 
             let left_end = egui::pos2(
-                cam_pos.x + left_angle.cos() * fov_length,
-                cam_pos.y + left_angle.sin() * fov_length,
+                center.x + left_angle.cos() * fov_length,
+                center.y + left_angle.sin() * fov_length,
             );
             let right_end = egui::pos2(
-                cam_pos.x + right_angle.cos() * fov_length,
-                cam_pos.y + right_angle.sin() * fov_length,
+                center.x + right_angle.cos() * fov_length,
+                center.y + right_angle.sin() * fov_length,
             );
 
-            let fov_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 40);
-            painter.line_segment([cam_pos, left_end], egui::Stroke::new(1.0, fov_color));
-            painter.line_segment([cam_pos, right_end], egui::Stroke::new(1.0, fov_color));
+            let fov_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 30);
+            painter.line_segment([center, left_end], egui::Stroke::new(1.0, fov_color));
+            painter.line_segment([center, right_end], egui::Stroke::new(1.0, fov_color));
             painter.line_segment([left_end, right_end], egui::Stroke::new(0.5, fov_color));
 
-            painter.circle_filled(cam_pos, 3.5, egui::Color32::WHITE);
+            painter.circle_filled(center, 3.5, egui::Color32::WHITE);
+            painter.circle_stroke(
+                center,
+                3.5,
+                egui::Stroke::new(0.8, egui::Color32::from_rgba_unmultiplied(0, 0, 0, 120)),
+            );
         });
+}
+
+fn draw_circle_mask(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    inner_radius: f32,
+    bounding_rect: egui::Rect,
+    color: egui::Color32,
+) {
+    let corners = [
+        bounding_rect.left_top(),
+        bounding_rect.right_top(),
+        bounding_rect.right_bottom(),
+        bounding_rect.left_bottom(),
+    ];
+
+    let corner_angles: [(f32, f32); 4] = [
+        (std::f32::consts::PI, 1.5 * std::f32::consts::PI),
+        (1.5 * std::f32::consts::PI, 2.0 * std::f32::consts::PI),
+        (0.0, 0.5 * std::f32::consts::PI),
+        (0.5 * std::f32::consts::PI, std::f32::consts::PI),
+    ];
+
+    let segs_per_corner = MASK_SEGMENTS / 4;
+
+    for (corner_index, (start_angle, end_angle)) in corner_angles.iter().enumerate() {
+        let corner = corners[corner_index];
+        let next_corner = corners[(corner_index + 1) % 4];
+
+        let mut mesh = egui::Mesh::default();
+
+        let circle_start = egui::pos2(
+            center.x + start_angle.cos() * inner_radius,
+            center.y + start_angle.sin() * inner_radius,
+        );
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: corner,
+            uv: egui::epaint::WHITE_UV,
+            color,
+        });
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: circle_start,
+            uv: egui::epaint::WHITE_UV,
+            color,
+        });
+
+        for segment_index in 1..=segs_per_corner {
+            let t = segment_index as f32 / segs_per_corner as f32;
+            let angle = start_angle + t * (end_angle - start_angle);
+            let circle_point = egui::pos2(
+                center.x + angle.cos() * inner_radius,
+                center.y + angle.sin() * inner_radius,
+            );
+            let vertex_index = mesh.vertices.len() as u32;
+            mesh.vertices.push(egui::epaint::Vertex {
+                pos: circle_point,
+                uv: egui::epaint::WHITE_UV,
+                color,
+            });
+            mesh.indices.push(0);
+            mesh.indices.push(vertex_index - 1);
+            mesh.indices.push(vertex_index);
+        }
+
+        let edge_vertex_index = mesh.vertices.len() as u32;
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: next_corner,
+            uv: egui::epaint::WHITE_UV,
+            color,
+        });
+        mesh.indices.push(0);
+        mesh.indices.push(edge_vertex_index - 1);
+        mesh.indices.push(edge_vertex_index);
+
+        painter.add(egui::Shape::mesh(mesh));
+    }
 }
 
 fn building_color(building_type: BuildingType, height: f32) -> egui::Color32 {

@@ -1,5 +1,6 @@
 [package]
 name = "neon_lights"
+description = "Interactive neon sign creator with customizable text, colors, and flickering effects with bloom"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"

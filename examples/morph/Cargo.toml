@@ -1,5 +1,6 @@
 [package]
 name = "morph"
+description = "glTF morph targets (blend shapes) with animated facial expressions and mesh deformation"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 edition = "2024"
@@ -9,3 +10,6 @@ openxr = ["nightshade/openxr"]
 
 [dependencies]
 nightshade = { workspace = true, features = ["egui", "tracing"] }
+
+[package.metadata.gallery]
+display_name = "Morph Targets"

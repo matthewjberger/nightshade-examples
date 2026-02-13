@@ -1,5 +1,6 @@
 [package]
 name = "block_breaker_scripts"
+description = "Classic brick-breaking game with physics and scripted game logic"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"
@@ -9,3 +10,6 @@ default = []
 
 [dependencies]
 nightshade = { workspace = true, features = ["tracy", "scripting"] }
+
+[package.metadata.gallery]
+display_name = "Block Breaker (Scripts)"

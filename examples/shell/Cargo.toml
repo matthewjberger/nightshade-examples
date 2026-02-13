@@ -1,5 +1,6 @@
 [package]
 name = "shell"
+description = "Drop-down developer console with command registration for spawning objects and modifying world state"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"

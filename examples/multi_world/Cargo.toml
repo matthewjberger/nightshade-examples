@@ -1,5 +1,6 @@
 [package]
 name = "multi_world"
+description = "Multiple independent worlds rendered simultaneously with tiled viewports and entity spawning"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"
@@ -10,3 +11,6 @@ nightshade = { workspace = true, features = ["tracing", "physics", "egui", "game
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wry = "0.54"
 uuid = { version = "1", features = ["v4"] }
+
+[package.metadata.gallery]
+display_name = "Multi-World"

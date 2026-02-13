@@ -1,7 +1,7 @@
 use nightshade::prelude::*;
 use rand::Rng;
 
-const GRAVITY: f32 = 500.0;
+const GRAVITY: f32 = -500.0;
 const MIN_X: f32 = 0.0;
 const MIN_Y: f32 = 0.0;
 const BUNNY_SIZE: f32 = 32.0;
@@ -49,6 +49,16 @@ impl State for BunnyWorld {
             let size = window_handle.inner_size();
             self.resources.max_x = size.width as f32;
             self.resources.max_y = size.height as f32;
+        }
+
+        let half_x = self.resources.max_x / 2.0;
+        let half_y = self.resources.max_y / 2.0;
+        let camera = spawn_ortho_camera(world, Vec2::new(half_x, half_y));
+        if let Some(camera_data) = world.get_camera_mut(camera)
+            && let Projection::Orthographic(ref mut ortho) = camera_data.projection
+        {
+            ortho.x_mag = half_x;
+            ortho.y_mag = half_y;
         }
 
         self.resources.lowest_fps = 60.0;
@@ -300,7 +310,10 @@ pub struct BunnyPhysics {
 fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) -> freecs::Entity {
     let mut rng = rand::rng();
 
-    let engine_entity = world.spawn_entities(SPRITE | VISIBILITY | LOCAL_TRANSFORM, 1)[0];
+    let engine_entity = world.spawn_entities(
+        SPRITE | VISIBILITY | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM,
+        1,
+    )[0];
 
     if let Some(sprite) = world.get_sprite_mut(engine_entity) {
         sprite.size = Vec2::new(BUNNY_SIZE, BUNNY_SIZE);
@@ -329,8 +342,10 @@ fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) 
     let rotation_angle = rng.random::<f32>() * std::f32::consts::TAU;
     let scale = 0.5 + rng.random::<f32>() * 1.0;
 
+    let depth = rng.random::<f32>() * 100.0;
+
     if let Some(transform) = world.get_local_transform_mut(engine_entity) {
-        transform.translation = Vec3::new(position.x, position.y, 0.0);
+        transform.translation = Vec3::new(position.x, position.y, depth);
         transform.rotation = nalgebra_glm::quat_angle_axis(rotation_angle, &Vec3::z());
         transform.scale = Vec3::new(scale, scale, 1.0);
     }
@@ -340,7 +355,7 @@ fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) 
 
     let velocity = Vec2::new(
         rng.random_range(-250.0..250.0),
-        rng.random_range(-500.0..0.0),
+        rng.random_range(0.0..500.0),
     );
 
     let game_entity = bunny_world.spawn_entities(ENTITY_HANDLE | BUNNY_PHYSICS, 1)[0];
@@ -359,7 +374,7 @@ fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) 
 
 fn spawn_bunnies(world: &mut World, bunny_world: &mut BunnyWorld, count: usize) {
     let spawn_x = bunny_world.resources.max_x * 0.5;
-    let spawn_y = bunny_world.resources.max_y * 0.25;
+    let spawn_y = bunny_world.resources.max_y * 0.75;
 
     for _ in 0..count {
         spawn_bunny(world, bunny_world, Vec2::new(spawn_x, spawn_y));
@@ -394,29 +409,29 @@ fn update_bunnies_system(world: &mut World, bunny_world: &mut BunnyWorld) {
                 transform.translation.x = max_x - BUNNY_SIZE;
                 physics.velocity.x *= -0.85;
                 if rng.random::<f32>() > 0.5 {
-                    physics.velocity.y = rng.random_range(-300.0..0.0);
+                    physics.velocity.y = rng.random_range(0.0..300.0);
                 }
             } else if transform.translation.x < MIN_X {
                 transform.translation.x = MIN_X;
                 physics.velocity.x *= -0.85;
                 if rng.random::<f32>() > 0.5 {
-                    physics.velocity.y = rng.random_range(-300.0..0.0);
+                    physics.velocity.y = rng.random_range(0.0..300.0);
                 }
             }
 
-            if transform.translation.y + BUNNY_SIZE > max_y {
-                transform.translation.y = max_y - BUNNY_SIZE;
+            if transform.translation.y < MIN_Y {
+                transform.translation.y = MIN_Y;
                 physics.velocity.y *= -0.85;
 
                 if rng.random::<f32>() > 0.5 {
-                    physics.velocity.y = rng.random_range(-500.0..-200.0);
+                    physics.velocity.y = rng.random_range(200.0..500.0);
                 }
 
                 if physics.velocity.y.abs() < 100.0 && rng.random::<f32>() > 0.8 {
                     physics.velocity.x = rng.random_range(-100.0..100.0);
                 }
-            } else if transform.translation.y < MIN_Y {
-                transform.translation.y = MIN_Y;
+            } else if transform.translation.y + BUNNY_SIZE > max_y {
+                transform.translation.y = max_y - BUNNY_SIZE;
                 physics.velocity.y = 0.0;
             }
 

@@ -1,5 +1,6 @@
 [package]
 name = "horror"
+description = "First-person horror demo with flashlight, dynamic shadows, and atmospheric lighting"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 license = "MIT OR Apache-2.0"

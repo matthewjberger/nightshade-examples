@@ -1,5 +1,6 @@
 [package]
 name = "physics"
+description = "Physics interactions with grabbable objects, doors, drawers, levers, and wheels"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 license = "MIT OR Apache-2.0"

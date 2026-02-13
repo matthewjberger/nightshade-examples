@@ -1,5 +1,6 @@
 [package]
 name = "ragdoll"
+description = "Physics-based ragdoll simulation with skeletal joints and real-time bone synchronization"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 edition = "2024"

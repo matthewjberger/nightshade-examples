@@ -4,5 +4,6 @@
 Cargo.lock
 dist/
 logs/
+snapshots/
 *.wasm
 *.json

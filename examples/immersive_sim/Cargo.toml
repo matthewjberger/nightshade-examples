@@ -1,5 +1,6 @@
 [package]
 name = "immersive_sim"
+description = "First-person simulation with exploration, NPCs, combat, and interactive environments"
 version = "0.1.0"
 edition = "2024"
 

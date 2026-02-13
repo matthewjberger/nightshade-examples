@@ -1,5 +1,6 @@
 [package]
 name = "tui_frogger"
+description = "Terminal-based frogger with ASCII lane navigation and obstacle avoidance"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"
@@ -7,3 +8,6 @@ edition = "2024"
 [dependencies]
 nightshade = { workspace = true, features = ["tui"] }
 rand = "0.9"
+
+[package.metadata.gallery]
+display_name = "TUI Frogger"

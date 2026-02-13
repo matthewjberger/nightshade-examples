@@ -1,5 +1,6 @@
 [package]
 name = "topdown_shooter"
+description = "Top-down arena shooter with player movement, enemy AI, and bullet mechanics"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"
@@ -8,3 +9,6 @@ edition = "2024"
 nightshade = { workspace = true }
 image = "0.25"
 rand = "0.9"
+
+[package.metadata.gallery]
+display_name = "Top-Down Shooter"

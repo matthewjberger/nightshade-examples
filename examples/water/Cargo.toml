@@ -1,5 +1,6 @@
 [package]
 name = "water"
+description = "Mesh-based water rendering with procedural waves, vertex displacement, and scene presets for oceans, lakes, rivers, and ponds"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"

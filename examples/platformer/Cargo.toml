@@ -1,5 +1,6 @@
 [package]
 name = "platformer"
+description = "3D platformer with physics, collision detection, and character movement"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 license = "MIT OR Apache-2.0"

@@ -1,5 +1,6 @@
 [package]
 name = "psx"
+description = "PS1-era rendering with vertex snapping, affine texture mapping, and distance fog"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 edition = "2024"
@@ -7,3 +8,6 @@ edition = "2024"
 [dependencies]
 nightshade = { workspace = true, features = ["egui", "physics", "tracing"] }
 bytemuck = "1.24.0"
+
+[package.metadata.gallery]
+display_name = "PSX Style"

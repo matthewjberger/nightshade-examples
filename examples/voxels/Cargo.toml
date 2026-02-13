@@ -1,5 +1,6 @@
 [package]
 name = "voxels"
+description = "Voxel-based world rendering with block manipulation"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"

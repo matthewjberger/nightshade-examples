@@ -1,5 +1,6 @@
 [package]
 name = "demo_scene"
+description = "Scene system showcase with forest, city, and sprawling world scenes loaded from scene files"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 edition = "2024"

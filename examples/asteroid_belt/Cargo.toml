@@ -1,5 +1,6 @@
 [package]
 name = "asteroid_belt"
+description = "GPU instancing demo with 100,000 asteroids rendered in a single draw call"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"

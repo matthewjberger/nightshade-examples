@@ -1,5 +1,6 @@
 [package]
 name = "pixel_platformer"
+description = "2D platformer with sprite animation, tile-based collision, and coin collection"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"

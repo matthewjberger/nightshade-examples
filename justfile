@@ -144,6 +144,43 @@ pick-wasm-tui:
     example=$(ls -d examples-terminal/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a WASM TUI demo> ")
     [ -n "$example" ] && trunk serve --release --open --config "examples-terminal/$example/Trunk.toml"
 
+# Interactively pick an example and generate a snapshot
+[windows]
+pick-snapshot:
+    $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a demo to snapshot> "); if ($example) { New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null; $env:NIGHTSHADE_SNAPSHOT_PATH = "snapshots/$example.png"; cargo run -r -p $example }
+
+# Interactively pick an example and generate a snapshot
+[unix]
+pick-snapshot:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    example=$(ls -d examples/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a demo to snapshot> ")
+    if [ -n "$example" ]; then
+        mkdir -p snapshots
+        NIGHTSHADE_SNAPSHOT_PATH="snapshots/$example.png" cargo run -r -p "$example"
+    fi
+
+# Generate snapshots for all examples
+[windows]
+generate-snapshots:
+    $ErrorActionPreference = "Stop"; New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null; $examples = Get-ChildItem -Directory "examples" | ForEach-Object { $_.Name } | Sort-Object; $total = $examples.Count; $current = 0; foreach ($example in $examples) { $current++; Write-Host "[$current/$total] Snapshotting $example..." -ForegroundColor Cyan; $env:NIGHTSHADE_SNAPSHOT_PATH = "snapshots/$example.png"; cargo run -r -p $example; }; Write-Host "All snapshots complete! Output in snapshots/" -ForegroundColor Green
+
+# Generate snapshots for all examples
+[unix]
+generate-snapshots:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p snapshots
+    examples=($(ls -d examples/*/ 2>/dev/null | xargs -I{} basename {} | sort))
+    total=${#examples[@]}
+    current=0
+    for example in "${examples[@]}"; do
+        current=$((current + 1))
+        echo -e "\033[36m[$current/$total] Snapshotting $example...\033[0m"
+        NIGHTSHADE_SNAPSHOT_PATH="snapshots/$example.png" cargo run -r -p "$example"
+    done
+    echo -e "\033[32mAll snapshots complete! Output in snapshots/\033[0m"
+
 # Runs the specified example
 run $example="alpha_blending":
     cargo run -r -p {{example}}

@@ -1,5 +1,6 @@
 [package]
 name = "terrain"
+description = "Infinite procedural terrain with GPU compute tessellation, distance-based LOD, and wireframe debug view"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 edition = "2024"

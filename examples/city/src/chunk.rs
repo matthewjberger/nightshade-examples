@@ -12,8 +12,8 @@ use crate::city::{self, CHUNK_SIZE, CityChunkLayout, generate_chunk_layout};
 use crate::descriptors::ChunkData;
 use crate::waterfront::{self, EdgeDirection};
 
-const LOD0_RADIUS: i32 = 4;
-const LOD1_RADIUS: i32 = 8;
+const LOD0_RADIUS: i32 = 3;
+const LOD1_RADIUS: i32 = 6;
 const BASE_RADIUS: i32 = LOD1_RADIUS + 2;
 const FRUSTUM_BIAS_AHEAD: i32 = 2;
 const FRUSTUM_BIAS_BEHIND: i32 = -2;
@@ -29,7 +29,11 @@ const SMOKE_PROBABILITY: f32 = 0.40;
 const FADE_DURATION: f32 = 0.3;
 const MAX_PREGEN_PER_FRAME: usize = 4;
 const MAX_PREGEN_CACHE: usize = 800;
-const MAX_LAYOUTS_PER_FRAME: usize = 64;
+const MAX_LAYOUT_CACHE: usize = 2000;
+const LAYOUT_EVICT_BATCH: usize = 64;
+
+const PROXY_RADIUS: i32 = 16;
+const PROXY_REBUILD_THRESHOLD: i32 = 6;
 
 const SEED_BODY: u64 = 10000;
 const SEED_DETAIL: u64 = 20000;
@@ -65,11 +69,6 @@ enum LayerKind {
     Detail,
 }
 
-enum GenerationPhase {
-    GeneratingLayouts { next_x: i32, next_z: i32 },
-    Ready,
-}
-
 struct ChunkState {
     base_entities: Vec<Entity>,
     building_entities: Vec<Entity>,
@@ -86,8 +85,7 @@ enum FadeDirection {
     Out,
 }
 
-struct FadeEntry {
-    entity: Entity,
+struct FadeState {
     alpha: f32,
     direction: FadeDirection,
 }
@@ -101,19 +99,19 @@ struct PregenChunk {
 pub struct ChunkStreamer {
     city_min: i32,
     city_max: i32,
-    noise_seed: u32,
-    generation_phase: GenerationPhase,
+    noise: Perlin,
     chunks: HashMap<(i32, i32), ChunkState>,
     loading: HashMap<((i32, i32), LayerKind), LoadingCursor>,
     pregen: HashMap<(i32, i32), PregenChunk>,
     layouts: HashMap<(i32, i32), city::CityChunkLayout>,
     proxy_instanced_entities: Vec<Entity>,
+    proxy_center: (i32, i32),
+    proxies_initialized: bool,
     last_camera_chunk: (i32, i32),
-    fading_entities: Vec<FadeEntry>,
+    fading_entities: HashMap<Entity, FadeState>,
     cached_entity_count: usize,
     pregen_budget: usize,
     pending_pregen: bool,
-    scratch_completed_fade_indices: Vec<usize>,
     scratch_to_cancel: Vec<((i32, i32), LayerKind)>,
     scratch_loading_keys: Vec<((i32, i32), LayerKind)>,
     scratch_completed_loading: Vec<((i32, i32), LayerKind)>,
@@ -132,22 +130,19 @@ impl ChunkStreamer {
         Self {
             city_min,
             city_max,
-            noise_seed: seed,
-            generation_phase: GenerationPhase::GeneratingLayouts {
-                next_x: city_min,
-                next_z: city_min,
-            },
+            noise: Perlin::new(seed),
             chunks: HashMap::new(),
             loading: HashMap::new(),
             pregen: HashMap::new(),
             layouts: HashMap::new(),
             proxy_instanced_entities: Vec::new(),
+            proxy_center: (i32::MAX, i32::MAX),
+            proxies_initialized: false,
             last_camera_chunk: (i32::MAX, i32::MAX),
-            fading_entities: Vec::new(),
+            fading_entities: HashMap::new(),
             cached_entity_count: 0,
             pregen_budget: MAX_PREGEN_PER_FRAME,
             pending_pregen: false,
-            scratch_completed_fade_indices: Vec::new(),
             scratch_to_cancel: Vec::new(),
             scratch_loading_keys: Vec::new(),
             scratch_completed_loading: Vec::new(),
@@ -163,6 +158,41 @@ impl ChunkStreamer {
         self.city_max
     }
 
+    fn ensure_layout(&mut self, coords: (i32, i32)) {
+        if !self.layouts.contains_key(&coords) {
+            self.layouts.insert(
+                coords,
+                generate_chunk_layout(coords.0, coords.1, &self.noise),
+            );
+        }
+    }
+
+    fn evict_distant_layouts(&mut self) {
+        if self.layouts.len() <= MAX_LAYOUT_CACHE {
+            return;
+        }
+        let camera_chunk = self.last_camera_chunk;
+        let mut evictable: Vec<(i32, i32)> = self
+            .layouts
+            .keys()
+            .copied()
+            .filter(|coords| {
+                !self.chunks.contains_key(coords)
+                    && !self.loading.keys().any(|key| key.0 == *coords)
+                    && !self.pregen.contains_key(coords)
+            })
+            .collect();
+        evictable.sort_by(|a, b| {
+            let dist_a = chebyshev_distance(*a, camera_chunk);
+            let dist_b = chebyshev_distance(*b, camera_chunk);
+            dist_b.cmp(&dist_a)
+        });
+        let to_remove = evictable.len().min(LAYOUT_EVICT_BATCH);
+        for coords in &evictable[..to_remove] {
+            self.layouts.remove(coords);
+        }
+    }
+
     fn ensure_pregen(&mut self, coords: (i32, i32)) -> bool {
         if self.pregen.contains_key(&coords) {
             return true;
@@ -171,6 +201,7 @@ impl ChunkStreamer {
             return false;
         }
         self.evict_farthest_pregen();
+        self.ensure_layout(coords);
         let layout = &self.layouts[&coords];
         self.pregen.insert(
             coords,
@@ -206,7 +237,7 @@ impl ChunkStreamer {
     }
 
     pub fn is_ready(&self) -> bool {
-        matches!(self.generation_phase, GenerationPhase::Ready)
+        self.proxies_initialized
     }
 
     pub fn loaded_chunk_count(&self) -> usize {
@@ -239,14 +270,15 @@ impl ChunkStreamer {
             }
         }
 
-        for fade in self.fading_entities.drain(..) {
+        for (entity, fade) in self.fading_entities.drain() {
             if matches!(fade.direction, FadeDirection::Out) {
-                world.queue_command(WorldCommand::DespawnRecursive {
-                    entity: fade.entity,
-                });
+                world.queue_command(WorldCommand::DespawnRecursive { entity });
             }
         }
         self.pregen.clear();
+        self.layouts.clear();
+        self.proxy_center = (i32::MAX, i32::MAX);
+        self.proxies_initialized = false;
         self.cached_entity_count = 0;
     }
 
@@ -254,13 +286,27 @@ impl ChunkStreamer {
         self.cached_entity_count
     }
 
-    fn load_all_proxies(&mut self, world: &mut World) {
+    fn rebuild_proxies(&mut self, world: &mut World, center: (i32, i32)) {
+        for entity in self.proxy_instanced_entities.drain(..) {
+            world.queue_command(WorldCommand::DespawnRecursive { entity });
+            self.cached_entity_count -= 1;
+        }
+
+        let proxy_min_x = (center.0 - PROXY_RADIUS).max(self.city_min);
+        let proxy_max_x = (center.0 + PROXY_RADIUS).min(self.city_max);
+        let proxy_min_z = (center.1 - PROXY_RADIUS).max(self.city_min);
+        let proxy_max_z = (center.1 + PROXY_RADIUS).min(self.city_max);
+
         let mut groups: HashMap<&'static str, Vec<InstanceTransform>> = HashMap::new();
         let mut ground_instances = Vec::new();
-        for x in self.city_min..=self.city_max {
-            for z in self.city_min..=self.city_max {
+        for x in proxy_min_x..=proxy_max_x {
+            for z in proxy_min_z..=proxy_max_z {
+                self.ensure_layout((x, z));
                 let layout = &self.layouts[&(x, z)];
                 for spec in &layout.buildings {
+                    if crate::interiors::building_has_interior(spec) {
+                        continue;
+                    }
                     let (material, position, scale) = proxy_material_position_scale(spec);
                     groups
                         .entry(material)
@@ -282,10 +328,9 @@ impl ChunkStreamer {
         }
         for (material, instances) in groups {
             let entity = spawn_instanced_mesh_with_material(world, "Cube", instances, material);
-            world.remove_casts_shadow(entity);
             self.proxy_instanced_entities.push(entity);
         }
-        {
+        if !ground_instances.is_empty() {
             let entity =
                 spawn_instanced_mesh_with_material(world, "Cube", ground_instances, "Ground");
             world.remove_casts_shadow(entity);
@@ -296,12 +341,14 @@ impl ChunkStreamer {
             .mesh_render_state
             .mark_instanced_meshes_changed();
         self.cached_entity_count += self.proxy_instanced_entities.len();
+        self.proxy_center = center;
+        self.proxies_initialized = true;
     }
 
     fn advance_fades(&mut self, world: &mut World, delta_time: f32) {
         let fade_speed = 1.0 / FADE_DURATION;
-        self.scratch_completed_fade_indices.clear();
-        for (index, fade) in self.fading_entities.iter_mut().enumerate() {
+        let mut completed: Vec<Entity> = Vec::new();
+        for (&entity, fade) in self.fading_entities.iter_mut() {
             match fade.direction {
                 FadeDirection::In => {
                     fade.alpha = (fade.alpha + delta_time * fade_speed).min(1.0);
@@ -309,13 +356,13 @@ impl ChunkStreamer {
                         world
                             .resources
                             .mesh_render_state
-                            .mark_entity_fade_complete(fade.entity);
-                        self.scratch_completed_fade_indices.push(index);
+                            .mark_entity_fade_complete(entity);
+                        completed.push(entity);
                     } else {
                         world
                             .resources
                             .mesh_render_state
-                            .set_entity_custom_data(fade.entity, [1.0, 1.0, 1.0, fade.alpha]);
+                            .set_entity_custom_data(entity, [1.0, 1.0, 1.0, fade.alpha]);
                     }
                 }
                 FadeDirection::Out => {
@@ -324,34 +371,28 @@ impl ChunkStreamer {
                         world
                             .resources
                             .mesh_render_state
-                            .mark_entity_fade_complete(fade.entity);
-                        world.queue_command(WorldCommand::DespawnRecursive {
-                            entity: fade.entity,
-                        });
+                            .mark_entity_fade_complete(entity);
+                        world.queue_command(WorldCommand::DespawnRecursive { entity });
                         self.cached_entity_count -= 1;
-                        self.scratch_completed_fade_indices.push(index);
+                        completed.push(entity);
                     } else {
                         world
                             .resources
                             .mesh_render_state
-                            .set_entity_custom_data(fade.entity, [1.0, 1.0, 1.0, fade.alpha]);
+                            .set_entity_custom_data(entity, [1.0, 1.0, 1.0, fade.alpha]);
                     }
                 }
             }
         }
-        for &index in self.scratch_completed_fade_indices.iter().rev() {
-            self.fading_entities.swap_remove(index);
+        for entity in completed {
+            self.fading_entities.remove(&entity);
         }
     }
 
     fn begin_unload_entities(&mut self, world: &mut World, entities: Vec<Entity>) {
         let mut had_instanced = false;
         for entity in entities {
-            if let Some(existing) = self
-                .fading_entities
-                .iter_mut()
-                .find(|fade| fade.entity == entity)
-            {
+            if let Some(existing) = self.fading_entities.get_mut(&entity) {
                 existing.direction = FadeDirection::Out;
                 continue;
             }
@@ -359,11 +400,13 @@ impl ChunkStreamer {
             if world.entity_has_components(entity, RENDER_MESH)
                 && !world.entity_has_components(entity, INSTANCED_MESH)
             {
-                self.fading_entities.push(FadeEntry {
+                self.fading_entities.insert(
                     entity,
-                    alpha: 1.0,
-                    direction: FadeDirection::Out,
-                });
+                    FadeState {
+                        alpha: 1.0,
+                        direction: FadeDirection::Out,
+                    },
+                );
             } else {
                 if world.entity_has_components(entity, INSTANCED_MESH) {
                     had_instanced = true;
@@ -381,35 +424,6 @@ impl ChunkStreamer {
     }
 
     pub fn update(&mut self, world: &mut World, camera_pos: Vec3, camera_forward: Vec3) {
-        if let GenerationPhase::GeneratingLayouts { next_x, next_z } = &mut self.generation_phase {
-            let noise = Perlin::new(self.noise_seed);
-            let mut generated = 0;
-            let mut current_x = *next_x;
-            let mut current_z = *next_z;
-            while current_x <= self.city_max && generated < MAX_LAYOUTS_PER_FRAME {
-                while current_z <= self.city_max && generated < MAX_LAYOUTS_PER_FRAME {
-                    self.layouts.insert(
-                        (current_x, current_z),
-                        generate_chunk_layout(current_x, current_z, &noise),
-                    );
-                    generated += 1;
-                    current_z += 1;
-                }
-                if current_z > self.city_max {
-                    current_x += 1;
-                    current_z = self.city_min;
-                }
-            }
-            if current_x > self.city_max {
-                self.generation_phase = GenerationPhase::Ready;
-                self.load_all_proxies(world);
-            } else {
-                *next_x = current_x;
-                *next_z = current_z;
-            }
-            return;
-        }
-
         let camera_chunk = (
             (camera_pos.x / CHUNK_SIZE).floor() as i32,
             (camera_pos.z / CHUNK_SIZE).floor() as i32,
@@ -420,10 +434,17 @@ impl ChunkStreamer {
             self.last_camera_chunk = camera_chunk;
         }
 
+        let needs_proxy_rebuild = !self.proxies_initialized
+            || chebyshev_distance(camera_chunk, self.proxy_center) >= PROXY_REBUILD_THRESHOLD;
+        if needs_proxy_rebuild {
+            self.rebuild_proxies(world, camera_chunk);
+        }
+
         if !camera_changed
             && self.loading.is_empty()
             && self.fading_entities.is_empty()
             && !self.pending_pregen
+            && !needs_proxy_rebuild
         {
             return;
         }
@@ -547,17 +568,19 @@ impl ChunkStreamer {
                 if is_instance_group {
                     has_instance_groups = true;
                 } else if offset < regular_mesh_count {
-                    if key.1 != LayerKind::Base {
+                    if key.1 == LayerKind::Detail {
                         world
                             .resources
                             .mesh_render_state
                             .set_entity_custom_data(entity, [1.0, 1.0, 1.0, 0.0]);
                         world.resources.mesh_render_state.mark_entity_added(entity);
-                        self.fading_entities.push(FadeEntry {
+                        self.fading_entities.insert(
                             entity,
-                            alpha: 0.0,
-                            direction: FadeDirection::In,
-                        });
+                            FadeState {
+                                alpha: 0.0,
+                                direction: FadeDirection::In,
+                            },
+                        );
                     } else {
                         world.resources.mesh_render_state.mark_entity_added(entity);
                     }
@@ -728,6 +751,8 @@ impl ChunkStreamer {
                 }
             }
         }
+
+        self.evict_distant_layouts();
     }
 }
 
@@ -1059,7 +1084,7 @@ fn describe_construction_cranes(
     let crane_z = skyscraper.z;
     let tower_height = CRANE_TOWER_HEIGHT.min(skyscraper.height * 0.9);
 
-    data.mesh(
+    data.instance(
         "Cylinder",
         Vec3::new(crane_x, tower_height / 2.0, crane_z),
         Vec3::new(
@@ -1068,9 +1093,10 @@ fn describe_construction_cranes(
             CRANE_TOWER_RADIUS * 2.0,
         ),
         "CraneMetal",
+        None,
     );
 
-    data.mesh(
+    data.instance(
         "Cube",
         Vec3::new(
             crane_x + CRANE_ARM_LENGTH / 2.0 - 2.0,
@@ -1079,9 +1105,10 @@ fn describe_construction_cranes(
         ),
         Vec3::new(CRANE_ARM_LENGTH, CRANE_ARM_THICKNESS, CRANE_ARM_THICKNESS),
         "CraneMetal",
+        None,
     );
 
-    data.mesh(
+    data.instance(
         "Cube",
         Vec3::new(crane_x - 3.0, tower_height, crane_z),
         Vec3::new(
@@ -1090,9 +1117,10 @@ fn describe_construction_cranes(
             CRANE_COUNTERWEIGHT_SIZE,
         ),
         "CraneMetal",
+        None,
     );
 
-    data.mesh(
+    data.instance(
         "Cylinder",
         Vec3::new(
             crane_x + CRANE_ARM_LENGTH - 4.0,
@@ -1101,6 +1129,7 @@ fn describe_construction_cranes(
         ),
         Vec3::new(0.08, 10.0, 0.08),
         "DockMetal",
+        None,
     );
 }
 

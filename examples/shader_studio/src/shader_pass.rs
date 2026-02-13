@@ -149,7 +149,7 @@ struct GpuUniforms {
     time: f32,
     delta_time: f32,
     frame: u32,
-    _pad0: u32,
+    pbr_active: u32,
     resolution: [f32; 2],
     mouse: [f32; 2],
     model: [[f32; 4]; 4],
@@ -193,6 +193,7 @@ pub struct PendingTexture {
     pub height: u32,
     pub data: Vec<u8>,
     pub slot: usize,
+    pub srgb: bool,
 }
 
 impl Default for SharedState {
@@ -382,7 +383,9 @@ pub struct ShaderPass {
     uniform_bind_group_layout: wgpu::BindGroupLayout,
     uniform_bind_group: wgpu::BindGroup,
     texture_bind_group_layout: wgpu::BindGroupLayout,
+    ibl_bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
+    ibl_sampler: wgpu::Sampler,
     pass_states: [PassState; 5],
     per_pass_bind_groups: [Option<wgpu::BindGroup>; 5],
     buffer_textures: [Option<BufferTextures>; 4],
@@ -391,11 +394,15 @@ pub struct ShaderPass {
     index_buffer: Option<wgpu::Buffer>,
     index_count: u32,
     placeholder_texture_view: Option<wgpu::TextureView>,
+    placeholder_cubemap_view: Option<wgpu::TextureView>,
+    placeholder_brdf_lut_view: Option<wgpu::TextureView>,
     texture_views: [Option<wgpu::TextureView>; 4],
     textures_dirty: bool,
     initialized: bool,
     depth_texture_view: Option<wgpu::TextureView>,
     depth_texture_size: (u32, u32),
+    ibl_bind_group: Option<wgpu::BindGroup>,
+    ibl_dirty: bool,
 }
 
 impl ShaderPass {
@@ -457,13 +464,39 @@ impl ShaderPass {
             ..Default::default()
         });
 
+        let ibl_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Shader Studio IBL Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let ibl_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Shader Studio IBL BGL"),
+                entries: &[
+                    texture_entry(0),
+                    sampler_entry(1),
+                    cubemap_texture_entry(2),
+                    sampler_entry(3),
+                    cubemap_texture_entry(4),
+                    sampler_entry(5),
+                ],
+            });
+
         Self {
             shared,
             uniform_buffer,
             uniform_bind_group_layout,
             uniform_bind_group,
             texture_bind_group_layout,
+            ibl_bind_group_layout,
             sampler,
+            ibl_sampler,
             pass_states: std::array::from_fn(|_| PassState::default()),
             per_pass_bind_groups: [None, None, None, None, None],
             buffer_textures: [None, None, None, None],
@@ -472,11 +505,15 @@ impl ShaderPass {
             index_buffer: None,
             index_count: 0,
             placeholder_texture_view: None,
+            placeholder_cubemap_view: None,
+            placeholder_brdf_lut_view: None,
             texture_views: [None, None, None, None],
             textures_dirty: false,
             initialized: false,
             depth_texture_view: None,
             depth_texture_size: (0, 0),
+            ibl_bind_group: None,
+            ibl_dirty: true,
         }
     }
 
@@ -489,6 +526,69 @@ impl ShaderPass {
         let placeholder_texture = create_placeholder_texture(device, queue);
         self.placeholder_texture_view =
             Some(placeholder_texture.create_view(&wgpu::TextureViewDescriptor::default()));
+
+        let placeholder_cubemap = create_placeholder_cubemap(device, queue);
+        self.placeholder_cubemap_view = Some(placeholder_cubemap.create_view(
+            &wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::Cube),
+                ..Default::default()
+            },
+        ));
+
+        let (_, brdf_lut_view) =
+            nightshade::render::wgpu::brdf_lut::generate_brdf_lut(device, queue);
+        self.placeholder_brdf_lut_view = Some(brdf_lut_view);
+
+        self.rebuild_ibl_bind_group(device, None, None, None);
+    }
+
+    fn rebuild_ibl_bind_group(
+        &mut self,
+        device: &wgpu::Device,
+        brdf_lut_view: Option<&wgpu::TextureView>,
+        irradiance_view: Option<&wgpu::TextureView>,
+        prefiltered_view: Option<&wgpu::TextureView>,
+    ) {
+        let brdf = brdf_lut_view
+            .or(self.placeholder_brdf_lut_view.as_ref())
+            .or(self.placeholder_texture_view.as_ref());
+        let irr = irradiance_view.or(self.placeholder_cubemap_view.as_ref());
+        let pref = prefiltered_view.or(self.placeholder_cubemap_view.as_ref());
+
+        let (Some(brdf), Some(irr), Some(pref)) = (brdf, irr, pref) else {
+            return;
+        };
+
+        self.ibl_bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Shader Studio IBL BG"),
+            layout: &self.ibl_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(brdf),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.ibl_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(irr),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Sampler(&self.ibl_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(pref),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Sampler(&self.ibl_sampler),
+                },
+            ],
+        }));
     }
 
     fn create_pipeline_for_pass(
@@ -512,6 +612,7 @@ impl ShaderPass {
             bind_group_layouts: &[
                 &self.uniform_bind_group_layout,
                 &self.texture_bind_group_layout,
+                &self.ibl_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -746,7 +847,7 @@ impl PassNode<World> for ShaderPass {
 
     fn invalidate_bind_groups(&mut self) {}
 
-    fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, _configs: &World) {
+    fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, configs: &World) {
         self.ensure_initialized(device, queue);
 
         for buf in self.buffer_textures.iter_mut().flatten() {
@@ -868,6 +969,12 @@ impl PassNode<World> for ShaderPass {
                 );
                 let mip_count = mip_levels.len() as u32;
 
+                let format = if pending_texture.srgb {
+                    wgpu::TextureFormat::Rgba8UnormSrgb
+                } else {
+                    wgpu::TextureFormat::Rgba8Unorm
+                };
+
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: Some("Shader Studio User Texture"),
                     size: wgpu::Extent3d {
@@ -878,7 +985,7 @@ impl PassNode<World> for ShaderPass {
                     mip_level_count: mip_count,
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    format,
                     usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                     view_formats: &[],
                 });
@@ -937,12 +1044,26 @@ impl PassNode<World> for ShaderPass {
             }
         }
 
+        let ibl = &configs.resources.ibl_views;
+        let has_ibl = ibl.brdf_lut_view.is_some()
+            && ibl.irradiance_view.is_some()
+            && ibl.prefiltered_view.is_some();
+        if has_ibl || self.ibl_dirty {
+            self.ibl_dirty = false;
+            self.rebuild_ibl_bind_group(
+                device,
+                ibl.brdf_lut_view.as_ref(),
+                ibl.irradiance_view.as_ref(),
+                ibl.prefiltered_view.as_ref(),
+            );
+        }
+
         let shared = self.shared.lock().unwrap();
         let gpu_uniforms = GpuUniforms {
             time: shared.uniforms.time,
             delta_time: shared.uniforms.delta_time,
             frame: shared.uniforms.frame,
-            _pad0: 0,
+            pbr_active: 0,
             resolution: shared.uniforms.resolution,
             mouse: shared.uniforms.mouse,
             model: shared.uniforms.model,
@@ -1021,6 +1142,9 @@ impl PassNode<World> for ShaderPass {
             render_pass.set_pipeline(pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_bind_group(1, bind_group, &[]);
+            if let Some(ibl_bg) = &self.ibl_bind_group {
+                render_pass.set_bind_group(2, ibl_bg, &[]);
+            }
 
             match pass_state.render_mode {
                 RenderMode::Fullscreen => {
@@ -1122,6 +1246,9 @@ impl PassNode<World> for ShaderPass {
             render_pass.set_pipeline(pipeline);
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.set_bind_group(1, bind_group, &[]);
+            if let Some(ibl_bg) = &self.ibl_bind_group {
+                render_pass.set_bind_group(2, ibl_bg, &[]);
+            }
 
             match image_pass_state.render_mode {
                 RenderMode::Fullscreen => {
@@ -1212,6 +1339,65 @@ fn sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
         count: None,
     }
+}
+
+fn cubemap_texture_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            view_dimension: wgpu::TextureViewDimension::Cube,
+            multisampled: false,
+        },
+        count: None,
+    }
+}
+
+fn create_placeholder_cubemap(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("Shader Studio Placeholder Cubemap"),
+        size: wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 6,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+
+    let pixel: [u8; 4] = [0, 0, 0, 255];
+    for face in 0..6u32 {
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: face,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &pixel,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
+            },
+            wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    texture
 }
 
 fn create_placeholder_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {

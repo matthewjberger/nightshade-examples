@@ -9,13 +9,16 @@ use nightshade::prelude::*;
 
 use crate::CityDemo;
 use crate::building::BuildingSpec;
+use crate::city::CHUNK_SIZE;
 use crate::interiors;
 use crate::player_systems;
 
 const VIEW_MODEL: &[u8] = include_bytes!("../../../assets/models/view_model.glb");
 
-const GROUND_COLLIDER_HALF_EXTENT: f32 = 2000.0;
 const GROUND_COLLIDER_THICKNESS: f32 = 0.1;
+const COLLIDER_RADIUS: i32 = 5;
+const COLLIDER_UNLOAD_RADIUS: i32 = COLLIDER_RADIUS + 2;
+const MAX_COLLIDER_CHUNKS_PER_FRAME: usize = 2;
 
 pub fn enter_first_person(demo: &mut CityDemo, world: &mut World) {
     let camera_pos = demo
@@ -44,25 +47,20 @@ pub fn enter_first_person(demo: &mut CityDemo, world: &mut World) {
     spawn_player_hands(demo, world);
 
     let flashlight_entity = player_systems::spawn_flashlight(world);
+    world.update_parent(flashlight_entity, Some(Parent(Some(player_camera))));
+    if let Some(transform) = world.get_local_transform_mut(flashlight_entity) {
+        transform.translation = Vec3::new(0.0, 0.0, 0.0);
+    }
+    world.mark_local_transform_dirty(flashlight_entity);
     demo.flashlight_entity = Some(flashlight_entity);
 
     spawn_ground_collider(demo, world);
 
-    let layout_data: Vec<((i32, i32), Vec<BuildingSpec>)> = demo
-        .chunk_streamer
-        .as_ref()
-        .map(|streamer| {
-            streamer
-                .layouts()
-                .iter()
-                .map(|(coords, layout)| (*coords, layout.buildings.clone()))
-                .collect()
-        })
-        .unwrap_or_default();
-
-    for (coords, buildings) in &layout_data {
-        generate_chunk_colliders(demo, world, *coords, buildings);
-    }
+    let player_chunk = (
+        (spawn_position.x / CHUNK_SIZE).floor() as i32,
+        (spawn_position.z / CHUNK_SIZE).floor() as i32,
+    );
+    stream_colliders_around(demo, world, player_chunk);
 
     demo.first_person_mode = true;
 }
@@ -86,8 +84,13 @@ pub fn exit_first_person(demo: &mut CityDemo, world: &mut World) {
         world.queue_command(WorldCommand::DespawnRecursive { entity });
     }
 
-    for entity in demo.collision_entities.drain(..) {
+    if let Some(entity) = demo.ground_collider_entity.take() {
         world.queue_command(WorldCommand::DespawnRecursive { entity });
+    }
+    for entities in demo.chunk_collision_entities.values() {
+        for &entity in entities {
+            world.queue_command(WorldCommand::DespawnRecursive { entity });
+        }
     }
     demo.chunk_collision_entities.clear();
 
@@ -166,19 +169,83 @@ fn spawn_player_hands(demo: &mut CityDemo, world: &mut World) {
 }
 
 fn spawn_ground_collider(demo: &mut CityDemo, world: &mut World) {
+    let half_extent = demo.city_half as f32 * CHUNK_SIZE + 100.0;
     let entity = spawn_static_cuboid(
         world,
         Vec3::new(0.0, -GROUND_COLLIDER_THICKNESS, 0.0),
-        GROUND_COLLIDER_HALF_EXTENT,
+        half_extent,
         GROUND_COLLIDER_THICKNESS,
-        GROUND_COLLIDER_HALF_EXTENT,
+        half_extent,
     );
 
     if let Some(collider) = world.get_collider_mut(entity) {
         collider.friction = 0.7;
     }
 
-    demo.collision_entities.push(entity);
+    demo.ground_collider_entity = Some(entity);
+}
+
+pub fn update_collider_streaming(demo: &mut CityDemo, world: &mut World) {
+    let camera_pos = demo.active_camera_position(world);
+    let player_chunk = (
+        (camera_pos.x / CHUNK_SIZE).floor() as i32,
+        (camera_pos.z / CHUNK_SIZE).floor() as i32,
+    );
+
+    let chunks_to_remove: Vec<(i32, i32)> = demo
+        .chunk_collision_entities
+        .keys()
+        .copied()
+        .filter(|coords| {
+            let dx = (coords.0 - player_chunk.0).abs();
+            let dz = (coords.1 - player_chunk.1).abs();
+            dx.max(dz) > COLLIDER_UNLOAD_RADIUS
+        })
+        .collect();
+
+    for coords in chunks_to_remove {
+        if let Some(entities) = demo.chunk_collision_entities.remove(&coords) {
+            for &entity in &entities {
+                world.queue_command(WorldCommand::DespawnRecursive { entity });
+            }
+        }
+    }
+
+    stream_colliders_around(demo, world, player_chunk);
+}
+
+fn stream_colliders_around(demo: &mut CityDemo, world: &mut World, center: (i32, i32)) {
+    let layout_data: Vec<((i32, i32), Vec<BuildingSpec>)> = demo
+        .chunk_streamer
+        .as_ref()
+        .map(|streamer| {
+            let mut result = Vec::new();
+            for x in (center.0 - COLLIDER_RADIUS)..=(center.0 + COLLIDER_RADIUS) {
+                for z in (center.1 - COLLIDER_RADIUS)..=(center.1 + COLLIDER_RADIUS) {
+                    let coords = (x, z);
+                    if demo.chunk_collision_entities.contains_key(&coords) {
+                        continue;
+                    }
+                    if let Some(layout) = streamer.layouts().get(&coords) {
+                        let dx = coords.0 - center.0;
+                        let dz = coords.1 - center.1;
+                        let distance_sq = dx * dx + dz * dz;
+                        result.push((distance_sq, coords, layout.buildings.clone()));
+                    }
+                }
+            }
+            result.sort_by_key(|(distance_sq, _, _)| *distance_sq);
+            result
+                .into_iter()
+                .take(MAX_COLLIDER_CHUNKS_PER_FRAME)
+                .map(|(_, coords, buildings)| (coords, buildings))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    for (coords, buildings) in &layout_data {
+        generate_chunk_colliders(demo, world, *coords, buildings);
+    }
 }
 
 pub fn generate_chunk_colliders(
@@ -195,13 +262,9 @@ pub fn generate_chunk_colliders(
     for spec in buildings {
         if interiors::building_has_interior(spec) {
             let entities = spawn_interior_building_colliders(world, spec);
-            for entity in entities {
-                chunk_colliders.push(entity);
-                demo.collision_entities.push(entity);
-            }
+            chunk_colliders.extend(entities);
         } else if let Some(entity) = spawn_building_box_collider(world, spec) {
             chunk_colliders.push(entity);
-            demo.collision_entities.push(entity);
         }
     }
     if !chunk_colliders.is_empty() {

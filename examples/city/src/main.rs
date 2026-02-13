@@ -63,6 +63,7 @@ struct CityDemo {
     observer: Option<observer::ObserverCamera>,
     observer_enabled: bool,
     sun_shadows: bool,
+    post_processing: bool,
     leaf_system: atmosphere::LeafSystem,
     district_hud: Option<districts::DistrictHud>,
     billboard_textures: billboard::BillboardTextures,
@@ -77,7 +78,7 @@ struct CityDemo {
     lean_state: player_systems::LeanState,
     show_collision: bool,
     player_progress: player_data::PlayerProgress,
-    collision_entities: Vec<Entity>,
+    ground_collider_entity: Option<Entity>,
     chunk_collision_entities: HashMap<(i32, i32), Vec<Entity>>,
     input_mode: player_systems::InputMode,
 }
@@ -120,6 +121,7 @@ impl Default for CityDemo {
             observer: None,
             observer_enabled: false,
             sun_shadows: true,
+            post_processing: true,
             leaf_system: atmosphere::LeafSystem::new(),
             district_hud: None,
             billboard_textures: billboard::BillboardTextures::new(),
@@ -134,7 +136,7 @@ impl Default for CityDemo {
             lean_state: player_systems::LeanState::new(),
             show_collision: false,
             player_progress: player_data::PlayerProgress::default(),
-            collision_entities: Vec::new(),
+            ground_collider_entity: None,
             chunk_collision_entities: HashMap::new(),
             input_mode: player_systems::InputMode::default(),
         }
@@ -229,7 +231,11 @@ impl State for CityDemo {
     fn initialize(&mut self, world: &mut World) {
         world.resources.graphics.atmosphere = Atmosphere::DayNight;
         world.resources.graphics.day_night_hour = self.current_hour;
-        capture_ibl_snapshots(world, Atmosphere::DayNight, vec![0.0, 8.0, 12.0, 18.0]);
+        capture_ibl_snapshots(
+            world,
+            Atmosphere::DayNight,
+            vec![0.0, 6.0, 8.0, 12.0, 17.0, 18.5, 20.0],
+        );
         world.resources.graphics.show_grid = false;
         world.resources.user_interface.enabled = true;
         world.resources.graphics.fog = Some(Fog {
@@ -284,9 +290,10 @@ impl State for CityDemo {
 
         if self.auto_time {
             self.current_hour += self.time_speed * delta_time;
-            if self.current_hour >= 24.0 {
-                self.current_hour -= 24.0;
-            }
+        }
+
+        if self.current_hour >= 24.0 {
+            self.current_hour -= 24.0;
         }
 
         world.resources.graphics.day_night_hour = self.current_hour;
@@ -294,11 +301,20 @@ impl State for CityDemo {
         self.update_environment_for_hour(world);
         atmosphere::update_window_emissive(world, self.current_hour);
 
-        world.resources.graphics.depth_of_field = self.depth_of_field;
-        world.resources.graphics.ssgi_enabled = self.ssgi_enabled;
-        world.resources.graphics.ssgi_intensity = self.ssgi_intensity;
-        world.resources.graphics.ssgi_radius = self.ssgi_radius;
-        world.resources.graphics.ssgi_max_steps = self.ssgi_max_steps;
+        if self.post_processing {
+            world.resources.graphics.bloom_enabled = true;
+            world.resources.graphics.ssao_enabled = true;
+            world.resources.graphics.depth_of_field = self.depth_of_field;
+            world.resources.graphics.ssgi_enabled = self.ssgi_enabled;
+            world.resources.graphics.ssgi_intensity = self.ssgi_intensity;
+            world.resources.graphics.ssgi_radius = self.ssgi_radius;
+            world.resources.graphics.ssgi_max_steps = self.ssgi_max_steps;
+        } else {
+            world.resources.graphics.bloom_enabled = false;
+            world.resources.graphics.ssao_enabled = false;
+            world.resources.graphics.depth_of_field.enabled = false;
+            world.resources.graphics.ssgi_enabled = false;
+        }
 
         if self.generate_requested {
             self.generate_requested = false;
@@ -375,7 +391,7 @@ impl State for CityDemo {
                     ui.label(format!("Chunks: {}", streamer.loaded_chunk_count()));
                     ui.label(format!("Entities: {}", streamer.entity_count()));
                 } else {
-                    ui.label("Generating layouts...");
+                    ui.label("Initializing...");
                 }
             }
 
@@ -388,6 +404,7 @@ impl State for CityDemo {
             ui.colored_label(fps_color, format!("FPS: {:.0}", fps));
 
             ui.checkbox(&mut self.sun_shadows, "Sun Shadows");
+            ui.checkbox(&mut self.post_processing, "Post Processing");
 
             ui.separator();
 
@@ -403,6 +420,8 @@ impl State for CityDemo {
             if self.first_person_mode {
                 ui.checkbox(&mut self.show_collision, "Show Collision");
             }
+
+            ui.checkbox(&mut world.resources.graphics.show_bounding_volumes, "Bounding Volumes");
 
             ui.separator();
             ui.label("Time of Day");
@@ -489,8 +508,9 @@ impl State for CityDemo {
             ui.separator();
 
             let total_size = self.pending_city_half * 2;
-            ui.label(format!("Map Size: {total_size}\u{00d7}{total_size} chunks"));
-            ui.add(egui::Slider::new(&mut self.pending_city_half, 4..=32));
+            let world_extent = total_size as f32 * city::CHUNK_SIZE;
+            ui.label(format!("Map: {total_size}\u{00d7}{total_size} chunks ({world_extent}\u{00d7}{world_extent}m)"));
+            ui.add(egui::Slider::new(&mut self.pending_city_half, 4..=256));
             if ui.button("Generate City").clicked() {
                 self.generate_requested = true;
             }
@@ -563,6 +583,8 @@ fn run_first_person_systems(demo: &mut CityDemo, world: &mut World) {
     player_systems::lean_system(demo, world);
     player_systems::crouch_camera_system(demo, world);
     player_systems::update_flashlight(demo, world);
+
+    first_person::update_collider_streaming(demo, world);
 
     if demo.show_collision {
         world.resources.physics.debug_draw = true;
@@ -723,12 +745,18 @@ impl CityDemo {
             3.5 * elevation.sqrt()
         };
 
+        let warm = Vec3::new(1.0, 0.7, 0.4);
+        let white = Vec3::new(1.0, 0.95, 0.8);
         let sun_color = if is_night {
             Vec3::new(0.0, 0.0, 0.0)
-        } else if !(7.5..=16.5).contains(&self.current_hour) {
-            Vec3::new(1.0, 0.7, 0.4)
+        } else if self.current_hour < 7.5 {
+            let t = ((self.current_hour - 6.0) / 1.5).clamp(0.0, 1.0);
+            nalgebra_glm::lerp(&warm, &white, t)
+        } else if self.current_hour > 16.5 {
+            let t = ((18.0 - self.current_hour) / 1.5).clamp(0.0, 1.0);
+            nalgebra_glm::lerp(&warm, &white, t)
         } else {
-            Vec3::new(1.0, 0.95, 0.8)
+            white
         };
 
         if let Some(light) = world.get_light_mut(sun) {
@@ -779,12 +807,55 @@ impl CityDemo {
         let _ = ambient_intensity;
         world.resources.graphics.ambient_light = ambient_color;
 
-        let (fog_color, fog_density_mult) = if is_night {
-            ([0.02, 0.02, 0.05], 0.5)
-        } else if !(7.5..=16.5).contains(&hour) {
-            ([0.65, 0.45, 0.35], 1.0)
+        let night_fog = [0.02_f32, 0.02, 0.05];
+        let dawn_fog = [0.65_f32, 0.45, 0.35];
+        let day_fog = [0.7_f32, 0.75, 0.8];
+        let (fog_color, fog_density_mult) = if !(5.5..19.5).contains(&hour) {
+            (night_fog, 0.5)
+        } else if hour < 7.5 {
+            let t = ((hour - 5.5) / 2.0).clamp(0.0, 1.0);
+            (
+                [
+                    night_fog[0] + (dawn_fog[0] - night_fog[0]) * t,
+                    night_fog[1] + (dawn_fog[1] - night_fog[1]) * t,
+                    night_fog[2] + (dawn_fog[2] - night_fog[2]) * t,
+                ],
+                0.5 + 0.5 * t,
+            )
+        } else if hour < 8.5 {
+            let t = ((hour - 7.5) / 1.0).clamp(0.0, 1.0);
+            (
+                [
+                    dawn_fog[0] + (day_fog[0] - dawn_fog[0]) * t,
+                    dawn_fog[1] + (day_fog[1] - dawn_fog[1]) * t,
+                    dawn_fog[2] + (day_fog[2] - dawn_fog[2]) * t,
+                ],
+                1.0 + 0.2 * t,
+            )
+        } else if hour < 16.0 {
+            (day_fog, 1.2)
+        } else if hour < 17.0 {
+            let t = ((hour - 16.0) / 1.0).clamp(0.0, 1.0);
+            (
+                [
+                    day_fog[0] + (dawn_fog[0] - day_fog[0]) * t,
+                    day_fog[1] + (dawn_fog[1] - day_fog[1]) * t,
+                    day_fog[2] + (dawn_fog[2] - day_fog[2]) * t,
+                ],
+                1.2 - 0.2 * t,
+            )
+        } else if hour < 19.5 {
+            let t = ((hour - 17.0) / 2.5).clamp(0.0, 1.0);
+            (
+                [
+                    dawn_fog[0] + (night_fog[0] - dawn_fog[0]) * t,
+                    dawn_fog[1] + (night_fog[1] - dawn_fog[1]) * t,
+                    dawn_fog[2] + (night_fog[2] - dawn_fog[2]) * t,
+                ],
+                1.0 - 0.5 * t,
+            )
         } else {
-            ([0.7, 0.75, 0.8], 1.2)
+            (night_fog, 0.5)
         };
 
         let camera_y = self.active_camera_position(world).y;

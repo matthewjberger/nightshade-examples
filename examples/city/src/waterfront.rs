@@ -77,12 +77,12 @@ pub fn describe_bridge(
     let angle = dz.atan2(dx);
     let rotation = nalgebra_glm::quat_angle_axis(angle, &Vec3::y());
 
-    data.mesh_rotated(
+    data.instance(
         "Cube",
         Vec3::new(bridge_center_x, DOCK_Y, bridge_center_z),
         Vec3::new(bridge_length, 0.3, 3.0),
         "BridgeConcrete",
-        rotation,
+        Some(rotation),
     );
 
     let railing_offset = 1.3;
@@ -91,7 +91,7 @@ pub fn describe_bridge(
         let offset_x = -dz / bridge_length * railing_offset * side;
         let offset_z = dx / bridge_length * railing_offset * side;
 
-        data.mesh_rotated(
+        data.instance(
             "Cube",
             Vec3::new(
                 bridge_center_x + offset_x,
@@ -100,7 +100,7 @@ pub fn describe_bridge(
             ),
             Vec3::new(bridge_length, railing_height, 0.1),
             "BridgeMetal",
-            rotation,
+            Some(rotation),
         );
     }
 }
@@ -278,18 +278,20 @@ fn describe_dock_details(
                 let warehouse_width = rng.random_range(3.0..5.0);
                 let warehouse_depth = rng.random_range(4.0..6.0);
                 let warehouse_height = rng.random_range(3.0..5.0);
-                data.mesh_shadow(
+                data.instance(
                     "Cube",
                     Vec3::new(x, top_y + warehouse_height / 2.0, z),
                     Vec3::new(warehouse_width, warehouse_height, warehouse_depth),
                     "DockConcrete",
+                    None,
                 );
 
-                data.mesh(
+                data.instance(
                     "Cube",
                     Vec3::new(x, top_y + warehouse_height + 0.1, z),
                     Vec3::new(warehouse_width + 0.4, 0.2, warehouse_depth + 0.4),
                     "RooftopMetal",
+                    None,
                 );
             }
         }
@@ -333,14 +335,15 @@ fn describe_dock_cranes(
             (platform_pos.x, along_pos)
         };
 
-        data.mesh(
+        data.instance(
             "Cube",
             Vec3::new(crane_x, top_y + 1.0, crane_z),
             Vec3::new(2.5, 2.0, 2.5),
             "CraneMetal",
+            None,
         );
 
-        data.mesh(
+        data.instance(
             "Cylinder",
             Vec3::new(crane_x, top_y + tower_height / 2.0, crane_z),
             Vec3::new(
@@ -349,6 +352,7 @@ fn describe_dock_cranes(
                 DOCK_CRANE_TOWER_RADIUS * 2.0,
             ),
             "CraneMetal",
+            None,
         );
 
         let arm_offset_x = if is_x_along {
@@ -362,7 +366,7 @@ fn describe_dock_cranes(
             0.0
         };
 
-        data.mesh(
+        data.instance(
             "Cube",
             Vec3::new(
                 crane_x + arm_offset_x,
@@ -383,27 +387,30 @@ fn describe_dock_cranes(
                 },
             ),
             "CraneMetal",
+            None,
         );
 
         let cable_x = crane_x + arm_offset_x * 1.5;
         let cable_z = crane_z + arm_offset_z * 1.5;
         let cable_height = 8.0;
 
-        data.mesh(
+        data.instance(
             "Cylinder",
             Vec3::new(cable_x, top_y + tower_height - cable_height / 2.0, cable_z),
             Vec3::new(0.06, cable_height, 0.06),
             "DockMetal",
+            None,
         );
 
         let counterweight_x = crane_x - arm_offset_x * 0.5;
         let counterweight_z = crane_z - arm_offset_z * 0.5;
 
-        data.mesh(
+        data.instance(
             "Cube",
             Vec3::new(counterweight_x, top_y + tower_height, counterweight_z),
             Vec3::new(1.5, 1.5, 1.5),
             "CraneMetal",
+            None,
         );
     }
 }

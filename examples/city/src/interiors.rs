@@ -21,10 +21,22 @@ pub fn door_face_for_building(spec: &BuildingSpec) -> u32 {
 pub fn building_has_interior(spec: &BuildingSpec) -> bool {
     matches!(
         spec.building_type,
-        BuildingType::Warehouse | BuildingType::House | BuildingType::LowRiseOffice
-    ) && spec.height < 8.0
-        && spec.width >= 4.0
-        && spec.depth >= 4.0
+        BuildingType::Warehouse
+            | BuildingType::House
+            | BuildingType::LowRiseOffice
+            | BuildingType::ApartmentBlock
+    ) && spec.height < 12.0
+        && spec.width >= 3.5
+        && spec.depth >= 3.5
+}
+
+pub fn building_is_enterable(spec: &BuildingSpec) -> bool {
+    matches!(
+        spec.building_type,
+        BuildingType::Warehouse | BuildingType::House | BuildingType::ApartmentBlock
+    ) && spec.height < 12.0
+        && spec.width >= 5.0
+        && spec.depth >= 5.0
 }
 
 pub fn describe_interior_shell(data: &mut ChunkData, spec: &BuildingSpec) {
@@ -35,18 +47,20 @@ pub fn describe_interior_shell(data: &mut ChunkData, spec: &BuildingSpec) {
     let interior_width = spec.width - WALL_THICKNESS * 2.0;
     let interior_depth = spec.depth - WALL_THICKNESS * 2.0;
 
-    data.mesh(
+    data.instance(
         "Cube",
         Vec3::new(spec.x, INTERIOR_FLOOR_Y / 2.0, spec.z),
         Vec3::new(interior_width, INTERIOR_FLOOR_Y, interior_depth),
         "ConcreteLight",
+        None,
     );
 
-    data.mesh(
+    data.instance(
         "Cube",
         Vec3::new(spec.x, wall_height - CEILING_THICKNESS / 2.0, spec.z),
         Vec3::new(spec.width, CEILING_THICKNESS, spec.depth),
         "ConcreteMedium",
+        None,
     );
 
     let door_face = door_face_for_building(spec);
@@ -124,42 +138,6 @@ pub fn describe_exterior_door(data: &mut ChunkData, spec: &BuildingSpec) {
     let half_depth = spec.depth / 2.0;
     let door_face = door_face_for_building(spec);
 
-    let door_y = DOOR_HEIGHT / 2.0;
-
-    let (door_x, door_z, door_sx, door_sz) = match door_face {
-        0 => (
-            spec.x,
-            spec.z + half_depth + DOOR_SURFACE_OFFSET,
-            DOOR_WIDTH,
-            DOOR_SURFACE_OFFSET,
-        ),
-        1 => (
-            spec.x,
-            spec.z - half_depth - DOOR_SURFACE_OFFSET,
-            DOOR_WIDTH,
-            DOOR_SURFACE_OFFSET,
-        ),
-        2 => (
-            spec.x + half_width + DOOR_SURFACE_OFFSET,
-            spec.z,
-            DOOR_SURFACE_OFFSET,
-            DOOR_WIDTH,
-        ),
-        _ => (
-            spec.x - half_width - DOOR_SURFACE_OFFSET,
-            spec.z,
-            DOOR_SURFACE_OFFSET,
-            DOOR_WIDTH,
-        ),
-    };
-
-    data.mesh(
-        "Cube",
-        Vec3::new(door_x, door_y, door_z),
-        Vec3::new(door_sx, DOOR_HEIGHT, door_sz),
-        "DockWood",
-    );
-
     let window_height = DOOR_HEIGHT - 0.3;
     let window_width = 0.6;
     let window_y = window_height / 2.0;
@@ -230,11 +208,12 @@ fn describe_wall_with_optional_door(
         } else {
             (WALL_THICKNESS, wall_length)
         };
-        data.mesh_shadow(
+        data.instance(
             "Cube",
             center,
             Vec3::new(sx, wall_height, sz),
             "ConcreteMedium",
+            None,
         );
         return;
     }
@@ -246,52 +225,58 @@ fn describe_wall_with_optional_door(
 
     if is_z_facing {
         let left_center_x = center.x - half_length + left_section_length / 2.0;
-        data.mesh_shadow(
+        data.instance(
             "Cube",
             Vec3::new(left_center_x, center.y, center.z),
             Vec3::new(left_section_length, wall_height, WALL_THICKNESS),
             "ConcreteMedium",
+            None,
         );
 
         let right_center_x = center.x + half_length - right_section_length / 2.0;
-        data.mesh_shadow(
+        data.instance(
             "Cube",
             Vec3::new(right_center_x, center.y, center.z),
             Vec3::new(right_section_length, wall_height, WALL_THICKNESS),
             "ConcreteMedium",
+            None,
         );
 
         if above_door_height > 0.1 {
-            data.mesh_shadow(
+            data.instance(
                 "Cube",
                 Vec3::new(center.x, DOOR_HEIGHT + above_door_height / 2.0, center.z),
                 Vec3::new(DOOR_WIDTH, above_door_height, WALL_THICKNESS),
                 "ConcreteMedium",
+                None,
             );
         }
     } else {
         let left_center_z = center.z - half_length + left_section_length / 2.0;
-        data.mesh_shadow(
+        data.instance(
             "Cube",
             Vec3::new(center.x, center.y, left_center_z),
             Vec3::new(WALL_THICKNESS, wall_height, left_section_length),
             "ConcreteMedium",
+            None,
         );
 
         let right_center_z = center.z + half_length - right_section_length / 2.0;
-        data.mesh_shadow(
+        data.instance(
             "Cube",
             Vec3::new(center.x, center.y, right_center_z),
             Vec3::new(WALL_THICKNESS, wall_height, right_section_length),
             "ConcreteMedium",
+            None,
         );
 
         if above_door_height > 0.1 {
-            data.mesh_shadow(
+            data.instance(
                 "Cube",
                 Vec3::new(center.x, DOOR_HEIGHT + above_door_height / 2.0, center.z),
                 Vec3::new(WALL_THICKNESS, above_door_height, DOOR_WIDTH),
                 "ConcreteMedium",
+                None,
             );
         }
     }
@@ -309,11 +294,12 @@ fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 let offset_z = -interior_half_d
                     + (shelf_index as f32 + 0.5) * (interior_half_d * 2.0 / shelf_count as f32);
                 let shelf_height = rng.random_range(1.5..2.5);
-                data.mesh(
+                data.instance(
                     "Cube",
                     Vec3::new(spec.x + offset_x, shelf_height / 2.0, spec.z + offset_z),
                     Vec3::new(rng.random_range(1.5..3.0), shelf_height, 0.4),
                     "DockWood",
+                    None,
                 );
             }
 
@@ -322,26 +308,28 @@ fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 let crate_size = rng.random_range(0.4..0.8);
                 let offset_x = rng.random_range(-interior_half_w * 0.6..interior_half_w * 0.6);
                 let offset_z = rng.random_range(-interior_half_d * 0.6..interior_half_d * 0.6);
-                data.mesh(
+                data.instance(
                     "Cube",
                     Vec3::new(spec.x + offset_x, crate_size / 2.0, spec.z + offset_z),
                     Vec3::new(crate_size, crate_size, crate_size),
                     "DockWood",
+                    None,
                 );
             }
         }
         BuildingType::House => {
             let table_width = rng.random_range(1.0..1.5);
             let table_depth = rng.random_range(0.6..1.0);
-            data.mesh(
+            data.instance(
                 "Cube",
                 Vec3::new(spec.x, 0.4, spec.z),
                 Vec3::new(table_width, 0.8, table_depth),
                 "DockWood",
+                None,
             );
 
             let chair_offset_x = rng.random_range(-0.8..0.8);
-            data.mesh(
+            data.instance(
                 "Cube",
                 Vec3::new(
                     spec.x + chair_offset_x,
@@ -350,9 +338,10 @@ fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 ),
                 Vec3::new(0.4, 0.5, 0.4),
                 "DockWood",
+                None,
             );
 
-            data.mesh(
+            data.instance(
                 "Cube",
                 Vec3::new(
                     spec.x + interior_half_w * 0.7,
@@ -361,6 +350,7 @@ fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 ),
                 Vec3::new(1.2, 1.0, 0.4),
                 "ConcreteMedium",
+                None,
             );
         }
         BuildingType::LowRiseOffice => {
@@ -368,22 +358,24 @@ fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
             for desk_index in 0..desk_count {
                 let spacing = interior_half_w * 2.0 / (desk_count as f32 + 1.0);
                 let offset_x = -interior_half_w + spacing * (desk_index as f32 + 1.0);
-                data.mesh(
+                data.instance(
                     "Cube",
                     Vec3::new(spec.x + offset_x, 0.38, spec.z),
                     Vec3::new(1.2, 0.75, 0.6),
                     "ConcreteMedium",
+                    None,
                 );
 
-                data.mesh(
+                data.instance(
                     "Cube",
                     Vec3::new(spec.x + offset_x, 0.25, spec.z + 0.5),
                     Vec3::new(0.4, 0.5, 0.4),
                     "DockWood",
+                    None,
                 );
             }
 
-            data.mesh(
+            data.instance(
                 "Cube",
                 Vec3::new(
                     spec.x - interior_half_w * 0.8,
@@ -392,6 +384,62 @@ fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 ),
                 Vec3::new(0.3, 2.0, 1.5),
                 "ConcreteMedium",
+                None,
+            );
+        }
+        BuildingType::ApartmentBlock => {
+            let sofa_width = rng.random_range(1.2..2.0);
+            data.instance(
+                "Cube",
+                Vec3::new(
+                    spec.x - interior_half_w * 0.6,
+                    0.25,
+                    spec.z - interior_half_d * 0.7,
+                ),
+                Vec3::new(sofa_width, 0.5, 0.6),
+                "ConcreteMedium",
+                None,
+            );
+            data.instance(
+                "Cube",
+                Vec3::new(
+                    spec.x - interior_half_w * 0.6,
+                    0.45,
+                    spec.z - interior_half_d * 0.7 - 0.25,
+                ),
+                Vec3::new(sofa_width, 0.4, 0.1),
+                "ConcreteMedium",
+                None,
+            );
+
+            let table_width = rng.random_range(0.8..1.2);
+            data.instance(
+                "Cube",
+                Vec3::new(spec.x + interior_half_w * 0.3, 0.35, spec.z),
+                Vec3::new(table_width, 0.7, table_width * 0.8),
+                "DockWood",
+                None,
+            );
+
+            data.instance(
+                "Cube",
+                Vec3::new(
+                    spec.x + interior_half_w * 0.6,
+                    0.75,
+                    spec.z + interior_half_d * 0.7,
+                ),
+                Vec3::new(0.8, 1.5, 0.4),
+                "ConcreteMedium",
+                None,
+            );
+
+            let rug_size = rng.random_range(1.0..1.8);
+            data.instance(
+                "Cube",
+                Vec3::new(spec.x, 0.02, spec.z),
+                Vec3::new(rug_size, 0.02, rug_size * 0.7),
+                "DockWood",
+                None,
             );
         }
         _ => {}

@@ -40,6 +40,8 @@ impl State for LevelDemo {
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = true;
         world.resources.graphics.atmosphere = Atmosphere::Space;
+        world.resources.graphics.bloom_enabled = true;
+        world.resources.graphics.bloom_intensity = 0.01;
 
         spawn_sun_without_shadows(world);
 

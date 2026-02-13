@@ -56,6 +56,8 @@ struct ShaderStudio {
     previous_atmosphere: Atmosphere,
     sdf_editor: sdf_editor::SdfEditor,
     preset_filter: String,
+    category_filter: Option<String>,
+    preset_slider_count: usize,
 }
 
 impl Default for ShaderStudio {
@@ -69,6 +71,7 @@ impl Default for ShaderStudio {
                 height: 256,
                 data: generate_builtin_texture_gradient(256, 256),
                 slot: 0,
+                srgb: true,
             });
             locked.texture_slot_names[0] = Some("gradient noise (built-in)".to_string());
             locked.pending_texture_data.push(PendingTexture {
@@ -76,6 +79,7 @@ impl Default for ShaderStudio {
                 height: 256,
                 data: generate_builtin_texture_dots(256, 256),
                 slot: 1,
+                srgb: true,
             });
             locked.texture_slot_names[1] = Some("dot grid (built-in)".to_string());
             locked.pending_texture_data.push(PendingTexture {
@@ -83,6 +87,7 @@ impl Default for ShaderStudio {
                 height: 256,
                 data: generate_builtin_texture_checkerboard(256, 256),
                 slot: 2,
+                srgb: true,
             });
             locked.texture_slot_names[2] = Some("checkerboard (built-in)".to_string());
         }
@@ -122,6 +127,8 @@ impl Default for ShaderStudio {
             previous_atmosphere: Atmosphere::Sky,
             sdf_editor: sdf_editor::SdfEditor::default(),
             preset_filter: String::new(),
+            category_filter: None,
+            preset_slider_count: 4,
         }
     }
 }
@@ -162,6 +169,11 @@ impl State for ShaderStudio {
             && let Projection::Perspective(ref mut perspective) = camera.projection
         {
             perspective.y_fov_rad = 60.0_f32.to_radians();
+        }
+
+        const GLTF_DATA: &[u8] = include_bytes!("../../../assets/gltf/DamagedHelmet.glb");
+        if let Ok(result) = import_gltf_from_bytes(GLTF_DATA) {
+            self.load_gltf_model("DamagedHelmet.glb", result, world);
         }
     }
 
@@ -287,19 +299,19 @@ impl State for ShaderStudio {
             }
         }
 
-        if self.shuffle && !shared.paused {
+        let should_shuffle = self.shuffle && !shared.paused;
+        drop(shared);
+
+        if should_shuffle {
             self.shuffle_timer += delta;
             if self.shuffle_timer >= 4.0 {
                 self.shuffle_timer = 0.0;
                 let next_preset = (self.selected_preset + 1) % presets::PRESETS.len();
-                let preset = &presets::PRESETS[next_preset];
-                shared.pass_sources[0] = preset.source.to_string();
-                shared.pass_needs_recompile[0] = true;
-                self.selected_preset = next_preset;
-                self.source_dirty = [false; 5];
-                self.compile_timers = [0.0; 5];
+                self.apply_preset(next_preset);
             }
         }
+
+        let mut shared = self.shared.lock().unwrap();
 
         if self.common_dirty && self.auto_compile {
             self.common_compile_timer += delta;
@@ -349,8 +361,14 @@ impl State for ShaderStudio {
                         Ok(mode) => {
                             shared.pass_compilation_errors[pass_index] = None;
                             shared.pass_pending_validated[pass_index] = Some((full_source, mode));
+                            if !common.is_empty() {
+                                shared.common_error = None;
+                            }
                         }
                         Err(error) => {
+                            if !common.is_empty() {
+                                shared.common_error = Some(error.clone());
+                            }
                             shared.pass_compilation_errors[pass_index] = Some(error);
                         }
                     }
@@ -490,6 +508,7 @@ impl ShaderStudio {
                 height,
                 data: rgba.into_raw(),
                 slot,
+                srgb: true,
             });
         }
     }
@@ -497,70 +516,79 @@ impl ShaderStudio {
     fn load_gltf_model(&mut self, name: &str, result: GltfLoadResult, world: &mut World) {
         let mut shared = self.shared.lock().unwrap();
 
-        let mut loaded_texture_slots: Vec<usize> = Vec::new();
-        let mut texture_count = 0;
-        for (texture_name, (texture_data, texture_width, texture_height)) in &result.textures {
-            let slot = shared
-                .texture_slot_names
-                .iter()
-                .position(|slot_name| slot_name.is_none())
-                .unwrap_or(0);
+        let material = result.materials.first();
 
-            shared.texture_slot_names[slot] = Some(format!("{name} texture {texture_count}"));
-            shared.pending_texture_data.push(PendingTexture {
-                width: *texture_width,
-                height: *texture_height,
-                data: texture_data.clone(),
-                slot,
-            });
+        struct TextureBinding {
+            texture_name: Option<String>,
+            slot: usize,
+            label: String,
+            srgb: bool,
+        }
 
-            world.queue_command(WorldCommand::LoadTexture {
-                name: texture_name.clone(),
-                rgba_data: texture_data.clone(),
-                width: *texture_width,
-                height: *texture_height,
-            });
+        let bindings = [
+            TextureBinding {
+                texture_name: material.and_then(|mat| mat.base_texture.clone()),
+                slot: 0,
+                label: format!("{name} base_color"),
+                srgb: true,
+            },
+            TextureBinding {
+                texture_name: material.and_then(|mat| mat.normal_texture.clone()),
+                slot: 1,
+                label: format!("{name} normal"),
+                srgb: false,
+            },
+            TextureBinding {
+                texture_name: material.and_then(|mat| mat.metallic_roughness_texture.clone()),
+                slot: 2,
+                label: format!("{name} metallic_roughness"),
+                srgb: false,
+            },
+            TextureBinding {
+                texture_name: material.and_then(|mat| mat.emissive_texture.clone()),
+                slot: 3,
+                label: format!("{name} emissive"),
+                srgb: true,
+            },
+        ];
 
-            loaded_texture_slots.push(slot);
-            texture_count += 1;
-            if texture_count >= 4 {
-                break;
+        for binding in &bindings {
+            if let Some(ref tex_name) = binding.texture_name
+                && let Some((tex_data, tex_width, tex_height)) = result.textures.get(tex_name)
+            {
+                shared.texture_slot_names[binding.slot] = Some(binding.label.clone());
+                shared.pending_texture_data.push(PendingTexture {
+                    width: *tex_width,
+                    height: *tex_height,
+                    data: tex_data.clone(),
+                    slot: binding.slot,
+                    srgb: binding.srgb,
+                });
+            } else {
+                let (placeholder_data, placeholder_label) = match binding.slot {
+                    1 => (vec![128, 128, 255, 255], format!("{name} flat normal")),
+                    2 => (vec![255, 255, 255, 255], format!("{name} default mr")),
+                    3 => (vec![0, 0, 0, 255], format!("{name} no emissive")),
+                    _ => (vec![255, 255, 255, 255], format!("{name} white")),
+                };
+                shared.texture_slot_names[binding.slot] = Some(placeholder_label);
+                shared.pending_texture_data.push(PendingTexture {
+                    width: 1,
+                    height: 1,
+                    data: placeholder_data,
+                    slot: binding.slot,
+                    srgb: binding.srgb,
+                });
             }
         }
 
-        if let Some(material) = result.materials.first() {
-            self.custom_sliders[0] = material.base_color[0];
-            self.custom_sliders[1] = material.base_color[1];
-            self.custom_sliders[2] = material.base_color[2];
-            self.custom_sliders[3] = material.base_color[3];
-            self.custom_sliders[4] = material.roughness;
-            self.custom_sliders[5] = material.metallic;
-            self.slider_labels[0] = "Color R".to_string();
-            self.slider_labels[1] = "Color G".to_string();
-            self.slider_labels[2] = "Color B".to_string();
-            self.slider_labels[3] = "Color A".to_string();
-            self.slider_labels[4] = "Roughness".to_string();
-            self.slider_labels[5] = "Metallic".to_string();
-        }
-
-        let slot_to_channel = |slot: usize| -> ChannelSource {
-            match slot {
-                0 => ChannelSource::Texture0,
-                1 => ChannelSource::Texture1,
-                2 => ChannelSource::Texture2,
-                3 => ChannelSource::Texture3,
-                _ => ChannelSource::None,
-            }
-        };
-
-        for (channel_index, &texture_slot) in loaded_texture_slots.iter().enumerate() {
-            if channel_index < 4 {
-                shared.channel_bindings[0][channel_index] = slot_to_channel(texture_slot);
-            }
-        }
-        if !loaded_texture_slots.is_empty() {
-            shared.channels_dirty = true;
-        }
+        shared.channel_bindings[0] = [
+            ChannelSource::Texture0,
+            ChannelSource::Texture1,
+            ChannelSource::Texture2,
+            ChannelSource::Texture3,
+        ];
+        shared.channels_dirty = true;
 
         let mut combined_vertices: Vec<ShaderVertex> = Vec::new();
         let mut combined_indices: Vec<u32> = Vec::new();
@@ -618,6 +646,10 @@ impl ShaderStudio {
         shared.custom_mesh_name = Some(display_name);
         shared.primitive_type = PrimitiveType::Custom;
         shared.upload_custom_mesh = true;
+
+        drop(shared);
+
+        world.resources.graphics.atmosphere = Atmosphere::Hdr;
     }
 
     fn save_shader_to_file(&mut self, source: &str) {
@@ -643,11 +675,13 @@ impl ShaderStudio {
                 ui.heading("Shader Studio");
                 ui.separator();
 
+                let current_preset = &presets::PRESETS[self.selected_preset];
                 ui.label(
-                    egui::RichText::new(presets::PRESETS[self.selected_preset].name)
+                    egui::RichText::new(current_preset.name)
                         .strong()
                         .color(egui::Color32::from_rgb(0xCE, 0x91, 0x78)),
-                );
+                )
+                .on_hover_text(current_preset.description);
 
                 let mut shared = self.shared.lock().unwrap();
                 let mode_label = match shared.render_mode {
@@ -1063,7 +1097,11 @@ impl ShaderStudio {
                 drop(shared);
 
                 ui.add_space(4.0);
-                let visible_count = if self.show_all_sliders { 16 } else { 4 };
+                let visible_count = if self.show_all_sliders {
+                    16
+                } else {
+                    self.preset_slider_count
+                };
                 for index in 0..visible_count {
                     let (range_min, range_max) = self.slider_ranges[index];
                     ui.horizontal(|ui| {
@@ -1104,14 +1142,37 @@ impl ShaderStudio {
                         });
                     });
                 }
-                let toggle_label = if self.show_all_sliders {
-                    "Show fewer"
-                } else {
-                    "Show all 16 sliders"
-                };
-                if ui.small_button(toggle_label).clicked() {
-                    self.show_all_sliders = !self.show_all_sliders;
-                }
+                ui.horizontal(|ui| {
+                    let toggle_label = if self.show_all_sliders {
+                        "Show fewer"
+                    } else {
+                        "Show all 16 sliders"
+                    };
+                    if ui.small_button(toggle_label).clicked() {
+                        self.show_all_sliders = !self.show_all_sliders;
+                    }
+                    if ui.small_button("Reset to defaults").clicked() {
+                        let preset = &presets::PRESETS[self.selected_preset];
+                        self.custom_sliders = [
+                            0.7, 0.3, 0.2, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                            0.0, 0.0,
+                        ];
+                        self.slider_ranges = [(0.0, 1.0); 16];
+                        for slider_index in 0..16 {
+                            self.slider_labels[slider_index] = format!("Custom {slider_index}");
+                        }
+                        for &(slider_index, label) in preset.slider_labels {
+                            if slider_index < 16 {
+                                self.slider_labels[slider_index] = label.to_string();
+                            }
+                        }
+                        for &(slider_index, value) in preset.slider_defaults {
+                            if slider_index < 16 {
+                                self.custom_sliders[slider_index] = value;
+                            }
+                        }
+                    }
+                });
             });
     }
 
@@ -1283,6 +1344,50 @@ impl ShaderStudio {
         egui::CollapsingHeader::new(egui::RichText::new("Presets").strong())
             .default_open(true)
             .show(ui, |ui| {
+                let all_categories: Vec<&str> = {
+                    let mut cats = Vec::new();
+                    for preset in presets::PRESETS.iter() {
+                        if !cats.contains(&preset.category) {
+                            cats.push(preset.category);
+                        }
+                    }
+                    cats
+                };
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.spacing_mut().button_padding = egui::vec2(6.0, 2.0);
+
+                    let all_selected = self.category_filter.is_none();
+                    let all_button =
+                        ui.selectable_label(all_selected, egui::RichText::new("All").small());
+                    if all_button.clicked() {
+                        self.category_filter = None;
+                    }
+
+                    for category in &all_categories {
+                        let is_active = self
+                            .category_filter
+                            .as_deref()
+                            .is_some_and(|filter| filter == *category);
+                        let count = presets::PRESETS
+                            .iter()
+                            .filter(|preset| preset.category == *category)
+                            .count();
+                        let label = format!("{category} ({count})");
+                        let button =
+                            ui.selectable_label(is_active, egui::RichText::new(label).small());
+                        if button.clicked() {
+                            if is_active {
+                                self.category_filter = None;
+                            } else {
+                                self.category_filter = Some(category.to_string());
+                            }
+                        }
+                    }
+                });
+
+                ui.add_space(2.0);
                 ui.add(
                     egui::TextEdit::singleline(&mut self.preset_filter)
                         .hint_text("Search...")
@@ -1291,12 +1396,18 @@ impl ShaderStudio {
 
                 egui::ScrollArea::vertical()
                     .id_salt("preset_tree_scroll")
-                    .max_height(240.0)
+                    .max_height(300.0)
                     .show(ui, |ui| {
                         let mut categories: Vec<(&str, Vec<(usize, &presets::ShaderPreset)>)> =
                             Vec::new();
 
                         for (index, preset) in presets::PRESETS.iter().enumerate() {
+                            if let Some(ref cat_filter) = self.category_filter
+                                && preset.category != cat_filter.as_str()
+                            {
+                                continue;
+                            }
+
                             if filter_active
                                 && !preset.name.to_lowercase().contains(&filter_lower)
                                 && !preset.description.to_lowercase().contains(&filter_lower)
@@ -1315,7 +1426,8 @@ impl ShaderStudio {
                         }
 
                         for (category, category_presets) in &categories {
-                            let should_open = if filter_active {
+                            let single_category = self.category_filter.is_some();
+                            let should_open = if filter_active || single_category {
                                 true
                             } else {
                                 *category == selected_category
@@ -1325,7 +1437,11 @@ impl ShaderStudio {
                                     .color(egui::Color32::from_rgb(0x9C, 0xDC, 0xFE)),
                             )
                             .default_open(should_open)
-                            .open(if filter_active { Some(true) } else { None })
+                            .open(if filter_active || single_category {
+                                Some(true)
+                            } else {
+                                None
+                            })
                             .show(ui, |ui| {
                                 for &(index, preset) in category_presets {
                                     let is_selected = index == self.selected_preset;
@@ -1412,11 +1528,17 @@ impl ShaderStudio {
         for slider_index in 0..16 {
             self.slider_labels[slider_index] = format!("Custom {slider_index}");
         }
+        let mut max_labeled = 0;
         for &(slider_index, label) in preset.slider_labels {
             if slider_index < 16 {
                 self.slider_labels[slider_index] = label.to_string();
+                if slider_index + 1 > max_labeled {
+                    max_labeled = slider_index + 1;
+                }
             }
         }
+        self.preset_slider_count = max_labeled;
+        self.show_all_sliders = false;
 
         shared.active_tab = 0;
         shared.time_offset = 0.0;
@@ -1435,6 +1557,41 @@ impl ShaderStudio {
             if slider_index < 16 {
                 self.custom_sliders[slider_index] = value;
             }
+        }
+
+        if shared.custom_mesh_name.is_none() {
+            shared.texture_slot_names = [
+                Some("gradient noise (built-in)".to_string()),
+                Some("dot grid (built-in)".to_string()),
+                Some("checkerboard (built-in)".to_string()),
+                None,
+            ];
+            shared.pending_texture_data.push(PendingTexture {
+                width: 256,
+                height: 256,
+                data: generate_builtin_texture_gradient(256, 256),
+                slot: 0,
+                srgb: true,
+            });
+            shared.pending_texture_data.push(PendingTexture {
+                width: 256,
+                height: 256,
+                data: generate_builtin_texture_dots(256, 256),
+                slot: 1,
+                srgb: true,
+            });
+            shared.pending_texture_data.push(PendingTexture {
+                width: 256,
+                height: 256,
+                data: generate_builtin_texture_checkerboard(256, 256),
+                slot: 2,
+                srgb: true,
+            });
+        }
+
+        shared.common_error = None;
+        for index in 0..5 {
+            shared.pass_compilation_errors[index] = None;
         }
 
         if preset.name == "SDF Editor" {

@@ -108,11 +108,12 @@ pub fn describe_building_detail(data: &mut ChunkData, spec: &BuildingSpec, rng: 
 }
 
 fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
-    data.mesh(
+    data.instance(
         "Cube",
         Vec3::new(spec.x, 0.05, spec.z),
         Vec3::new(spec.width, 0.1, spec.depth),
         "ParkGreen",
+        None,
     );
 
     let tree_count = rng.random_range(2u32..5);
@@ -122,25 +123,27 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
         let trunk_height = rng.random_range(2.0..4.0);
         let is_conifer = rng.random_range(0.0f32..1.0) < 0.5;
 
-        data.mesh(
+        data.instance(
             "Cylinder",
             Vec3::new(tree_x, trunk_height / 2.0, tree_z),
             Vec3::new(0.3, trunk_height, 0.3),
             "TreeTrunk",
+            None,
         );
 
         if is_conifer {
             let cone_height = rng.random_range(2.5..4.0);
             let cone_radius = rng.random_range(0.8..1.2);
-            data.mesh(
+            data.instance(
                 "Cone",
                 Vec3::new(tree_x, trunk_height + cone_height / 2.0, tree_z),
                 Vec3::new(cone_radius * 2.0, cone_height, cone_radius * 2.0),
                 "ParkDarkGreen",
+                None,
             );
         } else {
             let foliage_radius = rng.random_range(1.0..2.0);
-            data.mesh(
+            data.instance(
                 "Sphere",
                 Vec3::new(tree_x, trunk_height + foliage_radius * 0.5, tree_z),
                 Vec3::new(
@@ -149,6 +152,7 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
                     foliage_radius * 2.0,
                 ),
                 "ParkDarkGreen",
+                None,
             );
         }
     }
@@ -175,11 +179,12 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
             ),
         };
 
-        data.mesh(
+        data.instance(
             "Cube",
             Vec3::new(bench_x, 0.25, bench_z),
             Vec3::new(1.5, 0.5, 0.5),
             "DockWood",
+            None,
         );
     }
 
@@ -193,11 +198,12 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
             "FlowerYellow"
         };
 
-        data.mesh(
+        data.instance(
             "Cube",
             Vec3::new(flower_x, 0.08, flower_z),
             Vec3::new(rng.random_range(1.0..2.0), 0.15, rng.random_range(1.0..2.0)),
             flower_material,
+            None,
         );
     }
 
@@ -205,19 +211,21 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
 }
 
 fn describe_house_body(data: &mut ChunkData, spec: &BuildingSpec) {
-    data.mesh_shadow(
+    data.instance(
         "Cube",
         Vec3::new(spec.x, spec.height / 2.0, spec.z),
         Vec3::new(spec.width, spec.height, spec.depth),
         spec.body_material,
+        None,
     );
 
     let roof_height = spec.height * 0.4;
-    data.mesh(
+    data.instance(
         "Cone",
         Vec3::new(spec.x, spec.height + roof_height / 2.0, spec.z),
         Vec3::new(spec.width * 1.1, roof_height, spec.depth * 1.1),
         spec.roof_material,
+        None,
     );
 }
 
@@ -262,11 +270,12 @@ fn describe_skyscraper_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut
     let sections = skyscraper_sections(spec);
 
     for &(y_base, section_height, width, depth) in &sections {
-        data.mesh_shadow(
+        data.instance(
             "Cube",
             Vec3::new(spec.x, y_base + section_height / 2.0, spec.z),
             Vec3::new(width, section_height, depth),
             spec.body_material,
+            None,
         );
     }
 
@@ -291,7 +300,7 @@ fn describe_skyscraper_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut
     match top_choice {
         0 => {
             let sphere_radius = top_width.min(top_depth) * 0.4;
-            data.mesh(
+            data.instance(
                 "Sphere",
                 Vec3::new(spec.x, spec.height + sphere_radius * 0.5, spec.z),
                 Vec3::new(
@@ -300,27 +309,30 @@ fn describe_skyscraper_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut
                     sphere_radius * 2.0,
                 ),
                 spec.body_material,
+                None,
             );
         }
         1 => {
             let cyl_height = rng.random_range(2.0..5.0);
             let cyl_radius = top_width.min(top_depth) * 0.25;
-            data.mesh(
+            data.instance(
                 "Cylinder",
                 Vec3::new(spec.x, spec.height + cyl_height / 2.0, spec.z),
                 Vec3::new(cyl_radius * 2.0, cyl_height, cyl_radius * 2.0),
                 spec.body_material,
+                None,
             );
         }
         _ => {}
     }
 
     let antenna_height = rng.random_range(3.0..8.0);
-    data.mesh(
+    data.instance(
         "Cylinder",
         Vec3::new(spec.x, spec.height + antenna_height / 2.0, spec.z),
         Vec3::new(0.15, antenna_height, 0.15),
         "Antenna",
+        None,
     );
 
     describe_rooftop_detail(data, spec, rng);
@@ -339,11 +351,12 @@ fn describe_skyscraper_detail(data: &mut ChunkData, spec: &BuildingSpec, rng: &m
 }
 
 fn describe_generic_building_body(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
-    data.mesh_shadow(
+    data.instance(
         "Cube",
         Vec3::new(spec.x, spec.height / 2.0, spec.z),
         Vec3::new(spec.width, spec.height, spec.depth),
         spec.body_material,
+        None,
     );
 
     if !matches!(spec.building_type, BuildingType::Warehouse) {
@@ -642,6 +655,9 @@ fn describe_shopfront(data: &mut ChunkData, spec: &BuildingSpec) {
     }
 }
 
+const BALCONY_DOOR_HEIGHT: f32 = 2.2;
+const BALCONY_DOOR_WIDTH: f32 = 1.4;
+
 fn describe_balconies(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
     let total_floors = (spec.height / FLOOR_HEIGHT).floor() as i32;
     let half_width = spec.width / 2.0;
@@ -661,7 +677,9 @@ fn describe_balconies(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
             let balcony_x = base_x + normal_x * BALCONY_DEPTH / 2.0;
             let balcony_z = base_z + normal_z * BALCONY_DEPTH / 2.0;
 
-            let (sx, sz) = if normal_x.abs() > 0.5 {
+            let is_x_facing = normal_x.abs() > 0.5;
+
+            let (sx, sz) = if is_x_facing {
                 (BALCONY_DEPTH, BALCONY_WIDTH)
             } else {
                 (BALCONY_WIDTH, BALCONY_DEPTH)
@@ -678,7 +696,7 @@ fn describe_balconies(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
             let railing_x = base_x + normal_x * BALCONY_DEPTH;
             let railing_z = base_z + normal_z * BALCONY_DEPTH;
 
-            let (rsx, rsz) = if normal_x.abs() > 0.5 {
+            let (rsx, rsz) = if is_x_facing {
                 (RAILING_THICKNESS, BALCONY_WIDTH)
             } else {
                 (BALCONY_WIDTH, RAILING_THICKNESS)
@@ -691,6 +709,71 @@ fn describe_balconies(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 "DockMetal",
                 None,
             );
+
+            let half_balcony_width = BALCONY_WIDTH / 2.0;
+            if is_x_facing {
+                data.instance(
+                    "Cube",
+                    Vec3::new(
+                        balcony_x,
+                        balcony_y + RAILING_HEIGHT / 2.0,
+                        balcony_z - half_balcony_width,
+                    ),
+                    Vec3::new(BALCONY_DEPTH, RAILING_HEIGHT, RAILING_THICKNESS),
+                    "WindowLit",
+                    None,
+                );
+                data.instance(
+                    "Cube",
+                    Vec3::new(
+                        balcony_x,
+                        balcony_y + RAILING_HEIGHT / 2.0,
+                        balcony_z + half_balcony_width,
+                    ),
+                    Vec3::new(BALCONY_DEPTH, RAILING_HEIGHT, RAILING_THICKNESS),
+                    "WindowLit",
+                    None,
+                );
+
+                data.instance(
+                    "Cube",
+                    Vec3::new(base_x, balcony_y + BALCONY_DOOR_HEIGHT / 2.0, balcony_z),
+                    Vec3::new(RAILING_THICKNESS, BALCONY_DOOR_HEIGHT, BALCONY_DOOR_WIDTH),
+                    "WindowLit",
+                    None,
+                );
+            } else {
+                data.instance(
+                    "Cube",
+                    Vec3::new(
+                        balcony_x - half_balcony_width,
+                        balcony_y + RAILING_HEIGHT / 2.0,
+                        balcony_z,
+                    ),
+                    Vec3::new(RAILING_THICKNESS, RAILING_HEIGHT, BALCONY_DEPTH),
+                    "WindowLit",
+                    None,
+                );
+                data.instance(
+                    "Cube",
+                    Vec3::new(
+                        balcony_x + half_balcony_width,
+                        balcony_y + RAILING_HEIGHT / 2.0,
+                        balcony_z,
+                    ),
+                    Vec3::new(RAILING_THICKNESS, RAILING_HEIGHT, BALCONY_DEPTH),
+                    "WindowLit",
+                    None,
+                );
+
+                data.instance(
+                    "Cube",
+                    Vec3::new(balcony_x, balcony_y + BALCONY_DOOR_HEIGHT / 2.0, base_z),
+                    Vec3::new(BALCONY_DOOR_WIDTH, BALCONY_DOOR_HEIGHT, RAILING_THICKNESS),
+                    "WindowLit",
+                    None,
+                );
+            }
         }
     }
 }
@@ -735,11 +818,12 @@ fn describe_billboard(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
 
     let material = BILLBOARD_MATERIALS[rng.random_range(0..BILLBOARD_MATERIALS.len())];
 
-    data.mesh(
+    data.instance(
         "Cube",
         Vec3::new(x, sign_y, z),
         Vec3::new(sx, billboard_height, sz),
         material,
+        None,
     );
 }
 
@@ -751,30 +835,33 @@ fn describe_rooftop_detail(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut 
     match detail_type {
         0 => {
             let ac_size = rng.random_range(0.5..1.2);
-            data.mesh(
+            data.instance(
                 "Cube",
                 Vec3::new(detail_x, spec.height + ac_size / 2.0, detail_z),
                 Vec3::new(ac_size * 1.5, ac_size, ac_size),
                 "RooftopMetal",
+                None,
             );
         }
         1 => {
             let tank_height = rng.random_range(1.5..3.0);
             let tank_radius = rng.random_range(0.4..0.8);
-            data.mesh(
+            data.instance(
                 "Cylinder",
                 Vec3::new(detail_x, spec.height + tank_height / 2.0, detail_z),
                 Vec3::new(tank_radius * 2.0, tank_height, tank_radius * 2.0),
                 "RooftopGrey",
+                None,
             );
         }
         _ => {
             let antenna_height = rng.random_range(2.0..5.0);
-            data.mesh(
+            data.instance(
                 "Cylinder",
                 Vec3::new(detail_x, spec.height + antenna_height / 2.0, detail_z),
                 Vec3::new(0.1, antenna_height, 0.1),
                 "Antenna",
+                None,
             );
         }
     }
@@ -815,11 +902,11 @@ fn describe_screen_billboard(data: &mut ChunkData, spec: &BuildingSpec, rng: &mu
     let material_index = rng.random_range(0..crate::billboard::SCREEN_MATERIALS.len());
     let material = crate::billboard::SCREEN_MATERIALS[material_index];
 
-    data.mesh_rotated(
+    data.instance(
         "Plane",
         Vec3::new(x, sign_y, z),
         Vec3::new(screen_half_width, 1.0, screen_half_height),
         material,
-        rotation,
+        Some(rotation),
     );
 }

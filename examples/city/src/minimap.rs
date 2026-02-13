@@ -132,7 +132,7 @@ pub fn draw(
                             }
                             painter.rect_filled(rect, 0.5, color);
 
-                            if interiors::building_has_interior(building) {
+                            if interiors::building_is_enterable(building) {
                                 painter.rect_stroke(
                                     rect.expand(1.0),
                                     0.5,

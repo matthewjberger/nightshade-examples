@@ -67,58 +67,6 @@ pub struct ChunkData {
 const NEON_TUBE_RADIUS: f32 = 0.04;
 
 impl ChunkData {
-    pub fn mesh(
-        &mut self,
-        mesh: &'static str,
-        position: Vec3,
-        scale: Vec3,
-        material: &'static str,
-    ) {
-        self.meshes.push(MeshDescriptor {
-            mesh,
-            position,
-            scale,
-            material,
-            casts_shadow: false,
-            rotation: None,
-        });
-    }
-
-    pub fn mesh_shadow(
-        &mut self,
-        mesh: &'static str,
-        position: Vec3,
-        scale: Vec3,
-        material: &'static str,
-    ) {
-        self.meshes.push(MeshDescriptor {
-            mesh,
-            position,
-            scale,
-            material,
-            casts_shadow: true,
-            rotation: None,
-        });
-    }
-
-    pub fn mesh_rotated(
-        &mut self,
-        mesh: &'static str,
-        position: Vec3,
-        scale: Vec3,
-        material: &'static str,
-        rotation: nalgebra_glm::Quat,
-    ) {
-        self.meshes.push(MeshDescriptor {
-            mesh,
-            position,
-            scale,
-            material,
-            casts_shadow: false,
-            rotation: Some(rotation),
-        });
-    }
-
     pub fn instance(
         &mut self,
         mesh: &'static str,

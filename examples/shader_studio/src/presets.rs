@@ -23,7 +23,7 @@ struct Uniforms {
     time: f32,
     delta_time: f32,
     frame: u32,
-    _pad0: u32,
+    pbr_active: u32,
     resolution: vec2<f32>,
     mouse: vec2<f32>,
     model: mat4x4<f32>,
@@ -99,6 +99,153 @@ fn vertex_main(input: VertexInput) -> VertexOutput {
     out.world_normal = normalize((uniforms.model * vec4<f32>(input.normal, 0.0)).xyz);
     out.uv = input.uv;
     return out;
+}
+"
+    };
+}
+
+macro_rules! pbr_preamble {
+    () => {
+        r"
+const PBR_PI: f32 = 3.14159265358979323846;
+
+fn pbr_srgb_to_linear(srgb: vec4<f32>) -> vec4<f32> {
+    return vec4<f32>(pow(srgb.xyz, vec3<f32>(2.2)), srgb.w);
+}
+
+fn pbr_distribution_ggx(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32 {
+    let a = roughness * roughness;
+    let a2 = a * a;
+    let NdotH = max(dot(N, H), 0.0);
+    let NdotH2 = NdotH * NdotH;
+    let denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    return a2 / (PBR_PI * denom * denom);
+}
+
+fn pbr_geometry_schlick_ggx(NdotV: f32, roughness: f32) -> f32 {
+    let r = roughness + 1.0;
+    let k = (r * r) / 8.0;
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+fn pbr_geometry_smith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32 {
+    let NdotV = max(dot(N, V), 0.0);
+    let NdotL = max(dot(N, L), 0.0);
+    let ggx2 = pbr_geometry_schlick_ggx(NdotV, roughness);
+    let ggx1 = pbr_geometry_schlick_ggx(NdotL, roughness);
+    return ggx1 * ggx2;
+}
+
+fn pbr_fresnel_schlick(cos_theta: f32, F0: vec3<f32>) -> vec3<f32> {
+    return F0 + (1.0 - F0) * pow(max(1.0 - cos_theta, 0.0), 5.0);
+}
+
+fn pbr_fresnel_schlick_roughness(cos_theta: f32, F0: vec3<f32>, roughness: f32) -> vec3<f32> {
+    return F0 + (max(vec3<f32>(1.0 - roughness), F0) - F0) * pow(max(1.0 - cos_theta, 0.0), 5.0);
+}
+
+@group(2) @binding(0) var pbr_brdf_lut: texture_2d<f32>;
+@group(2) @binding(1) var pbr_brdf_lut_sampler: sampler;
+@group(2) @binding(2) var pbr_irradiance_map: texture_cube<f32>;
+@group(2) @binding(3) var pbr_irradiance_sampler: sampler;
+@group(2) @binding(4) var pbr_prefiltered_env: texture_cube<f32>;
+@group(2) @binding(5) var pbr_prefiltered_sampler: sampler;
+
+fn pbr_safe_normalize(v: vec3<f32>) -> vec3<f32> {
+    let len_sq = dot(v, v);
+    if len_sq < 0.0001 {
+        return vec3<f32>(0.0, 1.0, 0.0);
+    }
+    return v / sqrt(len_sq);
+}
+
+fn pbr_get_normal(
+    world_normal: vec3<f32>,
+    world_pos: vec3<f32>,
+    tex_coord: vec2<f32>,
+    normal_sample: vec3<f32>,
+    has_normal_texture: bool,
+    normal_scale: f32
+) -> vec3<f32> {
+    let tangent_normal = normal_sample * 2.0 - 1.0;
+
+    let q1 = dpdx(world_pos);
+    let q2 = dpdy(world_pos);
+    let st1 = dpdx(tex_coord);
+    let st2 = dpdy(tex_coord);
+
+    let N = pbr_safe_normalize(world_normal);
+    let T = pbr_safe_normalize(q1 * st2.y - q2 * st1.y);
+    let B = -pbr_safe_normalize(cross(N, T));
+    let TBN = mat3x3<f32>(T, B, N);
+
+    let mapped_normal = pbr_safe_normalize(TBN * tangent_normal) * vec3<f32>(vec2<f32>(normal_scale), 1.0);
+    return select(N, mapped_normal, has_normal_texture);
+}
+
+fn pbr_shade(in: VertexOutput) -> vec4<f32> {
+    let base_color_sample = pbr_srgb_to_linear(textureSample(texture_0, sampler_0, in.uv));
+    let normal_sample = textureSample(texture_1, sampler_1, in.uv).xyz;
+    let mr_sample = textureSample(texture_2, sampler_2, in.uv);
+    let emissive_sample = pbr_srgb_to_linear(textureSample(texture_3, sampler_3, in.uv));
+
+    let albedo = base_color_sample.rgb;
+    let roughness = clamp(mr_sample.g, 0.04, 1.0);
+    let metallic = clamp(mr_sample.b, 0.0, 1.0);
+    let emission = emissive_sample.rgb;
+
+    let has_normal_tex = any(normal_sample != vec3<f32>(0.0, 0.0, 0.0));
+    let N = pbr_get_normal(
+        in.world_normal,
+        in.world_position,
+        in.uv,
+        normal_sample,
+        has_normal_tex,
+        1.0
+    );
+    let V = normalize(uniforms.camera_position - in.world_position);
+
+    let F0 = mix(vec3<f32>(0.04), albedo, metallic);
+
+    let light_dir = normalize(vec3<f32>(0.6, 1.0, 0.8));
+    let light_color = vec3<f32>(3.0, 2.9, 2.7);
+    let L = light_dir;
+    let H = normalize(V + L);
+
+    let NDF = pbr_distribution_ggx(N, H, roughness);
+    let G = pbr_geometry_smith(N, V, L, roughness);
+    let F = pbr_fresnel_schlick(max(dot(H, V), 0.0), F0);
+
+    let numerator = NDF * G * F;
+    let denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001;
+    let specular = numerator / denominator;
+
+    let kS = F;
+    var kD = vec3<f32>(1.0) - kS;
+    kD = kD * (1.0 - metallic);
+
+    let NdotL = max(dot(N, L), 0.0);
+    let Lo = (kD * albedo / PBR_PI + specular) * light_color * NdotL;
+
+    let NdotV = max(dot(N, V), 0.0);
+    let F_ibl = pbr_fresnel_schlick_roughness(NdotV, F0, roughness);
+    let kS_ibl = F_ibl;
+    var kD_ibl = 1.0 - kS_ibl;
+    kD_ibl = kD_ibl * (1.0 - metallic);
+
+    let irradiance = clamp(textureSampleLevel(pbr_irradiance_map, pbr_irradiance_sampler, N, 0.0).rgb, vec3<f32>(0.0), vec3<f32>(65000.0));
+    let diffuse_ibl = irradiance * albedo;
+
+    let R = reflect(-V, N);
+    let MAX_REFLECTION_LOD = 4.0;
+    let prefiltered_color = clamp(textureSampleLevel(pbr_prefiltered_env, pbr_prefiltered_sampler, R, roughness * MAX_REFLECTION_LOD).rgb, vec3<f32>(0.0), vec3<f32>(65000.0));
+    let brdf = textureSampleLevel(pbr_brdf_lut, pbr_brdf_lut_sampler, vec2<f32>(NdotV, roughness), 0.0).rg;
+    let specular_ibl = prefiltered_color * (F_ibl * brdf.x + brdf.y);
+
+    let ambient = kD_ibl * diffuse_ibl + specular_ibl;
+    let color = ambient + Lo + emission;
+
+    return vec4<f32>(color, base_color_sample.a);
 }
 "
     };
@@ -520,6 +667,19 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 ";
 
+const PBR_CHANNEL_BINDINGS: [[ChannelSource; 4]; 5] = [
+    [
+        ChannelSource::Texture0,
+        ChannelSource::Texture1,
+        ChannelSource::Texture2,
+        ChannelSource::Texture3,
+    ],
+    [ChannelSource::None; 4],
+    [ChannelSource::None; 4],
+    [ChannelSource::None; 4],
+    [ChannelSource::None; 4],
+];
+
 pub const PRESETS: &[ShaderPreset] = &[
     ShaderPreset {
         name: "Plasma",
@@ -819,7 +979,7 @@ pub const PRESETS: &[ShaderPreset] = &[
         buffer_c_source: None,
         buffer_d_source: None,
         common_source: None,
-        channel_bindings: None,
+        channel_bindings: Some(PBR_CHANNEL_BINDINGS),
     },
     ShaderPreset {
         name: "Hologram",
@@ -906,10 +1066,11 @@ pub const PRESETS: &[ShaderPreset] = &[
             (0, "Color R"),
             (1, "Color G"),
             (2, "Color B"),
+            (3, "Color A"),
             (4, "Ring Density"),
             (5, "Speed"),
         ],
-        slider_defaults: &[(0, 0.7), (1, 0.3), (2, 0.2)],
+        slider_defaults: &[(0, 0.7), (1, 0.3), (2, 0.2), (3, 1.0)],
         buffer_a_source: None,
         buffer_b_source: None,
         buffer_c_source: None,
@@ -1119,6 +1280,102 @@ pub const PRESETS: &[ShaderPreset] = &[
             (3, "Speed"),
         ],
         slider_defaults: &[(0, 0.5), (1, 0.4), (2, 0.3), (3, 0.3)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "16: Fresnel & Transparency",
+        description: "Fresnel rim glow with alpha transparency for X-ray and force field effects",
+        source: TUTORIAL_FRESNEL,
+        is_geometry: true,
+        category: "Tutorial",
+        slider_labels: &[
+            (0, "Rim Power"),
+            (1, "Rim R"),
+            (2, "Rim G"),
+            (3, "Rim B"),
+            (4, "Base Opacity"),
+        ],
+        slider_defaults: &[(0, 0.4), (1, 0.2), (2, 0.6), (3, 1.0), (4, 0.1)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "17: Discard & Dissolve",
+        description: "Noise-based dissolve with discard and glowing ember edges",
+        source: TUTORIAL_DISCARD,
+        is_geometry: true,
+        category: "Tutorial",
+        slider_labels: &[(0, "Speed"), (1, "Edge Width"), (2, "Edge Glow")],
+        slider_defaults: &[(0, 0.4), (1, 0.5), (2, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "18: Vertex Data & Custom Output",
+        description: "Pass custom data from vertex to fragment shader via @location(3)",
+        source: TUTORIAL_CUSTOM_DATA,
+        is_geometry: true,
+        category: "Tutorial",
+        slider_labels: &[
+            (0, "Wave Amount"),
+            (1, "Wave Speed"),
+            (2, "Inflate"),
+            (3, "Noise"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.3), (2, 0.0), (3, 0.3)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "19: Scanlines & Hologram",
+        description: "Build a hologram effect combining fresnel, scanlines, glitch, and flicker",
+        source: TUTORIAL_SCANLINES,
+        is_geometry: true,
+        category: "Tutorial",
+        slider_labels: &[
+            (0, "Scanline Freq"),
+            (1, "Jitter"),
+            (2, "Glitch"),
+            (3, "Flicker"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.5), (2, 0.3), (3, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "20: Color Palettes",
+        description: "Hue-to-RGB, cosine palettes, and geometry-driven procedural coloring",
+        source: TUTORIAL_PALETTES,
+        is_geometry: true,
+        category: "Tutorial",
+        slider_labels: &[
+            (0, "Palette"),
+            (1, "Hue Offset"),
+            (2, "Saturation"),
+            (3, "Bands"),
+        ],
+        slider_defaults: &[(0, 0.0), (1, 0.0), (2, 0.5), (3, 0.3)],
         buffer_a_source: None,
         buffer_b_source: None,
         buffer_c_source: None,
@@ -1404,7 +1661,7 @@ pub const PRESETS: &[ShaderPreset] = &[
         buffer_c_source: None,
         buffer_d_source: None,
         common_source: None,
-        channel_bindings: None,
+        channel_bindings: Some(PBR_CHANNEL_BINDINGS),
     },
     ShaderPreset {
         name: "Slice",
@@ -1419,7 +1676,7 @@ pub const PRESETS: &[ShaderPreset] = &[
         buffer_c_source: None,
         buffer_d_source: None,
         common_source: None,
-        channel_bindings: None,
+        channel_bindings: Some(PBR_CHANNEL_BINDINGS),
     },
     ShaderPreset {
         name: "Neon Grid",
@@ -1489,6 +1746,446 @@ pub const PRESETS: &[ShaderPreset] = &[
         category: "Mesh Effects",
         slider_labels: &[(0, "Scale"), (1, "Edge Glow"), (2, "Growth")],
         slider_defaults: &[(0, 0.5), (1, 0.5), (2, 0.4)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Iridescence",
+        description: "Thin-film interference with rainbow color shifting at grazing angles",
+        source: IRIDESCENCE,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Thickness"), (1, "Shift"), (2, "Intensity")],
+        slider_defaults: &[(0, 0.5), (1, 0.0), (2, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Chromatic",
+        description: "Per-channel normal offset creating RGB fringing at edges and highlights",
+        source: CHROMATIC,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Strength"), (1, "Edge Focus"), (2, "Animate")],
+        slider_defaults: &[(0, 0.5), (1, 0.3), (2, 0.3)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Thermal",
+        description: "Infrared heat vision with animated thermal color ramp",
+        source: THERMAL,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Sensitivity"), (1, "Scale"), (2, "Animate")],
+        slider_defaults: &[(0, 0.5), (1, 0.5), (2, 0.3)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Static",
+        description: "Television snow noise flickering across the surface",
+        source: STATIC_NOISE,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Amount"), (1, "Speed"), (2, "Color")],
+        slider_defaults: &[(0, 0.5), (1, 0.3), (2, 0.0)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Circuit",
+        description: "Printed circuit board traces with animated data pulse signals",
+        source: CIRCUIT,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Scale"), (1, "Glow"), (2, "Speed")],
+        slider_defaults: &[(0, 0.4), (1, 0.5), (2, 0.4)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Erosion",
+        description: "Multi-layer weathering revealing rust and inner materials",
+        source: EROSION,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Depth"), (1, "Roughness"), (2, "Speed")],
+        slider_defaults: &[(0, 0.5), (1, 0.4), (2, 0.3)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Phase",
+        description: "Ghostly dimensional phase shift with vertex wobble and transparency",
+        source: PHASE,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[
+            (0, "Displacement"),
+            (1, "Speed"),
+            (2, "Opacity"),
+            (3, "Color Shift"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.3), (2, 0.5), (3, 0.0)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Radar",
+        description: "Rotating radar sweep with grid overlay and signal pings",
+        source: RADAR,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Speed"), (1, "Trail"), (2, "Grid")],
+        slider_defaults: &[(0, 0.4), (1, 0.4), (2, 0.4)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Petrify",
+        description: "Stone transformation spreading across the surface with glowing crack edges",
+        source: PETRIFY,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Speed"), (1, "Crack Width"), (2, "Crack Glow")],
+        slider_defaults: &[(0, 0.4), (1, 0.3), (2, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Caustics",
+        description: "Underwater light caustic patterns dancing across the surface",
+        source: CAUSTICS,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Intensity"), (1, "Scale"), (2, "Speed")],
+        slider_defaults: &[(0, 0.5), (1, 0.4), (2, 0.4)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Matrix Rain",
+        description: "Digital rain of cascading symbols flowing down the surface",
+        source: MATRIX_RAIN,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Density"), (1, "Speed"), (2, "Glow")],
+        slider_defaults: &[(0, 0.4), (1, 0.4), (2, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Frost",
+        description: "Ice crystals spreading from edges with sparkle highlights",
+        source: FROST,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Spread"), (1, "Crystal Scale"), (2, "Sparkle")],
+        slider_defaults: &[(0, 0.4), (1, 0.4), (2, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Subsurface",
+        description: "Fake subsurface scattering with light bleeding through thin areas",
+        source: SUBSURFACE,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[
+            (0, "Thickness"),
+            (1, "Scatter R"),
+            (2, "Scatter G"),
+            (3, "Scatter B"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.9), (2, 0.3), (3, 0.1)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Stained Glass",
+        description: "Voronoi colored glass panels with dark lead borders",
+        source: STAINED_GLASS,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Scale"), (1, "Border"), (2, "Saturation")],
+        slider_defaults: &[(0, 0.4), (1, 0.3), (2, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Edge Glow",
+        description: "Normal-based edge detection with animated neon glow outlines",
+        source: EDGE_GLOW,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Threshold"), (1, "Color"), (2, "Intensity")],
+        slider_defaults: &[(0, 0.3), (1, 0.5), (2, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Camouflage",
+        description: "Procedural multi-scale camo pattern with switchable forest/desert/urban palettes",
+        source: CAMOUFLAGE,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Scale"), (1, "Sharpness"), (2, "Palette")],
+        slider_defaults: &[(0, 0.4), (1, 0.3), (2, 0.0)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Portal",
+        description: "Swirling vortex with vertex twist, funnel pull, and energy spiral",
+        source: PORTAL,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Twist"), (1, "Pull"), (2, "Speed")],
+        slider_defaults: &[(0, 0.5), (1, 0.3), (2, 0.4)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Halftone",
+        description: "Comic book halftone dot pattern with switchable color modes",
+        source: HALFTONE,
+        is_geometry: true,
+        category: "Mesh Effects",
+        slider_labels: &[(0, "Dot Scale"), (1, "Contrast"), (2, "Color Mode")],
+        slider_defaults: &[(0, 0.4), (1, 0.5), (2, 0.0)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Neon Noir",
+        description: "Dark surface with vivid neon edge lighting cycling through hot pink, cyan, and yellow",
+        source: NEON_NOIR,
+        is_geometry: true,
+        category: "Cyberpunk",
+        slider_labels: &[
+            (0, "Rim Power"),
+            (1, "Color Speed"),
+            (2, "Rain"),
+            (3, "Brightness"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.3), (2, 0.4), (3, 0.6)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Braindance",
+        description: "Scanning plane sweeps through mesh with color separation and memory distortion",
+        source: BRAINDANCE,
+        is_geometry: true,
+        category: "Cyberpunk",
+        slider_labels: &[
+            (0, "Scan Speed"),
+            (1, "Separation"),
+            (2, "Distortion"),
+            (3, "Band Width"),
+        ],
+        slider_defaults: &[(0, 0.3), (1, 0.5), (2, 0.4), (3, 0.3)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Chrome Plating",
+        description: "Hyper-reflective metallic surface with colored environment reflections",
+        source: CHROME_PLATING,
+        is_geometry: true,
+        category: "Cyberpunk",
+        slider_labels: &[
+            (0, "Reflectivity"),
+            (1, "Warp"),
+            (2, "Tint"),
+            (3, "Roughness"),
+        ],
+        slider_defaults: &[(0, 0.7), (1, 0.3), (2, 0.5), (3, 0.2)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Data Corruption",
+        description: "Aggressive RGB split with horizontal glitch bands and digital noise overlay",
+        source: DATA_CORRUPTION,
+        is_geometry: true,
+        category: "Cyberpunk",
+        slider_labels: &[
+            (0, "Glitch"),
+            (1, "RGB Split"),
+            (2, "Noise"),
+            (3, "Scan Lines"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.4), (2, 0.3), (3, 0.5)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Mantis Blade",
+        description: "Metallic surface with animated energy pulses flowing along edges and sharp highlights",
+        source: MANTIS_BLADE,
+        is_geometry: true,
+        category: "Cyberpunk",
+        slider_labels: &[
+            (0, "Pulse Speed"),
+            (1, "Edge Width"),
+            (2, "Energy Color"),
+            (3, "Metallic"),
+        ],
+        slider_defaults: &[(0, 0.4), (1, 0.3), (2, 0.0), (3, 0.7)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Net Space",
+        description: "Digital wireframe with data-stream particles dissolving into the void",
+        source: NET_SPACE,
+        is_geometry: true,
+        category: "Cyberpunk",
+        slider_labels: &[
+            (0, "Grid Density"),
+            (1, "Data Flow"),
+            (2, "Dissolve"),
+            (3, "Glow"),
+        ],
+        slider_defaults: &[(0, 0.4), (1, 0.5), (2, 0.3), (3, 0.6)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Kiroshi Scan",
+        description: "Cybernetic eye overlay with targeting reticle, scan lines, and tech HUD readouts",
+        source: KIROSHI_SCAN,
+        is_geometry: true,
+        category: "Cyberpunk",
+        slider_labels: &[
+            (0, "Scan Speed"),
+            (1, "HUD Density"),
+            (2, "Target Lock"),
+            (3, "Interference"),
+        ],
+        slider_defaults: &[(0, 0.4), (1, 0.5), (2, 0.6), (3, 0.2)],
+        buffer_a_source: None,
+        buffer_b_source: None,
+        buffer_c_source: None,
+        buffer_d_source: None,
+        common_source: None,
+        channel_bindings: None,
+    },
+    ShaderPreset {
+        name: "Relic Malfunction",
+        description: "Corrupted biochip visual with color bleeding, ghost images, and violent glitch spikes",
+        source: RELIC_MALFUNCTION,
+        is_geometry: true,
+        category: "Cyberpunk",
+        slider_labels: &[
+            (0, "Corruption"),
+            (1, "Bleed"),
+            (2, "Ghost"),
+            (3, "Spike Rate"),
+        ],
+        slider_defaults: &[(0, 0.5), (1, 0.4), (2, 0.3), (3, 0.4)],
         buffer_a_source: None,
         buffer_b_source: None,
         buffer_c_source: None,
@@ -2447,6 +3144,7 @@ const DISSOLVE: &str = concat!(
     uniform_preamble!(),
     texture_preamble!(),
     geometry_vertex!(),
+    pbr_preamble!(),
     r"
 fn hash_dissolve(p: vec3<f32>) -> f32 {
     var q = fract(p * vec3<f32>(443.897, 441.423, 437.195));
@@ -2491,16 +3189,12 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let edge_width = 0.05;
     let edge_distance = noise_value - dissolve_threshold;
-    let edge_factor = 1.0 - smoothstep(0.0, edge_width, edge_distance);
+    let edge_factor = 1.0 - smoothstep(0.0, edge_width, max(edge_distance, 0.0));
 
-    let normal = normalize(in.world_normal);
-    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
-    let diffuse = max(dot(normal, light_dir), 0.0);
-
-    let base_color = vec3<f32>(0.6, 0.6, 0.7) * (0.2 + diffuse * 0.8);
     let edge_color = vec3<f32>(2.0, 0.5, 0.0);
 
-    let color = mix(base_color, edge_color, edge_factor);
+    let pbr_color = pbr_shade(in);
+    let color = mix(pbr_color.rgb, edge_color, edge_factor);
 
     return vec4<f32>(color, 1.0);
 }
@@ -3527,6 +4221,536 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let fog = exp(-total_dist * 0.06);
     color = mix(vec3<f32>(0.5, 0.7, 0.9) * 0.5, color, fog);
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const TUTORIAL_FRESNEL: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+// TUTORIAL 16: Fresnel & Transparency
+// =====================================
+// The Fresnel effect describes how surfaces reflect more light
+// at glancing (edge-on) angles than at face-on angles.
+//
+// FORMULA: fresnel = pow(1.0 - dot(N, V), exponent)
+//   N = surface normal (pointing outward)
+//   V = view direction (from surface to camera)
+//   dot(N, V) = 1.0 when looking straight at the surface
+//   dot(N, V) = 0.0 when looking at the edge
+//   So (1 - dot) is large at edges, small when face-on.
+//   pow() sharpens the falloff — higher exponent = thinner rim.
+//
+// TRANSPARENCY: Return alpha < 1.0 to make surfaces see-through.
+//   The engine routes alpha < 1.0 through the transparent pipeline.
+//   Combine fresnel with alpha for glowing transparent shells.
+//
+// Slider 0: Rim Power (exponent)   Slider 1-3: Rim Color R/G/B
+// Slider 4: Base Opacity
+//
+// TRY: Set Rim Power high for a thin bright edge,
+//      or low for a broad soft glow. Try on Sphere vs Torus!
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+
+    // STEP 1: Compute the fresnel term
+    // dot(N, V) ranges from 0 (edge) to 1 (face-on)
+    let n_dot_v = max(dot(normal, view_dir), 0.0);
+    let rim_power = 1.0 + uniforms.custom[0].x * 5.0;
+    let fresnel = pow(1.0 - n_dot_v, rim_power);
+
+    // STEP 2: Read slider colors
+    let rim_color = vec3<f32>(
+        uniforms.custom[0].y,
+        uniforms.custom[0].z,
+        uniforms.custom[0].w
+    );
+    let base_opacity = uniforms.custom[1].x;
+
+    // STEP 3: Basic lighting so the mesh is visible
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let base_color = vec3<f32>(0.05, 0.05, 0.08) * (0.3 + 0.7 * diffuse);
+
+    // STEP 4: Animated pulse — makes the rim breathe
+    let pulse = 0.7 + 0.3 * sin(uniforms.time * 2.0 + in.world_position.y * 3.0);
+
+    // STEP 5: Combine — base surface + fresnel rim glow
+    let color = base_color + rim_color * fresnel * pulse * 2.5;
+
+    // STEP 6: Alpha — base opacity plus fresnel brightens edges
+    let alpha = base_opacity + fresnel * 0.8;
+
+    return vec4<f32>(color, clamp(alpha, 0.0, 1.0));
+}
+"
+);
+
+const TUTORIAL_DISCARD: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+// TUTORIAL 17: Discard & Dissolve
+// ================================
+// The 'discard' keyword tells the GPU to throw away this pixel
+// entirely — it won't write to the color buffer or depth buffer.
+// This creates holes in the mesh.
+//
+// TECHNIQUE: Compare a noise value against an animated threshold.
+//   - noise(position) gives each point a random-looking value 0..1
+//   - threshold sweeps from 0 to 1 over time
+//   - If noise < threshold: discard (pixel becomes invisible)
+//   - Pixels just above threshold are at the dissolve 'edge'
+//
+// EDGE GLOW: Measure distance from the edge and color it:
+//   edge_distance = noise_value - threshold
+//   When edge_distance is small, we're right at the dissolve front.
+//   Color these pixels with hot ember/fire colors.
+//
+// Slider 0: Speed    Slider 1: Edge Width    Slider 2: Edge Glow
+//
+// TRY: Set Edge Width high for a broad glowing border,
+//      or zero for a sharp cutoff. Works great on complex meshes!
+
+fn hash17(p: vec3<f32>) -> f32 {
+    var q = fract(p * vec3<f32>(443.897, 441.423, 437.195));
+    q += dot(q, q.yzx + 19.19);
+    return fract((q.x + q.y) * q.z);
+}
+
+fn noise17(p: vec3<f32>) -> f32 {
+    let cell = floor(p);
+    let local = fract(p);
+    let u = local * local * (3.0 - 2.0 * local);
+
+    let n000 = hash17(cell);
+    let n100 = hash17(cell + vec3<f32>(1.0, 0.0, 0.0));
+    let n010 = hash17(cell + vec3<f32>(0.0, 1.0, 0.0));
+    let n110 = hash17(cell + vec3<f32>(1.0, 1.0, 0.0));
+    let n001 = hash17(cell + vec3<f32>(0.0, 0.0, 1.0));
+    let n101 = hash17(cell + vec3<f32>(1.0, 0.0, 1.0));
+    let n011 = hash17(cell + vec3<f32>(0.0, 1.0, 1.0));
+    let n111 = hash17(cell + vec3<f32>(1.0, 1.0, 1.0));
+
+    let x0 = mix(n000, n100, u.x);
+    let x1 = mix(n010, n110, u.x);
+    let x2 = mix(n001, n101, u.x);
+    let x3 = mix(n011, n111, u.x);
+
+    let y0 = mix(x0, x1, u.y);
+    let y1 = mix(x2, x3, u.y);
+
+    return mix(y0, y1, u.z);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let speed = uniforms.custom[0].x * 2.0 + 0.2;
+    let edge_width = uniforms.custom[0].y * 0.15 + 0.01;
+    let edge_intensity = uniforms.custom[0].z * 3.0 + 0.5;
+
+    // STEP 1: Sample 3D noise at the world position
+    let noise_value = noise17(in.world_position * 4.0);
+
+    // STEP 2: Animate the dissolve threshold (cycles 0 -> 1 -> 0)
+    let threshold = sin(uniforms.time * speed) * 0.5 + 0.5;
+
+    // STEP 3: DISCARD — if noise is below threshold, this pixel is gone
+    if noise_value < threshold {
+        discard;
+    }
+
+    // STEP 4: Edge detection — how close is this pixel to the dissolve front?
+    let edge_distance = noise_value - threshold;
+    let edge_factor = 1.0 - smoothstep(0.0, edge_width, edge_distance);
+
+    // STEP 5: Basic lighting for the surviving surface
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let base_color = vec3<f32>(0.6, 0.6, 0.7) * (0.15 + 0.7 * diffuse);
+
+    // STEP 6: Ember/fire edge color gradient (yellow -> orange -> red)
+    let ember = mix(
+        vec3<f32>(1.0, 0.2, 0.0),
+        vec3<f32>(1.0, 0.8, 0.0),
+        edge_factor
+    ) * edge_intensity;
+
+    let color = mix(base_color, ember, edge_factor);
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const TUTORIAL_CUSTOM_DATA: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    r"
+// TUTORIAL 18: Vertex Effects & Custom Data
+// ===========================================
+// So far, vertex and fragment shaders only share the built-in
+// interpolated values: position, normal, UV. But what if the
+// fragment shader needs to know HOW MUCH a vertex was displaced?
+//
+// SOLUTION: Add extra fields to VertexOutput with @location(3+).
+//   The GPU interpolates ALL VertexOutput fields across the triangle,
+//   just like it interpolates position and normal. This lets you
+//   pass any per-vertex computation to the fragment shader.
+//
+// HERE: We displace vertices along their normals using waves + noise.
+//   The displacement amount is passed via @location(3).
+//   The fragment shader uses it to color peaks vs valleys.
+//
+// WHY @location(3)? Locations 0-2 are already used:
+//   0 = world_position, 1 = world_normal, 2 = uv
+//
+// Slider 0: Wave Amount    Slider 1: Wave Speed
+// Slider 2: Inflate        Slider 3: Noise
+//
+// TRY: Increase Wave Amount and watch the coloring change!
+//      The fragment knows exactly how deformed each point is.
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_position: vec3<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) displacement: f32,
+}
+
+fn vert_hash(p: vec3<f32>) -> f32 {
+    var q = fract(p * vec3<f32>(127.1, 311.7, 74.7));
+    q += dot(q, q.yzx + 33.33);
+    return fract((q.x + q.y) * q.z);
+}
+
+fn vert_noise(p: vec3<f32>) -> f32 {
+    let cell = floor(p);
+    let local = fract(p);
+    let u = local * local * (3.0 - 2.0 * local);
+    let a = mix(vert_hash(cell), vert_hash(cell + vec3<f32>(1.0, 0.0, 0.0)), u.x);
+    let b = mix(vert_hash(cell + vec3<f32>(0.0, 1.0, 0.0)), vert_hash(cell + vec3<f32>(1.0, 1.0, 0.0)), u.x);
+    let c = mix(vert_hash(cell + vec3<f32>(0.0, 0.0, 1.0)), vert_hash(cell + vec3<f32>(1.0, 0.0, 1.0)), u.x);
+    let d = mix(vert_hash(cell + vec3<f32>(0.0, 1.0, 1.0)), vert_hash(cell + vec3<f32>(1.0, 1.0, 1.0)), u.x);
+    return mix(mix(a, b, u.y), mix(c, d, u.y), u.z);
+}
+
+@vertex
+fn vertex_main(input: VertexInput) -> VertexOutput {
+    let wave_amount = uniforms.custom[0].x * 0.4;
+    let wave_speed = uniforms.custom[0].y * 6.0 + 1.0;
+    let inflate = uniforms.custom[0].z * 0.3;
+    let noise_strength = uniforms.custom[0].w * 0.3;
+
+    var pos = input.position;
+    let norm = input.normal;
+
+    // Wave displacement: sin waves along the surface
+    let wave = sin(pos.x * 5.0 + uniforms.time * wave_speed)
+             * cos(pos.z * 4.0 + uniforms.time * wave_speed * 0.7);
+    let wave_disp = wave * wave_amount;
+
+    // Noise displacement: organic lumpy deformation
+    let noise_disp = (vert_noise(pos * 3.0 + uniforms.time * 0.5) - 0.5) * noise_strength * 2.0;
+
+    // Total displacement along the normal
+    let total_disp = wave_disp + noise_disp + inflate;
+    pos += norm * total_disp;
+
+    let model_pos = uniforms.model * vec4<f32>(pos, 1.0);
+
+    var output: VertexOutput;
+    output.clip_position = uniforms.projection * uniforms.view * model_pos;
+    output.world_position = model_pos.xyz;
+    output.world_normal = normalize((uniforms.model * vec4<f32>(norm, 0.0)).xyz);
+    output.uv = input.uv;
+    output.displacement = total_disp;
+    return output;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(2.0, 3.0, 1.5));
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let half_dir = normalize(light_dir + view_dir);
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 32.0);
+
+    // USE THE CUSTOM DATA: color based on displacement amount
+    // Negative displacement (valleys) = blue
+    // Zero displacement = green
+    // Positive displacement (peaks) = white/yellow
+    let disp = in.displacement;
+    let valley_color = vec3<f32>(0.1, 0.2, 0.8);
+    let neutral_color = vec3<f32>(0.2, 0.6, 0.3);
+    let peak_color = vec3<f32>(1.0, 0.9, 0.7);
+
+    var base: vec3<f32>;
+    if disp < 0.0 {
+        base = mix(neutral_color, valley_color, clamp(-disp * 5.0, 0.0, 1.0));
+    } else {
+        base = mix(neutral_color, peak_color, clamp(disp * 5.0, 0.0, 1.0));
+    }
+
+    let ambient = 0.12;
+    var color = base * (ambient + diffuse * 0.7);
+    color += vec3<f32>(1.0, 0.95, 0.9) * specular * 0.4;
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 3.0);
+    color += vec3<f32>(0.3, 0.4, 0.6) * fresnel * 0.2;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const TUTORIAL_SCANLINES: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    r"
+// TUTORIAL 19: Scanlines & Hologram Effect
+// ==========================================
+// A hologram effect combines MULTIPLE techniques from earlier:
+//   Tutorial 16: Fresnel for glowing edges + alpha transparency
+//   Tutorial 18: Custom vertex data for position jitter
+//
+// This tutorial shows how to BUILD UP a complex effect step by step:
+//   STEP 1: Vertex jitter — slight positional wobble
+//   STEP 2: Glitch bands — hash-based horizontal displacement
+//   STEP 3: Scanlines — repeating horizontal bands
+//   STEP 4: Fresnel — bright edges for that holographic rim
+//   STEP 5: Flicker — subtle brightness oscillation
+//   STEP 6: Alpha — transparency tied to all the above
+//
+// Each step is isolated so you can comment out sections to see
+// what each one contributes to the final look.
+//
+// Slider 0: Scanline Freq    Slider 1: Jitter
+// Slider 2: Glitch           Slider 3: Flicker
+//
+// TRY: Turn each slider to zero one at a time to isolate effects.
+//      Try Slider 2 (Glitch) at maximum for heavy data corruption!
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_position: vec3<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) glitch_amount: f32,
+}
+
+fn holo_hash19(p: f32) -> f32 {
+    return fract(sin(p * 127.1) * 43758.5453);
+}
+
+@vertex
+fn vertex_main(input: VertexInput) -> VertexOutput {
+    let jitter_strength = uniforms.custom[0].y * 0.05;
+    let glitch_strength = uniforms.custom[0].z * 0.2;
+
+    var pos = input.position;
+
+    // STEP 1: Subtle positional jitter — sine-based wobble
+    let jitter = sin(uniforms.time * 3.0 + pos.y * 10.0) * jitter_strength;
+    pos.x += jitter;
+    pos.z += jitter * 0.7;
+    pos.y += sin(uniforms.time * 0.5) * jitter_strength * 0.6;
+
+    // STEP 2: Glitch bands — hash-based random displacement
+    let time_slot = floor(uniforms.time * 8.0);
+    let glitch_band = floor(pos.y * 15.0);
+    let glitch_seed = holo_hash19(glitch_band + time_slot * 0.37);
+    var glitch_value = 0.0;
+    if glitch_seed > (1.0 - glitch_strength) {
+        let offset = (holo_hash19(time_slot + glitch_band * 13.7) - 0.5) * glitch_strength;
+        pos.x += offset;
+        glitch_value = 1.0;
+    }
+
+    let world_pos = uniforms.model * vec4<f32>(pos, 1.0);
+
+    var output: VertexOutput;
+    output.clip_position = uniforms.projection * uniforms.view * world_pos;
+    output.world_position = world_pos.xyz;
+    output.world_normal = normalize((uniforms.model * vec4<f32>(input.normal, 0.0)).xyz);
+    output.uv = input.uv;
+    output.glitch_amount = glitch_value;
+    return output;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let scanline_freq = 40.0 + uniforms.custom[0].x * 160.0;
+    let flicker_amount = uniforms.custom[0].w;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+
+    // STEP 3: Scanlines — horizontal bands that scroll upward
+    let scanline_raw = sin(in.world_position.y * scanline_freq + uniforms.time * 5.0);
+    let scanline_mask = smoothstep(0.3, 0.7, scanline_raw * 0.5 + 0.5);
+
+    // Fine detail lines for extra texture
+    let fine_lines = sin(in.world_position.y * 300.0) * 0.5 + 0.5;
+    let fine_mask = smoothstep(0.2, 0.8, fine_lines);
+
+    // STEP 4: Fresnel — bright glowing edges
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 2.0);
+
+    // STEP 5: Flicker — rapid brightness oscillation
+    let flicker = 1.0 - flicker_amount * 0.15 + flicker_amount * 0.15 * sin(uniforms.time * 30.0);
+
+    // Glitch highlight from vertex shader
+    let glitch_highlight = in.glitch_amount;
+
+    // Combine all effects
+    let holo_color = vec3<f32>(0.1, 0.6, 1.0);
+    let edge_color = vec3<f32>(0.3, 0.9, 1.0);
+
+    let light_dir = normalize(vec3<f32>(1.0, 1.0, 1.0));
+    let diffuse = max(dot(normal, light_dir), 0.0) * 0.3 + 0.2;
+
+    var color = holo_color * diffuse;
+    color += edge_color * fresnel * 1.5;
+    color *= scanline_mask * 0.6 + 0.4;
+    color *= fine_mask * 0.3 + 0.7;
+    color += vec3<f32>(0.0, glitch_highlight * 0.6, glitch_highlight * 0.3);
+    color *= flicker;
+
+    // STEP 6: Alpha — transparent body with bright edges
+    let alpha = (fresnel * 0.6 + 0.25) * scanline_mask * flicker;
+
+    return vec4<f32>(color, alpha);
+}
+"
+);
+
+const TUTORIAL_PALETTES: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+// TUTORIAL 20: Color Palettes & Mapping
+// =======================================
+// Procedural coloring turns any scalar value (height, curvature,
+// noise, angle) into vibrant colors using mathematical formulas.
+//
+// THREE PALETTE TECHNIQUES:
+//
+// 1. HUE-TO-RGB: Classic HSV-style hue conversion
+//    The formula abs(H*6 - vec3(3,2,4)) - 1 converts a 0..1 hue
+//    value to RGB, giving you the full rainbow spectrum.
+//
+// 2. COSINE PALETTE (IQ's formula):
+//    color = a + b * cos(2*PI * (c*t + d))
+//    Four vec3 parameters (a, b, c, d) control the palette.
+//    By choosing different values you get endless color schemes.
+//    See: iquilezles.org/articles/palettes/
+//
+// 3. GEOMETRIC MAPPING:
+//    Use the surface itself as palette input — normal direction,
+//    height, view angle, etc. The geometry drives the colors.
+//
+// Slider 0: Palette (0=Hue, 0.5=Cosine, 1.0=Geometric)
+// Slider 1: Hue Offset    Slider 2: Saturation    Slider 3: Bands
+//
+// TRY: Sweep Slider 0 slowly to crossfade between palette modes.
+//      Change Bands to control color repetition frequency.
+
+fn hue_to_rgb(hue: f32) -> vec3<f32> {
+    let h = fract(hue) * 6.0;
+    let r = clamp(abs(h - 3.0) - 1.0, 0.0, 1.0);
+    let g = clamp(2.0 - abs(h - 2.0), 0.0, 1.0);
+    let b = clamp(2.0 - abs(h - 4.0), 0.0, 1.0);
+    return vec3<f32>(r, g, b);
+}
+
+fn cosine_palette(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
+    return a + b * cos(6.28318 * (c * t + d));
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let palette_mode = uniforms.custom[0].x;
+    let hue_offset = uniforms.custom[0].y;
+    let saturation = uniforms.custom[0].z * 2.0;
+    let bands = 1.0 + uniforms.custom[0].w * 10.0;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+
+    // Generate a scalar value from geometry to drive the palette
+    let height_value = in.world_position.y * 0.5 + 0.5;
+    let normal_value = dot(normal, vec3<f32>(0.0, 1.0, 0.0)) * 0.5 + 0.5;
+    let combined = fract((height_value + normal_value * 0.3 + hue_offset) * bands);
+
+    // PALETTE 1: Hue-to-RGB (rainbow spectrum)
+    let hue_color = hue_to_rgb(combined);
+
+    // PALETTE 2: IQ Cosine Palette
+    let cos_color = cosine_palette(
+        combined,
+        vec3<f32>(0.5, 0.5, 0.5),
+        vec3<f32>(0.5, 0.5, 0.5),
+        vec3<f32>(1.0, 1.0, 1.0),
+        vec3<f32>(0.0, 0.33, 0.67)
+    );
+
+    // PALETTE 3: Geometric — normals + view angle drive color directly
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 2.0);
+    let geo_r = normal.x * 0.5 + 0.5;
+    let geo_g = normal.y * 0.5 + 0.5;
+    let geo_b = fresnel;
+    let geo_color = vec3<f32>(geo_r, geo_g, geo_b);
+
+    // Blend between palette modes based on Slider 0
+    var palette_color: vec3<f32>;
+    if palette_mode < 0.5 {
+        let blend = palette_mode / 0.5;
+        palette_color = mix(hue_color, cos_color, blend);
+    } else {
+        let blend = (palette_mode - 0.5) / 0.5;
+        palette_color = mix(cos_color, geo_color, blend);
+    }
+
+    // Apply saturation (desaturate toward gray)
+    let luminance = dot(palette_color, vec3<f32>(0.299, 0.587, 0.114));
+    let gray = vec3<f32>(luminance, luminance, luminance);
+    palette_color = mix(gray, palette_color, saturation);
+
+    // Basic lighting
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let ambient = 0.15;
+    var color = palette_color * (ambient + diffuse * 0.85);
+
+    // Subtle specular highlight
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 32.0);
+    color += vec3<f32>(1.0, 1.0, 1.0) * specular * 0.3;
 
     return vec4<f32>(color, 1.0);
 }
@@ -4689,6 +5913,7 @@ const BURN: &str = concat!(
     uniform_preamble!(),
     texture_preamble!(),
     geometry_vertex!(),
+    pbr_preamble!(),
     r"
 fn burn_hash(p: vec3<f32>) -> f32 {
     var q = fract(p * vec3<f32>(443.897, 441.423, 437.195));
@@ -4735,22 +5960,19 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     let edge_dist = height_factor - burn_line;
-    let ember_zone = smoothstep(0.0, edge_width_param, edge_dist);
-    let char_zone = smoothstep(edge_width_param, edge_width_param * 3.0, edge_dist);
-
-    let normal = normalize(in.world_normal);
-    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
-    let diffuse = max(dot(normal, light_dir), 0.0);
+    let ember_zone = smoothstep(0.0, edge_width_param, max(edge_dist, 0.0));
+    let char_zone = smoothstep(edge_width_param, edge_width_param * 3.0, max(edge_dist, 0.0));
 
     let ember_color = vec3<f32>(3.0, 0.8, 0.0);
     let fire_color = vec3<f32>(4.0, 1.5, 0.1);
     let char_color = vec3<f32>(0.05, 0.03, 0.02);
-    let base_color = vec3<f32>(0.6, 0.55, 0.5) * (diffuse * 0.6 + 0.3);
 
     let flicker = 0.8 + 0.2 * sin(uniforms.time * 20.0 + in.world_position.x * 10.0);
+
+    let pbr_color = pbr_shade(in);
     let fire_mix = (1.0 - ember_zone) * flicker;
 
-    var color = base_color;
+    var color = pbr_color.rgb;
     color = mix(color, char_color, (1.0 - char_zone) * char_amount);
     color = mix(color, ember_color * flicker, fire_mix * 0.8);
     color += fire_color * pow(max(1.0 - ember_zone, 0.0), 3.0) * 2.0;
@@ -4764,6 +5986,7 @@ const SLICE: &str = concat!(
     uniform_preamble!(),
     texture_preamble!(),
     geometry_vertex!(),
+    pbr_preamble!(),
     r"
 @fragment
 fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -4785,15 +6008,6 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    let normal = normalize(in.world_normal);
-    let view_dir = normalize(uniforms.camera_position - in.world_position);
-    let light_dir = normalize(vec3<f32>(1.0, 1.5, 0.8));
-    let diffuse = max(dot(normal, light_dir), 0.0);
-    let half_dir = normalize(light_dir + view_dir);
-    let specular = pow(max(dot(normal, half_dir), 0.0), 48.0);
-
-    let base_color = vec3<f32>(0.5, 0.5, 0.55) * (diffuse * 0.6 + 0.25);
-
     let edge_glow_y = exp(-dist_y * dist_y / (gap_width * gap_width * 4.0));
     let edge_glow_x = exp(-dist_x * dist_x / (gap_width * gap_width * 4.0));
     let edge_glow_diag = exp(-dist_diag * dist_diag / (gap_width * gap_width * 4.0));
@@ -4804,7 +6018,9 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let pulse = sin(uniforms.time * 5.0) * 0.5 + 0.5;
     let glow_color = mix(glow_color_a, glow_color_b, pulse);
 
-    var color = base_color + vec3<f32>(1.0) * specular * 0.4;
+    let pbr_color = pbr_shade(in);
+
+    var color = pbr_color.rgb;
     color += glow_color * edge_glow * glow_intensity;
 
     return vec4<f32>(color, 1.0);
@@ -5161,6 +6377,1695 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var color = mix(base_surface, crystal_surface, is_crystallized);
     color += crystal_fresnel;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const IRIDESCENCE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+
+    let n_dot_v = max(dot(normal, view_dir), 0.0);
+    let thickness = 2.0 + uniforms.custom[0].x * 8.0;
+    let shift = uniforms.custom[0].y * 6.28318;
+    let intensity = uniforms.custom[0].z * 2.0;
+
+    let phase = (1.0 - n_dot_v) * thickness + shift + uniforms.time * 0.3;
+    let iridescent = vec3<f32>(
+        0.5 + 0.5 * cos(phase),
+        0.5 + 0.5 * cos(phase + 2.094),
+        0.5 + 0.5 * cos(phase + 4.189)
+    );
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 64.0);
+
+    let base_color = vec3<f32>(0.15, 0.15, 0.2);
+    var color = base_color * (0.2 + diffuse * 0.5);
+    color += iridescent * intensity * (0.3 + 0.7 * pow(1.0 - n_dot_v, 1.5));
+    color += vec3<f32>(1.0, 1.0, 1.0) * specular * 0.6;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const CHROMATIC: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.5));
+
+    let strength = uniforms.custom[0].x * 0.4;
+    let edge_focus = 1.0 + uniforms.custom[0].y * 4.0;
+    let animate = uniforms.custom[0].z;
+    let pulse = 1.0 + animate * 0.3 * sin(uniforms.time * 2.0);
+    let offset = strength * pulse;
+
+    var up = vec3<f32>(0.0, 1.0, 0.0);
+    if abs(dot(normal, up)) > 0.99 {
+        up = vec3<f32>(1.0, 0.0, 0.0);
+    }
+    let tangent = normalize(cross(normal, up));
+
+    let normal_r = normalize(normal + tangent * offset);
+    let normal_b = normalize(normal - tangent * offset);
+
+    let diffuse_r = max(dot(normal_r, light_dir), 0.0);
+    let diffuse_g = max(dot(normal, light_dir), 0.0);
+    let diffuse_b = max(dot(normal_b, light_dir), 0.0);
+
+    let half_dir = normalize(light_dir + view_dir);
+    let spec_r = pow(max(dot(normal_r, half_dir), 0.0), 48.0);
+    let spec_g = pow(max(dot(normal, half_dir), 0.0), 48.0);
+    let spec_b = pow(max(dot(normal_b, half_dir), 0.0), 48.0);
+
+    let n_dot_v = max(dot(normal, view_dir), 0.0);
+    let edge = pow(1.0 - n_dot_v, edge_focus);
+
+    let base = vec3<f32>(0.7, 0.7, 0.75);
+    var color = base * vec3<f32>(
+        0.15 + diffuse_r * 0.7,
+        0.15 + diffuse_g * 0.7,
+        0.15 + diffuse_b * 0.7
+    );
+    color += vec3<f32>(spec_r, spec_g, spec_b) * 0.5;
+    color += vec3<f32>(1.0, 0.3, 0.1) * edge * strength * 2.0;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const THERMAL: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn thermal_hash(p: vec3<f32>) -> f32 {
+    var q = fract(p * vec3<f32>(443.897, 441.423, 437.195));
+    q += dot(q, q.yzx + 19.19);
+    return fract((q.x + q.y) * q.z);
+}
+
+fn thermal_noise(p: vec3<f32>) -> f32 {
+    let cell = floor(p);
+    let local = fract(p);
+    let u = local * local * (3.0 - 2.0 * local);
+    let a = mix(thermal_hash(cell), thermal_hash(cell + vec3<f32>(1.0, 0.0, 0.0)), u.x);
+    let b = mix(thermal_hash(cell + vec3<f32>(0.0, 1.0, 0.0)), thermal_hash(cell + vec3<f32>(1.0, 1.0, 0.0)), u.x);
+    let c = mix(thermal_hash(cell + vec3<f32>(0.0, 0.0, 1.0)), thermal_hash(cell + vec3<f32>(1.0, 0.0, 1.0)), u.x);
+    let d = mix(thermal_hash(cell + vec3<f32>(0.0, 1.0, 1.0)), thermal_hash(cell + vec3<f32>(1.0, 1.0, 1.0)), u.x);
+    return mix(mix(a, b, u.y), mix(c, d, u.y), u.z);
+}
+
+fn thermal_ramp(t: f32) -> vec3<f32> {
+    if t < 0.15 {
+        return mix(vec3<f32>(0.0, 0.0, 0.1), vec3<f32>(0.0, 0.0, 0.8), t / 0.15);
+    } else if t < 0.3 {
+        return mix(vec3<f32>(0.0, 0.0, 0.8), vec3<f32>(0.0, 0.7, 0.9), (t - 0.15) / 0.15);
+    } else if t < 0.45 {
+        return mix(vec3<f32>(0.0, 0.7, 0.9), vec3<f32>(0.0, 0.8, 0.0), (t - 0.3) / 0.15);
+    } else if t < 0.6 {
+        return mix(vec3<f32>(0.0, 0.8, 0.0), vec3<f32>(1.0, 1.0, 0.0), (t - 0.45) / 0.15);
+    } else if t < 0.8 {
+        return mix(vec3<f32>(1.0, 1.0, 0.0), vec3<f32>(1.0, 0.0, 0.0), (t - 0.6) / 0.2);
+    } else {
+        return mix(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(1.0, 1.0, 1.0), (t - 0.8) / 0.2);
+    }
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let sensitivity = uniforms.custom[0].x * 2.0;
+    let scale = 2.0 + uniforms.custom[0].y * 8.0;
+    let animate = uniforms.custom[0].z;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+
+    let height = in.world_position.y * 0.5 + 0.5;
+    let noise = thermal_noise(in.world_position * scale + uniforms.time * animate * 0.5);
+    let heat = clamp(height * 0.6 + noise * 0.4 + diffuse * sensitivity * 0.3, 0.0, 1.0);
+
+    let color = thermal_ramp(heat);
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const STATIC_NOISE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn snow_hash(p: vec3<f32>, t: f32) -> f32 {
+    var q = vec3<f32>(p.x + t * 0.1, p.y + t * 0.2, p.z + t * 0.3);
+    q = fract(q * vec3<f32>(443.897, 441.423, 437.195));
+    q += dot(q, q.yzx + 19.19);
+    return fract((q.x + q.y) * q.z);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let amount = uniforms.custom[0].x;
+    let speed = 1.0 + uniforms.custom[0].y * 30.0;
+    let color_noise = uniforms.custom[0].z;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+
+    let base_color = vec3<f32>(0.6, 0.6, 0.65) * (0.15 + 0.7 * diffuse);
+
+    let pos = in.world_position * 50.0;
+    let time_seed = floor(uniforms.time * speed);
+    let noise_r = snow_hash(pos, time_seed);
+    let noise_g = snow_hash(pos + vec3<f32>(17.0, 31.0, 47.0), time_seed);
+    let noise_b = snow_hash(pos + vec3<f32>(59.0, 73.0, 89.0), time_seed);
+
+    let mono = vec3<f32>(noise_r, noise_r, noise_r);
+    let rgb = vec3<f32>(noise_r, noise_g, noise_b);
+    let noise_val = mix(mono, rgb, color_noise);
+
+    let scanline = 0.9 + 0.1 * sin(in.world_position.y * 200.0 + uniforms.time * 10.0);
+    let noise_final = noise_val * scanline;
+
+    let color = mix(base_color, noise_final, amount);
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const CIRCUIT: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn circuit_hash(p: vec2<f32>) -> f32 {
+    var q = fract(p * vec2<f32>(127.1, 311.7));
+    q += dot(q, q + 33.33);
+    return fract(q.x * q.y);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let scale = 5.0 + uniforms.custom[0].x * 20.0;
+    let glow_intensity = uniforms.custom[0].y;
+    let speed = uniforms.custom[0].z * 3.0 + 0.5;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+    let diffuse = max(dot(normal, light_dir), 0.0) * 0.5 + 0.3;
+
+    let uv = in.uv * scale;
+    let cell = floor(uv);
+    let local = fract(uv);
+
+    let h1 = circuit_hash(cell);
+    let h2 = circuit_hash(cell * 1.7 + vec2<f32>(31.0, 17.0));
+
+    let trace_w = 0.07;
+    let h_trace = step(abs(local.y - 0.5), trace_w) * step(h1, 0.6);
+    let v_trace = step(abs(local.x - 0.5), trace_w) * step(h2, 0.6);
+
+    let pad_dist = length(local - 0.5);
+    let pad = smoothstep(0.13, 0.09, pad_dist) * step(0.3, max(step(h1, 0.6), step(h2, 0.6)));
+
+    let trace = max(max(h_trace, v_trace), pad);
+
+    let pulse_h = smoothstep(0.15, 0.0, abs(fract(local.x + uniforms.time * speed + h1 * 5.0) - 0.5) - 0.05) * h_trace;
+    let pulse_v = smoothstep(0.15, 0.0, abs(fract(local.y + uniforms.time * speed * 0.7 + h2 * 5.0) - 0.5) - 0.05) * v_trace;
+    let data_pulse = max(pulse_h, pulse_v);
+
+    let board_color = vec3<f32>(0.02, 0.06, 0.02) * diffuse;
+    let trace_color = vec3<f32>(0.6, 0.5, 0.1) * diffuse;
+    let pulse_color = vec3<f32>(0.2, 1.0, 0.4);
+
+    var color = mix(board_color, trace_color, trace);
+    color += pulse_color * data_pulse * (1.0 + glow_intensity * 3.0);
+
+    let trace_dist = min(abs(local.x - 0.5), abs(local.y - 0.5));
+    let trace_glow = exp(-trace_dist * 10.0) * trace * glow_intensity * 0.2;
+    color += vec3<f32>(0.1, 0.5, 0.2) * trace_glow;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const EROSION: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn erosion_hash(p: vec3<f32>) -> f32 {
+    var q = fract(p * vec3<f32>(443.897, 441.423, 437.195));
+    q += dot(q, q.yzx + 19.19);
+    return fract((q.x + q.y) * q.z);
+}
+
+fn erosion_noise(p: vec3<f32>) -> f32 {
+    let cell = floor(p);
+    let local = fract(p);
+    let u = local * local * (3.0 - 2.0 * local);
+    let a = mix(erosion_hash(cell), erosion_hash(cell + vec3<f32>(1.0, 0.0, 0.0)), u.x);
+    let b = mix(erosion_hash(cell + vec3<f32>(0.0, 1.0, 0.0)), erosion_hash(cell + vec3<f32>(1.0, 1.0, 0.0)), u.x);
+    let c = mix(erosion_hash(cell + vec3<f32>(0.0, 0.0, 1.0)), erosion_hash(cell + vec3<f32>(1.0, 0.0, 1.0)), u.x);
+    let d = mix(erosion_hash(cell + vec3<f32>(0.0, 1.0, 1.0)), erosion_hash(cell + vec3<f32>(1.0, 1.0, 1.0)), u.x);
+    return mix(mix(a, b, u.y), mix(c, d, u.y), u.z);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let depth = uniforms.custom[0].x;
+    let roughness = 2.0 + uniforms.custom[0].y * 8.0;
+    let speed = uniforms.custom[0].z * 0.5;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 32.0);
+
+    let p = in.world_position * roughness;
+    let n1 = erosion_noise(p);
+    let n2 = erosion_noise(p * 2.3 + 7.1) * 0.5;
+    let erosion = n1 + n2;
+
+    let threshold = sin(uniforms.time * speed) * 0.5 + 0.5;
+    let eroded = erosion - threshold * depth * 1.5;
+
+    let surface_color = vec3<f32>(0.6, 0.6, 0.65);
+    let rust_color = vec3<f32>(0.5, 0.25, 0.05);
+    let inner_color = vec3<f32>(0.3, 0.3, 0.35);
+    let core_color = vec3<f32>(0.8, 0.4, 0.0);
+
+    var base: vec3<f32>;
+    if eroded > 0.3 {
+        base = surface_color;
+    } else if eroded > 0.1 {
+        let t = (eroded - 0.1) / 0.2;
+        base = mix(rust_color, surface_color, t);
+    } else if eroded > -0.1 {
+        let t = (eroded + 0.1) / 0.2;
+        base = mix(inner_color, rust_color, t);
+    } else {
+        let t = clamp((eroded + 0.3) / 0.2, 0.0, 1.0);
+        base = mix(core_color, inner_color, t);
+    }
+
+    let ambient = 0.15;
+    var color = base * (ambient + diffuse * 0.7);
+    color += vec3<f32>(1.0, 1.0, 1.0) * specular * 0.3;
+
+    if eroded < -0.1 {
+        let glow_factor = clamp((-0.1 - eroded) * 3.0, 0.0, 1.0);
+        color += core_color * glow_factor * 0.5;
+    }
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const PHASE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    r"
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_position: vec3<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) phase_offset: f32,
+}
+
+@vertex
+fn vertex_main(input: VertexInput) -> VertexOutput {
+    let phase_amount = uniforms.custom[0].x * 0.2;
+    let wave_speed = uniforms.custom[0].y * 4.0 + 1.0;
+
+    var pos = input.position;
+
+    let phase_wave = sin(uniforms.time * wave_speed + pos.y * 5.0 + pos.x * 3.0) * phase_amount;
+    let secondary = sin(uniforms.time * wave_speed * 0.7 + pos.z * 4.0) * phase_amount * 0.5;
+    pos += input.normal * (phase_wave + secondary);
+
+    let model_pos = uniforms.model * vec4<f32>(pos, 1.0);
+
+    var output: VertexOutput;
+    output.clip_position = uniforms.projection * uniforms.view * model_pos;
+    output.world_position = model_pos.xyz;
+    output.world_normal = normalize((uniforms.model * vec4<f32>(input.normal, 0.0)).xyz);
+    output.uv = input.uv;
+    output.phase_offset = phase_wave + secondary;
+    return output;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let opacity = uniforms.custom[0].z;
+    let color_shift = uniforms.custom[0].w;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 2.5);
+    let diffuse = max(dot(normal, light_dir), 0.0);
+
+    let phase_tint = vec3<f32>(
+        0.3 + 0.2 * sin(in.phase_offset * 10.0 + color_shift * 6.28),
+        0.5 + 0.2 * sin(in.phase_offset * 10.0 + color_shift * 6.28 + 2.0),
+        0.8 + 0.2 * sin(in.phase_offset * 10.0 + color_shift * 6.28 + 4.0)
+    );
+
+    var color = phase_tint * (0.2 + diffuse * 0.4);
+    color += vec3<f32>(0.5, 0.7, 1.0) * fresnel * 1.5;
+
+    let flicker = 0.8 + 0.2 * sin(uniforms.time * 7.0 + in.world_position.y * 3.0);
+    let alpha = (opacity * 0.5 + fresnel * 0.6) * flicker;
+
+    return vec4<f32>(color, clamp(alpha, 0.0, 1.0));
+}
+"
+);
+
+const RADAR: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn radar_hash(p: vec3<f32>) -> f32 {
+    return fract(sin(dot(p, vec3<f32>(12.9898, 78.233, 45.164))) * 43758.5453);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let sweep_speed = uniforms.custom[0].x * 3.0 + 0.5;
+    let trail = 0.05 + uniforms.custom[0].y * 0.45;
+    let grid_scale = 5.0 + uniforms.custom[0].z * 20.0;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(1.0, 2.0, 1.0));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+
+    let angle = atan2(in.world_position.z, in.world_position.x);
+    let norm_angle = angle / 6.28318 + 0.5;
+
+    let sweep_angle = fract(uniforms.time * sweep_speed);
+    let diff = fract(norm_angle - sweep_angle + 1.0);
+    let sweep_intensity = exp(-diff / trail);
+
+    let grid_uv = in.uv * grid_scale;
+    let grid_x = smoothstep(0.02, 0.0, abs(fract(grid_uv.x) - 0.5) - 0.47);
+    let grid_y = smoothstep(0.02, 0.0, abs(fract(grid_uv.y) - 0.5) - 0.47);
+    let grid_line = max(grid_x, grid_y);
+
+    let bg_color = vec3<f32>(0.01, 0.03, 0.01);
+    let sweep_color = vec3<f32>(0.1, 1.0, 0.3);
+    let grid_color = vec3<f32>(0.0, 0.15, 0.05);
+    let surface_color = vec3<f32>(0.0, 0.3, 0.1) * (0.2 + diffuse * 0.5);
+
+    var color = bg_color + surface_color;
+    color += grid_color * grid_line;
+    color += sweep_color * sweep_intensity * 0.8;
+
+    let pos_hash = radar_hash(floor(in.world_position * 3.0));
+    let ping = sweep_intensity * step(0.92, pos_hash) * 2.0;
+    color += vec3<f32>(0.2, 1.0, 0.4) * ping;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const PETRIFY: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn petrify_hash(p: vec3<f32>) -> f32 {
+    var q = fract(p * 0.1031);
+    q += dot(q, q.yzx + 33.33);
+    return fract((q.x + q.y) * q.z);
+}
+
+fn petrify_noise(p: vec3<f32>) -> f32 {
+    let fl = floor(p);
+    let fr = fract(p);
+    let u = fr * fr * (3.0 - 2.0 * fr);
+
+    let n000 = petrify_hash(fl);
+    let n100 = petrify_hash(fl + vec3<f32>(1.0, 0.0, 0.0));
+    let n010 = petrify_hash(fl + vec3<f32>(0.0, 1.0, 0.0));
+    let n110 = petrify_hash(fl + vec3<f32>(1.0, 1.0, 0.0));
+    let n001 = petrify_hash(fl + vec3<f32>(0.0, 0.0, 1.0));
+    let n101 = petrify_hash(fl + vec3<f32>(1.0, 0.0, 1.0));
+    let n011 = petrify_hash(fl + vec3<f32>(0.0, 1.0, 1.0));
+    let n111 = petrify_hash(fl + vec3<f32>(1.0, 1.0, 1.0));
+
+    let x0 = mix(n000, n100, u.x);
+    let x1 = mix(n010, n110, u.x);
+    let x2 = mix(n001, n101, u.x);
+    let x3 = mix(n011, n111, u.x);
+    let y0 = mix(x0, x1, u.y);
+    let y1 = mix(x2, x3, u.y);
+    return mix(y0, y1, u.z);
+}
+
+fn petrify_fbm(p: vec3<f32>) -> f32 {
+    var val = 0.0;
+    var amp = 0.5;
+    var pos = p;
+    for (var octave = 0; octave < 5; octave += 1) {
+        val += amp * petrify_noise(pos);
+        pos *= 2.0;
+        amp *= 0.5;
+    }
+    return val;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let speed = uniforms.custom[0].x;
+    let crack_width = uniforms.custom[0].y * 0.1 + 0.01;
+    let crack_glow = uniforms.custom[0].z;
+    let time = uniforms.time * speed * 0.5;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+
+    let stone_noise = petrify_fbm(in.world_position * 3.0);
+    let stone_color = mix(
+        vec3<f32>(0.45, 0.42, 0.38),
+        vec3<f32>(0.6, 0.58, 0.52),
+        stone_noise
+    );
+
+    let spread = clamp(time, 0.0, 1.0);
+    let height_factor = in.world_position.y * 0.5 + 0.5;
+    let stone_mask = smoothstep(spread - 0.3, spread + 0.1, height_factor + stone_noise * 0.3);
+
+    let crack_pattern = petrify_fbm(in.world_position * 8.0 + vec3<f32>(time * 0.5));
+    let crack = smoothstep(0.5 - crack_width, 0.5, crack_pattern) *
+                smoothstep(0.5 + crack_width, 0.5, crack_pattern);
+    let crack_edge = crack * smoothstep(spread + 0.2, spread - 0.1, height_factor + stone_noise * 0.3);
+
+    let original_color = vec3<f32>(0.8, 0.6, 0.4) * (diffuse * 0.7 + 0.3);
+    let final_stone = stone_color * (diffuse * 0.5 + 0.5);
+
+    var color = mix(original_color, final_stone, stone_mask);
+    color += vec3<f32>(1.0, 0.6, 0.2) * crack_edge * crack_glow * 3.0;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const CAUSTICS: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let intensity = uniforms.custom[0].x;
+    let scale = uniforms.custom[0].y * 4.0 + 1.0;
+    let speed = uniforms.custom[0].z * 2.0;
+    let time = uniforms.time * speed;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(0.3, 1.0, 0.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+
+    let uv = in.world_position.xz * scale;
+
+    var caustic = 0.0;
+    for (var layer = 0; layer < 3; layer += 1) {
+        let layer_f = f32(layer);
+        let offset = time * (0.8 + layer_f * 0.3);
+        let freq = 1.0 + layer_f * 0.7;
+        let p = uv * freq + vec2<f32>(offset * 0.3, offset * 0.2);
+        let wave1 = sin(p.x * 2.5 + sin(p.y * 1.8 + offset)) * 0.5 + 0.5;
+        let wave2 = sin(p.y * 3.1 + sin(p.x * 2.2 - offset * 0.7)) * 0.5 + 0.5;
+        let wave3 = sin((p.x + p.y) * 1.9 + offset * 0.5) * 0.5 + 0.5;
+        caustic += wave1 * wave2 * wave3;
+    }
+    caustic = caustic / 3.0;
+    caustic = pow(caustic, 2.0) * 3.0;
+
+    let base_color = vec3<f32>(0.05, 0.15, 0.3);
+    let caustic_color = vec3<f32>(0.3, 0.7, 1.0) * caustic * intensity;
+    let surface_light = diffuse * vec3<f32>(0.1, 0.2, 0.35);
+
+    let color = base_color + surface_light + caustic_color;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const MATRIX_RAIN: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn matrix_hash(p: vec2<f32>) -> f32 {
+    var q = fract(p * vec2<f32>(123.34, 456.21));
+    q += dot(q, q + 45.32);
+    return fract(q.x * q.y);
+}
+
+fn matrix_char(cell: vec2<f32>, local_uv: vec2<f32>) -> f32 {
+    let char_id = floor(matrix_hash(cell) * 16.0);
+    let segments = array<f32, 8>(
+        step(0.5, fract(char_id / 2.0)),
+        step(0.5, fract(char_id / 4.0)),
+        step(0.5, fract(char_id / 8.0)),
+        step(0.5, fract(char_id / 16.0)),
+        step(0.3, local_uv.x) * step(local_uv.x, 0.7),
+        step(0.2, local_uv.y) * step(local_uv.y, 0.8),
+        step(0.1, local_uv.x) * step(local_uv.x, 0.9),
+        step(0.3, local_uv.y) * step(local_uv.y, 0.7)
+    );
+    let h_bar = segments[4] * segments[5] * segments[0];
+    let v_bar = segments[6] * segments[7] * segments[1];
+    let cross_bar = segments[4] * segments[7] * segments[2];
+    return clamp(h_bar + v_bar + cross_bar, 0.0, 1.0);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let density = uniforms.custom[0].x * 20.0 + 5.0;
+    let speed = uniforms.custom[0].y * 3.0 + 0.5;
+    let glow = uniforms.custom[0].z;
+    let time = uniforms.time * speed;
+
+    let uv = in.uv;
+
+    let grid = uv * vec2<f32>(density * 0.5, density);
+    let cell = floor(grid);
+    let local_uv = fract(grid);
+
+    let column_speed = matrix_hash(vec2<f32>(cell.x, 0.0)) * 2.0 + 0.5;
+    let column_offset = matrix_hash(vec2<f32>(cell.x, 100.0)) * 20.0;
+    let scroll = time * column_speed + column_offset;
+
+    let scrolled_cell = vec2<f32>(cell.x, cell.y + floor(scroll));
+    let char_brightness = matrix_char(scrolled_cell, local_uv);
+
+    let head_pos = fract(scroll);
+    let dist_from_head = fract(1.0 - (local_uv.y + cell.y) / density - head_pos);
+    let trail = pow(1.0 - dist_from_head, 3.0);
+    let head_flash = smoothstep(0.95, 1.0, 1.0 - dist_from_head);
+
+    let char_color = vec3<f32>(0.0, 0.8, 0.2) * trail * char_brightness;
+    let head_color = vec3<f32>(0.7, 1.0, 0.7) * head_flash * char_brightness;
+    let glow_color = vec3<f32>(0.0, 0.15, 0.05) * trail * glow;
+    let bg = vec3<f32>(0.0, 0.02, 0.0);
+
+    let color = bg + char_color + head_color + glow_color;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const FROST: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn frost_hash(p: vec2<f32>) -> f32 {
+    let k = dot(p, vec2<f32>(127.1, 311.7));
+    return fract(sin(k) * 43758.5453);
+}
+
+fn frost_noise(p: vec2<f32>) -> f32 {
+    let fl = floor(p);
+    let fr = fract(p);
+    let u = fr * fr * (3.0 - 2.0 * fr);
+    let a = frost_hash(fl);
+    let b = frost_hash(fl + vec2<f32>(1.0, 0.0));
+    let c = frost_hash(fl + vec2<f32>(0.0, 1.0));
+    let d = frost_hash(fl + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+fn frost_fbm(p: vec2<f32>) -> f32 {
+    var val = 0.0;
+    var amp = 0.5;
+    var pos = p;
+    for (var octave = 0; octave < 6; octave += 1) {
+        val += amp * frost_noise(pos);
+        pos *= 2.0;
+        amp *= 0.5;
+    }
+    return val;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let spread = uniforms.custom[0].x;
+    let crystal_scale = uniforms.custom[0].y * 10.0 + 2.0;
+    let sparkle = uniforms.custom[0].z;
+    let time = uniforms.time;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(vec3<f32>(0.0, 0.0, 1.0) - in.world_position);
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 3.0);
+
+    let uv = in.uv;
+    let crystal = frost_fbm(uv * crystal_scale);
+    let fine_crystal = frost_fbm(uv * crystal_scale * 4.0);
+    let frost_pattern = crystal * 0.7 + fine_crystal * 0.3;
+
+    let frost_threshold = spread;
+    let frost_mask = smoothstep(frost_threshold - 0.2, frost_threshold + 0.1, frost_pattern + fresnel * 0.3);
+
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let half_dir = normalize(light_dir + view_dir);
+    let spec = pow(max(dot(normal, half_dir), 0.0), 64.0);
+
+    let ice_color = mix(
+        vec3<f32>(0.7, 0.85, 0.95),
+        vec3<f32>(0.9, 0.95, 1.0),
+        fine_crystal
+    );
+    let frost_surface = ice_color * (diffuse * 0.5 + 0.5) + vec3<f32>(1.0) * spec * 0.5;
+
+    let sparkle_noise = frost_hash(floor(uv * crystal_scale * 8.0) + vec2<f32>(floor(time * 3.0)));
+    let sparkle_flash = step(0.92, sparkle_noise) * sparkle * 2.0;
+    let frost_final = frost_surface + vec3<f32>(sparkle_flash);
+
+    let base_color = vec3<f32>(0.6, 0.5, 0.4) * (diffuse * 0.7 + 0.3);
+    let color = mix(base_color, frost_final, frost_mask);
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const SUBSURFACE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let thickness = uniforms.custom[0].x;
+    let scatter_r = uniforms.custom[0].y;
+    let scatter_g = uniforms.custom[0].z;
+    let scatter_b = uniforms.custom[0].w;
+    let scatter_color = vec3<f32>(scatter_r, scatter_g, scatter_b);
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(0.5, 0.8, 0.3));
+    let view_dir = normalize(vec3<f32>(0.0, 0.3, 1.0) - in.world_position);
+
+    let ndotl = dot(normal, light_dir);
+    let diffuse = max(ndotl, 0.0);
+
+    let back_light = max(dot(-normal, light_dir), 0.0);
+    let sss_through = back_light * thickness;
+
+    let wrap_diffuse = max(ndotl + thickness, 0.0) / (1.0 + thickness);
+
+    let view_scatter = pow(max(dot(view_dir, -light_dir), 0.0), 4.0) * thickness;
+
+    let half_dir = normalize(light_dir + view_dir);
+    let spec = pow(max(dot(normal, half_dir), 0.0), 32.0);
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 3.0);
+    let rim_sss = fresnel * thickness * 0.5;
+
+    let base_albedo = vec3<f32>(0.85, 0.75, 0.65);
+
+    let direct = base_albedo * wrap_diffuse;
+    let subsurface = scatter_color * (sss_through + view_scatter + rim_sss);
+    let specular = vec3<f32>(1.0) * spec * 0.3;
+    let ambient = base_albedo * 0.1;
+
+    let color = direct + subsurface + specular + ambient;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const STAINED_GLASS: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn stained_hash2(p: vec2<f32>) -> vec2<f32> {
+    let q = vec2<f32>(dot(p, vec2<f32>(127.1, 311.7)), dot(p, vec2<f32>(269.5, 183.3)));
+    return fract(sin(q) * 43758.5453);
+}
+
+fn stained_voronoi(uv: vec2<f32>) -> vec3<f32> {
+    let cell = floor(uv);
+    let frac = fract(uv);
+
+    var min_dist = 10.0;
+    var second_dist = 10.0;
+    var closest_id = vec2<f32>(0.0);
+
+    for (var dy = -1; dy <= 1; dy += 1) {
+        for (var dx = -1; dx <= 1; dx += 1) {
+            let neighbor = vec2<f32>(f32(dx), f32(dy));
+            let point = stained_hash2(cell + neighbor);
+            let diff = neighbor + point - frac;
+            let dist = dot(diff, diff);
+            if dist < min_dist {
+                second_dist = min_dist;
+                min_dist = dist;
+                closest_id = cell + neighbor;
+            } else if dist < second_dist {
+                second_dist = dist;
+            }
+        }
+    }
+
+    let edge = second_dist - min_dist;
+    return vec3<f32>(sqrt(min_dist), edge, closest_id.x + closest_id.y * 13.0);
+}
+
+fn stained_palette(id: f32, saturation: f32) -> vec3<f32> {
+    let hue = fract(id * 0.1618 + 0.1);
+    let r = abs(hue * 6.0 - 3.0) - 1.0;
+    let g = 2.0 - abs(hue * 6.0 - 2.0);
+    let b = 2.0 - abs(hue * 6.0 - 4.0);
+    let rgb = clamp(vec3<f32>(r, g, b), vec3<f32>(0.0), vec3<f32>(1.0));
+    return mix(vec3<f32>(0.5), rgb, saturation);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let scale = uniforms.custom[0].x * 8.0 + 2.0;
+    let border_width = uniforms.custom[0].y * 0.15 + 0.01;
+    let saturation = uniforms.custom[0].z;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(0.3, 0.8, 0.5));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+
+    let uv = in.uv * scale;
+    let voronoi = stained_voronoi(uv);
+    let edge_dist = voronoi.y;
+    let cell_id = voronoi.z;
+
+    let panel_color = stained_palette(cell_id, saturation) * (diffuse * 0.4 + 0.6);
+    let lead_border = smoothstep(border_width, border_width + 0.02, edge_dist);
+
+    let lead_color = vec3<f32>(0.15, 0.15, 0.12);
+    let color = mix(lead_color, panel_color, lead_border);
+
+    let view_dir = normalize(vec3<f32>(0.0, 0.0, 1.0) - in.world_position);
+    let half_dir = normalize(light_dir + view_dir);
+    let spec = pow(max(dot(normal, half_dir), 0.0), 32.0) * lead_border * 0.2;
+
+    return vec4<f32>(color + vec3<f32>(spec), 1.0);
+}
+"
+);
+
+const EDGE_GLOW: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let threshold = uniforms.custom[0].x;
+    let hue = uniforms.custom[0].y;
+    let glow_intensity = uniforms.custom[0].z * 3.0 + 0.5;
+    let time = uniforms.time;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+
+    let ddx_n = dpdx(in.world_normal);
+    let ddy_n = dpdy(in.world_normal);
+    let edge_strength = length(ddx_n) + length(ddy_n);
+    let edge = smoothstep(threshold * 0.5, threshold * 2.0 + 0.1, edge_strength);
+
+    let r = abs(hue * 6.0 - 3.0) - 1.0;
+    let g = 2.0 - abs(hue * 6.0 - 2.0);
+    let b = 2.0 - abs(hue * 6.0 - 4.0);
+    let glow_color = clamp(vec3<f32>(r, g, b), vec3<f32>(0.0), vec3<f32>(1.0));
+
+    let pulse = sin(time * 2.0) * 0.15 + 0.85;
+    let edge_color = glow_color * edge * glow_intensity * pulse;
+
+    let base_color = vec3<f32>(0.08, 0.08, 0.1) * (diffuse * 0.5 + 0.5);
+
+    let bloom = edge * edge * glow_intensity * 0.3;
+    let color = base_color + edge_color + glow_color * bloom * pulse;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const CAMOUFLAGE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn camo_hash(p: vec2<f32>) -> f32 {
+    let k = dot(p, vec2<f32>(127.1, 311.7));
+    return fract(sin(k) * 43758.5453);
+}
+
+fn camo_noise(p: vec2<f32>) -> f32 {
+    let fl = floor(p);
+    let fr = fract(p);
+    let u = fr * fr * (3.0 - 2.0 * fr);
+    let a = camo_hash(fl);
+    let b = camo_hash(fl + vec2<f32>(1.0, 0.0));
+    let c = camo_hash(fl + vec2<f32>(0.0, 1.0));
+    let d = camo_hash(fl + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+fn camo_fbm(p: vec2<f32>) -> f32 {
+    var val = 0.0;
+    var amp = 0.5;
+    var pos = p;
+    for (var octave = 0; octave < 4; octave += 1) {
+        val += amp * camo_noise(pos);
+        pos *= 2.0;
+        amp *= 0.5;
+    }
+    return val;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let scale = uniforms.custom[0].x * 5.0 + 1.0;
+    let sharpness = uniforms.custom[0].y * 20.0 + 2.0;
+    let palette_select = uniforms.custom[0].z;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+    let diffuse = max(dot(normal, light_dir), 0.0) * 0.4 + 0.6;
+
+    let uv = in.world_position.xz * scale;
+    let noise1 = camo_fbm(uv);
+    let noise2 = camo_fbm(uv * 1.5 + vec2<f32>(50.0, 50.0));
+    let noise3 = camo_fbm(uv * 0.7 + vec2<f32>(100.0, 100.0));
+
+    let band1 = 1.0 / (1.0 + exp(-sharpness * (noise1 - 0.4)));
+    let band2 = 1.0 / (1.0 + exp(-sharpness * (noise2 - 0.5)));
+    let band3 = 1.0 / (1.0 + exp(-sharpness * (noise3 - 0.45)));
+
+    var c0 = vec3<f32>(0.0);
+    var c1 = vec3<f32>(0.0);
+    var c2 = vec3<f32>(0.0);
+    var c3 = vec3<f32>(0.0);
+
+    if palette_select < 0.33 {
+        c0 = vec3<f32>(0.15, 0.2, 0.1);
+        c1 = vec3<f32>(0.3, 0.35, 0.15);
+        c2 = vec3<f32>(0.2, 0.15, 0.08);
+        c3 = vec3<f32>(0.08, 0.12, 0.05);
+    } else if palette_select < 0.66 {
+        c0 = vec3<f32>(0.6, 0.5, 0.35);
+        c1 = vec3<f32>(0.45, 0.38, 0.25);
+        c2 = vec3<f32>(0.7, 0.62, 0.45);
+        c3 = vec3<f32>(0.35, 0.28, 0.18);
+    } else {
+        c0 = vec3<f32>(0.35, 0.38, 0.4);
+        c1 = vec3<f32>(0.5, 0.52, 0.55);
+        c2 = vec3<f32>(0.25, 0.27, 0.3);
+        c3 = vec3<f32>(0.15, 0.16, 0.18);
+    }
+
+    var color = c0;
+    color = mix(color, c1, band1);
+    color = mix(color, c2, band2);
+    color = mix(color, c3, band3);
+    color *= diffuse;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const PORTAL: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    r"
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+}
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_position: vec3<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) vortex_factor: f32,
+}
+
+@vertex
+fn vertex_main(input: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    var pos = input.position;
+
+    let twist = uniforms.custom[0].x * 6.28;
+    let pull = uniforms.custom[0].y;
+    let time = uniforms.time * (uniforms.custom[0].z * 2.0 + 0.5);
+
+    let height = pos.y;
+    let height_factor = (height + 1.0) * 0.5;
+
+    let angle = height * twist + time;
+    let cos_a = cos(angle);
+    let sin_a = sin(angle);
+    let twisted_x = pos.x * cos_a - pos.z * sin_a;
+    let twisted_z = pos.x * sin_a + pos.z * cos_a;
+    pos.x = twisted_x;
+    pos.z = twisted_z;
+
+    let radial_dist = sqrt(pos.x * pos.x + pos.z * pos.z);
+    let funnel = 1.0 - height_factor * pull * 0.8;
+    pos.x *= funnel;
+    pos.z *= funnel;
+
+    out.vortex_factor = height_factor * radial_dist;
+
+    let world_pos = uniforms.model * vec4<f32>(pos, 1.0);
+    out.world_position = world_pos.xyz;
+    out.world_normal = normalize((uniforms.model * vec4<f32>(input.normal, 0.0)).xyz);
+    out.uv = input.uv;
+    out.clip_position = uniforms.projection * uniforms.view * world_pos;
+
+    return out;
+}
+
+fn portal_hash(p: vec2<f32>) -> f32 {
+    let k = dot(p, vec2<f32>(127.1, 311.7));
+    return fract(sin(k) * 43758.5453);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let speed = uniforms.custom[0].z * 2.0 + 0.5;
+    let time = uniforms.time * speed;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(vec3<f32>(0.0, 0.0, 1.0) - in.world_position);
+
+    let pos_xz = vec2<f32>(in.world_position.x, in.world_position.z);
+    let angle = atan2(pos_xz.y, pos_xz.x);
+    let radius = length(pos_xz);
+
+    let spiral = sin(angle * 5.0 - time * 3.0 + radius * 8.0) * 0.5 + 0.5;
+    let rings = sin(radius * 15.0 - time * 4.0) * 0.5 + 0.5;
+
+    let energy = spiral * 0.6 + rings * 0.4;
+    let energy_pow = pow(energy, 2.0);
+
+    let inner_color = vec3<f32>(0.1, 0.3, 1.0);
+    let outer_color = vec3<f32>(0.6, 0.1, 1.0);
+    let hot_color = vec3<f32>(1.0, 0.8, 1.0);
+
+    var color = mix(inner_color, outer_color, in.vortex_factor);
+    color = mix(color, hot_color, energy_pow * 0.6);
+    color *= energy * 0.8 + 0.2;
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 2.0);
+    color += vec3<f32>(0.4, 0.2, 0.8) * fresnel;
+
+    let flicker = portal_hash(vec2<f32>(floor(time * 10.0), floor(angle * 3.0)));
+    color += vec3<f32>(0.5, 0.3, 1.0) * step(0.9, flicker) * 0.5;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const HALFTONE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let dot_scale = uniforms.custom[0].x * 40.0 + 5.0;
+    let contrast = uniforms.custom[0].y * 2.0 + 0.5;
+    let color_mode = uniforms.custom[0].z;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let intensity = pow(diffuse * 0.8 + 0.2, contrast);
+
+    let uv = in.uv * dot_scale;
+    let cell = floor(uv);
+    let local = fract(uv) - 0.5;
+    let dist = length(local);
+
+    let dot_radius = (1.0 - intensity) * 0.5;
+    let dot_mask = 1.0 - smoothstep(dot_radius - 0.02, dot_radius + 0.02, dist);
+
+    var fg = vec3<f32>(0.0);
+    var bg = vec3<f32>(1.0);
+
+    if color_mode < 0.33 {
+        fg = vec3<f32>(0.0);
+        bg = vec3<f32>(1.0);
+    } else if color_mode < 0.66 {
+        fg = vec3<f32>(0.0, 0.15, 0.4);
+        bg = vec3<f32>(0.9, 0.88, 0.82);
+    } else {
+        let cell_hash = fract(sin(dot(cell, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+        let hue = fract(cell_hash * 3.0 + intensity * 0.5);
+        let r = abs(hue * 6.0 - 3.0) - 1.0;
+        let g = 2.0 - abs(hue * 6.0 - 2.0);
+        let b = 2.0 - abs(hue * 6.0 - 4.0);
+        fg = clamp(vec3<f32>(r, g, b), vec3<f32>(0.0), vec3<f32>(1.0));
+        bg = vec3<f32>(0.95);
+    }
+
+    let color = mix(bg, fg, dot_mask);
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const NEON_NOIR: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn noir_hash(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let rim_power = 1.0 + uniforms.custom[0].x * 5.0;
+    let color_speed = uniforms.custom[0].y * 3.0;
+    let rain_amount = uniforms.custom[0].z;
+    let brightness = uniforms.custom[0].w * 2.0;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(0.3, 1.0, 0.5));
+
+    let n_dot_v = max(dot(normal, view_dir), 0.0);
+    let fresnel = pow(1.0 - n_dot_v, rim_power);
+
+    let phase = uniforms.time * color_speed;
+    let hot_pink = vec3<f32>(1.0, 0.05, 0.5);
+    let cyan = vec3<f32>(0.0, 0.9, 1.0);
+    let yellow = vec3<f32>(1.0, 0.95, 0.1);
+
+    let t = fract(phase / 3.0) * 3.0;
+    var neon_color: vec3<f32>;
+    if t < 1.0 {
+        neon_color = mix(hot_pink, cyan, t);
+    } else if t < 2.0 {
+        neon_color = mix(cyan, yellow, t - 1.0);
+    } else {
+        neon_color = mix(yellow, hot_pink, t - 2.0);
+    }
+
+    let rain_uv = in.world_position.xy * vec2<f32>(8.0, 20.0);
+    let rain_cell = floor(rain_uv);
+    let rain_offset = noir_hash(rain_cell * vec2<f32>(1.0, 0.0));
+    let rain_speed = 2.0 + rain_offset * 3.0;
+    let rain_phase = fract(rain_uv.y * 0.1 - uniforms.time * rain_speed + rain_offset * 10.0);
+    let rain_streak = smoothstep(0.0, 0.05, rain_phase) * (1.0 - smoothstep(0.05, 0.15, rain_phase));
+    let rain_mask = rain_streak * rain_amount * step(0.7, noir_hash(rain_cell));
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let dark_base = vec3<f32>(0.02, 0.02, 0.03);
+    var color = dark_base + dark_base * diffuse * 0.5;
+    color += neon_color * fresnel * brightness;
+    color += neon_color * rain_mask * 0.6;
+
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 128.0);
+    color += neon_color * specular * 0.4;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const BRAINDANCE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let scan_speed = uniforms.custom[0].x * 4.0 + 0.5;
+    let separation = uniforms.custom[0].y * 0.3;
+    let distortion = uniforms.custom[0].z * 0.5;
+    let band_width = uniforms.custom[0].w * 0.4 + 0.05;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+
+    let scan_y = sin(uniforms.time * scan_speed) * 1.5;
+    let dist_to_scan = abs(in.world_position.y - scan_y);
+    let scan_line = 1.0 - smoothstep(0.0, band_width, dist_to_scan);
+    let scan_edge = smoothstep(band_width * 0.8, band_width, dist_to_scan);
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let base = vec3<f32>(0.15, 0.12, 0.18);
+
+    let red_offset = separation * scan_line;
+    let blue_offset = -separation * scan_line;
+
+    let normal_r = normalize(normal + vec3<f32>(red_offset, 0.0, 0.0));
+    let normal_b = normalize(normal + vec3<f32>(blue_offset, 0.0, 0.0));
+
+    let diff_r = max(dot(normal_r, light_dir), 0.0);
+    let diff_g = diffuse;
+    let diff_b = max(dot(normal_b, light_dir), 0.0);
+
+    var color = vec3<f32>(
+        base.r * 0.3 + diff_r * 0.7,
+        base.g * 0.3 + diff_g * 0.7,
+        base.b * 0.3 + diff_b * 0.7
+    );
+
+    let wave = sin(in.world_position.y * 60.0 + uniforms.time * 10.0) * 0.5 + 0.5;
+    let memory_static = fract(sin(dot(in.world_position.xz, vec2<f32>(12.9898, 78.233)) + uniforms.time) * 43758.5453);
+    let static_mask = scan_line * distortion;
+
+    color = mix(color, vec3<f32>(memory_static * 0.5, memory_static * 0.8, memory_static), static_mask * 0.6);
+
+    let scan_glow = vec3<f32>(0.1, 0.8, 0.6);
+    color += scan_glow * scan_edge * 0.8;
+    color += scan_glow * scan_line * wave * 0.3;
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 3.0);
+    color += vec3<f32>(0.2, 0.6, 0.5) * fresnel * 0.3;
+
+    let above = step(scan_y, in.world_position.y);
+    color = mix(color, color * vec3<f32>(0.6, 0.9, 1.2), above * 0.3);
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const CHROME_PLATING: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn chrome_env(direction: vec3<f32>, time: f32) -> vec3<f32> {
+    let sky = smoothstep(-0.1, 0.3, direction.y);
+    let horizon_pink = vec3<f32>(0.8, 0.1, 0.4) * exp(-abs(direction.y) * 3.0);
+    let horizon_cyan = vec3<f32>(0.0, 0.6, 0.8) * exp(-abs(direction.y + 0.3) * 2.0);
+    let city_lights = vec3<f32>(1.0, 0.8, 0.3) * max(0.0, sin(direction.x * 20.0 + time) * 0.5 + 0.3) * (1.0 - sky);
+    let neon_signs = vec3<f32>(1.0, 0.0, 0.5) * max(0.0, sin(direction.z * 15.0 + time * 2.0)) * 0.3 * (1.0 - sky);
+    let sky_color = mix(vec3<f32>(0.01, 0.01, 0.03), vec3<f32>(0.05, 0.0, 0.1), sky);
+    return sky_color + horizon_pink + horizon_cyan + city_lights + neon_signs;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let reflectivity = uniforms.custom[0].x;
+    let warp = uniforms.custom[0].y * 2.0;
+    let tint_blend = uniforms.custom[0].z;
+    let roughness = uniforms.custom[0].w * 0.5;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+
+    let warped_normal = normalize(normal + vec3<f32>(
+        sin(in.world_position.y * 10.0 + uniforms.time) * warp * 0.1,
+        cos(in.world_position.x * 8.0 + uniforms.time * 0.7) * warp * 0.1,
+        sin(in.world_position.z * 12.0 + uniforms.time * 1.3) * warp * 0.1
+    ));
+
+    let reflect_dir = reflect(-view_dir, warped_normal);
+    var env = chrome_env(reflect_dir, uniforms.time);
+
+    let blur_offset_a = normalize(reflect_dir + vec3<f32>(roughness * 0.1, 0.0, 0.0));
+    let blur_offset_b = normalize(reflect_dir + vec3<f32>(0.0, roughness * 0.1, 0.0));
+    env = mix(env, (env + chrome_env(blur_offset_a, uniforms.time) + chrome_env(blur_offset_b, uniforms.time)) / 3.0, roughness);
+
+    let chrome_tint = vec3<f32>(0.85, 0.88, 0.92);
+    let gold_tint = vec3<f32>(0.95, 0.8, 0.4);
+    let tint = mix(chrome_tint, gold_tint, tint_blend);
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 256.0);
+
+    var color = tint * 0.05;
+    color += env * tint * reflectivity;
+    color += tint * diffuse * (1.0 - reflectivity) * 0.3;
+    color += vec3<f32>(1.0) * specular * 1.5;
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 5.0);
+    color += env * fresnel * 0.5;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const DATA_CORRUPTION: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    r"
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+};
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_position: vec3<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+};
+
+fn corrupt_hash(p: f32) -> f32 {
+    return fract(sin(p * 127.1) * 43758.5453);
+}
+
+@vertex
+fn vertex_main(input: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    var pos = input.position;
+
+    let glitch = uniforms.custom[0].x;
+    let time_slot = floor(uniforms.time * 12.0);
+    let band = floor(pos.y * 20.0);
+    let band_hash = corrupt_hash(band + time_slot * 0.37);
+
+    if band_hash > (1.0 - glitch * 0.5) {
+        let shift = (corrupt_hash(time_slot + band * 13.7) - 0.5) * glitch * 0.4;
+        pos.x += shift;
+        pos.z += shift * 0.3;
+    }
+
+    let world_pos = uniforms.model * vec4<f32>(pos, 1.0);
+    out.clip_position = uniforms.projection * uniforms.view * world_pos;
+    out.world_position = world_pos.xyz;
+    out.world_normal = normalize((uniforms.model * vec4<f32>(input.normal, 0.0)).xyz);
+    out.uv = input.uv;
+    return out;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let glitch = uniforms.custom[0].x;
+    let rgb_split = uniforms.custom[0].y * 0.15;
+    let noise_amount = uniforms.custom[0].z;
+    let scanline_strength = uniforms.custom[0].w;
+
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+    let diffuse = max(dot(normal, light_dir), 0.0) * 0.7 + 0.3;
+
+    let split_normal_r = normalize(normal + vec3<f32>(rgb_split, 0.0, 0.0));
+    let split_normal_b = normalize(normal - vec3<f32>(rgb_split, 0.0, 0.0));
+    let diff_r = max(dot(split_normal_r, light_dir), 0.0) * 0.7 + 0.3;
+    let diff_b = max(dot(split_normal_b, light_dir), 0.0) * 0.7 + 0.3;
+
+    var color = vec3<f32>(
+        0.1 + 0.4 * diff_r,
+        0.1 + 0.35 * diffuse,
+        0.15 + 0.45 * diff_b
+    );
+
+    let time_slot = floor(uniforms.time * 12.0);
+    let band = floor(in.world_position.y * 20.0);
+    let band_hash = corrupt_hash(band + time_slot * 0.37);
+
+    if band_hash > (1.0 - glitch * 0.5) {
+        let glitch_color = vec3<f32>(
+            corrupt_hash(time_slot + band * 3.0),
+            corrupt_hash(time_slot + band * 7.0) * 0.3,
+            corrupt_hash(time_slot + band * 11.0)
+        );
+        color = mix(color, glitch_color, 0.7);
+    }
+
+    let scanline = sin(in.world_position.y * 120.0 + uniforms.time * 8.0) * 0.5 + 0.5;
+    color *= 1.0 - scanline_strength * (1.0 - scanline) * 0.4;
+
+    let noise_seed = dot(in.world_position.xz, vec2<f32>(12.9898, 78.233)) + uniforms.time * 100.0;
+    let digital_noise = corrupt_hash(noise_seed);
+    color += vec3<f32>(digital_noise * noise_amount * 0.15);
+
+    let fine_scan = step(0.98, fract(in.world_position.y * 200.0));
+    color += vec3<f32>(0.0, 1.0, 0.5) * fine_scan * 0.1;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const MANTIS_BLADE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let pulse_speed = uniforms.custom[0].x * 6.0 + 1.0;
+    let edge_width = uniforms.custom[0].y * 3.0 + 0.5;
+    let energy_hue = uniforms.custom[0].z;
+    let metallic = uniforms.custom[0].w;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(0.3, 1.0, 0.5));
+
+    let n_dot_v = max(dot(normal, view_dir), 0.0);
+    let edge = pow(1.0 - n_dot_v, edge_width);
+
+    let orange = vec3<f32>(1.0, 0.4, 0.0);
+    let red = vec3<f32>(1.0, 0.0, 0.2);
+    let blue = vec3<f32>(0.0, 0.5, 1.0);
+    var energy_color: vec3<f32>;
+    if energy_hue < 0.33 {
+        energy_color = mix(orange, red, energy_hue * 3.0);
+    } else if energy_hue < 0.66 {
+        energy_color = mix(red, blue, (energy_hue - 0.33) * 3.0);
+    } else {
+        energy_color = mix(blue, orange, (energy_hue - 0.66) * 3.0);
+    }
+
+    let pulse_wave = sin(in.world_position.y * 15.0 - uniforms.time * pulse_speed);
+    let pulse = smoothstep(-0.2, 0.2, pulse_wave);
+
+    let secondary_pulse = sin(in.world_position.x * 20.0 + in.world_position.z * 20.0 - uniforms.time * pulse_speed * 1.5);
+    let cross_pulse = smoothstep(-0.1, 0.1, secondary_pulse) * edge;
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let half_dir = normalize(light_dir + view_dir);
+    let specular = pow(max(dot(normal, half_dir), 0.0), 128.0);
+
+    let metal_base = vec3<f32>(0.15, 0.15, 0.18);
+    let metal_highlight = vec3<f32>(0.6, 0.6, 0.65);
+    var color = mix(metal_base, metal_highlight, diffuse * metallic);
+    color += vec3<f32>(1.0) * specular * metallic;
+
+    let fresnel = pow(1.0 - n_dot_v, 4.0);
+    color += metal_highlight * fresnel * metallic * 0.3;
+
+    color += energy_color * edge * pulse * 2.0;
+    color += energy_color * cross_pulse * 1.5;
+    color += energy_color * edge * 0.3;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const NET_SPACE: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn net_hash(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let grid_density = uniforms.custom[0].x * 30.0 + 5.0;
+    let flow_speed = uniforms.custom[0].y * 5.0 + 1.0;
+    let dissolve = uniforms.custom[0].z;
+    let glow_intensity = uniforms.custom[0].w * 3.0 + 0.2;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+
+    let grid_uv = in.uv * grid_density;
+    let grid_cell = floor(grid_uv);
+    let grid_frac = fract(grid_uv);
+
+    let dist_x = min(grid_frac.x, 1.0 - grid_frac.x);
+    let dist_y = min(grid_frac.y, 1.0 - grid_frac.y);
+    let grid_dist = min(dist_x, dist_y);
+
+    let line_width = 0.03;
+    let wire = 1.0 - smoothstep(0.0, line_width, grid_dist);
+    let wire_glow = exp(-grid_dist * grid_dist / (line_width * line_width * 8.0));
+
+    let cell_hash = net_hash(grid_cell);
+    let data_phase = fract(cell_hash + uniforms.time * flow_speed * 0.1);
+    let data_pulse = smoothstep(0.0, 0.1, data_phase) * (1.0 - smoothstep(0.1, 0.3, data_phase));
+
+    let flow_y = fract(grid_cell.y * 0.1 - uniforms.time * flow_speed * 0.05);
+    let stream = smoothstep(0.0, 0.02, flow_y) * (1.0 - smoothstep(0.02, 0.08, flow_y));
+    let stream_active = step(0.6, net_hash(vec2<f32>(grid_cell.x, 0.0)));
+
+    let dissolve_noise = net_hash(grid_cell * 7.3 + vec2<f32>(13.0, 37.0));
+    let dissolve_threshold = dissolve * 1.2;
+    let alive = step(dissolve_noise, 1.0 - dissolve_threshold);
+    let dissolve_edge = smoothstep(0.0, 0.1, abs(dissolve_noise - dissolve_threshold));
+
+    let cyan = vec3<f32>(0.0, 0.8, 1.0);
+    let green = vec3<f32>(0.0, 1.0, 0.4);
+    let white = vec3<f32>(0.8, 0.9, 1.0);
+
+    let dark = vec3<f32>(0.01, 0.02, 0.03);
+    var color = dark;
+
+    color += cyan * wire * glow_intensity * alive;
+    color += cyan * wire_glow * glow_intensity * 0.4 * alive;
+    color += green * data_pulse * 0.5 * alive;
+    color += green * stream * stream_active * 0.4 * alive;
+
+    color += white * (1.0 - dissolve_edge) * (1.0 - alive) * 0.5;
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 2.0);
+    color += cyan * fresnel * 0.2;
+
+    let alpha = (wire * 0.6 + wire_glow * 0.3 + fresnel * 0.2 + data_pulse * 0.1) * alive
+        + (1.0 - dissolve_edge) * (1.0 - alive) * 0.3;
+
+    return vec4<f32>(color, max(alpha, 0.05));
+}
+"
+);
+
+const KIROSHI_SCAN: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    geometry_vertex!(),
+    r"
+fn kiroshi_hash(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let scan_speed = uniforms.custom[0].x * 4.0 + 0.5;
+    let hud_density = uniforms.custom[0].y * 20.0 + 5.0;
+    let target_lock = uniforms.custom[0].z;
+    let interference = uniforms.custom[0].w * 0.5;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let base = vec3<f32>(0.08, 0.08, 0.1) + vec3<f32>(0.15, 0.2, 0.25) * diffuse;
+
+    let scan_y = fract(uniforms.time * scan_speed * 0.1) * 3.0 - 0.5;
+    let scan_dist = abs(in.world_position.y - scan_y);
+    let scan_line = exp(-scan_dist * scan_dist * 80.0);
+    let scan_color = vec3<f32>(1.0, 0.2, 0.1);
+
+    let hud_uv = in.uv * hud_density;
+    let hud_cell = floor(hud_uv);
+    let hud_frac = fract(hud_uv);
+    let hud_x = step(0.95, hud_frac.x) + step(0.95, 1.0 - hud_frac.x);
+    let hud_y = step(0.95, hud_frac.y) + step(0.95, 1.0 - hud_frac.y);
+    let hud_corners = min(hud_x + hud_y, 1.0);
+    let cell_active = step(0.7, kiroshi_hash(hud_cell + floor(uniforms.time * 0.5)));
+    let hud_grid = hud_corners * cell_active * 0.3;
+
+    let center_uv = in.uv - 0.5;
+    let center_dist = length(center_uv);
+    let target_ring = abs(center_dist - 0.3 * target_lock) < 0.005;
+    let target_cross_h = abs(center_uv.y) < 0.002 && abs(center_uv.x) < 0.15 * target_lock;
+    let target_cross_v = abs(center_uv.x) < 0.002 && abs(center_uv.y) < 0.15 * target_lock;
+    let target_indicator = f32(target_ring || target_cross_h || target_cross_v) * target_lock;
+
+    let hor_scan = sin(in.world_position.y * 200.0 + uniforms.time * 15.0) * 0.5 + 0.5;
+    let scan_lines = smoothstep(0.3, 0.7, hor_scan) * 0.1;
+
+    let noise_val = kiroshi_hash(in.world_position.xz * 50.0 + vec2<f32>(uniforms.time * 10.0, 0.0));
+    let static_noise = noise_val * interference;
+
+    let red = vec3<f32>(1.0, 0.15, 0.05);
+    let amber = vec3<f32>(1.0, 0.6, 0.0);
+
+    var color = base;
+    color += scan_color * scan_line * 1.5;
+    color += red * hud_grid;
+    color += amber * target_indicator * 0.8;
+    color -= vec3<f32>(scan_lines);
+    color += vec3<f32>(static_noise * 0.1);
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 2.5);
+    color += red * fresnel * 0.15;
+
+    return vec4<f32>(color, 1.0);
+}
+"
+);
+
+const RELIC_MALFUNCTION: &str = concat!(
+    uniform_preamble!(),
+    texture_preamble!(),
+    r"
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+};
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_position: vec3<f32>,
+    @location(1) world_normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+};
+
+fn relic_hash(p: f32) -> f32 {
+    return fract(sin(p * 127.1) * 43758.5453);
+}
+
+fn relic_hash2(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+}
+
+@vertex
+fn vertex_main(input: VertexInput) -> VertexOutput {
+    var out: VertexOutput;
+    var pos = input.position;
+
+    let corruption = uniforms.custom[0].x;
+    let spike_rate = uniforms.custom[0].w;
+
+    let time_slot = floor(uniforms.time * 15.0);
+    let spike_hash = relic_hash(time_slot * 0.31);
+
+    if spike_hash > (1.0 - spike_rate * 0.4) {
+        let spike_dir = normalize(vec3<f32>(
+            relic_hash(time_slot * 1.7) - 0.5,
+            relic_hash(time_slot * 2.3) - 0.5,
+            relic_hash(time_slot * 3.1) - 0.5
+        ));
+        let spike_strength = corruption * 0.3 * relic_hash(time_slot * 5.0);
+        let affected = step(0.7, relic_hash(floor(pos.y * 10.0) + time_slot));
+        pos += spike_dir * spike_strength * affected;
+    }
+
+    let jitter = sin(uniforms.time * 20.0 + pos.y * 30.0) * corruption * 0.02;
+    pos.x += jitter;
+
+    let world_pos = uniforms.model * vec4<f32>(pos, 1.0);
+    out.clip_position = uniforms.projection * uniforms.view * world_pos;
+    out.world_position = world_pos.xyz;
+    out.world_normal = normalize((uniforms.model * vec4<f32>(input.normal, 0.0)).xyz);
+    out.uv = input.uv;
+    return out;
+}
+
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let corruption = uniforms.custom[0].x;
+    let bleed = uniforms.custom[0].y * 0.4;
+    let ghost = uniforms.custom[0].z;
+    let spike_rate = uniforms.custom[0].w;
+
+    let normal = normalize(in.world_normal);
+    let view_dir = normalize(uniforms.camera_position - in.world_position);
+    let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
+
+    let diffuse = max(dot(normal, light_dir), 0.0);
+    let base = vec3<f32>(0.12, 0.1, 0.14) + vec3<f32>(0.3, 0.25, 0.35) * diffuse;
+
+    let bleed_phase = sin(in.world_position.y * 8.0 + uniforms.time * 3.0) * 0.5 + 0.5;
+    let bleed_mask = smoothstep(0.3, 0.7, bleed_phase) * bleed;
+    let bleed_color = vec3<f32>(0.8, 0.0, 0.1);
+
+    let ghost_offset = ghost * 0.15;
+    let ghost_normal = normalize(normal + vec3<f32>(0.1, -0.05, 0.0) * ghost);
+    let ghost_diffuse = max(dot(ghost_normal, light_dir), 0.0);
+    let ghost_color = vec3<f32>(0.0, 0.3, 0.6) * ghost_diffuse;
+    let ghost_mask = ghost * 0.4;
+
+    let time_slot = floor(uniforms.time * 15.0);
+    let band = floor(in.world_position.y * 25.0);
+    let corrupt_band = step(1.0 - corruption * 0.3, relic_hash(band + time_slot * 0.5));
+
+    let corrupt_color = vec3<f32>(
+        relic_hash2(vec2<f32>(band, time_slot)),
+        relic_hash2(vec2<f32>(band + 100.0, time_slot)) * 0.2,
+        relic_hash2(vec2<f32>(band + 200.0, time_slot))
+    );
+
+    let flicker = 0.7 + 0.3 * sin(uniforms.time * 40.0 + relic_hash(time_slot) * 6.28);
+    let hard_flicker = step(0.95 - spike_rate * 0.15, relic_hash(time_slot * 0.73));
+
+    var color = base;
+    color += bleed_color * bleed_mask;
+    color = mix(color, ghost_color, ghost_mask * (sin(uniforms.time * 5.0) * 0.5 + 0.5));
+    color = mix(color, corrupt_color, corrupt_band * 0.8);
+    color *= mix(flicker, 0.1, hard_flicker);
+
+    let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 2.0);
+    let relic_glow = vec3<f32>(0.8, 0.0, 0.2) + vec3<f32>(0.2, 0.0, 0.8) * sin(uniforms.time * 2.0);
+    color += relic_glow * fresnel * corruption * 0.4;
+
+    let scan = sin(in.world_position.y * 150.0 + uniforms.time * 10.0) * 0.5 + 0.5;
+    color *= 0.9 + 0.1 * scan;
 
     return vec4<f32>(color, 1.0);
 }

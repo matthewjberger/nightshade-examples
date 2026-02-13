@@ -279,9 +279,6 @@ pub fn update_flashlight(demo: &mut CityDemo, world: &mut World) {
     let Some(flashlight_entity) = demo.flashlight_entity else {
         return;
     };
-    let Some(camera) = demo.player_camera_entity else {
-        return;
-    };
 
     let f_pressed = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyF);
     let gamepad_y_pressed = query_active_gamepad(world)
@@ -296,23 +293,4 @@ pub fn update_flashlight(demo: &mut CityDemo, world: &mut World) {
         }
     }
     demo.flashlight_key_was_pressed = toggle_pressed;
-
-    if let Some(camera_transform) = world.get_global_transform(camera).cloned() {
-        let camera_position = camera_transform.translation();
-        let camera_forward = camera_transform.forward_vector();
-
-        let offset_position = camera_position + camera_forward * 0.5;
-
-        let flashlight_transform = LocalTransform {
-            translation: offset_position,
-            rotation: world
-                .get_local_transform(camera)
-                .map(|t| t.rotation)
-                .unwrap_or(Quat::identity()),
-            scale: Vec3::new(1.0, 1.0, 1.0),
-        };
-
-        world.set_local_transform(flashlight_entity, flashlight_transform);
-        world.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
-    }
 }

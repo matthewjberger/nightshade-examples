@@ -95,6 +95,18 @@ struct PhysicsDemo {
     xr_lt_was_pressed: bool,
 }
 
+struct RoomConfig {
+    center: Vec3,
+    width: f32,
+    depth: f32,
+    height: f32,
+    wall_thickness: f32,
+    doorway_width: f32,
+    doorway_height: f32,
+    wall_material: nightshade::ecs::material::components::Material,
+    ceiling_material: nightshade::ecs::material::components::Material,
+}
+
 struct PrismaticSliderState {
     entity: Entity,
     time_accumulator: f32,
@@ -528,6 +540,9 @@ impl PhysicsDemo {
         self.spawn_revolute_joint_exhibit(world, nalgebra_glm::vec3(6.0, 0.0, 8.0));
         self.spawn_velocity_friction_joint_exhibit(world, nalgebra_glm::vec3(0.0, 0.0, 10.0));
         self.spawn_coulomb_friction_joint_exhibit(world, nalgebra_glm::vec3(-6.0, 0.0, 12.0));
+
+        self.spawn_curiosity_room(world, nalgebra_glm::vec3(12.0, 0.0, 11.0));
+        self.spawn_workshop_room(world, nalgebra_glm::vec3(-12.0, 0.0, 11.0));
     }
 
     fn spawn_grabbables_exhibit(&mut self, world: &mut World, center: Vec3) {
@@ -2986,6 +3001,439 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         }
         for joint_state in &mut self.velocity_friction_joints {
             joint_state.initialized = true;
+        }
+    }
+
+    fn spawn_room_walls(&self, world: &mut World, config: &RoomConfig) {
+        let center = config.center;
+        let room_width = config.width;
+        let room_depth = config.depth;
+        let room_height = config.height;
+        let wall_thickness = config.wall_thickness;
+        let doorway_width = config.doorway_width;
+        let doorway_height = config.doorway_height;
+        let wall_material = config.wall_material.clone();
+        let ceiling_material = config.ceiling_material.clone();
+
+        let half_width = room_width / 2.0;
+        let half_depth = room_depth / 2.0;
+        let wall_center_y = room_height / 2.0;
+
+        spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(
+                center.x,
+                wall_center_y,
+                center.z + half_depth - wall_thickness / 2.0,
+            ),
+            nalgebra_glm::vec3(room_width, room_height, wall_thickness),
+            wall_material.clone(),
+        );
+
+        spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(
+                center.x - half_width + wall_thickness / 2.0,
+                wall_center_y,
+                center.z,
+            ),
+            nalgebra_glm::vec3(wall_thickness, room_height, room_depth),
+            wall_material.clone(),
+        );
+
+        spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(
+                center.x + half_width - wall_thickness / 2.0,
+                wall_center_y,
+                center.z,
+            ),
+            nalgebra_glm::vec3(wall_thickness, room_height, room_depth),
+            wall_material.clone(),
+        );
+
+        let front_z = center.z - half_depth + wall_thickness / 2.0;
+        let segment_width = (room_width - doorway_width) / 2.0;
+
+        spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(
+                center.x - half_width + segment_width / 2.0,
+                wall_center_y,
+                front_z,
+            ),
+            nalgebra_glm::vec3(segment_width, room_height, wall_thickness),
+            wall_material.clone(),
+        );
+
+        spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(
+                center.x + half_width - segment_width / 2.0,
+                wall_center_y,
+                front_z,
+            ),
+            nalgebra_glm::vec3(segment_width, room_height, wall_thickness),
+            wall_material.clone(),
+        );
+
+        let header_height = room_height - doorway_height;
+        if header_height > 0.01 {
+            spawn_static_physics_cube_with_material(
+                world,
+                nalgebra_glm::vec3(center.x, doorway_height + header_height / 2.0, front_z),
+                nalgebra_glm::vec3(doorway_width, header_height, wall_thickness),
+                wall_material,
+            );
+        }
+
+        spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, room_height + wall_thickness / 2.0, center.z),
+            nalgebra_glm::vec3(room_width, wall_thickness, room_depth),
+            ceiling_material,
+        );
+    }
+
+    fn spawn_room_light(&self, world: &mut World, position: Vec3, color: Vec3, intensity: f32) {
+        let light_entity = world.spawn_entities(
+            NAME | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | LIGHT,
+            1,
+        )[0];
+
+        if let Some(name) = world.get_name_mut(light_entity) {
+            name.0 = "Room Light".to_string();
+        }
+
+        if let Some(transform) = world.get_local_transform_mut(light_entity) {
+            transform.translation = position;
+        }
+
+        if let Some(light) = world.get_light_mut(light_entity) {
+            *light = Light {
+                light_type: LightType::Point,
+                color,
+                intensity,
+                range: 8.0,
+                inner_cone_angle: 0.0,
+                outer_cone_angle: 0.0,
+                cast_shadows: true,
+                shadow_bias: 0.005,
+            };
+        }
+    }
+
+    fn spawn_curiosity_room(&mut self, world: &mut World, center: Vec3) {
+        let room_height = 3.0;
+
+        let config = RoomConfig {
+            center,
+            width: 4.0,
+            depth: 4.0,
+            height: room_height,
+            wall_thickness: 0.15,
+            doorway_width: 1.2,
+            doorway_height: 2.3,
+            wall_material: create_textured_material(
+                nalgebra_glm::vec3(0.28, 0.22, 0.18),
+                0.92,
+                0.0,
+            ),
+            ceiling_material: create_textured_material(
+                nalgebra_glm::vec3(0.3, 0.28, 0.25),
+                0.95,
+                0.0,
+            ),
+        };
+
+        self.spawn_room_walls(world, &config);
+
+        let front_z = center.z - config.depth / 2.0;
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Curiosity Cabinet",
+            nalgebra_glm::vec3(center.x, config.doorway_height + 0.25, front_z - 0.3),
+            TextProperties {
+                font_size: 20.0,
+                color: Vec4::new(1.0, 0.9, 0.7, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.04,
+                outline_color: Vec4::new(0.15, 0.1, 0.05, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let back_wall_z = center.z + config.depth / 2.0 - config.wall_thickness - 0.05;
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Take only what you need",
+            nalgebra_glm::vec3(center.x, 2.0, back_wall_z),
+            TextProperties {
+                font_size: 12.0,
+                color: Vec4::new(0.8, 0.75, 0.6, 0.9),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.1, 0.08, 0.05, 0.8),
+                ..Default::default()
+            },
+        );
+
+        self.spawn_room_light(
+            world,
+            nalgebra_glm::vec3(center.x, room_height - 0.3, center.z),
+            nalgebra_glm::vec3(1.0, 0.9, 0.7),
+            8.0,
+        );
+
+        let shelf_material = create_textured_material(nalgebra_glm::vec3(0.4, 0.3, 0.2), 0.75, 0.1);
+        let shelf_y = 0.9;
+        let shelf_z = center.z + 1.2;
+        spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, shelf_y, shelf_z),
+            nalgebra_glm::vec3(2.0, 0.06, 0.5),
+            shelf_material,
+        );
+
+        let gold_material = create_textured_material(nalgebra_glm::vec3(0.85, 0.7, 0.2), 0.3, 0.9);
+        let gem_positions = [
+            nalgebra_glm::vec3(center.x - 0.4, shelf_y + 0.03 + 0.1, shelf_z),
+            nalgebra_glm::vec3(center.x + 0.5, shelf_y + 0.03 + 0.1, shelf_z - 0.1),
+        ];
+        for (index, position) in gem_positions.iter().enumerate() {
+            let entity = spawn_dynamic_physics_sphere_with_material(
+                world,
+                *position,
+                0.1,
+                0.5,
+                gold_material.clone(),
+            );
+            world.set_name(entity, Name(format!("Gold Gem {}", index + 1)));
+            self.physics_objects.push(entity);
+        }
+
+        let crystal_material =
+            create_textured_material(nalgebra_glm::vec3(0.2, 0.4, 0.9), 0.15, 0.7);
+        let crystal_entity = spawn_dynamic_physics_sphere_with_material(
+            world,
+            nalgebra_glm::vec3(center.x + 0.1, shelf_y + 0.03 + 0.12, shelf_z + 0.1),
+            0.12,
+            0.8,
+            crystal_material,
+        );
+        world.set_name(crystal_entity, Name("Crystal Orb".to_string()));
+        self.physics_objects.push(crystal_entity);
+
+        let trinket_material =
+            create_textured_material(nalgebra_glm::vec3(0.6, 0.5, 0.35), 0.7, 0.0);
+        let trinket_size = 0.12;
+        let trinket_positions = [
+            nalgebra_glm::vec3(center.x - 0.7, trinket_size / 2.0, center.z - 0.5),
+            nalgebra_glm::vec3(center.x + 0.8, trinket_size / 2.0, center.z + 0.3),
+        ];
+        for (index, position) in trinket_positions.iter().enumerate() {
+            let entity = spawn_dynamic_physics_cube_with_material(
+                world,
+                *position,
+                nalgebra_glm::vec3(trinket_size, trinket_size, trinket_size),
+                0.8,
+                trinket_material.clone(),
+            );
+            world.set_name(entity, Name(format!("Trinket Box {}", index + 1)));
+            self.physics_objects.push(entity);
+        }
+
+        let vase_material = create_textured_material(nalgebra_glm::vec3(0.7, 0.3, 0.25), 0.5, 0.2);
+        let vase_entity = spawn_dynamic_physics_cylinder_with_material(
+            world,
+            nalgebra_glm::vec3(center.x - 0.6, 0.2, center.z + 0.8),
+            0.2,
+            0.08,
+            1.0,
+            vase_material,
+        );
+        world.set_name(vase_entity, Name("Ceramic Vase".to_string()));
+        self.physics_objects.push(vase_entity);
+
+        let emerald_material =
+            create_textured_material(nalgebra_glm::vec3(0.1, 0.7, 0.3), 0.2, 0.6);
+        let emerald_entity = spawn_dynamic_physics_sphere_with_material(
+            world,
+            nalgebra_glm::vec3(center.x + 0.3, 0.08, center.z - 0.8),
+            0.08,
+            0.3,
+            emerald_material,
+        );
+        world.set_name(emerald_entity, Name("Emerald".to_string()));
+        self.physics_objects.push(emerald_entity);
+    }
+
+    fn spawn_workshop_room(&mut self, world: &mut World, center: Vec3) {
+        let room_height = 3.0;
+
+        let config = RoomConfig {
+            center,
+            width: 4.0,
+            depth: 4.0,
+            height: room_height,
+            wall_thickness: 0.15,
+            doorway_width: 1.2,
+            doorway_height: 2.3,
+            wall_material: create_textured_material(
+                nalgebra_glm::vec3(0.22, 0.22, 0.24),
+                0.9,
+                0.05,
+            ),
+            ceiling_material: create_textured_material(
+                nalgebra_glm::vec3(0.25, 0.25, 0.27),
+                0.95,
+                0.0,
+            ),
+        };
+
+        self.spawn_room_walls(world, &config);
+
+        let front_z = center.z - config.depth / 2.0;
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Workshop",
+            nalgebra_glm::vec3(center.x, config.doorway_height + 0.25, front_z - 0.3),
+            TextProperties {
+                font_size: 20.0,
+                color: Vec4::new(0.9, 0.95, 1.0, 1.0),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.04,
+                outline_color: Vec4::new(0.08, 0.08, 0.12, 1.0),
+                ..Default::default()
+            },
+        );
+
+        let back_wall_z = center.z + config.depth / 2.0 - config.wall_thickness - 0.05;
+        spawn_3d_billboard_text_with_properties(
+            world,
+            "Mind the sharp edges",
+            nalgebra_glm::vec3(center.x, 2.0, back_wall_z),
+            TextProperties {
+                font_size: 12.0,
+                color: Vec4::new(0.85, 0.85, 0.9, 0.9),
+                alignment: TextAlignment::Center,
+                vertical_alignment: VerticalAlignment::Middle,
+                outline_width: 0.03,
+                outline_color: Vec4::new(0.08, 0.08, 0.1, 0.8),
+                ..Default::default()
+            },
+        );
+
+        self.spawn_room_light(
+            world,
+            nalgebra_glm::vec3(center.x, room_height - 0.3, center.z),
+            nalgebra_glm::vec3(0.9, 0.95, 1.0),
+            10.0,
+        );
+
+        let bench_material =
+            create_textured_material(nalgebra_glm::vec3(0.35, 0.28, 0.18), 0.8, 0.05);
+        let bench_y = 0.8;
+        let bench_z = center.z + 1.0;
+        spawn_static_physics_cube_with_material(
+            world,
+            nalgebra_glm::vec3(center.x, bench_y / 2.0, bench_z),
+            nalgebra_glm::vec3(2.4, bench_y, 0.7),
+            bench_material,
+        );
+
+        let metal_material =
+            create_textured_material(nalgebra_glm::vec3(0.5, 0.5, 0.55), 0.3, 0.85);
+        let tool_configs = [
+            (
+                nalgebra_glm::vec3(center.x - 0.5, bench_y + 0.1, bench_z),
+                0.1,
+                0.05,
+            ),
+            (
+                nalgebra_glm::vec3(center.x + 0.3, bench_y + 0.08, bench_z + 0.1),
+                0.08,
+                0.04,
+            ),
+            (
+                nalgebra_glm::vec3(center.x + 0.7, bench_y + 0.12, bench_z - 0.1),
+                0.12,
+                0.035,
+            ),
+        ];
+        for (index, (position, half_height, radius)) in tool_configs.iter().enumerate() {
+            let entity = spawn_dynamic_physics_cylinder_with_material(
+                world,
+                *position,
+                *half_height,
+                *radius,
+                2.0,
+                metal_material.clone(),
+            );
+            world.set_name(entity, Name(format!("Metal Part {}", index + 1)));
+            self.physics_objects.push(entity);
+        }
+
+        let brick_material =
+            create_textured_material(nalgebra_glm::vec3(0.65, 0.25, 0.2), 0.85, 0.0);
+        let brick_size = 0.15;
+        let brick_positions = [
+            nalgebra_glm::vec3(center.x - 0.7, brick_size / 2.0, center.z - 0.5),
+            nalgebra_glm::vec3(center.x - 0.5, brick_size / 2.0, center.z - 0.7),
+        ];
+        for (index, position) in brick_positions.iter().enumerate() {
+            let entity = spawn_dynamic_physics_cube_with_material(
+                world,
+                *position,
+                nalgebra_glm::vec3(brick_size, brick_size, brick_size),
+                3.0,
+                brick_material.clone(),
+            );
+            world.set_name(entity, Name(format!("Brick {}", index + 1)));
+            self.physics_objects.push(entity);
+        }
+
+        let orb_material = create_textured_material(nalgebra_glm::vec3(0.2, 0.7, 0.3), 0.4, 0.5);
+        let orb_entity = spawn_dynamic_physics_sphere_with_material(
+            world,
+            nalgebra_glm::vec3(center.x + 0.6, 0.12, center.z - 0.6),
+            0.12,
+            1.0,
+            orb_material,
+        );
+        world.set_name(orb_entity, Name("Green Orb".to_string()));
+        self.physics_objects.push(orb_entity);
+
+        let gear_material = create_textured_material(nalgebra_glm::vec3(0.6, 0.55, 0.5), 0.25, 0.9);
+        let gear_entity = spawn_dynamic_physics_cylinder_with_material(
+            world,
+            nalgebra_glm::vec3(center.x + 0.2, bench_y + 0.06, bench_z - 0.2),
+            0.03,
+            0.1,
+            1.5,
+            gear_material,
+        );
+        world.set_name(gear_entity, Name("Brass Gear".to_string()));
+        self.physics_objects.push(gear_entity);
+
+        let bolt_material = create_textured_material(nalgebra_glm::vec3(0.4, 0.4, 0.45), 0.2, 0.9);
+        let bolt_positions = [
+            nalgebra_glm::vec3(center.x - 0.2, bench_y + 0.05, bench_z + 0.2),
+            nalgebra_glm::vec3(center.x + 0.6, bench_y + 0.05, bench_z + 0.15),
+        ];
+        for (index, position) in bolt_positions.iter().enumerate() {
+            let entity = spawn_dynamic_physics_cube_with_material(
+                world,
+                *position,
+                nalgebra_glm::vec3(0.06, 0.06, 0.06),
+                0.5,
+                bolt_material.clone(),
+            );
+            world.set_name(entity, Name(format!("Bolt {}", index + 1)));
+            self.physics_objects.push(entity);
         }
     }
 

@@ -36,6 +36,7 @@ freecs::ecs! {
         fps_hud_text: Option<Entity>,
         bunny_count_hud_text: Option<Entity>,
         target_fps_hud_text: Option<Entity>,
+        cached_bunny_count: usize,
     }
 }
 
@@ -128,6 +129,8 @@ impl State for BunnyWorld {
             self.resources.max_y = size.height as f32;
         }
 
+        self.resources.cached_bunny_count = self.query_entities(BUNNY_PHYSICS).count();
+
         if let Some(fps_text_entity) = self.resources.fps_hud_text {
             let fps = world.resources.window.timing.frames_per_second;
             let target_fps = self.resources.target_fps;
@@ -156,8 +159,7 @@ impl State for BunnyWorld {
         }
 
         if let Some(bunny_count_entity) = self.resources.bunny_count_hud_text {
-            let bunny_count: Vec<_> = self.query_entities(BUNNY_PHYSICS).collect();
-            let bunny_count = bunny_count.len();
+            let bunny_count = self.resources.cached_bunny_count;
             let text_index = world.get_hud_text(bunny_count_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
@@ -190,8 +192,7 @@ impl State for BunnyWorld {
     }
 
     fn ui(&mut self, world: &mut World, ui_context: &egui::Context) {
-        let bunny_count: Vec<_> = self.query_entities(BUNNY_PHYSICS).collect();
-        let bunny_count = bunny_count.len();
+        let bunny_count = self.resources.cached_bunny_count;
 
         let fps = world.resources.window.timing.frames_per_second;
 
@@ -342,7 +343,9 @@ fn spawn_bunny(world: &mut World, bunny_world: &mut BunnyWorld, position: Vec2) 
     let rotation_angle = rng.random::<f32>() * std::f32::consts::TAU;
     let scale = 0.5 + rng.random::<f32>() * 1.0;
 
-    let depth = rng.random::<f32>() * 100.0;
+    const DEPTH_LAYERS: u32 = 8;
+    let layer = rng.random_range(0..DEPTH_LAYERS);
+    let depth = layer as f32 * 0.1;
 
     if let Some(transform) = world.get_local_transform_mut(engine_entity) {
         transform.translation = Vec3::new(position.x, position.y, depth);
@@ -447,8 +450,7 @@ fn update_sustained_fps_tracking(world: &mut World, bunny_world: &mut BunnyWorld
 
     let fps = world.resources.window.timing.frames_per_second;
     let frame_time = world.resources.window.timing.raw_delta_time * 1000.0;
-    let bunny_count: Vec<_> = bunny_world.query_entities(BUNNY_PHYSICS).collect();
-    let bunny_count = bunny_count.len();
+    let bunny_count = bunny_world.resources.cached_bunny_count;
 
     if bunny_count > 1000 {
         if fps < bunny_world.resources.sustained_low_fps {
@@ -484,10 +486,7 @@ fn auto_spawn_system(world: &mut World, bunny_world: &mut BunnyWorld) {
         return;
     }
 
-    let current_entities: Vec<_> = bunny_world
-        .query_entities(BUNNY_PHYSICS | ENTITY_HANDLE)
-        .collect();
-    let current_count = current_entities.len();
+    let current_count = bunny_world.resources.cached_bunny_count;
 
     if current_count < 1000 {
         spawn_bunnies(world, bunny_world, 1000);
@@ -540,6 +539,9 @@ fn auto_spawn_system(world: &mut World, bunny_world: &mut BunnyWorld) {
         let despawn_count =
             ((current_count as f32 * despawn_percentage).max(min_despawn as f32)) as usize;
         let despawn_count = despawn_count.min(current_count);
+        let current_entities: Vec<_> = bunny_world
+            .query_entities(BUNNY_PHYSICS | ENTITY_HANDLE)
+            .collect();
         despawn_bunnies(world, bunny_world, &current_entities, despawn_count);
     } else if avg_fps > upper_threshold {
         let fps_surplus = avg_fps - upper_threshold;

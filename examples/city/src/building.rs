@@ -553,6 +553,10 @@ fn describe_neon_sign(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
 fn describe_shopfront(data: &mut ChunkData, spec: &BuildingSpec) {
     let half_width = spec.width / 2.0;
     let half_depth = spec.depth / 2.0;
+    let door_face = crate::interiors::door_face_for_building(spec);
+
+    let door_to_window_face = [2u32, 3, 0, 1];
+    let skip_face_index = door_to_window_face[door_face as usize];
 
     let faces: [(f32, f32, f32, f32); 4] = [
         (
@@ -581,14 +585,60 @@ fn describe_shopfront(data: &mut ChunkData, spec: &BuildingSpec) {
         ),
     ];
 
-    for (x, z, sx, sz) in faces {
-        data.instance(
-            "Cube",
-            Vec3::new(x, SHOPFRONT_Y, z),
-            Vec3::new(sx, SHOPFRONT_HEIGHT, sz),
-            "ShopfrontLit",
-            None,
-        );
+    for (face_index, (x, z, sx, sz)) in faces.into_iter().enumerate() {
+        if face_index as u32 == skip_face_index {
+            let door_half = crate::interiors::DOOR_WIDTH / 2.0;
+            let margin = 0.3;
+            let is_x_facing = face_index < 2;
+
+            if is_x_facing {
+                let face_half = sz / 2.0;
+                let section_width = face_half - door_half - margin;
+                if section_width > 0.5 {
+                    data.instance(
+                        "Cube",
+                        Vec3::new(x, SHOPFRONT_Y, z - door_half - margin - section_width / 2.0),
+                        Vec3::new(sx, SHOPFRONT_HEIGHT, section_width),
+                        "ShopfrontLit",
+                        None,
+                    );
+                    data.instance(
+                        "Cube",
+                        Vec3::new(x, SHOPFRONT_Y, z + door_half + margin + section_width / 2.0),
+                        Vec3::new(sx, SHOPFRONT_HEIGHT, section_width),
+                        "ShopfrontLit",
+                        None,
+                    );
+                }
+            } else {
+                let face_half = sx / 2.0;
+                let section_width = face_half - door_half - margin;
+                if section_width > 0.5 {
+                    data.instance(
+                        "Cube",
+                        Vec3::new(x - door_half - margin - section_width / 2.0, SHOPFRONT_Y, z),
+                        Vec3::new(section_width, SHOPFRONT_HEIGHT, sz),
+                        "ShopfrontLit",
+                        None,
+                    );
+                    data.instance(
+                        "Cube",
+                        Vec3::new(x + door_half + margin + section_width / 2.0, SHOPFRONT_Y, z),
+                        Vec3::new(section_width, SHOPFRONT_HEIGHT, sz),
+                        "ShopfrontLit",
+                        None,
+                    );
+                }
+            }
+        } else {
+            data.instance(
+                "Cube",
+                Vec3::new(x, SHOPFRONT_Y, z),
+                Vec3::new(sx, SHOPFRONT_HEIGHT, sz),
+                "ShopfrontLit",
+                None,
+            );
+        }
     }
 }
 

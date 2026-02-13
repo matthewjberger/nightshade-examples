@@ -4,9 +4,9 @@ use rand::Rng;
 use crate::building::{BuildingSpec, BuildingType};
 use crate::descriptors::ChunkData;
 
-const WALL_THICKNESS: f32 = 0.3;
-const DOOR_WIDTH: f32 = 2.0;
-const DOOR_HEIGHT: f32 = 2.5;
+pub const WALL_THICKNESS: f32 = 0.3;
+pub const DOOR_WIDTH: f32 = 2.0;
+pub const DOOR_HEIGHT: f32 = 2.5;
 const INTERIOR_FLOOR_Y: f32 = 0.1;
 const CEILING_THICKNESS: f32 = 0.2;
 
@@ -159,6 +159,61 @@ pub fn describe_exterior_door(data: &mut ChunkData, spec: &BuildingSpec) {
         Vec3::new(door_sx, DOOR_HEIGHT, door_sz),
         "DockWood",
     );
+
+    let window_height = DOOR_HEIGHT - 0.3;
+    let window_width = 0.6;
+    let window_y = window_height / 2.0;
+    let gap = 0.3;
+    let door_half = DOOR_WIDTH / 2.0;
+
+    match door_face {
+        0 | 1 => {
+            let left_x = spec.x - door_half - gap - window_width / 2.0;
+            let right_x = spec.x + door_half + gap + window_width / 2.0;
+            let face_z = if door_face == 0 {
+                spec.z + half_depth + DOOR_SURFACE_OFFSET
+            } else {
+                spec.z - half_depth - DOOR_SURFACE_OFFSET
+            };
+            data.instance(
+                "Cube",
+                Vec3::new(left_x, window_y, face_z),
+                Vec3::new(window_width, window_height, DOOR_SURFACE_OFFSET),
+                "WindowLit",
+                None,
+            );
+            data.instance(
+                "Cube",
+                Vec3::new(right_x, window_y, face_z),
+                Vec3::new(window_width, window_height, DOOR_SURFACE_OFFSET),
+                "WindowLit",
+                None,
+            );
+        }
+        _ => {
+            let left_z = spec.z - door_half - gap - window_width / 2.0;
+            let right_z = spec.z + door_half + gap + window_width / 2.0;
+            let face_x = if door_face == 2 {
+                spec.x + half_width + DOOR_SURFACE_OFFSET
+            } else {
+                spec.x - half_width - DOOR_SURFACE_OFFSET
+            };
+            data.instance(
+                "Cube",
+                Vec3::new(face_x, window_y, left_z),
+                Vec3::new(DOOR_SURFACE_OFFSET, window_height, window_width),
+                "WindowLit",
+                None,
+            );
+            data.instance(
+                "Cube",
+                Vec3::new(face_x, window_y, right_z),
+                Vec3::new(DOOR_SURFACE_OFFSET, window_height, window_width),
+                "WindowLit",
+                None,
+            );
+        }
+    }
 }
 
 fn describe_wall_with_optional_door(

@@ -63,7 +63,6 @@ struct CityDemo {
     observer: Option<observer::ObserverCamera>,
     observer_enabled: bool,
     sun_shadows: bool,
-    bird_system: atmosphere::BirdSystem,
     leaf_system: atmosphere::LeafSystem,
     district_hud: Option<districts::DistrictHud>,
     billboard_textures: billboard::BillboardTextures,
@@ -80,6 +79,7 @@ struct CityDemo {
     player_progress: player_data::PlayerProgress,
     collision_entities: Vec<Entity>,
     chunk_collision_entities: HashMap<(i32, i32), Vec<Entity>>,
+    input_mode: player_systems::InputMode,
 }
 
 impl Default for CityDemo {
@@ -120,7 +120,6 @@ impl Default for CityDemo {
             observer: None,
             observer_enabled: false,
             sun_shadows: true,
-            bird_system: atmosphere::BirdSystem::new(),
             leaf_system: atmosphere::LeafSystem::new(),
             district_hud: None,
             billboard_textures: billboard::BillboardTextures::new(),
@@ -137,6 +136,7 @@ impl Default for CityDemo {
             player_progress: player_data::PlayerProgress::default(),
             collision_entities: Vec::new(),
             chunk_collision_entities: HashMap::new(),
+            input_mode: player_systems::InputMode::default(),
         }
     }
 }
@@ -324,7 +324,6 @@ impl State for CityDemo {
             if let Some(observer) = self.observer.take() {
                 observer.despawn(world);
             }
-            self.bird_system.despawn(world);
             self.leaf_system.despawn(world);
             self.billboard_textures.reset();
             self.camera_controller = None;
@@ -343,14 +342,6 @@ impl State for CityDemo {
         let camera_pos = self.active_camera_position(world);
 
         atmosphere::update_campfire_lights(world, uptime);
-
-        let city_center = Vec3::new(
-            (self.city_half as f32 - 0.5) * city::CHUNK_SIZE / 2.0,
-            0.0,
-            (self.city_half as f32 - 0.5) * city::CHUNK_SIZE / 2.0,
-        );
-        self.bird_system.initialize(world, city_center);
-        self.bird_system.update(world, delta_time, city_center);
 
         self.leaf_system.initialize(world);
         self.leaf_system.update(world, camera_pos);
@@ -564,6 +555,8 @@ impl State for CityDemo {
 }
 
 fn run_first_person_systems(demo: &mut CityDemo, world: &mut World) {
+    player_systems::detect_input_mode(demo, world);
+
     run_physics_systems(world);
 
     player_systems::camera_look_system(demo, world);

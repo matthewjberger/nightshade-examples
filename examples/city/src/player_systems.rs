@@ -1,5 +1,6 @@
+use nightshade::ecs::input::queries::query_active_gamepad;
+use nightshade::ecs::input::resources::MouseState;
 use nightshade::ecs::light::components::{Light, LightType};
-use nightshade::ecs::world::resources::MouseState;
 use nightshade::prelude::*;
 
 use crate::CityDemo;
@@ -9,6 +10,13 @@ const CROUCHING_CAMERA_HEIGHT: f32 = 0.3;
 const LEAN_AMOUNT: f32 = 0.4;
 const LEAN_ANGLE: f32 = 0.15;
 const LEAN_SPEED: f32 = 8.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InputMode {
+    #[default]
+    MouseKeyboard,
+    Gamepad,
+}
 
 #[derive(Default)]
 pub struct LeanState {
@@ -27,39 +35,117 @@ impl LeanState {
     }
 }
 
+pub fn detect_input_mode(demo: &mut CityDemo, world: &mut World) {
+    let keyboard = &world.resources.input.keyboard;
+    let mouse = &world.resources.input.mouse;
+
+    let has_keyboard_input = keyboard
+        .keystates
+        .values()
+        .any(|state| *state == ElementState::Pressed);
+    let has_mouse_input = mouse.raw_mouse_delta.x.abs() > 0.1
+        || mouse.raw_mouse_delta.y.abs() > 0.1
+        || mouse.state.contains(MouseState::LEFT_CLICKED)
+        || mouse.state.contains(MouseState::RIGHT_CLICKED);
+
+    let has_gamepad_input = if let Some(gamepad) = query_active_gamepad(world) {
+        let left_stick_x = gamepad.value(gilrs::Axis::LeftStickX);
+        let left_stick_y = gamepad.value(gilrs::Axis::LeftStickY);
+        let right_stick_x = gamepad.value(gilrs::Axis::RightStickX);
+        let right_stick_y = gamepad.value(gilrs::Axis::RightStickY);
+        let deadzone = 0.15;
+        left_stick_x.abs() > deadzone
+            || left_stick_y.abs() > deadzone
+            || right_stick_x.abs() > deadzone
+            || right_stick_y.abs() > deadzone
+    } else {
+        false
+    };
+
+    if has_gamepad_input && demo.input_mode != InputMode::Gamepad {
+        demo.input_mode = InputMode::Gamepad;
+    } else if (has_keyboard_input || has_mouse_input) && demo.input_mode != InputMode::MouseKeyboard
+    {
+        demo.input_mode = InputMode::MouseKeyboard;
+    }
+}
+
 pub fn camera_look_system(demo: &mut CityDemo, world: &mut World) {
     let Some(camera_entity) = demo.player_camera_entity else {
         return;
     };
 
-    let right_clicked = world
-        .resources
-        .input
-        .mouse
-        .state
-        .contains(MouseState::RIGHT_CLICKED);
+    let right_clicked = if demo.input_mode == InputMode::MouseKeyboard {
+        world
+            .resources
+            .input
+            .mouse
+            .state
+            .contains(MouseState::RIGHT_CLICKED)
+    } else {
+        false
+    };
 
-    if !right_clicked {
-        if let Some(window_handle) = &world.resources.window.handle {
-            let _ = window_handle.set_cursor_grab(window::CursorGrabMode::None);
-            window_handle.set_cursor_visible(true);
+    let (gamepad_right_stick_x, gamepad_right_stick_y) = if demo.input_mode == InputMode::Gamepad {
+        if let Some(gamepad) = query_active_gamepad(world) {
+            let deadzone = 0.15;
+            let raw_x = gamepad.value(gilrs::Axis::RightStickX);
+            let raw_y = gamepad.value(gilrs::Axis::RightStickY);
+            let magnitude = (raw_x * raw_x + raw_y * raw_y).sqrt();
+            if magnitude > deadzone {
+                let normalized = (magnitude - deadzone) / (1.0 - deadzone);
+                (
+                    raw_x * normalized / magnitude,
+                    raw_y * normalized / magnitude,
+                )
+            } else {
+                (0.0, 0.0)
+            }
+        } else {
+            (0.0, 0.0)
         }
+    } else {
+        (0.0, 0.0)
+    };
+
+    let has_gamepad_input = gamepad_right_stick_x.abs() > 0.0 || gamepad_right_stick_y.abs() > 0.0;
+
+    let should_lock_cursor = right_clicked;
+
+    if should_lock_cursor {
+        if let Some(window_handle) = &world.resources.window.handle {
+            if window_handle
+                .set_cursor_grab(window::CursorGrabMode::Locked)
+                .is_err()
+            {
+                let _ = window_handle.set_cursor_grab(window::CursorGrabMode::Confined);
+            }
+            window_handle.set_cursor_visible(false);
+        }
+    } else if let Some(window_handle) = &world.resources.window.handle {
+        let _ = window_handle.set_cursor_grab(window::CursorGrabMode::None);
+        window_handle.set_cursor_visible(true);
+    }
+
+    if !right_clicked && !has_gamepad_input {
         return;
     }
 
-    if let Some(window_handle) = &world.resources.window.handle {
-        if window_handle
-            .set_cursor_grab(window::CursorGrabMode::Locked)
-            .is_err()
-        {
-            let _ = window_handle.set_cursor_grab(window::CursorGrabMode::Confined);
-        }
-        window_handle.set_cursor_visible(false);
-    }
+    let delta_time = world.resources.window.timing.delta_time;
 
-    let raw_delta = world.resources.input.mouse.raw_mouse_delta;
-    let mouse_sensitivity = 0.002;
-    let delta = raw_delta * mouse_sensitivity;
+    let delta = if demo.input_mode == InputMode::Gamepad && has_gamepad_input {
+        let gamepad_sensitivity = 1.2;
+        nalgebra_glm::vec2(
+            gamepad_right_stick_x * gamepad_sensitivity * delta_time,
+            -gamepad_right_stick_y * gamepad_sensitivity * delta_time,
+        )
+    } else if demo.input_mode == InputMode::MouseKeyboard {
+        let raw_delta = world.resources.input.mouse.raw_mouse_delta;
+        let mouse_sensitivity = 0.002;
+        raw_delta * mouse_sensitivity
+    } else {
+        return;
+    };
 
     let yaw = nalgebra_glm::quat_angle_axis(-delta.x, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
     demo.lean_state.base_rotation = yaw * demo.lean_state.base_rotation;
@@ -198,14 +284,18 @@ pub fn update_flashlight(demo: &mut CityDemo, world: &mut World) {
     };
 
     let f_pressed = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyF);
+    let gamepad_y_pressed = query_active_gamepad(world)
+        .map(|gamepad| gamepad.is_pressed(gilrs::Button::North))
+        .unwrap_or(false);
+    let toggle_pressed = f_pressed || gamepad_y_pressed;
 
-    if f_pressed && !demo.flashlight_key_was_pressed {
+    if toggle_pressed && !demo.flashlight_key_was_pressed {
         demo.flashlight_on = !demo.flashlight_on;
         if let Some(light) = world.get_light_mut(flashlight_entity) {
             light.intensity = if demo.flashlight_on { 150.0 } else { 0.0 };
         }
     }
-    demo.flashlight_key_was_pressed = f_pressed;
+    demo.flashlight_key_was_pressed = toggle_pressed;
 
     if let Some(camera_transform) = world.get_global_transform(camera).cloned() {
         let camera_position = camera_transform.translation();

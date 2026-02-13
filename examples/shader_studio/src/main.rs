@@ -55,6 +55,7 @@ struct ShaderStudio {
     save_status: Option<(String, std::time::Instant)>,
     previous_atmosphere: Atmosphere,
     sdf_editor: sdf_editor::SdfEditor,
+    preset_filter: String,
 }
 
 impl Default for ShaderStudio {
@@ -77,6 +78,13 @@ impl Default for ShaderStudio {
                 slot: 1,
             });
             locked.texture_slot_names[1] = Some("dot grid (built-in)".to_string());
+            locked.pending_texture_data.push(PendingTexture {
+                width: 256,
+                height: 256,
+                data: generate_builtin_texture_checkerboard(256, 256),
+                slot: 2,
+            });
+            locked.texture_slot_names[2] = Some("checkerboard (built-in)".to_string());
         }
 
         let mut slider_labels: [String; 16] =
@@ -113,6 +121,7 @@ impl Default for ShaderStudio {
             save_status: None,
             previous_atmosphere: Atmosphere::Sky,
             sdf_editor: sdf_editor::SdfEditor::default(),
+            preset_filter: String::new(),
         }
     }
 }
@@ -1268,10 +1277,18 @@ impl ShaderStudio {
 
     fn preset_tree(&mut self, ui: &mut egui::Ui) {
         let selected_category = presets::PRESETS[self.selected_preset].category;
+        let filter_active = !self.preset_filter.is_empty();
+        let filter_lower = self.preset_filter.to_lowercase();
 
         egui::CollapsingHeader::new(egui::RichText::new("Presets").strong())
             .default_open(true)
             .show(ui, |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.preset_filter)
+                        .hint_text("Search...")
+                        .desired_width(f32::INFINITY),
+                );
+
                 egui::ScrollArea::vertical()
                     .id_salt("preset_tree_scroll")
                     .max_height(240.0)
@@ -1280,6 +1297,13 @@ impl ShaderStudio {
                             Vec::new();
 
                         for (index, preset) in presets::PRESETS.iter().enumerate() {
+                            if filter_active
+                                && !preset.name.to_lowercase().contains(&filter_lower)
+                                && !preset.description.to_lowercase().contains(&filter_lower)
+                            {
+                                continue;
+                            }
+
                             if let Some(entry) = categories
                                 .iter_mut()
                                 .find(|(cat, _)| *cat == preset.category)
@@ -1291,12 +1315,17 @@ impl ShaderStudio {
                         }
 
                         for (category, category_presets) in &categories {
-                            let is_selected_category = *category == selected_category;
+                            let should_open = if filter_active {
+                                true
+                            } else {
+                                *category == selected_category
+                            };
                             egui::CollapsingHeader::new(
                                 egui::RichText::new(*category)
                                     .color(egui::Color32::from_rgb(0x9C, 0xDC, 0xFE)),
                             )
-                            .default_open(is_selected_category)
+                            .default_open(should_open)
+                            .open(if filter_active { Some(true) } else { None })
                             .show(ui, |ui| {
                                 for &(index, preset) in category_presets {
                                     let is_selected = index == self.selected_preset;
@@ -1562,6 +1591,23 @@ fn generate_builtin_texture_dots(width: u32, height: u32) -> Vec<u8> {
             let b = (bg_b + (dot_b - bg_b) * dot).clamp(0.0, 1.0);
 
             data.extend_from_slice(&[(r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8, 255]);
+        }
+    }
+
+    data
+}
+
+fn generate_builtin_texture_checkerboard(width: u32, height: u32) -> Vec<u8> {
+    let mut data = Vec::with_capacity((width * height * 4) as usize);
+    let cells = 8u32;
+
+    for y in 0..height {
+        for x in 0..width {
+            let cell_x = x * cells / width;
+            let cell_y = y * cells / height;
+            let is_white = (cell_x + cell_y).is_multiple_of(2);
+            let value = if is_white { 255u8 } else { 0u8 };
+            data.extend_from_slice(&[value, value, value, 255]);
         }
     }
 

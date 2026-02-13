@@ -1,8 +1,8 @@
 use crate::ecs::{GameWorld, POSITION, RENDERABLE, TileType};
 use nightshade::prelude::*;
 
-fn color_code(r: u8, g: u8, b: u8) -> String {
-    format!("\x1b[38;2;{};{};{}m", r, g, b)
+fn rgb(r: u8, g: u8, b: u8) -> Vec4 {
+    Vec4::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0)
 }
 
 const COLOR_VISIBLE_WALL: (u8, u8, u8) = (139, 119, 101);
@@ -40,6 +40,9 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         Vec2::new(20.0, 40.0),
         map_props,
     );
+
+    world.queue_add_components(map_entity, TEXT_CHARACTER_COLORS);
+    world.apply_commands();
 
     let title_props = TextProperties {
         font_size: 20.0,
@@ -188,30 +191,55 @@ fn update_map_display(display: &DisplayState, game_world: &GameWorld, world: &mu
         }
     }
 
-    let border_color = color_code(COLOR_BORDER.0, COLOR_BORDER.1, COLOR_BORDER.2);
-    let border_h: String = format!("{}+{}+", border_color, "-".repeat(map.width as usize));
+    let border_color = rgb(COLOR_BORDER.0, COLOR_BORDER.1, COLOR_BORDER.2);
 
-    let mut lines: Vec<String> = Vec::with_capacity((map.height + 2) as usize);
-    lines.push(border_h.clone());
+    let mut text = String::new();
+    let mut colors: Vec<Option<Vec4>> = Vec::new();
+
+    text.push('+');
+    colors.push(Some(border_color));
+    for _ in 0..map.width {
+        text.push('-');
+        colors.push(Some(border_color));
+    }
+    text.push('+');
+    colors.push(Some(border_color));
+    text.push('\n');
+    colors.push(None);
 
     for row in render_grid.iter() {
-        let mut line = format!("{}|", border_color);
+        text.push('|');
+        colors.push(Some(border_color));
         for cell in row.iter() {
-            line.push_str(&color_code(cell.color.0, cell.color.1, cell.color.2));
-            line.push(cell.glyph);
+            text.push(cell.glyph);
+            colors.push(Some(rgb(cell.color.0, cell.color.1, cell.color.2)));
         }
-        line.push_str(&format!("{}|", border_color));
-        lines.push(line);
+        text.push('|');
+        colors.push(Some(border_color));
+        text.push('\n');
+        colors.push(None);
     }
-    lines.push(border_h);
-    let map_string = lines.join("\n");
+
+    text.push('+');
+    colors.push(Some(border_color));
+    for _ in 0..map.width {
+        text.push('-');
+        colors.push(Some(border_color));
+    }
+    text.push('+');
+    colors.push(Some(border_color));
 
     if let Some(hud_text) = world.get_hud_text(entity) {
         let text_index = hud_text.text_index;
-        world.resources.text_cache.set_text(text_index, &map_string);
+        world.resources.text_cache.set_text(text_index, &text);
         if let Some(hud_text) = world.get_hud_text_mut(entity) {
             hud_text.dirty = true;
         }
+    }
+
+    if let Some(char_colors) = world.get_text_character_colors_mut(entity) {
+        char_colors.colors = colors;
+        char_colors.dirty = true;
     }
 }
 

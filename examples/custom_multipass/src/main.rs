@@ -413,12 +413,6 @@ impl State for BlurDemo {
             .read("input", blur_temp)
             .write("output", resources.swapchain);
 
-        let final_blit = passes::BlitPass::new(device, surface_format);
-        graph
-            .pass(Box::new(final_blit))
-            .read("input", resources.compute_output)
-            .write("output", resources.swapchain);
-
         tracing::info!("Blur render graph configured");
     }
 

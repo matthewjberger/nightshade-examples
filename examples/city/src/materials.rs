@@ -131,29 +131,29 @@ pub fn create_materials(world: &mut World) {
         EmissiveDef {
             name: "LampGlow",
             base_color: [1.0, 0.9, 0.6, 1.0],
-            emissive_factor: [2.0, 1.5, 0.8],
-            emissive_strength: 3.0,
+            emissive_factor: [1.5, 1.1, 0.6],
+            emissive_strength: 2.0,
             roughness: 0.2,
         },
         EmissiveDef {
             name: "NeonRed",
             base_color: [1.0, 0.15, 0.1, 1.0],
-            emissive_factor: [3.0, 0.3, 0.2],
-            emissive_strength: 2.0,
+            emissive_factor: [1.8, 0.2, 0.12],
+            emissive_strength: 1.5,
             roughness: 0.2,
         },
         EmissiveDef {
             name: "NeonBlue",
             base_color: [0.1, 0.3, 1.0, 1.0],
-            emissive_factor: [0.2, 0.6, 3.0],
-            emissive_strength: 2.0,
+            emissive_factor: [0.12, 0.36, 1.8],
+            emissive_strength: 1.5,
             roughness: 0.2,
         },
         EmissiveDef {
             name: "NeonPink",
             base_color: [1.0, 0.2, 0.6, 1.0],
-            emissive_factor: [3.0, 0.4, 1.2],
-            emissive_strength: 2.0,
+            emissive_factor: [1.8, 0.24, 0.72],
+            emissive_strength: 1.5,
             roughness: 0.2,
         },
         EmissiveDef {
@@ -186,7 +186,34 @@ pub fn create_materials(world: &mut World) {
         },
     ];
 
-    for emissive in &emissive_materials {
+    let traffic_emissive_materials = [
+        EmissiveDef {
+            name: "TrafficRed",
+            base_color: [1.0, 0.1, 0.05, 1.0],
+            emissive_factor: [1.5, 0.05, 0.02],
+            emissive_strength: 1.0,
+            roughness: 0.3,
+        },
+        EmissiveDef {
+            name: "TrafficYellow",
+            base_color: [1.0, 0.8, 0.1, 1.0],
+            emissive_factor: [1.5, 1.2, 0.1],
+            emissive_strength: 1.0,
+            roughness: 0.3,
+        },
+        EmissiveDef {
+            name: "TrafficGreen",
+            base_color: [0.1, 1.0, 0.2, 1.0],
+            emissive_factor: [0.1, 1.5, 0.15],
+            emissive_strength: 1.0,
+            roughness: 0.3,
+        },
+    ];
+
+    for emissive in emissive_materials
+        .iter()
+        .chain(traffic_emissive_materials.iter())
+    {
         let EmissiveDef {
             name,
             base_color,

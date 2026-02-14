@@ -92,6 +92,24 @@ impl ChunkData {
         }
     }
 
+    pub fn mesh(
+        &mut self,
+        mesh: &'static str,
+        position: Vec3,
+        scale: Vec3,
+        material: &'static str,
+        rotation: Option<nalgebra_glm::Quat>,
+    ) {
+        self.meshes.push(MeshDescriptor {
+            mesh,
+            position,
+            scale,
+            material,
+            casts_shadow: false,
+            rotation,
+        });
+    }
+
     pub fn light(&mut self, position: Vec3, color: Vec3, intensity: f32, range: f32) {
         self.lights.push(LightDescriptor {
             position,

@@ -17,11 +17,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 struct PrefabsState {
     model_entities: Vec<Entity>,
     camera_entity: Option<Entity>,
+    sun_entity: Option<Entity>,
     rotation_speed: f32,
     loaded: bool,
     left_arrow_was_pressed: bool,
     right_arrow_was_pressed: bool,
     previous_atmosphere: Atmosphere,
+    day_night_hour: f32,
+    last_ibl_hour: f32,
+    a_button_was_pressed: bool,
+    b_button_was_pressed: bool,
 }
 
 impl Default for PrefabsState {
@@ -29,11 +34,20 @@ impl Default for PrefabsState {
         Self {
             model_entities: Vec::new(),
             camera_entity: None,
+            sun_entity: None,
             rotation_speed: 0.0,
             loaded: false,
             left_arrow_was_pressed: false,
             right_arrow_was_pressed: false,
-            previous_atmosphere: Atmosphere::Hdr,
+            previous_atmosphere: if cfg!(feature = "openxr") {
+                Atmosphere::DayNight
+            } else {
+                Atmosphere::Hdr
+            },
+            day_night_hour: 12.0,
+            last_ibl_hour: 12.0,
+            a_button_was_pressed: false,
+            b_button_was_pressed: false,
         }
     }
 }
@@ -94,7 +108,15 @@ impl State for PrefabsState {
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = true;
         world.resources.graphics.show_grid = false;
-        world.resources.graphics.atmosphere = Atmosphere::Hdr;
+        #[cfg(feature = "openxr")]
+        {
+            world.resources.graphics.atmosphere = Atmosphere::DayNight;
+            world.resources.graphics.day_night_hour = self.day_night_hour;
+        }
+        #[cfg(not(feature = "openxr"))]
+        {
+            world.resources.graphics.atmosphere = Atmosphere::Hdr;
+        }
         world.resources.graphics.use_fullscreen = true;
         world.resources.graphics.ssao_enabled = true;
         world.resources.graphics.ssao_radius = 0.5;
@@ -103,10 +125,24 @@ impl State for PrefabsState {
 
         load_hdr_skybox(world, HDR_BYTES.to_vec());
 
+        #[cfg(feature = "openxr")]
+        {
+            capture_procedural_atmosphere_ibl(world, Atmosphere::DayNight, self.day_night_hour);
+            capture_ibl_snapshots(
+                world,
+                Atmosphere::DayNight,
+                vec![0.0, 4.0, 7.0, 10.0, 14.0, 17.0, 20.0],
+            );
+        }
+
         let sun = spawn_sun(world);
         if let Some(light) = world.get_light_mut(sun) {
             light.cast_shadows = true;
+            light.intensity = 3.5;
+            light.shadow_bias = 0.008;
         }
+        self.sun_entity = Some(sun);
+        self.update_sun_for_hour(world);
 
         self.rotation_speed = 0.5;
 
@@ -223,6 +259,23 @@ impl State for PrefabsState {
         escape_key_exit_system(world);
         pan_orbit_camera_system(world);
         self.atmosphere_switch_system(world);
+
+        if world.resources.graphics.atmosphere == Atmosphere::DayNight {
+            let delta = world.resources.window.timing.delta_time;
+            self.day_night_hour += delta * 0.5;
+            if self.day_night_hour >= 24.0 {
+                self.day_night_hour -= 24.0;
+            }
+
+            let hour_diff = (self.day_night_hour - self.last_ibl_hour).abs();
+            if hour_diff > 1.0 || (self.day_night_hour < self.last_ibl_hour) {
+                capture_procedural_atmosphere_ibl(world, Atmosphere::DayNight, self.day_night_hour);
+                self.last_ibl_hour = self.day_night_hour;
+            }
+        }
+
+        world.resources.graphics.day_night_hour = self.day_night_hour;
+        self.update_sun_for_hour(world);
 
         if self.loaded {
             for entity in &self.model_entities {
@@ -391,6 +444,16 @@ impl State for PrefabsState {
                         });
                 });
 
+                if world.resources.graphics.atmosphere == Atmosphere::DayNight {
+                    ui.horizontal(|ui| {
+                        ui.label("Hour:");
+                        ui.add(
+                            egui::Slider::new(&mut self.day_night_hour, 0.0..=24.0)
+                                .fixed_decimals(1),
+                        );
+                    });
+                }
+
                 ui.separator();
 
                 ui.horizontal(|ui| {
@@ -431,6 +494,70 @@ impl State for PrefabsState {
 }
 
 impl PrefabsState {
+    fn get_sun_direction(hour: f32) -> Vec3 {
+        let pi = std::f32::consts::PI;
+        if !(6.0..=18.0).contains(&hour) {
+            Vec3::new(0.0, -1.0, 0.0)
+        } else {
+            let sun_angle = (hour - 6.0) / 12.0 * pi;
+            nalgebra_glm::normalize(&Vec3::new(-sun_angle.cos(), sun_angle.sin(), -0.3))
+        }
+    }
+
+    fn update_sun_for_hour(&self, world: &mut World) {
+        let sun = match self.sun_entity {
+            Some(entity) => entity,
+            None => return,
+        };
+
+        let sun_dir = Self::get_sun_direction(self.day_night_hour);
+        let is_night = !(6.0..=18.0).contains(&self.day_night_hour);
+
+        let sun_intensity = if is_night {
+            0.0
+        } else {
+            let elevation = sun_dir.y.max(0.0);
+            3.5 * elevation.sqrt()
+        };
+
+        let warm = Vec3::new(1.0, 0.7, 0.4);
+        let white = Vec3::new(1.0, 0.95, 0.8);
+        let sun_color = if is_night {
+            Vec3::new(0.0, 0.0, 0.0)
+        } else if self.day_night_hour < 7.5 {
+            let t = ((self.day_night_hour - 6.0) / 1.5).clamp(0.0, 1.0);
+            nalgebra_glm::lerp(&warm, &white, t)
+        } else if self.day_night_hour > 16.5 {
+            let t = ((18.0 - self.day_night_hour) / 1.5).clamp(0.0, 1.0);
+            nalgebra_glm::lerp(&warm, &white, t)
+        } else {
+            white
+        };
+
+        if let Some(light) = world.get_light_mut(sun) {
+            light.intensity = sun_intensity;
+            light.color = sun_color;
+        }
+
+        let sun_position = sun_dir * 100.0;
+        if let Some(transform) = world.get_local_transform_mut(sun) {
+            transform.translation = sun_position;
+            let forward = -sun_dir;
+            let up = Vec3::y();
+            let right = nalgebra_glm::normalize(&nalgebra_glm::cross(&forward, &up));
+            if right.norm() > 0.001 {
+                let corrected_up = nalgebra_glm::normalize(&nalgebra_glm::cross(&right, &forward));
+                transform.rotation =
+                    nalgebra_glm::mat3_to_quat(&nalgebra_glm::Mat3::from_columns(&[
+                        right,
+                        corrected_up,
+                        -forward,
+                    ]));
+            }
+        }
+        mark_local_transform_dirty(world, sun);
+    }
+
     fn atmosphere_switch_system(&mut self, world: &mut World) {
         let right_pressed = world
             .resources
@@ -443,20 +570,47 @@ impl PrefabsState {
             .keyboard
             .is_key_pressed(KeyCode::ArrowLeft);
 
-        if right_pressed && !self.right_arrow_was_pressed {
+        #[cfg(feature = "openxr")]
+        let (a_pressed, b_pressed) = if let Some(ref xr_input) = world.resources.xr.input {
+            (xr_input.a_button_pressed(), xr_input.b_button_pressed())
+        } else {
+            (false, false)
+        };
+        #[cfg(not(feature = "openxr"))]
+        let (a_pressed, b_pressed) = (false, false);
+
+        if (right_pressed && !self.right_arrow_was_pressed)
+            || (a_pressed && !self.a_button_was_pressed)
+        {
             world.resources.graphics.atmosphere = world.resources.graphics.atmosphere.next();
         }
-        if left_pressed && !self.left_arrow_was_pressed {
+        if (left_pressed && !self.left_arrow_was_pressed)
+            || (b_pressed && !self.b_button_was_pressed)
+        {
             world.resources.graphics.atmosphere = world.resources.graphics.atmosphere.previous();
         }
 
         self.right_arrow_was_pressed = right_pressed;
         self.left_arrow_was_pressed = left_pressed;
+        self.a_button_was_pressed = a_pressed;
+        self.b_button_was_pressed = b_pressed;
 
         let current_atmosphere = world.resources.graphics.atmosphere;
         if current_atmosphere != self.previous_atmosphere {
-            if current_atmosphere.is_procedural() {
+            if current_atmosphere == Atmosphere::DayNight {
+                self.day_night_hour = 12.0;
+                self.last_ibl_hour = 12.0;
+                world.resources.graphics.day_night_hour = self.day_night_hour;
+                capture_procedural_atmosphere_ibl(world, Atmosphere::DayNight, self.day_night_hour);
+                capture_ibl_snapshots(
+                    world,
+                    Atmosphere::DayNight,
+                    vec![0.0, 4.0, 7.0, 10.0, 14.0, 17.0, 20.0],
+                );
+            } else if current_atmosphere.is_procedural() {
                 capture_procedural_atmosphere_ibl(world, current_atmosphere, 0.0);
+            } else if current_atmosphere == Atmosphere::Hdr {
+                load_hdr_skybox(world, HDR_BYTES.to_vec());
             }
             self.previous_atmosphere = current_atmosphere;
         }

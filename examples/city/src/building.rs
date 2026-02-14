@@ -108,6 +108,13 @@ pub fn describe_building_detail(data: &mut ChunkData, spec: &BuildingSpec, rng: 
 }
 
 fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
+    use crate::kenney;
+
+    const TREE_SCALE: Vec3 = Vec3::new(1.5, 1.5, 1.5);
+    const BENCH_SCALE: Vec3 = Vec3::new(1.2, 1.2, 1.2);
+    const FLOWER_SCALE: Vec3 = Vec3::new(1.0, 1.0, 1.0);
+    const ROCK_SCALE: Vec3 = Vec3::new(0.8, 0.8, 0.8);
+
     data.instance(
         "Cube",
         Vec3::new(spec.x, 0.05, spec.z),
@@ -120,41 +127,15 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
     for _ in 0..tree_count {
         let tree_x = spec.x + rng.random_range(-spec.width * 0.3..spec.width * 0.3);
         let tree_z = spec.z + rng.random_range(-spec.depth * 0.3..spec.depth * 0.3);
-        let trunk_height = rng.random_range(2.0..4.0);
-        let is_conifer = rng.random_range(0.0f32..1.0) < 0.5;
+        let tree_model = kenney::PARK_TREES[rng.random_range(0..kenney::PARK_TREES.len())];
 
         data.instance(
-            "Cylinder",
-            Vec3::new(tree_x, trunk_height / 2.0, tree_z),
-            Vec3::new(0.3, trunk_height, 0.3),
-            "TreeTrunk",
+            tree_model,
+            Vec3::new(tree_x, 0.0, tree_z),
+            TREE_SCALE,
+            kenney::MAT_NATURE,
             None,
         );
-
-        if is_conifer {
-            let cone_height = rng.random_range(2.5..4.0);
-            let cone_radius = rng.random_range(0.8..1.2);
-            data.instance(
-                "Cone",
-                Vec3::new(tree_x, trunk_height + cone_height / 2.0, tree_z),
-                Vec3::new(cone_radius * 2.0, cone_height, cone_radius * 2.0),
-                "ParkDarkGreen",
-                None,
-            );
-        } else {
-            let foliage_radius = rng.random_range(1.0..2.0);
-            data.instance(
-                "Sphere",
-                Vec3::new(tree_x, trunk_height + foliage_radius * 0.5, tree_z),
-                Vec3::new(
-                    foliage_radius * 2.0,
-                    foliage_radius * 2.0,
-                    foliage_radius * 2.0,
-                ),
-                "ParkDarkGreen",
-                None,
-            );
-        }
     }
 
     let bench_count = rng.random_range(1u32..3);
@@ -180,10 +161,10 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
         };
 
         data.instance(
-            "Cube",
-            Vec3::new(bench_x, 0.25, bench_z),
-            Vec3::new(1.5, 0.5, 0.5),
-            "DockWood",
+            kenney::BENCH,
+            Vec3::new(bench_x, 0.0, bench_z),
+            BENCH_SCALE,
+            kenney::MAT_FURNITURE,
             None,
         );
     }
@@ -192,17 +173,36 @@ fn describe_park(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) 
     for _ in 0..flower_count {
         let flower_x = spec.x + rng.random_range(-spec.width * 0.25..spec.width * 0.25);
         let flower_z = spec.z + rng.random_range(-spec.depth * 0.25..spec.depth * 0.25);
-        let flower_material = if rng.random_range(0.0f32..1.0) < 0.5 {
-            "FlowerRed"
+        let flower_model = if rng.random_range(0.0f32..1.0) < 0.5 {
+            kenney::FLOWER_RED
         } else {
-            "FlowerYellow"
+            kenney::FLOWER_YELLOW
         };
 
         data.instance(
-            "Cube",
-            Vec3::new(flower_x, 0.08, flower_z),
-            Vec3::new(rng.random_range(1.0..2.0), 0.15, rng.random_range(1.0..2.0)),
-            flower_material,
+            flower_model,
+            Vec3::new(flower_x, 0.0, flower_z),
+            FLOWER_SCALE,
+            kenney::MAT_NATURE,
+            None,
+        );
+    }
+
+    let rock_count = rng.random_range(1u32..3);
+    for _ in 0..rock_count {
+        let rock_x = spec.x + rng.random_range(-spec.width * 0.3..spec.width * 0.3);
+        let rock_z = spec.z + rng.random_range(-spec.depth * 0.3..spec.depth * 0.3);
+        let rock_model = if rng.random_range(0.0f32..1.0) < 0.5 {
+            kenney::ROCK_SMALL_A
+        } else {
+            kenney::ROCK_SMALL_B
+        };
+
+        data.instance(
+            rock_model,
+            Vec3::new(rock_x, 0.0, rock_z),
+            ROCK_SCALE,
+            kenney::MAT_NATURE,
             None,
         );
     }

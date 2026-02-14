@@ -8,10 +8,10 @@ mod descriptors;
 mod districts;
 mod first_person;
 mod interiors;
+mod kenney;
 mod materials;
 mod minimap;
 mod observer;
-mod player_data;
 mod player_hud;
 mod player_systems;
 mod stroke_font;
@@ -77,7 +77,6 @@ struct CityDemo {
     flashlight_key_was_pressed: bool,
     lean_state: player_systems::LeanState,
     show_collision: bool,
-    player_progress: player_data::PlayerProgress,
     ground_collider_entity: Option<Entity>,
     chunk_collision_entities: HashMap<(i32, i32), Vec<Entity>>,
     input_mode: player_systems::InputMode,
@@ -121,7 +120,7 @@ impl Default for CityDemo {
             observer: None,
             observer_enabled: false,
             sun_shadows: true,
-            post_processing: true,
+            post_processing: !cfg!(feature = "openxr"),
             leaf_system: atmosphere::LeafSystem::new(),
             district_hud: None,
             billboard_textures: billboard::BillboardTextures::new(),
@@ -135,7 +134,6 @@ impl Default for CityDemo {
             flashlight_key_was_pressed: false,
             lean_state: player_systems::LeanState::new(),
             show_collision: false,
-            player_progress: player_data::PlayerProgress::default(),
             ground_collider_entity: None,
             chunk_collision_entities: HashMap::new(),
             input_mode: player_systems::InputMode::default(),
@@ -244,23 +242,38 @@ impl State for CityDemo {
             color: [0.75, 0.55, 0.45],
         });
 
-        world.resources.graphics.bloom_enabled = true;
+        world.resources.graphics.bloom_enabled = self.post_processing;
         world.resources.graphics.bloom_intensity = 0.01;
-        world.resources.graphics.ssao_enabled = true;
+        world.resources.graphics.ssao_enabled = self.post_processing;
         world.resources.graphics.ssao_radius = 0.5;
         world.resources.graphics.ssao_intensity = 0.5;
         world.resources.graphics.ambient_light = [0.25, 0.22, 0.20, 1.0];
         world.resources.graphics.occlusion_culling_enabled = true;
-        world.resources.graphics.color_grading = ColorGradingPreset::Cinematic.to_color_grading();
-        world.resources.graphics.depth_of_field = self.depth_of_field;
-        world.resources.graphics.ssgi_enabled = self.ssgi_enabled;
+        if self.post_processing {
+            world.resources.graphics.color_grading =
+                ColorGradingPreset::Cinematic.to_color_grading();
+        }
+        world.resources.graphics.depth_of_field = if self.post_processing {
+            self.depth_of_field
+        } else {
+            DepthOfField::default()
+        };
+        world.resources.graphics.ssgi_enabled = self.post_processing && self.ssgi_enabled;
         world.resources.graphics.ssgi_radius = self.ssgi_radius;
         world.resources.graphics.ssgi_intensity = self.ssgi_intensity;
         world.resources.graphics.ssgi_max_steps = self.ssgi_max_steps;
 
         self.minimap_enabled = true;
 
+        #[cfg(feature = "openxr")]
+        {
+            world.resources.xr.locomotion_enabled = true;
+            world.resources.xr.locomotion_speed = 15.0;
+            world.resources.xr.initial_player_position = Some(Vec3::new(0.0, 2.0, 0.0));
+        }
+
         materials::create_materials(world);
+        kenney::load_all(world);
         billboard::register_screen_materials(world);
 
         self.setup_world(world);
@@ -348,6 +361,28 @@ impl State for CityDemo {
             self.setup_world(world);
         }
 
+        #[cfg(feature = "openxr")]
+        {
+            if let Some(camera) = self.camera_entity
+                && let Some(xr_input) = &world.resources.xr.input
+            {
+                let head_pos = xr_input.head_position;
+                let head_rot = xr_input.head_orientation;
+                if let Some(transform) = world.get_local_transform_mut(camera) {
+                    transform.translation = head_pos;
+                    transform.rotation = head_rot;
+                }
+                mark_local_transform_dirty(world, camera);
+            }
+
+            let camera_pos = self.active_camera_position(world);
+            let camera_forward = self.active_camera_forward(world);
+            if let Some(streamer) = &mut self.chunk_streamer {
+                streamer.update(world, camera_pos, camera_forward);
+            }
+        }
+
+        #[cfg(not(feature = "openxr"))]
         if self.first_person_mode {
             run_first_person_systems(self, world);
         } else {
@@ -358,6 +393,12 @@ impl State for CityDemo {
         let camera_pos = self.active_camera_position(world);
 
         atmosphere::update_campfire_lights(world, uptime);
+        atmosphere::update_neon_lights(world, uptime);
+        atmosphere::update_traffic_lights(world, uptime);
+
+        if let Some(streamer) = &self.chunk_streamer {
+            streamer.update_boat_bobbing(world, uptime);
+        }
 
         self.leaf_system.initialize(world);
         self.leaf_system.update(world, camera_pos);
@@ -377,7 +418,7 @@ impl State for CityDemo {
         let camera_forward = self.active_camera_forward(world);
 
         if self.first_person_mode {
-            player_hud::draw_game_hud(&self.player_progress, ui_context);
+            player_hud::draw_game_hud(camera_forward, ui_context);
         }
 
         egui::Window::new("City Info").show(ui_context, |ui| {

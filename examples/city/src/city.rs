@@ -18,6 +18,7 @@ pub struct CityChunkLayout {
     pub buildings: Vec<BuildingSpec>,
     pub road_segments: Vec<RoadSegment>,
     pub streetlight_positions: Vec<StreetlightPosition>,
+    pub intersection_positions: Vec<IntersectionPosition>,
 }
 
 pub struct RoadSegment {
@@ -26,6 +27,211 @@ pub struct RoadSegment {
     pub width: f32,
     pub depth: f32,
     pub is_sidewalk: bool,
+}
+
+pub struct IntersectionPosition {
+    pub x: f32,
+    pub z: f32,
+}
+
+enum BlockSubdivision {
+    Single,
+    SplitTwo,
+    Grid2x2,
+}
+
+fn pick_subdivision(height_influence: f32, rng: &mut impl Rng) -> BlockSubdivision {
+    let roll: f32 = rng.random_range(0.0..1.0);
+    if height_influence > 0.7 {
+        BlockSubdivision::Single
+    } else if height_influence > 0.4 {
+        if roll < 0.5 {
+            BlockSubdivision::Single
+        } else {
+            BlockSubdivision::SplitTwo
+        }
+    } else if roll < 0.3 {
+        BlockSubdivision::Single
+    } else if roll < 0.7 {
+        BlockSubdivision::SplitTwo
+    } else {
+        BlockSubdivision::Grid2x2
+    }
+}
+
+fn generate_block_buildings(
+    buildable_x_start: f32,
+    buildable_z_start: f32,
+    buildable_width: f32,
+    buildable_depth: f32,
+    height_influence: f32,
+    rng: &mut impl Rng,
+) -> Vec<BuildingSpec> {
+    let subdivision = pick_subdivision(height_influence, rng);
+    let gap = 0.5;
+
+    match subdivision {
+        BlockSubdivision::Single => generate_single_building(
+            buildable_x_start,
+            buildable_z_start,
+            buildable_width,
+            buildable_depth,
+            height_influence,
+            rng,
+        ),
+        BlockSubdivision::SplitTwo => {
+            let mut result = Vec::new();
+            if buildable_width >= buildable_depth {
+                let parcel_width = (buildable_width - gap) / 2.0;
+                for parcel_index in 0..2 {
+                    let px = buildable_x_start + parcel_index as f32 * (parcel_width + gap);
+                    result.extend(generate_single_building(
+                        px,
+                        buildable_z_start,
+                        parcel_width,
+                        buildable_depth,
+                        height_influence,
+                        rng,
+                    ));
+                }
+            } else {
+                let parcel_depth = (buildable_depth - gap) / 2.0;
+                for parcel_index in 0..2 {
+                    let pz = buildable_z_start + parcel_index as f32 * (parcel_depth + gap);
+                    result.extend(generate_single_building(
+                        buildable_x_start,
+                        pz,
+                        buildable_width,
+                        parcel_depth,
+                        height_influence,
+                        rng,
+                    ));
+                }
+            }
+            result
+        }
+        BlockSubdivision::Grid2x2 => {
+            let parcel_width = (buildable_width - gap) / 2.0;
+            let parcel_depth = (buildable_depth - gap) / 2.0;
+            let mut result = Vec::new();
+            for grid_x in 0..2 {
+                for grid_z in 0..2 {
+                    let px = buildable_x_start + grid_x as f32 * (parcel_width + gap);
+                    let pz = buildable_z_start + grid_z as f32 * (parcel_depth + gap);
+                    result.extend(generate_single_building_small(
+                        px,
+                        pz,
+                        parcel_width,
+                        parcel_depth,
+                        rng,
+                    ));
+                }
+            }
+            result
+        }
+    }
+}
+
+fn generate_single_building(
+    area_x: f32,
+    area_z: f32,
+    area_width: f32,
+    area_depth: f32,
+    height_influence: f32,
+    rng: &mut impl Rng,
+) -> Vec<BuildingSpec> {
+    if area_width < 3.0 || area_depth < 3.0 {
+        return Vec::new();
+    }
+
+    let (building_type, base_height, width_range, depth_range) =
+        pick_building_type(height_influence, rng);
+
+    let bw = rng
+        .random_range(width_range.0..width_range.1)
+        .min(area_width - BUILDING_MARGIN * 2.0);
+    let bd = rng
+        .random_range(depth_range.0..depth_range.1)
+        .min(area_depth - BUILDING_MARGIN * 2.0);
+
+    let height_variation = rng.random_range(0.8..1.2);
+    let height = base_height * height_variation;
+
+    let center_x = area_x + area_width / 2.0;
+    let center_z = area_z + area_depth / 2.0;
+
+    let (body_material, roof_material) = pick_materials(building_type, rng);
+
+    vec![BuildingSpec {
+        building_type,
+        x: center_x,
+        z: center_z,
+        width: bw,
+        depth: bd,
+        height,
+        body_material,
+        roof_material,
+    }]
+}
+
+fn generate_single_building_small(
+    area_x: f32,
+    area_z: f32,
+    area_width: f32,
+    area_depth: f32,
+    rng: &mut impl Rng,
+) -> Vec<BuildingSpec> {
+    if area_width < 2.5 || area_depth < 2.5 {
+        return Vec::new();
+    }
+
+    let roll: f32 = rng.random_range(0.0..1.0);
+    let (building_type, base_height, width_range, depth_range): (
+        BuildingType,
+        f32,
+        (f32, f32),
+        (f32, f32),
+    ) = if roll < 0.6 {
+        (
+            BuildingType::House,
+            rng.random_range(3.0..5.0),
+            (3.0, 5.0),
+            (3.0, 5.0),
+        )
+    } else {
+        (
+            BuildingType::LowRiseOffice,
+            rng.random_range(4.0..7.0),
+            (3.0, 6.0),
+            (3.0, 6.0),
+        )
+    };
+
+    let bw = rng
+        .random_range(width_range.0..width_range.1)
+        .min(area_width - BUILDING_MARGIN * 2.0);
+    let bd = rng
+        .random_range(depth_range.0..depth_range.1)
+        .min(area_depth - BUILDING_MARGIN * 2.0);
+
+    let height_variation = rng.random_range(0.8..1.2);
+    let height = base_height * height_variation;
+
+    let center_x = area_x + area_width / 2.0;
+    let center_z = area_z + area_depth / 2.0;
+
+    let (body_material, roof_material) = pick_materials(building_type, rng);
+
+    vec![BuildingSpec {
+        building_type,
+        x: center_x,
+        z: center_z,
+        width: bw,
+        depth: bd,
+        height,
+        body_material,
+        roof_material,
+    }]
 }
 
 pub fn generate_chunk_layout(chunk_x: i32, chunk_z: i32, noise: &Perlin) -> CityChunkLayout {
@@ -56,44 +262,35 @@ pub fn generate_chunk_layout(chunk_x: i32, chunk_z: i32, noise: &Perlin) -> City
                 continue;
             }
 
-            let (building_type, base_height, width_range, depth_range) =
-                pick_building_type(height_influence, &mut rng);
-
-            let bw = rng
-                .random_range(width_range.0..width_range.1)
-                .min(buildable_width - BUILDING_MARGIN * 2.0);
-            let bd = rng
-                .random_range(depth_range.0..depth_range.1)
-                .min(buildable_depth - BUILDING_MARGIN * 2.0);
-
-            let height_variation = rng.random_range(0.8..1.2);
-            let height = base_height * height_variation;
-
-            let center_x = buildable_x_start + buildable_width / 2.0;
-            let center_z = buildable_z_start + buildable_depth / 2.0;
-
-            let (body_material, roof_material) = pick_materials(building_type, &mut rng);
-
-            buildings.push(BuildingSpec {
-                building_type,
-                x: center_x,
-                z: center_z,
-                width: bw,
-                depth: bd,
-                height,
-                body_material,
-                roof_material,
-            });
+            buildings.extend(generate_block_buildings(
+                buildable_x_start,
+                buildable_z_start,
+                buildable_width,
+                buildable_depth,
+                height_influence,
+                &mut rng,
+            ));
         }
     }
 
     let streetlight_positions =
-        generate_streetlight_positions(chunk_base_x, chunk_base_z, blocks_per_side, &mut rng);
+        generate_streetlight_positions(chunk_base_x, chunk_base_z, blocks_per_side);
+
+    let mut intersection_positions = Vec::new();
+    for block_ix in 1..blocks_per_side {
+        for block_iz in 1..blocks_per_side {
+            intersection_positions.push(IntersectionPosition {
+                x: chunk_base_x + block_ix as f32 * BLOCK_SIZE,
+                z: chunk_base_z + block_iz as f32 * BLOCK_SIZE,
+            });
+        }
+    }
 
     CityChunkLayout {
         buildings,
         road_segments,
         streetlight_positions,
+        intersection_positions,
     }
 }
 
@@ -101,21 +298,16 @@ fn generate_streetlight_positions(
     chunk_base_x: f32,
     chunk_base_z: f32,
     blocks_per_side: i32,
-    rng: &mut impl Rng,
 ) -> Vec<StreetlightPosition> {
     let mut positions = Vec::new();
     let sidewalk_offset = ROAD_WIDTH / 2.0 + 0.8;
 
     for block_ix in 0..blocks_per_side {
         for block_iz in 0..blocks_per_side {
-            if rng.random_range(0.0f32..1.0) > 0.25 {
-                continue;
-            }
-
             let intersection_x = chunk_base_x + block_ix as f32 * BLOCK_SIZE;
             let intersection_z = chunk_base_z + block_iz as f32 * BLOCK_SIZE;
 
-            let corner = rng.random_range(0u32..4);
+            let corner = ((block_ix * 7 + block_iz * 13) as u32) % 4;
             let (dx, dz) = match corner {
                 0 => (sidewalk_offset, sidewalk_offset),
                 1 => (sidewalk_offset, -sidewalk_offset),

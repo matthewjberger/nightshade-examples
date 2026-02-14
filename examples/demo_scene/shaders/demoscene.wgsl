@@ -53,6 +53,30 @@ var input_sampler: sampler;
 @group(0) @binding(2)
 var<uniform> uniforms: Uniforms;
 
+struct AudioData {
+    waveform_intensity: f32,
+    spectrum_intensity: f32,
+    beat_pulse: f32,
+    bass_level: f32,
+    mids_level: f32,
+    highs_level: f32,
+    onset_flash: f32,
+    bpm: f32,
+    beat_phase: f32,
+    drop_intensity: f32,
+    spectral_centroid: f32,
+    energy: f32,
+    time: f32,
+    visualizer_mode: f32,
+    visualizer_opacity: f32,
+    kick_decay: f32,
+    waveform: array<f32, 512>,
+    spectrum: array<f32, 128>,
+};
+
+@group(0) @binding(3)
+var<storage, read> audio: AudioData;
+
 const PI: f32 = 3.14159265359;
 const TAU: f32 = 6.28318530718;
 
@@ -552,6 +576,150 @@ fn digital_rain_effect(uv: vec2<f32>, time: f32, intensity: f32) -> vec3<f32> {
     return rain * intensity;
 }
 
+fn render_audio_visualizer(uv: vec2<f32>, time: f32) -> vec3<f32> {
+    var result = vec3<f32>(0.0);
+    let mode = i32(audio.visualizer_mode);
+    if mode == 0 {
+        return result;
+    }
+
+    let beat_pulse = audio.beat_pulse;
+    let kick = audio.kick_decay;
+    let onset = audio.onset_flash;
+    let drop_int = audio.drop_intensity;
+
+    let show_waveform = mode == 1 || mode == 3;
+    let show_spectrum = mode == 1 || mode == 2;
+
+    let grid_color = vec3<f32>(0.0, 0.06, 0.1);
+    let line_color = vec3<f32>(0.0, 0.8, 1.0);
+    let grid_brightness = 0.3 + beat_pulse * 0.2 + kick * 0.3;
+
+    let num_h_lines = 12;
+    for (var line_index = 1; line_index < num_h_lines; line_index++) {
+        let normalized = f32(line_index) / f32(num_h_lines);
+        let y_pos = 0.5 + (normalized - 0.5) * exp(normalized * 1.5) * 0.8;
+        let y_pos_mirror = 1.0 - y_pos;
+        let dist_top = abs(uv.y - y_pos);
+        let dist_bot = abs(uv.y - y_pos_mirror);
+        let line_glow = exp(-dist_top * 400.0) * 0.4 + exp(-dist_bot * 400.0) * 0.4;
+        result += line_color * line_glow * grid_brightness;
+    }
+
+    let num_v_lines = 16;
+    for (var line_index = 0; line_index < num_v_lines; line_index++) {
+        let x_pos = (f32(line_index) + 0.5) / f32(num_v_lines);
+        let dist = abs(uv.x - x_pos);
+        let line_glow = exp(-dist * 500.0) * 0.3;
+        result += line_color * line_glow * grid_brightness * 0.5;
+    }
+
+    result += grid_color * (0.3 + beat_pulse * 0.1);
+
+    if show_spectrum {
+        let num_bars = 128;
+        let bar_index = i32(floor(uv.x * f32(num_bars)));
+        if bar_index >= 0 && bar_index < num_bars {
+            let magnitude = audio.spectrum[bar_index] * 4000.0 * audio.spectrum_intensity;
+            let bar_height = clamp(magnitude, 0.0, 0.45);
+            let bar_local_x = fract(uv.x * f32(num_bars));
+
+            let center_y = 0.5;
+            let bar_top = center_y;
+            let bar_bottom = center_y - bar_height;
+
+            if uv.y < bar_top && uv.y > bar_bottom {
+                let fill_t = (center_y - uv.y) / max(bar_height, 0.001);
+                let edge_fade = smoothstep(0.0, 0.15, bar_local_x) * smoothstep(1.0, 0.85, bar_local_x);
+
+                let cyan = vec3<f32>(0.0, 1.0, 0.9);
+                let magenta = vec3<f32>(0.8, 0.1, 0.6);
+                let bar_color = mix(cyan, magenta, fill_t);
+
+                let bass_boost = select(0.0, kick * 0.5, bar_index < 20);
+                result += bar_color * edge_fade * (0.6 + bass_boost + beat_pulse * 0.2);
+            }
+
+            let edge_dist = abs(uv.y - bar_bottom);
+            let edge_glow = exp(-edge_dist * 60.0) * bar_height * 0.5;
+            result += vec3<f32>(0.0, 0.8, 1.0) * edge_glow;
+        }
+    }
+
+    if show_waveform {
+        let sample_x = uv.x * 511.0;
+        let index_a = i32(floor(sample_x));
+        let index_b = min(index_a + 1, 511);
+        let frac = fract(sample_x);
+
+        let sample_a = audio.waveform[index_a];
+        let sample_b = audio.waveform[index_b];
+        let wave_value = mix(sample_a, sample_b, frac);
+
+        let amplitude = 0.15 + kick * 0.05 + drop_int * 0.08;
+        let wave_y = 0.5 + wave_value * amplitude * audio.waveform_intensity;
+
+        let dist = abs(uv.y - wave_y);
+
+        let core_glow = exp(-dist * 800.0) * 1.2;
+        result += vec3<f32>(1.0, 1.0, 1.0) * core_glow;
+
+        let inner_glow = exp(-dist * 120.0) * 0.8;
+        result += vec3<f32>(0.0, 1.0, 0.9) * inner_glow;
+
+        let outer_radius = 30.0 - beat_pulse * 8.0;
+        let outer_glow = exp(-dist * outer_radius) * 0.4;
+        result += vec3<f32>(0.1, 0.4, 1.0) * outer_glow;
+
+        let bloom_glow = exp(-dist * 8.0) * 0.08;
+        result += vec3<f32>(0.8, 0.1, 0.6) * bloom_glow;
+
+        if onset > 0.3 {
+            let chroma_offset = onset * 0.008;
+            let sample_x_r = (uv.x + chroma_offset) * 511.0;
+            let idx_r = clamp(i32(floor(sample_x_r)), 0, 511);
+            let wave_r = audio.waveform[idx_r];
+            let wave_y_r = 0.5 + wave_r * amplitude * audio.waveform_intensity;
+            let dist_r = abs(uv.y - wave_y_r);
+
+            let sample_x_b = (uv.x - chroma_offset) * 511.0;
+            let idx_b = clamp(i32(floor(sample_x_b)), 0, 511);
+            let wave_b = audio.waveform[idx_b];
+            let wave_y_b = 0.5 + wave_b * amplitude * audio.waveform_intensity;
+            let dist_b = abs(uv.y - wave_y_b);
+
+            result += vec3<f32>(exp(-dist_r * 100.0), 0.0, exp(-dist_b * 100.0)) * onset * 0.5;
+        }
+
+        let mirror_y = 1.0 - wave_y;
+        let mirror_dist = abs(uv.y - mirror_y);
+        let mirror_fade = 0.15 * (1.0 - abs(uv.y - 0.5) * 1.5);
+        let mirror_glow = exp(-mirror_dist * 80.0) * max(mirror_fade, 0.0);
+        result += vec3<f32>(0.0, 0.6, 0.8) * mirror_glow;
+    }
+
+    if kick > 0.5 {
+        let scan_pos = fract(time * 3.0) * 1.2 - 0.1;
+        let scan_dist = abs(uv.y - scan_pos);
+        let scan_line = exp(-scan_dist * 200.0) * kick * 0.4;
+        result += vec3<f32>(1.0, 1.0, 1.0) * scan_line;
+    }
+
+    if drop_int > 0.2 {
+        result = mix(result, result + vec3<f32>(0.1, 0.1, 0.15), drop_int * 0.3);
+    }
+
+    let scanline_pattern = sin(uv.y * 800.0) * 0.5 + 0.5;
+    result *= 0.92 + scanline_pattern * 0.08;
+
+    let subpixel_r = sin(uv.y * 800.0 + 0.0) * 0.02;
+    let subpixel_g = sin(uv.y * 800.0 + 2.094) * 0.02;
+    let subpixel_b = sin(uv.y * 800.0 + 4.189) * 0.02;
+    result += vec3<f32>(subpixel_r, subpixel_g, subpixel_b);
+
+    return max(result, vec3<f32>(0.0));
+}
+
 fn apply_color_grade(color: vec3<f32>, mode: i32) -> vec3<f32> {
     var graded = color;
 
@@ -878,6 +1046,10 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if uniforms.invert > 0.5 {
         color = vec3<f32>(1.0) - color;
+    }
+
+    if audio.visualizer_opacity > 0.0 {
+        color += render_audio_visualizer(original_uv, time) * audio.visualizer_opacity;
     }
 
     color = pow(color, vec3<f32>(0.95));

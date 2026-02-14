@@ -1,3 +1,4 @@
+use nightshade::ecs::generational_registry::registry_entry_by_name_mut;
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::light::components::{Light, LightType};
 use nightshade::ecs::material::resources::material_registry_insert;
@@ -89,6 +90,8 @@ struct PhysicsDemo {
     left_hand_cube: Option<Entity>,
     #[cfg(feature = "openxr")]
     right_hand_cube: Option<Entity>,
+    #[cfg(feature = "openxr")]
+    bauble_gun_entities: Vec<Entity>,
     #[cfg(feature = "openxr")]
     xr_rt_was_pressed: bool,
     #[cfg(feature = "openxr")]
@@ -376,8 +379,9 @@ impl State for PhysicsDemo {
         {
             self.left_hand_cube =
                 Some(self.spawn_hand_cube(world, nalgebra_glm::vec3(0.2, 0.6, 0.9)));
-            self.right_hand_cube =
-                Some(self.spawn_hand_cube(world, nalgebra_glm::vec3(0.9, 0.6, 0.2)));
+            let right_hand = self.spawn_hand_cube(world, nalgebra_glm::vec3(0.9, 0.6, 0.2));
+            self.right_hand_cube = Some(right_hand);
+            self.spawn_bauble_gun(world, right_hand);
         }
     }
 
@@ -4196,7 +4200,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 ) {
                     let forward = nalgebra_glm::quat_rotate_vec3(
                         &hand_rot,
-                        &nalgebra_glm::vec3(0.0, 0.0, 1.0),
+                        &nalgebra_glm::vec3(0.0, 1.0, 0.0),
                     );
                     (hand_pos, forward)
                 } else {
@@ -5401,10 +5405,11 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         }
 
         let material_name = format!("HandCube_{}", entity.id);
-        world
-            .resources
-            .material_registry
-            .insert(material_name.clone(), material);
+        material_registry_insert(
+            &mut world.resources.material_registry,
+            material_name.clone(),
+            material,
+        );
         if let Some(&index) = world
             .resources
             .material_registry
@@ -5425,6 +5430,109 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         }
 
         entity
+    }
+
+    #[cfg(feature = "openxr")]
+    fn spawn_bauble_gun(&mut self, world: &mut World, hand_entity: Entity) {
+        let gun_body_material =
+            create_textured_material(nalgebra_glm::vec3(0.15, 0.15, 0.18), 0.6, 0.8);
+        let gun_barrel_material =
+            create_textured_material(nalgebra_glm::vec3(0.25, 0.25, 0.28), 0.4, 0.9);
+        let gun_grip_material =
+            create_textured_material(nalgebra_glm::vec3(0.12, 0.08, 0.06), 0.9, 0.0);
+        let gun_accent_material =
+            create_textured_material(nalgebra_glm::vec3(0.9, 0.4, 0.1), 0.3, 0.7);
+
+        let parts: Vec<(
+            &str,
+            &str,
+            Vec3,
+            Vec3,
+            nightshade::ecs::material::components::Material,
+        )> = vec![
+            (
+                "GunBody",
+                "Cube",
+                nalgebra_glm::vec3(0.0, 0.06, 0.0),
+                nalgebra_glm::vec3(0.025, 0.015, 0.04),
+                gun_body_material,
+            ),
+            (
+                "GunBarrel",
+                "Cylinder",
+                nalgebra_glm::vec3(0.0, 0.12, 0.0),
+                nalgebra_glm::vec3(0.008, 0.04, 0.008),
+                gun_barrel_material,
+            ),
+            (
+                "GunGrip",
+                "Cube",
+                nalgebra_glm::vec3(0.0, 0.0, 0.01),
+                nalgebra_glm::vec3(0.015, 0.03, 0.012),
+                gun_grip_material,
+            ),
+            (
+                "GunMuzzle",
+                "Sphere",
+                nalgebra_glm::vec3(0.0, 0.165, 0.0),
+                nalgebra_glm::vec3(0.012, 0.012, 0.012),
+                gun_accent_material,
+            ),
+        ];
+
+        for (name, mesh_name, offset, scale, material) in parts {
+            let entity = world.spawn_entities(
+                NAME | LOCAL_TRANSFORM
+                    | GLOBAL_TRANSFORM
+                    | LOCAL_TRANSFORM_DIRTY
+                    | RENDER_MESH
+                    | MATERIAL_REF
+                    | BOUNDING_VOLUME
+                    | VISIBILITY
+                    | PARENT,
+                1,
+            )[0];
+
+            if let Some(n) = world.get_name_mut(entity) {
+                n.0 = name.to_string();
+            }
+            if let Some(transform) = world.get_local_transform_mut(entity) {
+                transform.translation = offset;
+                transform.scale = scale;
+            }
+            if let Some(mesh) = world.get_render_mesh_mut(entity) {
+                mesh.name = mesh_name.to_string();
+            }
+            if let Some(parent) = world.get_parent_mut(entity) {
+                *parent = Parent(Some(hand_entity));
+            }
+            if let Some(bv) = world.get_bounding_volume_mut(entity) {
+                *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
+            }
+
+            let material_name = format!("BaubleGun_{}_{}", name, entity.id);
+            material_registry_insert(
+                &mut world.resources.material_registry,
+                material_name.clone(),
+                material,
+            );
+            if let Some(&index) = world
+                .resources
+                .material_registry
+                .registry
+                .name_to_index
+                .get(&material_name)
+            {
+                world
+                    .resources
+                    .material_registry
+                    .registry
+                    .add_reference(index);
+            }
+            world.set_material_ref(entity, MaterialRef::new(material_name));
+
+            self.bauble_gun_entities.push(entity);
+        }
     }
 
     #[cfg(feature = "openxr")]
@@ -5452,14 +5560,16 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             } else {
                 [0.2, 0.6, 0.9, 1.0]
             };
-            if let Some(material_ref) = world.get_material_ref(left_hand_entity) {
-                if let Some(mat) = world
-                    .resources
-                    .material_registry
-                    .get_mut(&material_ref.name)
-                {
-                    mat.base_color = hand_color;
-                }
+            let left_mat_name = world
+                .get_material_ref(left_hand_entity)
+                .map(|r| r.name.clone());
+            if let Some(name) = left_mat_name
+                && let Some(mat) = registry_entry_by_name_mut(
+                    &mut world.resources.material_registry.registry,
+                    &name,
+                )
+            {
+                mat.base_color = hand_color;
             }
         }
 
@@ -5482,14 +5592,16 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             } else {
                 [0.9, 0.6, 0.2, 1.0]
             };
-            if let Some(material_ref) = world.get_material_ref(right_hand_entity) {
-                if let Some(mat) = world
-                    .resources
-                    .material_registry
-                    .get_mut(&material_ref.name)
-                {
-                    mat.base_color = hand_color;
-                }
+            let right_mat_name = world
+                .get_material_ref(right_hand_entity)
+                .map(|r| r.name.clone());
+            if let Some(name) = right_mat_name
+                && let Some(mat) = registry_entry_by_name_mut(
+                    &mut world.resources.material_registry.registry,
+                    &name,
+                )
+            {
+                mat.base_color = hand_color;
             }
         }
     }

@@ -2,815 +2,70 @@ use nightshade::ecs::audio::systems::load_sound_from_bytes;
 use nightshade::ecs::material::material_registry_insert;
 use nightshade::prelude::*;
 use rand::Rng;
-use rustfft::{FftPlanner, num_complex::Complex};
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::{Arc, RwLock};
-
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::JsCast;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_futures::spawn_local;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(DemoSceneState::default())
 }
 
-struct AudioAnalyzer {
-    samples: Vec<f32>,
-    sample_rate: u32,
-    fft_size: usize,
-    total_duration: f32,
+fn decode_audio_file(path: &std::path::Path) -> Result<(Vec<f32>, u32, Vec<u8>), String> {
+    use symphonia::core::audio::SampleBuffer;
+    use symphonia::core::codecs::DecoderOptions;
+    use symphonia::core::formats::FormatOptions;
+    use symphonia::core::io::MediaSourceStream;
+    use symphonia::core::meta::MetadataOptions;
+    use symphonia::core::probe::Hint;
 
-    sub_bass: f32,
-    bass: f32,
-    low_mids: f32,
-    mids: f32,
-    high_mids: f32,
-    highs: f32,
+    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
-    smoothed_sub_bass: f32,
-    smoothed_bass: f32,
-    smoothed_low_mids: f32,
-    smoothed_mids: f32,
-    smoothed_high_mids: f32,
-    smoothed_highs: f32,
+    let hint = Hint::new();
+    let format_opts = FormatOptions::default();
+    let metadata_opts = MetadataOptions::default();
+    let decoder_opts = DecoderOptions::default();
 
-    current_spectrum: Vec<f32>,
-    prev_spectrum: Vec<f32>,
-    spectral_flux: f32,
-    spectral_flux_history: Vec<f32>,
-    flux_history_index: usize,
+    let probed = symphonia::default::get_probe()
+        .format(&hint, mss, &format_opts, &metadata_opts)
+        .map_err(|e| e.to_string())?;
 
-    onset_detected: bool,
-    onset_decay: f32,
-    kick_decay: f32,
-    snare_decay: f32,
-    hat_decay: f32,
+    let mut format = probed.format;
+    let track = format.default_track().ok_or("No default track")?;
+    let track_id = track.id;
+    let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
 
-    energy_history: Vec<f32>,
-    energy_history_index: usize,
-    average_energy: f32,
-    long_term_energy: f32,
-    intensity: f32,
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&track.codec_params, &decoder_opts)
+        .map_err(|e| e.to_string())?;
 
-    fft_buffer: Vec<Complex<f32>>,
-    last_analysis_time: f32,
+    let mut all_samples: Vec<f32> = Vec::new();
 
-    spectral_centroid: f32,
-    spectral_flatness: f32,
-    spectral_rolloff: f32,
-    smoothed_centroid: f32,
-    smoothed_flatness: f32,
-    smoothed_rolloff: f32,
-
-    is_breakdown: bool,
-    breakdown_intensity: f32,
-
-    kaleidoscope_blend: f32,
-
-    transient_energy: f32,
-    sustained_energy: f32,
-    transient_ratio: f32,
-
-    onset_times: Vec<f32>,
-    onset_times_index: usize,
-    estimated_bpm: f32,
-    beat_phase: f32,
-    time_since_last_beat: f32,
-    beat_confidence: f32,
-
-    section_energy_short: f32,
-    section_energy_long: f32,
-    is_building: bool,
-    is_dropping: bool,
-    drop_intensity: f32,
-    build_intensity: f32,
-
-    prev_low_energy: f32,
-    prev_mid_energy: f32,
-    prev_high_energy: f32,
-    low_transient: f32,
-    mid_transient: f32,
-    high_transient: f32,
-
-    harmonic_change: f32,
-    prev_spectral_centroid: f32,
-    brightness_delta: f32,
-
-    groove_sync: f32,
-    pocket_tightness: f32,
-}
-
-const ENERGY_HISTORY_SIZE: usize = 90;
-const FLUX_HISTORY_SIZE: usize = 20;
-const SPECTRUM_BINS: usize = 256;
-const FFT_SIZE: usize = 4096;
-const ONSET_HISTORY_SIZE: usize = 512;
-
-impl Default for AudioAnalyzer {
-    fn default() -> Self {
-        Self {
-            samples: Vec::new(),
-            sample_rate: 44100,
-            fft_size: FFT_SIZE,
-            total_duration: 0.0,
-
-            sub_bass: 0.0,
-            bass: 0.0,
-            low_mids: 0.0,
-            mids: 0.0,
-            high_mids: 0.0,
-            highs: 0.0,
-
-            smoothed_sub_bass: 0.0,
-            smoothed_bass: 0.0,
-            smoothed_low_mids: 0.0,
-            smoothed_mids: 0.0,
-            smoothed_high_mids: 0.0,
-            smoothed_highs: 0.0,
-
-            current_spectrum: vec![0.0; SPECTRUM_BINS],
-            prev_spectrum: vec![0.0; SPECTRUM_BINS],
-            spectral_flux: 0.0,
-            spectral_flux_history: vec![0.0; FLUX_HISTORY_SIZE],
-            flux_history_index: 0,
-
-            onset_detected: false,
-            onset_decay: 0.0,
-            kick_decay: 0.0,
-            snare_decay: 0.0,
-            hat_decay: 0.0,
-
-            energy_history: vec![0.0; ENERGY_HISTORY_SIZE],
-            energy_history_index: 0,
-            average_energy: 0.0,
-            long_term_energy: 0.0,
-            intensity: 0.0,
-
-            fft_buffer: vec![Complex::new(0.0, 0.0); FFT_SIZE],
-            last_analysis_time: -1.0,
-
-            spectral_centroid: 0.0,
-            spectral_flatness: 0.0,
-            spectral_rolloff: 0.0,
-            smoothed_centroid: 0.0,
-            smoothed_flatness: 0.0,
-            smoothed_rolloff: 0.0,
-
-            is_breakdown: false,
-            breakdown_intensity: 0.0,
-
-            kaleidoscope_blend: 0.0,
-
-            transient_energy: 0.0,
-            sustained_energy: 0.0,
-            transient_ratio: 0.0,
-
-            onset_times: vec![0.0; ONSET_HISTORY_SIZE],
-            onset_times_index: 0,
-            estimated_bpm: 120.0,
-            beat_phase: 0.0,
-            time_since_last_beat: 0.0,
-            beat_confidence: 0.0,
-
-            section_energy_short: 0.0,
-            section_energy_long: 0.0,
-            is_building: false,
-            is_dropping: false,
-            drop_intensity: 0.0,
-            build_intensity: 0.0,
-
-            prev_low_energy: 0.0,
-            prev_mid_energy: 0.0,
-            prev_high_energy: 0.0,
-            low_transient: 0.0,
-            mid_transient: 0.0,
-            high_transient: 0.0,
-
-            harmonic_change: 0.0,
-            prev_spectral_centroid: 0.0,
-            brightness_delta: 0.0,
-
-            groove_sync: 0.0,
-            pocket_tightness: 0.5,
-        }
-    }
-}
-
-impl AudioAnalyzer {
-    fn reset(&mut self) {
-        self.sub_bass = 0.0;
-        self.bass = 0.0;
-        self.low_mids = 0.0;
-        self.mids = 0.0;
-        self.high_mids = 0.0;
-        self.highs = 0.0;
-
-        self.smoothed_sub_bass = 0.0;
-        self.smoothed_bass = 0.0;
-        self.smoothed_low_mids = 0.0;
-        self.smoothed_mids = 0.0;
-        self.smoothed_high_mids = 0.0;
-        self.smoothed_highs = 0.0;
-
-        self.current_spectrum.fill(0.0);
-        self.prev_spectrum.fill(0.0);
-        self.spectral_flux = 0.0;
-        self.spectral_flux_history.fill(0.0);
-        self.flux_history_index = 0;
-
-        self.onset_detected = false;
-        self.onset_decay = 0.0;
-        self.kick_decay = 0.0;
-        self.snare_decay = 0.0;
-        self.hat_decay = 0.0;
-
-        self.energy_history.fill(0.0);
-        self.energy_history_index = 0;
-        self.average_energy = 0.0;
-        self.long_term_energy = 0.0;
-        self.intensity = 0.0;
-
-        self.last_analysis_time = -1.0;
-
-        self.spectral_centroid = 0.0;
-        self.spectral_flatness = 0.0;
-        self.spectral_rolloff = 0.0;
-        self.smoothed_centroid = 0.0;
-        self.smoothed_flatness = 0.0;
-        self.smoothed_rolloff = 0.0;
-
-        self.is_breakdown = false;
-        self.breakdown_intensity = 0.0;
-
-        self.kaleidoscope_blend = 0.0;
-
-        self.transient_energy = 0.0;
-        self.sustained_energy = 0.0;
-        self.transient_ratio = 0.0;
-
-        self.onset_times.fill(0.0);
-        self.onset_times_index = 0;
-        self.estimated_bpm = 120.0;
-        self.beat_phase = 0.0;
-        self.time_since_last_beat = 0.0;
-        self.beat_confidence = 0.0;
-
-        self.section_energy_short = 0.0;
-        self.section_energy_long = 0.0;
-        self.is_building = false;
-        self.is_dropping = false;
-        self.drop_intensity = 0.0;
-        self.build_intensity = 0.0;
-
-        self.prev_low_energy = 0.0;
-        self.prev_mid_energy = 0.0;
-        self.prev_high_energy = 0.0;
-        self.low_transient = 0.0;
-        self.mid_transient = 0.0;
-        self.high_transient = 0.0;
-
-        self.harmonic_change = 0.0;
-        self.prev_spectral_centroid = 0.0;
-        self.brightness_delta = 0.0;
-
-        self.groove_sync = 0.0;
-        self.pocket_tightness = 0.5;
-    }
-}
-
-impl AudioAnalyzer {
-    fn load_audio_file(&mut self, path: &PathBuf) -> Result<Vec<u8>, String> {
-        use symphonia::core::audio::SampleBuffer;
-        use symphonia::core::codecs::DecoderOptions;
-        use symphonia::core::formats::FormatOptions;
-        use symphonia::core::io::MediaSourceStream;
-        use symphonia::core::meta::MetadataOptions;
-        use symphonia::core::probe::Hint;
-
-        let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-        let mss = MediaSourceStream::new(Box::new(file), Default::default());
-
-        let hint = Hint::new();
-        let format_opts = FormatOptions::default();
-        let metadata_opts = MetadataOptions::default();
-        let decoder_opts = DecoderOptions::default();
-
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &metadata_opts)
-            .map_err(|e| e.to_string())?;
-
-        let mut format = probed.format;
-        let track = format.default_track().ok_or("No default track")?;
-        let track_id = track.id;
-        self.sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
-
-        let mut decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &decoder_opts)
-            .map_err(|e| e.to_string())?;
-
-        let mut all_samples: Vec<f32> = Vec::new();
-
-        while let Ok(packet) = format.next_packet() {
-            if packet.track_id() != track_id {
-                continue;
-            }
-
-            let Ok(decoded) = decoder.decode(&packet) else {
-                continue;
-            };
-
-            let spec = *decoded.spec();
-            let duration = decoded.capacity() as u64;
-
-            let mut sample_buf = SampleBuffer::<f32>::new(duration, spec);
-            sample_buf.copy_interleaved_ref(decoded);
-
-            let samples = sample_buf.samples();
-            let channels = spec.channels.count();
-
-            for chunk in samples.chunks(channels) {
-                let mono: f32 = chunk.iter().sum::<f32>() / channels as f32;
-                all_samples.push(mono);
-            }
+    while let Ok(packet) = format.next_packet() {
+        if packet.track_id() != track_id {
+            continue;
         }
 
-        self.samples = all_samples;
-        self.total_duration = self.samples.len() as f32 / self.sample_rate as f32;
-        self.reset();
+        let Ok(decoded) = decoder.decode(&packet) else {
+            continue;
+        };
 
-        let audio_bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-        Ok(audio_bytes)
-    }
+        let spec = *decoded.spec();
+        let duration = decoded.capacity() as u64;
 
-    fn song_progress(&self, time_seconds: f32) -> f32 {
-        if self.total_duration > 0.0 {
-            (time_seconds / self.total_duration).clamp(0.0, 1.0)
-        } else {
-            0.0
+        let mut sample_buf = SampleBuffer::<f32>::new(duration, spec);
+        sample_buf.copy_interleaved_ref(decoded);
+
+        let samples = sample_buf.samples();
+        let channels = spec.channels.count();
+
+        for chunk in samples.chunks(channels) {
+            let mono: f32 = chunk.iter().sum::<f32>() / channels as f32;
+            all_samples.push(mono);
         }
     }
 
-    fn analyze_at_time(&mut self, time_seconds: f32) {
-        if self.samples.is_empty() {
-            return;
-        }
-
-        let sample_position = (time_seconds * self.sample_rate as f32) as usize;
-        if sample_position + self.fft_size > self.samples.len() {
-            return;
-        }
-
-        let delta_time = time_seconds - self.last_analysis_time;
-        if delta_time.abs() < 0.008 {
-            return;
-        }
-        self.last_analysis_time = time_seconds;
-
-        let pi = std::f32::consts::PI;
-        for (fft_index, fft_sample) in self.fft_buffer.iter_mut().enumerate() {
-            let sample = self.samples[sample_position + fft_index];
-            let window = 0.5 - 0.5 * (2.0 * pi * fft_index as f32 / self.fft_size as f32).cos();
-            *fft_sample = Complex::new(sample * window, 0.0);
-        }
-
-        let mut planner = FftPlanner::new();
-        let fft = planner.plan_fft_forward(self.fft_size);
-        fft.process(&mut self.fft_buffer);
-
-        let freq_resolution = self.sample_rate as f32 / self.fft_size as f32;
-        let half_fft = self.fft_size / 2;
-
-        let sub_bass_start = (20.0 / freq_resolution) as usize;
-        let sub_bass_end = (60.0 / freq_resolution) as usize;
-        let bass_end = (250.0 / freq_resolution) as usize;
-        let low_mids_end = (500.0 / freq_resolution) as usize;
-        let mids_end = (2000.0 / freq_resolution) as usize;
-        let high_mids_end = (4000.0 / freq_resolution) as usize;
-        let highs_end = (12000.0 / freq_resolution) as usize;
-
-        let band_rms = |buffer: &[Complex<f32>], start: usize, end: usize| -> f32 {
-            let start = start.max(1).min(half_fft);
-            let end = end.min(half_fft);
-            if start >= end {
-                return 0.0;
-            }
-            let sum: f32 = buffer[start..end].iter().map(|c| c.norm_sqr()).sum();
-            (sum / (end - start) as f32).sqrt() / FFT_SIZE as f32
-        };
-
-        let raw_sub_bass = band_rms(&self.fft_buffer, sub_bass_start, sub_bass_end);
-        let raw_bass = band_rms(&self.fft_buffer, sub_bass_end, bass_end);
-        let raw_low_mids = band_rms(&self.fft_buffer, bass_end, low_mids_end);
-        let raw_mids = band_rms(&self.fft_buffer, low_mids_end, mids_end);
-        let raw_high_mids = band_rms(&self.fft_buffer, mids_end, high_mids_end);
-        let raw_highs = band_rms(&self.fft_buffer, high_mids_end, highs_end);
-
-        let to_normalized = |amplitude: f32, floor: f32, ceiling: f32| -> f32 {
-            let db = 20.0 * (amplitude + 1e-10).log10();
-            ((db - floor) / (ceiling - floor)).clamp(0.0, 1.0)
-        };
-
-        self.sub_bass = to_normalized(raw_sub_bass, -75.0, -25.0);
-        self.bass = to_normalized(raw_bass, -70.0, -25.0);
-        self.low_mids = to_normalized(raw_low_mids, -65.0, -25.0);
-        self.mids = to_normalized(raw_mids, -60.0, -20.0);
-        self.high_mids = to_normalized(raw_high_mids, -60.0, -20.0);
-        self.highs = to_normalized(raw_highs, -65.0, -25.0);
-
-        let attack = 0.4;
-        let release = 0.08;
-
-        let smooth = |current: f32, target: f32| -> f32 {
-            let factor = if target > current { attack } else { release };
-            current + (target - current) * factor
-        };
-
-        self.smoothed_sub_bass = smooth(self.smoothed_sub_bass, self.sub_bass);
-        self.smoothed_bass = smooth(self.smoothed_bass, self.bass);
-        self.smoothed_low_mids = smooth(self.smoothed_low_mids, self.low_mids);
-        self.smoothed_mids = smooth(self.smoothed_mids, self.mids);
-        self.smoothed_high_mids = smooth(self.smoothed_high_mids, self.high_mids);
-        self.smoothed_highs = smooth(self.smoothed_highs, self.highs);
-
-        let mut weighted_freq_sum = 0.0_f32;
-        let mut magnitude_sum = 0.0_f32;
-        let mut geometric_sum = 0.0_f32;
-        let mut arithmetic_sum = 0.0_f32;
-        let mut cumulative_energy = 0.0_f32;
-        let total_energy_target = {
-            let mut total = 0.0_f32;
-            for bin_index in 1..half_fft {
-                total += self.fft_buffer[bin_index].norm_sqr();
-            }
-            total * 0.85
-        };
-        let mut rolloff_bin = half_fft;
-
-        for bin_index in 1..half_fft {
-            let magnitude = self.fft_buffer[bin_index].norm();
-            let frequency = bin_index as f32 * freq_resolution;
-
-            weighted_freq_sum += frequency * magnitude;
-            magnitude_sum += magnitude;
-
-            if magnitude > 1e-10 {
-                geometric_sum += magnitude.ln();
-            }
-            arithmetic_sum += magnitude;
-
-            cumulative_energy += self.fft_buffer[bin_index].norm_sqr();
-            if cumulative_energy < total_energy_target {
-                rolloff_bin = bin_index;
-            }
-        }
-
-        let bin_count = (half_fft - 1) as f32;
-        self.spectral_centroid = if magnitude_sum > 1e-10 {
-            (weighted_freq_sum / magnitude_sum) / (self.sample_rate as f32 / 2.0)
-        } else {
-            0.0
-        };
-
-        let geometric_mean = (geometric_sum / bin_count).exp();
-        let arithmetic_mean = arithmetic_sum / bin_count;
-        self.spectral_flatness = if arithmetic_mean > 1e-10 {
-            (geometric_mean / arithmetic_mean).clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-
-        self.spectral_rolloff = rolloff_bin as f32 / half_fft as f32;
-
-        self.smoothed_centroid = self.smoothed_centroid * 0.85 + self.spectral_centroid * 0.15;
-        self.smoothed_flatness = self.smoothed_flatness * 0.9 + self.spectral_flatness * 0.1;
-
-        self.brightness_delta = self.spectral_centroid - self.prev_spectral_centroid;
-        self.prev_spectral_centroid = self.spectral_centroid;
-
-        let num_bins = SPECTRUM_BINS.min(half_fft);
-        let bins_per_band = (half_fft / num_bins).max(1);
-
-        for spectrum_index in 0..num_bins {
-            let start = spectrum_index * bins_per_band + 1;
-            let end = (start + bins_per_band).min(half_fft);
-            let sum: f32 = self.fft_buffer[start..end].iter().map(|c| c.norm()).sum();
-            self.current_spectrum[spectrum_index] = sum / bins_per_band as f32;
-        }
-
-        let kick_end = num_bins / 8;
-        let mut kick_flux = 0.0_f32;
-        for spectrum_index in 0..kick_end {
-            let diff = self.current_spectrum[spectrum_index] - self.prev_spectrum[spectrum_index];
-            if diff > 0.0 {
-                kick_flux += diff;
-            }
-        }
-
-        let snare_start = num_bins / 6;
-        let snare_end = num_bins / 2;
-        let mut snare_flux = 0.0_f32;
-        for spectrum_index in snare_start..snare_end {
-            let diff = self.current_spectrum[spectrum_index] - self.prev_spectrum[spectrum_index];
-            if diff > 0.0 {
-                snare_flux += diff;
-            }
-        }
-
-        let hat_flux_start = (num_bins as f32 * 0.6) as usize;
-        let hat_flux_end = num_bins;
-        let mut hat_flux = 0.0_f32;
-        for spectrum_index in hat_flux_start..hat_flux_end {
-            let diff = self.current_spectrum[spectrum_index] - self.prev_spectrum[spectrum_index];
-            if diff > 0.0 {
-                hat_flux += diff;
-            }
-        }
-
-        let mut total_flux = 0.0_f32;
-        for spectrum_index in 0..num_bins {
-            let diff = self.current_spectrum[spectrum_index] - self.prev_spectrum[spectrum_index];
-            if diff > 0.0 {
-                total_flux += diff;
-            }
-        }
-        self.spectral_flux = total_flux / num_bins as f32;
-
-        std::mem::swap(&mut self.current_spectrum, &mut self.prev_spectrum);
-
-        let low_energy = self.smoothed_sub_bass + self.smoothed_bass;
-        let mid_energy = self.smoothed_low_mids + self.smoothed_mids;
-        let high_energy = self.smoothed_high_mids + self.smoothed_highs;
-
-        self.low_transient = ((low_energy - self.prev_low_energy).max(0.0) * 2.5).min(1.0);
-        self.mid_transient = ((mid_energy - self.prev_mid_energy).max(0.0) * 2.5).min(1.0);
-        self.high_transient = ((high_energy - self.prev_high_energy).max(0.0) * 2.5).min(1.0);
-
-        self.prev_low_energy = low_energy;
-        self.prev_mid_energy = mid_energy;
-        self.prev_high_energy = high_energy;
-
-        let instant_transient =
-            (self.low_transient + self.mid_transient + self.high_transient) / 3.0;
-        self.transient_energy = self.transient_energy * 0.75 + instant_transient * 0.25;
-
-        let instant_sustained = (low_energy + mid_energy + high_energy) / 6.0;
-        self.sustained_energy = self.sustained_energy * 0.97 + instant_sustained * 0.03;
-
-        self.transient_ratio = if self.sustained_energy > 0.02 {
-            (self.transient_energy / self.sustained_energy).clamp(0.0, 2.0)
-        } else {
-            0.0
-        };
-
-        self.spectral_flux_history[self.flux_history_index] = self.spectral_flux;
-        self.flux_history_index = (self.flux_history_index + 1) % FLUX_HISTORY_SIZE;
-
-        let flux_mean: f32 =
-            self.spectral_flux_history.iter().sum::<f32>() / FLUX_HISTORY_SIZE as f32;
-        let flux_variance: f32 = self
-            .spectral_flux_history
-            .iter()
-            .map(|f| (f - flux_mean).powi(2))
-            .sum::<f32>()
-            / FLUX_HISTORY_SIZE as f32;
-        let flux_std = flux_variance.sqrt();
-        let flux_threshold = flux_mean + flux_std * 1.5;
-
-        let onset_triggered = self.spectral_flux > flux_threshold && self.spectral_flux > 0.004;
-
-        if onset_triggered && self.onset_decay < 0.3 {
-            self.onset_detected = true;
-            self.onset_decay = 1.0;
-
-            self.onset_times[self.onset_times_index] = time_seconds;
-            self.onset_times_index = (self.onset_times_index + 1) % ONSET_HISTORY_SIZE;
-
-            self.update_tempo_estimation();
-        } else {
-            self.onset_detected = false;
-            self.onset_decay *= 0.88;
-        }
-
-        let kick_threshold = 0.02 + self.long_term_energy * 0.025;
-        let kick_triggered =
-            kick_flux > kick_threshold && self.smoothed_sub_bass > 0.3 && self.low_transient > 0.2;
-        if kick_triggered && self.kick_decay < 0.2 {
-            self.kick_decay = 1.0;
-            self.time_since_last_beat = 0.0;
-        } else {
-            self.kick_decay *= 0.88;
-        }
-
-        let snare_threshold = 0.015 + self.long_term_energy * 0.02;
-        let snare_triggered =
-            snare_flux > snare_threshold && self.smoothed_mids > 0.25 && self.mid_transient > 0.15;
-        if snare_triggered && self.snare_decay < 0.2 {
-            self.snare_decay = 1.0;
-        } else {
-            self.snare_decay *= 0.84;
-        }
-
-        let hat_threshold = 0.012 + self.long_term_energy * 0.015;
-        let hat_triggered =
-            hat_flux > hat_threshold && self.smoothed_highs > 0.2 && self.high_transient > 0.12;
-        if hat_triggered && self.hat_decay < 0.15 {
-            self.hat_decay = 1.0;
-        } else {
-            self.hat_decay *= 0.8;
-        }
-
-        self.time_since_last_beat += delta_time.max(0.0);
-
-        if self.estimated_bpm > 0.0 {
-            let beat_period = 60.0 / self.estimated_bpm;
-            self.beat_phase = (self.time_since_last_beat % beat_period) / beat_period;
-            self.groove_sync = 1.0 - (self.beat_phase * 2.0 - 1.0).abs();
-        }
-
-        let current_energy = self.smoothed_sub_bass * 0.15
-            + self.smoothed_bass * 0.25
-            + self.smoothed_low_mids * 0.2
-            + self.smoothed_mids * 0.2
-            + self.smoothed_high_mids * 0.12
-            + self.smoothed_highs * 0.08;
-
-        self.energy_history[self.energy_history_index] = current_energy;
-        self.energy_history_index = (self.energy_history_index + 1) % ENERGY_HISTORY_SIZE;
-
-        self.average_energy = self.energy_history.iter().sum::<f32>() / ENERGY_HISTORY_SIZE as f32;
-
-        self.long_term_energy = self.long_term_energy * 0.995 + current_energy * 0.005;
-
-        self.intensity = if self.long_term_energy > 0.02 {
-            (current_energy / (self.long_term_energy * 1.8)).clamp(0.0, 2.0)
-        } else {
-            current_energy * 0.5
-        };
-
-        self.section_energy_short = self.section_energy_short * 0.94 + current_energy * 0.06;
-        self.section_energy_long = self.section_energy_long * 0.997 + current_energy * 0.003;
-
-        let energy_ratio = if self.section_energy_long > 0.02 {
-            self.section_energy_short / self.section_energy_long
-        } else {
-            1.0
-        };
-
-        let prev_building = self.is_building;
-        let prev_dropping = self.is_dropping;
-        let prev_breakdown = self.is_breakdown;
-
-        self.is_building = energy_ratio > 1.2 && current_energy > self.average_energy * 0.8;
-
-        let drop_kick_recent = self.kick_decay > 0.5;
-        self.is_dropping = energy_ratio > 1.5 && drop_kick_recent && self.smoothed_bass > 0.4;
-
-        self.is_breakdown = energy_ratio < 0.6 && current_energy < self.long_term_energy * 0.5;
-
-        if self.is_building && !prev_building {
-            self.build_intensity = 0.0;
-        }
-        if self.is_building {
-            self.build_intensity = (self.build_intensity + 0.015).min(1.0);
-        } else {
-            self.build_intensity *= 0.96;
-        }
-
-        if self.is_dropping && !prev_dropping {
-            self.drop_intensity = 1.0;
-        } else {
-            self.drop_intensity *= 0.98;
-        }
-
-        if self.is_breakdown && !prev_breakdown {
-            self.breakdown_intensity = 1.0;
-        } else if self.is_breakdown {
-            self.breakdown_intensity = (self.breakdown_intensity * 0.99).max(0.3);
-        } else {
-            self.breakdown_intensity *= 0.92;
-        }
-
-        self.smoothed_rolloff = self.smoothed_rolloff * 0.9 + self.spectral_rolloff * 0.1;
-
-        self.harmonic_change = (self.brightness_delta.abs() * 3.0
-            + (self.spectral_flatness - self.smoothed_flatness).abs() * 2.0)
-            .clamp(0.0, 1.0);
-
-        let expected_beat_variance = if self.estimated_bpm > 0.0 {
-            let beat_period = 60.0 / self.estimated_bpm;
-            let normalized_time = self.time_since_last_beat / beat_period;
-            let phase_error = (normalized_time.fract() - 0.5).abs();
-            1.0 - phase_error * 2.0
-        } else {
-            0.5
-        };
-        self.pocket_tightness = self.pocket_tightness * 0.95 + expected_beat_variance * 0.05;
-
-        self.kaleidoscope_blend *= 0.95;
-    }
-
-    fn update_tempo_estimation(&mut self) {
-        let mut valid_intervals = Vec::new();
-        let min_interval = 60.0 / 200.0;
-        let max_interval = 1.0;
-
-        for index in 0..ONSET_HISTORY_SIZE {
-            let current_time = self.onset_times[index];
-            if current_time <= 0.0 {
-                continue;
-            }
-
-            for other_index in (index + 1)..ONSET_HISTORY_SIZE {
-                let other_time = self.onset_times[other_index];
-                if other_time <= 0.0 {
-                    continue;
-                }
-
-                let interval = (other_time - current_time).abs();
-                if interval >= min_interval && interval <= max_interval {
-                    valid_intervals.push(interval);
-                }
-
-                let half_interval = interval / 2.0;
-                if half_interval >= min_interval && half_interval <= max_interval {
-                    valid_intervals.push(half_interval);
-                }
-
-                let double_interval = interval * 2.0;
-                if double_interval >= min_interval && double_interval <= max_interval {
-                    valid_intervals.push(double_interval);
-                }
-            }
-        }
-
-        if valid_intervals.len() < 4 {
-            return;
-        }
-
-        valid_intervals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-
-        let mut best_interval = 0.0_f32;
-        let mut best_count = 0_usize;
-        let tolerance = 0.025;
-
-        for &interval in &valid_intervals {
-            let count = valid_intervals
-                .iter()
-                .filter(|&&other| (other - interval).abs() < tolerance)
-                .count();
-
-            if count > best_count {
-                best_count = count;
-                best_interval = interval;
-            }
-        }
-
-        if best_count >= 3 && best_interval > 0.0 {
-            let new_bpm = 60.0 / best_interval;
-            let clamped_bpm = new_bpm.clamp(60.0, 200.0);
-
-            self.beat_confidence = (best_count as f32 / valid_intervals.len() as f32).min(1.0);
-
-            let blend = 0.15 * self.beat_confidence;
-            self.estimated_bpm = self.estimated_bpm * (1.0 - blend) + clamped_bpm * blend;
-        }
-    }
-}
-
-fn download_youtube_audio(url: &str) -> Result<PathBuf, String> {
-    let temp_dir = std::env::temp_dir();
-    let output_path = temp_dir.join("demo_scene_audio.mp3");
-
-    let status = Command::new("yt-dlp")
-        .args([
-            "-x",
-            "--audio-format",
-            "mp3",
-            "-o",
-            output_path.to_str().unwrap(),
-            "--no-playlist",
-            "--force-overwrites",
-            url,
-        ])
-        .status()
-        .map_err(|e| {
-            format!(
-                "Failed to run yt-dlp: {}. Make sure yt-dlp is installed.",
-                e
-            )
-        })?;
-
-    if !status.success() {
-        return Err("yt-dlp failed to download audio".to_string());
-    }
-
-    if output_path.exists() {
-        Ok(output_path)
-    } else {
-        Err("Could not find downloaded audio file".to_string())
-    }
+    let audio_bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    Ok((all_samples, sample_rate, audio_bytes))
 }
 
 const DEMOSCENE_SHADER: &str = include_str!("../shaders/demoscene.wgsl");
@@ -903,8 +158,60 @@ impl Default for DemosceneUniforms {
     }
 }
 
+const VISUALIZER_WAVEFORM_SIZE: usize = 512;
+const VISUALIZER_SPECTRUM_SIZE: usize = 128;
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct AudioVisualizerData {
+    waveform_intensity: f32,
+    spectrum_intensity: f32,
+    beat_pulse: f32,
+    bass_level: f32,
+    mids_level: f32,
+    highs_level: f32,
+    onset_flash: f32,
+    bpm: f32,
+    beat_phase: f32,
+    drop_intensity: f32,
+    spectral_centroid: f32,
+    energy: f32,
+    time: f32,
+    visualizer_mode: f32,
+    visualizer_opacity: f32,
+    kick_decay: f32,
+    waveform: [f32; VISUALIZER_WAVEFORM_SIZE],
+    spectrum: [f32; VISUALIZER_SPECTRUM_SIZE],
+}
+
+impl Default for AudioVisualizerData {
+    fn default() -> Self {
+        Self {
+            waveform_intensity: 0.0,
+            spectrum_intensity: 0.0,
+            beat_pulse: 0.0,
+            bass_level: 0.0,
+            mids_level: 0.0,
+            highs_level: 0.0,
+            onset_flash: 0.0,
+            bpm: 120.0,
+            beat_phase: 0.0,
+            drop_intensity: 0.0,
+            spectral_centroid: 0.0,
+            energy: 0.0,
+            time: 0.0,
+            visualizer_mode: 0.0,
+            visualizer_opacity: 0.0,
+            kick_decay: 0.0,
+            waveform: [0.0; VISUALIZER_WAVEFORM_SIZE],
+            spectrum: [0.0; VISUALIZER_SPECTRUM_SIZE],
+        }
+    }
+}
+
 struct SharedState {
     uniforms: DemosceneUniforms,
+    audio_data: AudioVisualizerData,
     enabled: bool,
     animate_hue: bool,
 }
@@ -913,6 +220,7 @@ impl Default for SharedState {
     fn default() -> Self {
         Self {
             uniforms: DemosceneUniforms::default(),
+            audio_data: AudioVisualizerData::default(),
             enabled: true,
             animate_hue: false,
         }
@@ -928,6 +236,7 @@ struct DemoscenePass {
     blit_bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     uniform_buffer: wgpu::Buffer,
+    audio_buffer: wgpu::Buffer,
     cached_bind_group: Option<wgpu::BindGroup>,
     cached_blit_bind_group: Option<wgpu::BindGroup>,
     shared_state: SharedStateHandle,
@@ -969,6 +278,16 @@ impl DemoscenePass {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -1039,6 +358,13 @@ impl DemoscenePass {
             mapped_at_creation: false,
         });
 
+        let audio_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Audio Visualizer Buffer"),
+            size: std::mem::size_of::<AudioVisualizerData>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let blit_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Blit Bind Group Layout"),
@@ -1069,6 +395,7 @@ impl DemoscenePass {
             blit_bind_group_layout,
             sampler,
             uniform_buffer,
+            audio_buffer,
             cached_bind_group: None,
             cached_blit_bind_group: None,
             shared_state,
@@ -1102,6 +429,7 @@ impl PassNode<World> for DemoscenePass {
                 state.uniforms.hue_rotation = (time * 0.1) % 1.0;
             }
             queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&state.uniforms));
+            queue.write_buffer(&self.audio_buffer, 0, bytemuck::bytes_of(&state.audio_data));
         }
     }
 
@@ -1131,6 +459,10 @@ impl PassNode<World> for DemoscenePass {
                         wgpu::BindGroupEntry {
                             binding: 2,
                             resource: self.uniform_buffer.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 3,
+                            resource: self.audio_buffer.as_entire_binding(),
                         },
                     ],
                 },
@@ -1286,19 +618,21 @@ struct DemoSceneState {
     material_counter: usize,
     shared_state: SharedStateHandle,
     chrome_spheres: Vec<Entity>,
-    youtube_url: String,
-    clipboard_buffer: Arc<RwLock<Option<String>>>,
+    audio_file_path: Option<PathBuf>,
     audio_analyzer: AudioAnalyzer,
     audio_entity: Option<Entity>,
     audio_playing: bool,
     audio_start_time: f32,
     audio_status: String,
+    kaleidoscope_blend: f32,
     bass_sensitivity: f32,
     mids_sensitivity: f32,
     highs_sensitivity: f32,
     firework_shells: Vec<FireworkShell>,
     last_firework_time: f32,
     firework_cooldown: f32,
+    visualizer_opacity: f32,
+    visualizer_mode: u32,
 }
 
 struct FireworkShell {
@@ -1337,19 +671,21 @@ impl Default for DemoSceneState {
             material_counter: 0,
             shared_state: Arc::new(RwLock::new(SharedState::default())),
             chrome_spheres: Vec::new(),
-            youtube_url: String::new(),
-            clipboard_buffer: Arc::new(RwLock::new(None)),
-            audio_analyzer: AudioAnalyzer::default(),
+            audio_file_path: None,
+            audio_analyzer: AudioAnalyzer::new(),
             audio_entity: None,
             audio_playing: false,
             audio_start_time: 0.0,
             audio_status: String::new(),
+            kaleidoscope_blend: 0.0,
             bass_sensitivity: 1.0,
             mids_sensitivity: 1.0,
             highs_sensitivity: 1.0,
             firework_shells: Vec::new(),
             last_firework_time: 0.0,
             firework_cooldown: 0.3,
+            visualizer_opacity: 0.8,
+            visualizer_mode: 1,
         }
     }
 }
@@ -2210,59 +1546,50 @@ impl DemoSceneState {
         }
     }
 
-    fn load_youtube_audio(&mut self, world: &mut World) {
-        if self.youtube_url.is_empty() {
-            self.audio_status = "Please enter a YouTube URL".to_string();
-            return;
-        }
+    fn load_audio_from_path(&mut self, world: &mut World, path: &std::path::Path) {
+        self.audio_status = "Loading audio...".to_string();
+        self.audio_file_path = Some(path.to_path_buf());
 
-        self.audio_status = "Downloading audio...".to_string();
+        match decode_audio_file(path) {
+            Ok((samples, sample_rate, audio_bytes)) => {
+                self.audio_analyzer.load_samples(samples, sample_rate);
 
-        match download_youtube_audio(&self.youtube_url) {
-            Ok(audio_path) => {
-                self.audio_status = "Loading audio...".to_string();
+                let static_bytes: &'static [u8] = Box::leak(audio_bytes.into_boxed_slice());
+                match load_sound_from_bytes(static_bytes) {
+                    Ok(sound_data) => {
+                        world.resources.audio.load_sound("demo_audio", sound_data);
 
-                match self.audio_analyzer.load_audio_file(&audio_path) {
-                    Ok(audio_bytes) => {
-                        let static_bytes: &'static [u8] = Box::leak(audio_bytes.into_boxed_slice());
-                        match load_sound_from_bytes(static_bytes) {
-                            Ok(sound_data) => {
-                                world
-                                    .resources
-                                    .audio
-                                    .load_sound("youtube_audio", sound_data);
-
-                                if self.audio_entity.is_none() {
-                                    let entity = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-                                    self.audio_entity = Some(entity);
-                                }
-
-                                if let Some(entity) = self.audio_entity {
-                                    world.set_audio_source(
-                                        entity,
-                                        AudioSource::new("youtube_audio")
-                                            .with_volume(1.0)
-                                            .with_looping(false)
-                                            .playing(),
-                                    );
-                                }
-
-                                self.audio_playing = true;
-                                self.audio_start_time = self.global_time;
-                                self.audio_status = "Playing!".to_string();
-                            }
-                            Err(error) => {
-                                self.audio_status = format!("Failed to load audio: {}", error);
-                            }
+                        if self.audio_entity.is_none() {
+                            let entity = world.spawn_entities(AUDIO_SOURCE, 1)[0];
+                            self.audio_entity = Some(entity);
                         }
+
+                        if let Some(entity) = self.audio_entity {
+                            world.set_audio_source(
+                                entity,
+                                AudioSource::new("demo_audio")
+                                    .with_volume(1.0)
+                                    .with_looping(false)
+                                    .playing(),
+                            );
+                        }
+
+                        self.audio_playing = true;
+                        self.audio_start_time = self.global_time;
+                        self.audio_status = format!(
+                            "Playing: {}",
+                            path.file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default()
+                        );
                     }
                     Err(error) => {
-                        self.audio_status = format!("Failed to decode audio: {}", error);
+                        self.audio_status = format!("Failed to load audio: {}", error);
                     }
                 }
             }
             Err(error) => {
-                self.audio_status = error;
+                self.audio_status = format!("Failed to decode audio: {}", error);
             }
         }
     }
@@ -2480,13 +1807,11 @@ impl DemoSceneState {
                 0.0
             };
             if target_kaleidoscope > 0.0 {
-                self.audio_analyzer.kaleidoscope_blend =
-                    (self.audio_analyzer.kaleidoscope_blend + 0.18).min(1.0);
+                self.kaleidoscope_blend = (self.kaleidoscope_blend + 0.18).min(1.0);
             } else {
-                self.audio_analyzer.kaleidoscope_blend *= lull_decay;
+                self.kaleidoscope_blend *= lull_decay;
             }
-            state.uniforms.kaleidoscope_segments = if self.audio_analyzer.kaleidoscope_blend > 0.25
-            {
+            state.uniforms.kaleidoscope_segments = if self.kaleidoscope_blend > 0.25 {
                 target_kaleidoscope
             } else {
                 0.0
@@ -2577,6 +1902,46 @@ impl DemoSceneState {
             } else {
                 0.0
             };
+
+            state.audio_data.waveform_intensity = intensity;
+            state.audio_data.spectrum_intensity = intensity;
+            state.audio_data.beat_pulse = beat_pulse;
+            state.audio_data.bass_level = bass;
+            state.audio_data.mids_level = mids;
+            state.audio_data.highs_level = highs;
+            state.audio_data.onset_flash = onset;
+            state.audio_data.bpm = self.audio_analyzer.estimated_bpm;
+            state.audio_data.beat_phase = beat_phase;
+            state.audio_data.drop_intensity = drop_intensity;
+            state.audio_data.spectral_centroid = brightness;
+            state.audio_data.energy = energy;
+            state.audio_data.time = audio_time;
+            state.audio_data.visualizer_mode = self.visualizer_mode as f32;
+            state.audio_data.visualizer_opacity = self.visualizer_opacity;
+            state.audio_data.kick_decay = kick;
+
+            let fft_size = self.audio_analyzer.fft_size();
+            let sample_position = (audio_time * self.audio_analyzer.sample_rate() as f32) as usize;
+            if sample_position + fft_size <= self.audio_analyzer.samples().len() {
+                for waveform_index in 0..VISUALIZER_WAVEFORM_SIZE {
+                    let source_index = waveform_index * (fft_size / VISUALIZER_WAVEFORM_SIZE);
+                    state.audio_data.waveform[waveform_index] =
+                        self.audio_analyzer.samples()[sample_position + source_index];
+                }
+            }
+
+            let spectrum = self.audio_analyzer.prev_spectrum();
+            for spectrum_index in 0..VISUALIZER_SPECTRUM_SIZE {
+                let bin_a = spectrum_index * 2;
+                let bin_b = bin_a + 1;
+                state.audio_data.spectrum[spectrum_index] = if bin_b < spectrum.len() {
+                    (spectrum[bin_a] + spectrum[bin_b]) * 0.5
+                } else if bin_a < spectrum.len() {
+                    spectrum[bin_a]
+                } else {
+                    0.0
+                };
+            }
         }
     }
 
@@ -2702,6 +2067,84 @@ impl DemoSceneState {
         }
         self.audio_playing = false;
         self.audio_status = "Stopped".to_string();
+    }
+
+    fn draw_waveform_preview(&self, ui: &mut egui::Ui) {
+        let audio_time = (self.global_time - self.audio_start_time).max(0.0);
+        let sample_rate = self.audio_analyzer.sample_rate() as f32;
+        let total_samples = self.audio_analyzer.samples().len();
+        if total_samples == 0 {
+            return;
+        }
+
+        let available_width = ui.available_width();
+        let height = 60.0;
+        let (response, painter) =
+            ui.allocate_painter(egui::vec2(available_width, height), egui::Sense::hover());
+        let rect = response.rect;
+
+        painter.rect_filled(rect, 2.0, egui::Color32::from_rgb(10, 10, 20));
+
+        let center_y = rect.center().y;
+        let sample_center = (audio_time * sample_rate) as usize;
+        let visible_samples = (sample_rate * 0.05) as usize;
+        let half_visible = visible_samples / 2;
+
+        let start = sample_center.saturating_sub(half_visible);
+        let end = (sample_center + half_visible).min(total_samples);
+        if start >= end {
+            return;
+        }
+
+        let samples_per_pixel = ((end - start) as f32 / available_width).max(1.0);
+        let pixel_count = ((end - start) as f32 / samples_per_pixel) as usize;
+
+        let kick = self.audio_analyzer.kick_decay;
+        let onset = self.audio_analyzer.onset_decay;
+        let base_color = egui::Color32::from_rgb(
+            (0.0 + kick * 200.0).min(255.0) as u8,
+            (200.0 + onset * 55.0).min(255.0) as u8,
+            255,
+        );
+        let glow_color = egui::Color32::from_rgba_premultiplied(0, 150, 255, 60);
+
+        let mut points = Vec::with_capacity(pixel_count);
+        let mut glow_points = Vec::with_capacity(pixel_count);
+
+        for pixel_index in 0..pixel_count {
+            let sample_index = start + (pixel_index as f32 * samples_per_pixel) as usize;
+            if sample_index >= total_samples {
+                break;
+            }
+
+            let sample_value = self.audio_analyzer.samples()[sample_index];
+            let x = rect.left() + (pixel_index as f32 / pixel_count as f32) * available_width;
+            let y = center_y - sample_value * (height * 0.45);
+            points.push(egui::pos2(x, y));
+            glow_points.push(egui::pos2(x, y));
+        }
+
+        if glow_points.len() >= 2 {
+            painter.add(egui::Shape::line(
+                glow_points,
+                egui::Stroke::new(4.0, glow_color),
+            ));
+        }
+        if points.len() >= 2 {
+            painter.add(egui::Shape::line(
+                points,
+                egui::Stroke::new(1.5, base_color),
+            ));
+        }
+
+        let playhead_x = rect.left() + available_width * 0.5;
+        painter.line_segment(
+            [
+                egui::pos2(playhead_x, rect.top()),
+                egui::pos2(playhead_x, rect.bottom()),
+            ],
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(255, 255, 100)),
+        );
     }
 
     fn update_objects(&mut self, world: &mut World, _delta_time: f32) {
@@ -3521,6 +2964,21 @@ impl State for DemoSceneState {
         }
     }
 
+    fn on_dropped_file(&mut self, world: &mut World, path: &std::path::Path) {
+        let extension = path
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+        match extension.as_str() {
+            "mp3" | "wav" | "ogg" | "flac" | "mp4" | "m4a" | "aac" | "wma" | "webm" => {
+                self.load_audio_from_path(world, path);
+            }
+            _ => {
+                self.audio_status = format!("Unsupported format: .{}", extension);
+            }
+        }
+    }
+
     fn configure_render_graph(
         &mut self,
         graph: &mut RenderGraph<World>,
@@ -3589,71 +3047,47 @@ impl State for DemoSceneState {
                 egui::CollapsingHeader::new("Audio Visualizer")
                     .default_open(true)
                     .show(ui, |ui| {
-                        if let Ok(mut buffer) = self.clipboard_buffer.try_write()
-                            && let Some(text) = buffer.take()
-                        {
-                            self.youtube_url = text;
-                        }
-
-                        ui.label("YouTube URL:");
-                        let text_edit = egui::TextEdit::multiline(&mut self.youtube_url)
-                            .desired_width(f32::INFINITY)
-                            .desired_rows(2)
-                            .hint_text("Paste YouTube URL here...");
-                        ui.add(text_edit);
-
                         ui.horizontal(|ui| {
-                            if ui.button("Paste").clicked() {
-                                #[cfg(target_arch = "wasm32")]
-                                {
-                                    let buffer = self.clipboard_buffer.clone();
-                                    spawn_local(async move {
-                                        let promise =
-                                            js_sys::eval("navigator.clipboard.readText()");
-                                        if let Ok(promise) = promise {
-                                            let promise: js_sys::Promise = promise.unchecked_into();
-                                            let future =
-                                                wasm_bindgen_futures::JsFuture::from(promise);
-                                            if let Ok(value) = future.await
-                                                && let Some(text) = value.as_string()
-                                                && let Ok(mut buf) = buffer.write()
-                                            {
-                                                *buf = Some(text);
-                                            }
-                                        }
-                                    });
-                                }
-                                #[cfg(not(target_arch = "wasm32"))]
-                                {
-                                    if let Ok(output) = std::process::Command::new("powershell")
-                                        .args(["-command", "Get-Clipboard"])
-                                        .output()
-                                        && let Ok(text) = String::from_utf8(output.stdout)
-                                    {
-                                        self.youtube_url = text.trim().to_string();
-                                    }
-                                }
-                            }
-                            if ui.button("Clear").clicked() {
-                                self.youtube_url.clear();
-                            }
-                        });
-
-                        ui.horizontal(|ui| {
-                            if ui.button("Load & Play").clicked() {
-                                self.load_youtube_audio(world);
+                            if ui.button("Open Audio File...").clicked()
+                                && let Some(path) = rfd::FileDialog::new()
+                                    .add_filter(
+                                        "Audio",
+                                        &[
+                                            "mp3", "wav", "ogg", "flac", "mp4", "m4a", "aac",
+                                            "wma", "webm",
+                                        ],
+                                    )
+                                    .pick_file()
+                            {
+                                self.load_audio_from_path(world, &path);
                             }
                             if self.audio_playing && ui.button("Stop").clicked() {
                                 self.stop_audio(world);
                             }
                         });
 
+                        ui.small("Or drag & drop an audio file onto the window");
+
                         if !self.audio_status.is_empty() {
                             ui.colored_label(egui::Color32::YELLOW, &self.audio_status);
                         }
 
                         ui.separator();
-                        if ui.button("🎲 Randomize All Effects").clicked() {
+
+                        ui.add(
+                            egui::Slider::new(&mut self.visualizer_opacity, 0.0..=1.0)
+                                .text("Visualizer opacity"),
+                        );
+                        ui.horizontal(|ui| {
+                            ui.label("Mode:");
+                            ui.selectable_value(&mut self.visualizer_mode, 0, "Off");
+                            ui.selectable_value(&mut self.visualizer_mode, 1, "All");
+                            ui.selectable_value(&mut self.visualizer_mode, 2, "Spectrum");
+                            ui.selectable_value(&mut self.visualizer_mode, 3, "Waveform");
+                        });
+
+                        ui.separator();
+                        if ui.button("Randomize All Effects").clicked() {
                             self.randomize_uniforms();
                         }
 
@@ -3677,6 +3111,10 @@ impl State for DemoSceneState {
                                 egui::ProgressBar::new(progress)
                                     .text(format!("{:.0}%", progress * 100.0)),
                             );
+
+                            ui.separator();
+                            self.draw_waveform_preview(ui);
+                            ui.separator();
 
                             ui.horizontal(|ui| {
                                 ui.label("Low:");
@@ -3736,8 +3174,6 @@ impl State for DemoSceneState {
                                 }
                             });
                         }
-
-                        ui.small("Requires yt-dlp installed");
                     });
 
                 ui.collapsing("Phase", |ui| {

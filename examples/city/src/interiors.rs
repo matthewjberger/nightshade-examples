@@ -283,73 +283,95 @@ fn describe_wall_with_optional_door(
 }
 
 fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl Rng) {
+    use crate::kenney;
+
     let interior_half_w = (spec.width - WALL_THICKNESS * 2.0) / 2.0 - 0.3;
     let interior_half_d = (spec.depth - WALL_THICKNESS * 2.0) / 2.0 - 0.3;
 
+    const FURN_SCALE: Vec3 = Vec3::new(2.0, 2.0, 2.0);
+    const SMALL_SCALE: Vec3 = Vec3::new(1.8, 1.8, 1.8);
+
     match spec.building_type {
         BuildingType::Warehouse => {
-            let shelf_count = rng.random_range(2u32..5);
+            let shelf_count = rng.random_range(2u32..4);
             for shelf_index in 0..shelf_count {
-                let offset_x = rng.random_range(-interior_half_w * 0.8..interior_half_w * 0.8);
+                let offset_x = rng.random_range(-interior_half_w * 0.7..interior_half_w * 0.7);
                 let offset_z = -interior_half_d
                     + (shelf_index as f32 + 0.5) * (interior_half_d * 2.0 / shelf_count as f32);
-                let shelf_height = rng.random_range(1.5..2.5);
                 data.instance(
-                    "Cube",
-                    Vec3::new(spec.x + offset_x, shelf_height / 2.0, spec.z + offset_z),
-                    Vec3::new(rng.random_range(1.5..3.0), shelf_height, 0.4),
-                    "DockWood",
+                    kenney::BOOKCASE_OPEN,
+                    Vec3::new(spec.x + offset_x, 0.0, spec.z + offset_z),
+                    FURN_SCALE,
+                    kenney::MAT_FURNITURE,
                     None,
                 );
             }
 
-            let crate_count = rng.random_range(1u32..4);
+            let crate_count = rng.random_range(2u32..5);
             for _ in 0..crate_count {
-                let crate_size = rng.random_range(0.4..0.8);
                 let offset_x = rng.random_range(-interior_half_w * 0.6..interior_half_w * 0.6);
                 let offset_z = rng.random_range(-interior_half_d * 0.6..interior_half_d * 0.6);
+                let box_model = if rng.random_range(0.0f32..1.0) < 0.5 {
+                    kenney::BOX_CLOSED
+                } else {
+                    kenney::BOX_OPEN
+                };
                 data.instance(
-                    "Cube",
-                    Vec3::new(spec.x + offset_x, crate_size / 2.0, spec.z + offset_z),
-                    Vec3::new(crate_size, crate_size, crate_size),
-                    "DockWood",
+                    box_model,
+                    Vec3::new(spec.x + offset_x, 0.0, spec.z + offset_z),
+                    SMALL_SCALE,
+                    kenney::MAT_FURNITURE,
                     None,
                 );
             }
         }
         BuildingType::House => {
-            let table_width = rng.random_range(1.0..1.5);
-            let table_depth = rng.random_range(0.6..1.0);
             data.instance(
-                "Cube",
-                Vec3::new(spec.x, 0.4, spec.z),
-                Vec3::new(table_width, 0.8, table_depth),
-                "DockWood",
+                kenney::TABLE_ROUND,
+                Vec3::new(spec.x, 0.0, spec.z),
+                FURN_SCALE,
+                kenney::MAT_FURNITURE,
                 None,
             );
 
-            let chair_offset_x = rng.random_range(-0.8..0.8);
+            let chair_offset_x = rng.random_range(-0.8f32..0.8);
             data.instance(
-                "Cube",
-                Vec3::new(
-                    spec.x + chair_offset_x,
-                    0.25,
-                    spec.z + table_depth / 2.0 + 0.3,
-                ),
-                Vec3::new(0.4, 0.5, 0.4),
-                "DockWood",
+                kenney::CHAIR_CUSHION,
+                Vec3::new(spec.x + chair_offset_x, 0.0, spec.z + 0.8),
+                SMALL_SCALE,
+                kenney::MAT_FURNITURE,
                 None,
             );
 
             data.instance(
-                "Cube",
+                kenney::BOOKCASE_OPEN,
                 Vec3::new(
                     spec.x + interior_half_w * 0.7,
-                    0.5,
+                    0.0,
                     spec.z - interior_half_d * 0.7,
                 ),
-                Vec3::new(1.2, 1.0, 0.4),
-                "ConcreteMedium",
+                FURN_SCALE,
+                kenney::MAT_FURNITURE,
+                None,
+            );
+
+            data.instance(
+                kenney::BED_SINGLE,
+                Vec3::new(
+                    spec.x - interior_half_w * 0.6,
+                    0.0,
+                    spec.z - interior_half_d * 0.5,
+                ),
+                FURN_SCALE,
+                kenney::MAT_FURNITURE,
+                None,
+            );
+
+            data.instance(
+                kenney::LAMP_CEILING,
+                Vec3::new(spec.x, spec.height - CEILING_THICKNESS - 0.1, spec.z),
+                SMALL_SCALE,
+                kenney::MAT_FURNITURE,
                 None,
             );
         }
@@ -358,78 +380,66 @@ fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
             for desk_index in 0..desk_count {
                 let spacing = interior_half_w * 2.0 / (desk_count as f32 + 1.0);
                 let offset_x = -interior_half_w + spacing * (desk_index as f32 + 1.0);
+
                 data.instance(
-                    "Cube",
-                    Vec3::new(spec.x + offset_x, 0.38, spec.z),
-                    Vec3::new(1.2, 0.75, 0.6),
-                    "ConcreteMedium",
+                    kenney::DESK,
+                    Vec3::new(spec.x + offset_x, 0.0, spec.z),
+                    FURN_SCALE,
+                    kenney::MAT_FURNITURE,
                     None,
                 );
 
                 data.instance(
-                    "Cube",
-                    Vec3::new(spec.x + offset_x, 0.25, spec.z + 0.5),
-                    Vec3::new(0.4, 0.5, 0.4),
-                    "DockWood",
+                    kenney::CHAIR_DESK,
+                    Vec3::new(spec.x + offset_x, 0.0, spec.z + 0.6),
+                    SMALL_SCALE,
+                    kenney::MAT_FURNITURE,
                     None,
                 );
             }
 
             data.instance(
-                "Cube",
+                kenney::BOOKCASE_CLOSED,
                 Vec3::new(
                     spec.x - interior_half_w * 0.8,
-                    1.0,
+                    0.0,
                     spec.z - interior_half_d * 0.8,
                 ),
-                Vec3::new(0.3, 2.0, 1.5),
-                "ConcreteMedium",
+                FURN_SCALE,
+                kenney::MAT_FURNITURE,
                 None,
             );
         }
         BuildingType::ApartmentBlock => {
-            let sofa_width = rng.random_range(1.2..2.0);
             data.instance(
-                "Cube",
+                kenney::SOFA,
                 Vec3::new(
                     spec.x - interior_half_w * 0.6,
-                    0.25,
+                    0.0,
                     spec.z - interior_half_d * 0.7,
                 ),
-                Vec3::new(sofa_width, 0.5, 0.6),
-                "ConcreteMedium",
-                None,
-            );
-            data.instance(
-                "Cube",
-                Vec3::new(
-                    spec.x - interior_half_w * 0.6,
-                    0.45,
-                    spec.z - interior_half_d * 0.7 - 0.25,
-                ),
-                Vec3::new(sofa_width, 0.4, 0.1),
-                "ConcreteMedium",
-                None,
-            );
-
-            let table_width = rng.random_range(0.8..1.2);
-            data.instance(
-                "Cube",
-                Vec3::new(spec.x + interior_half_w * 0.3, 0.35, spec.z),
-                Vec3::new(table_width, 0.7, table_width * 0.8),
-                "DockWood",
+                FURN_SCALE,
+                kenney::MAT_FURNITURE,
                 None,
             );
 
             data.instance(
-                "Cube",
+                kenney::TABLE_COFFEE,
+                Vec3::new(spec.x + interior_half_w * 0.3, 0.0, spec.z),
+                FURN_SCALE,
+                kenney::MAT_FURNITURE,
+                None,
+            );
+
+            data.instance(
+                kenney::BOOKCASE_OPEN,
                 Vec3::new(
                     spec.x + interior_half_w * 0.6,
-                    0.75,
+                    0.0,
                     spec.z + interior_half_d * 0.7,
                 ),
-                Vec3::new(0.8, 1.5, 0.4),
-                "ConcreteMedium",
+                FURN_SCALE,
+                kenney::MAT_FURNITURE,
                 None,
             );
 
@@ -439,6 +449,30 @@ fn describe_furniture(data: &mut ChunkData, spec: &BuildingSpec, rng: &mut impl 
                 Vec3::new(spec.x, 0.02, spec.z),
                 Vec3::new(rug_size, 0.02, rug_size * 0.7),
                 "DockWood",
+                None,
+            );
+
+            data.instance(
+                kenney::FRIDGE,
+                Vec3::new(
+                    spec.x + interior_half_w * 0.8,
+                    0.0,
+                    spec.z - interior_half_d * 0.8,
+                ),
+                SMALL_SCALE,
+                kenney::MAT_FURNITURE,
+                None,
+            );
+
+            data.instance(
+                kenney::STOVE,
+                Vec3::new(
+                    spec.x + interior_half_w * 0.8,
+                    0.0,
+                    spec.z - interior_half_d * 0.4,
+                ),
+                SMALL_SCALE,
+                kenney::MAT_FURNITURE,
                 None,
             );
         }

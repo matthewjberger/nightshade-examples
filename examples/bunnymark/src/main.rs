@@ -146,21 +146,34 @@ fn spawn_bunnies(world: &mut World, bunny_world: &mut BunnyWorld, count: usize) 
     let spawn_y = bunny_world.resources.max_y * 0.9;
 
     let new_entities = world.spawn_entities(
-        SPRITE | VISIBILITY | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM,
+        SPRITE
+            | RENDER_MESH
+            | MATERIAL_REF
+            | VISIBILITY
+            | LOCAL_TRANSFORM
+            | LOCAL_TRANSFORM_DIRTY
+            | GLOBAL_TRANSFORM,
         count,
     );
 
     for &entity in &new_entities {
         if let Some(sprite) = world.get_sprite_mut(entity) {
-            sprite.size = Vec2::new(BUNNY_SIZE, BUNNY_SIZE);
             sprite.texture_index = 0;
             sprite.uv_min = Vec2::new(0.0, 0.0);
             sprite.uv_max = Vec2::new(1.0, 1.0);
             sprite.color = [1.0, 1.0, 1.0, 1.0];
         }
 
+        if let Some(render_mesh) = world.get_render_mesh_mut(entity) {
+            render_mesh.name = "SpriteQuad".to_string();
+        }
+        if let Some(material_ref) = world.get_material_ref_mut(entity) {
+            material_ref.name = "sprite_atlas".to_string();
+        }
+
         if let Some(transform) = world.get_local_transform_mut(entity) {
             transform.translation = Vec3::new(spawn_x, spawn_y, 0.0);
+            transform.scale = Vec3::new(BUNNY_SIZE, BUNNY_SIZE, 1.0);
         }
         mark_local_transform_dirty(world, entity);
 
@@ -173,6 +186,9 @@ fn spawn_bunnies(world: &mut World, bunny_world: &mut BunnyWorld, count: usize) 
 }
 
 fn record_frame_time(world: &World, bunny_world: &mut BunnyWorld) {
+    if bunny_world.resources.frame_times.is_empty() {
+        return;
+    }
     let frame_time = world.resources.window.timing.raw_delta_time * 1000.0;
     let index = bunny_world.resources.frame_time_index;
     bunny_world.resources.frame_times[index] = frame_time;

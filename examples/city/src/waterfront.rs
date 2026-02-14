@@ -12,13 +12,8 @@ const SUPPORT_HEIGHT: f32 = 3.5;
 const SUPPORT_SPACING: f32 = 12.0;
 const DETAIL_SPACING: f32 = 12.0;
 
-const BOAT_HULL_WIDTH: f32 = 3.0;
-const BOAT_HULL_HEIGHT: f32 = 1.0;
-const BOAT_HULL_DEPTH: f32 = 1.5;
-const BOAT_CABIN_WIDTH: f32 = 1.2;
-const BOAT_CABIN_HEIGHT: f32 = 1.0;
-const BOAT_CABIN_DEPTH: f32 = 1.0;
-const BOAT_WATER_Y: f32 = -1.0;
+const BOAT_WATER_Y: f32 = -1.8;
+const BOAT_SCALE: Vec3 = Vec3::new(2.0, 2.0, 2.0);
 
 const DOCK_CRANE_TOWER_HEIGHT_MIN: f32 = 15.0;
 const DOCK_CRANE_TOWER_HEIGHT_MAX: f32 = 20.0;
@@ -258,21 +253,19 @@ fn describe_dock_details(
                 );
             }
             1 => {
-                let crate_size = rng.random_range(0.6..1.2);
-                let stack_count = rng.random_range(1u32..3);
-                for stack_index in 0..stack_count {
-                    data.instance(
-                        "Cube",
-                        Vec3::new(
-                            x,
-                            top_y + crate_size / 2.0 + stack_index as f32 * crate_size,
-                            z,
-                        ),
-                        Vec3::new(crate_size, crate_size, crate_size),
-                        "DockWood",
-                        None,
-                    );
-                }
+                let cargo_model = if rng.random_range(0.0f32..1.0) < 0.5 {
+                    crate::kenney::CARGO_CONTAINER_A
+                } else {
+                    crate::kenney::CARGO_CONTAINER_B
+                };
+                let cargo_scale = rng.random_range(1.5..2.5);
+                data.instance(
+                    cargo_model,
+                    Vec3::new(x, top_y, z),
+                    Vec3::new(cargo_scale, cargo_scale, cargo_scale),
+                    crate::kenney::MAT_WATERCRAFT,
+                    None,
+                );
             }
             _ => {
                 let warehouse_width = rng.random_range(3.0..5.0);
@@ -291,6 +284,18 @@ fn describe_dock_details(
                     Vec3::new(x, top_y + warehouse_height + 0.1, z),
                     Vec3::new(warehouse_width + 0.4, 0.2, warehouse_depth + 0.4),
                     "RooftopMetal",
+                    None,
+                );
+
+                data.instance(
+                    crate::kenney::CARGO_PILE,
+                    Vec3::new(
+                        x + rng.random_range(-2.0f32..2.0),
+                        top_y,
+                        z + rng.random_range(-2.0f32..2.0),
+                    ),
+                    Vec3::new(1.5, 1.5, 1.5),
+                    crate::kenney::MAT_WATERCRAFT,
                     None,
                 );
             }
@@ -421,33 +426,36 @@ fn describe_boats(
     edge: EdgeDirection,
     rng: &mut impl Rng,
 ) {
+    use crate::kenney;
+
     let (platform_pos, platform_scale) = dock_platform_position_and_size(chunk_coords, edge);
 
     let boat_count = rng.random_range(2u32..5);
+    let boat_offset = 6.0;
 
     let (along_min, along_max, outer_pos, is_x_along) = match edge {
         EdgeDirection::East => (
             platform_pos.z - platform_scale.z / 2.0 + 5.0,
             platform_pos.z + platform_scale.z / 2.0 - 5.0,
-            platform_pos.x + platform_scale.x / 2.0 + BOAT_HULL_DEPTH,
+            platform_pos.x + platform_scale.x / 2.0 + boat_offset,
             false,
         ),
         EdgeDirection::West => (
             platform_pos.z - platform_scale.z / 2.0 + 5.0,
             platform_pos.z + platform_scale.z / 2.0 - 5.0,
-            platform_pos.x - platform_scale.x / 2.0 - BOAT_HULL_DEPTH,
+            platform_pos.x - platform_scale.x / 2.0 - boat_offset,
             false,
         ),
         EdgeDirection::North => (
             platform_pos.x - platform_scale.x / 2.0 + 5.0,
             platform_pos.x + platform_scale.x / 2.0 - 5.0,
-            platform_pos.z - platform_scale.z / 2.0 - BOAT_HULL_DEPTH,
+            platform_pos.z - platform_scale.z / 2.0 - boat_offset,
             true,
         ),
         EdgeDirection::South => (
             platform_pos.x - platform_scale.x / 2.0 + 5.0,
             platform_pos.x + platform_scale.x / 2.0 - 5.0,
-            platform_pos.z + platform_scale.z / 2.0 + BOAT_HULL_DEPTH,
+            platform_pos.z + platform_scale.z / 2.0 + boat_offset,
             true,
         ),
     };
@@ -465,25 +473,14 @@ fn describe_boats(
             (outer_pos + rng.random_range(-1.0f32..1.0), along_pos)
         };
 
+        let model = kenney::BOAT_MODELS[rng.random_range(0..kenney::BOAT_MODELS.len())];
         let rotation = nalgebra_glm::quat_angle_axis(rotation_jitter, &Vec3::y());
 
-        data.instance(
-            "Cube",
+        data.mesh(
+            model,
             Vec3::new(boat_x, BOAT_WATER_Y, boat_z),
-            Vec3::new(BOAT_HULL_WIDTH, BOAT_HULL_HEIGHT, BOAT_HULL_DEPTH),
-            "BoatHull",
-            Some(rotation),
-        );
-
-        data.instance(
-            "Cube",
-            Vec3::new(
-                boat_x,
-                BOAT_WATER_Y + BOAT_HULL_HEIGHT / 2.0 + BOAT_CABIN_HEIGHT / 2.0,
-                boat_z,
-            ),
-            Vec3::new(BOAT_CABIN_WIDTH, BOAT_CABIN_HEIGHT, BOAT_CABIN_DEPTH),
-            "BoatCabin",
+            BOAT_SCALE,
+            kenney::MAT_WATERCRAFT,
             Some(rotation),
         );
     }

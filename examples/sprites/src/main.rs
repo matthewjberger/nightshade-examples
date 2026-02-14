@@ -410,6 +410,8 @@ fn spawn_animated_aliens(world: &mut World, uv_max_table: &[Vec2]) {
 
         let entity = world.spawn_entities(
             nightshade::ecs::SPRITE
+                | nightshade::ecs::RENDER_MESH
+                | nightshade::ecs::MATERIAL_REF
                 | nightshade::ecs::VISIBILITY
                 | nightshade::ecs::SPRITE_ANIMATOR
                 | nightshade::ecs::LOCAL_TRANSFORM
@@ -423,11 +425,17 @@ fn spawn_animated_aliens(world: &mut World, uv_max_table: &[Vec2]) {
 
         if let Some(local_transform) = world.get_local_transform_mut(entity) {
             local_transform.translation = Vec3::new(position.x, position.y, 600.0);
-            local_transform.scale = Vec3::new(0.4, 0.4, 1.0);
+            local_transform.scale = Vec3::new(128.0 * 0.4, 256.0 * 0.4, 1.0);
+        }
+
+        if let Some(render_mesh) = world.get_render_mesh_mut(entity) {
+            render_mesh.name = "SpriteQuad".to_string();
+        }
+        if let Some(material_ref) = world.get_material_ref_mut(entity) {
+            material_ref.name = "sprite_atlas".to_string();
         }
 
         if let Some(sprite) = world.get_sprite_mut(entity) {
-            sprite.size = Vec2::new(128.0, 256.0);
             sprite.texture_index = first_slot;
             sprite.texture_index2 = first_slot;
             sprite.color = [1.0, 1.0, 1.0, 1.0];

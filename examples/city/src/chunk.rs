@@ -42,13 +42,8 @@ const SEED_WATERFRONT_DETAIL: u64 = 12346;
 const SEED_VEHICLES: u64 = 54321;
 const SEED_CRANES: u64 = 91919;
 
-const CAR_BODY_WIDTH: f32 = 2.0;
-const CAR_BODY_HEIGHT: f32 = 0.8;
-const CAR_BODY_DEPTH: f32 = 1.0;
-const CAR_CABIN_WIDTH: f32 = 1.0;
-const CAR_CABIN_HEIGHT: f32 = 0.5;
-const CAR_CABIN_DEPTH: f32 = 0.8;
-const CAR_COLORS: &[&str] = &["CarRed", "CarBlue", "CarWhite", "CarBlack", "CarSilver"];
+const CAR_SCALE: Vec3 = Vec3::new(1.0, 1.0, 1.0);
+const CAR_MIN_SIDEWALK: f32 = 4.0;
 
 const MARKING_LENGTH: f32 = 2.0;
 const MARKING_WIDTH: f32 = 0.3;
@@ -62,6 +57,8 @@ const CRANE_ARM_LENGTH: f32 = 15.0;
 const CRANE_ARM_THICKNESS: f32 = 0.5;
 const CRANE_COUNTERWEIGHT_SIZE: f32 = 2.0;
 
+const BOAT_WATER_Y: f32 = -1.8;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum LayerKind {
     Base,
@@ -69,10 +66,16 @@ enum LayerKind {
     Detail,
 }
 
+struct BoatInfo {
+    entity: Entity,
+    initial_yaw: f32,
+}
+
 struct ChunkState {
     base_entities: Vec<Entity>,
     building_entities: Vec<Entity>,
     detail_entities: Vec<Entity>,
+    boats: Vec<BoatInfo>,
 }
 
 struct LoadingCursor {
@@ -423,6 +426,29 @@ impl ChunkStreamer {
         }
     }
 
+    pub fn update_boat_bobbing(&self, world: &mut World, time: f32) {
+        for chunk in self.chunks.values() {
+            for boat in &chunk.boats {
+                let Some(transform) = world.get_local_transform_mut(boat.entity) else {
+                    continue;
+                };
+                let phase = boat.entity.id as f32 * 1.7;
+                let bob_offset = (time * 0.8 + phase).sin() * 0.15;
+                transform.translation.y = BOAT_WATER_Y + bob_offset;
+
+                let yaw = nalgebra_glm::quat_angle_axis(boat.initial_yaw, &Vec3::y());
+                let roll =
+                    nalgebra_glm::quat_angle_axis((time * 0.6 + phase).sin() * 0.03, &Vec3::z());
+                let pitch = nalgebra_glm::quat_angle_axis(
+                    (time * 0.5 + phase * 1.3).sin() * 0.02,
+                    &Vec3::x(),
+                );
+                transform.rotation = yaw * pitch * roll;
+                world.mark_local_transform_dirty(boat.entity);
+            }
+        }
+    }
+
     pub fn update(&mut self, world: &mut World, camera_pos: Vec3, camera_forward: Vec3) {
         let camera_chunk = (
             (camera_pos.x / CHUNK_SIZE).floor() as i32,
@@ -616,6 +642,26 @@ impl ChunkStreamer {
                 }
                 LayerKind::Detail => {
                     let chunk = self.chunks.get_mut(&key.0).unwrap();
+                    let mut boats = Vec::new();
+                    for &entity in &lc.entities {
+                        if let Some(render_mesh) = world.get_render_mesh(entity) {
+                            let mesh_name = render_mesh.name.as_str();
+                            if crate::kenney::BOAT_MODELS.contains(&mesh_name) {
+                                let initial_yaw = world
+                                    .get_local_transform(entity)
+                                    .map(|t| {
+                                        let euler = nalgebra_glm::quat_euler_angles(&t.rotation);
+                                        euler.z
+                                    })
+                                    .unwrap_or(0.0);
+                                boats.push(BoatInfo {
+                                    entity,
+                                    initial_yaw,
+                                });
+                            }
+                        }
+                    }
+                    chunk.boats = boats;
                     chunk.detail_entities = lc.entities;
                 }
             }
@@ -650,6 +696,7 @@ impl ChunkStreamer {
                                 base_entities: Vec::new(),
                                 building_entities: Vec::new(),
                                 detail_entities: Vec::new(),
+                                boats: Vec::new(),
                             },
                         );
                         self.loading.insert(
@@ -866,6 +913,8 @@ fn pregen_buildings(
     let mut crane_rng = rand::rngs::StdRng::seed_from_u64(seed.wrapping_add(SEED_CRANES));
     describe_construction_cranes(&mut data, layout, &mut crane_rng);
 
+    describe_traffic_lights(&mut data, layout);
+
     let mut waterfront_rng = rand::rngs::StdRng::seed_from_u64(seed.wrapping_add(SEED_WATERFRONT));
     for edge in edges.iter().flatten() {
         waterfront::describe_dock_buildings(&mut data, coords, *edge, &mut waterfront_rng);
@@ -947,6 +996,10 @@ fn describe_streetlight_mesh(data: &mut ChunkData, x: f32, z: f32) {
     );
 }
 
+const CROSSWALK_STRIPE_WIDTH: f32 = 0.4;
+const CROSSWALK_STRIPE_GAP: f32 = 0.6;
+const CROSSWALK_STRIPE_COUNT: i32 = 5;
+
 fn describe_road_markings(data: &mut ChunkData, road_segments: &[city::RoadSegment]) {
     for segment in road_segments {
         if segment.is_sidewalk {
@@ -982,6 +1035,75 @@ fn describe_road_markings(data: &mut ChunkData, road_segments: &[city::RoadSegme
             );
         }
     }
+
+    for segment in road_segments {
+        if segment.is_sidewalk {
+            continue;
+        }
+
+        let is_x_long = segment.width > segment.depth;
+        let road_width = 4.0;
+
+        if is_x_long {
+            let road_z = segment.z;
+            let start_x = segment.x - segment.width / 2.0;
+            let block_count = (segment.width / 16.0).round() as i32;
+            for block_index in 0..block_count {
+                let crossing_x = start_x + block_index as f32 * 16.0;
+                describe_crosswalk_stripes(data, crossing_x, road_z, road_width, true);
+            }
+        } else {
+            let road_x = segment.x;
+            let start_z = segment.z - segment.depth / 2.0;
+            let block_count = (segment.depth / 16.0).round() as i32;
+            for block_index in 0..block_count {
+                let crossing_z = start_z + block_index as f32 * 16.0;
+                describe_crosswalk_stripes(data, road_x, crossing_z, road_width, false);
+            }
+        }
+    }
+}
+
+fn describe_crosswalk_stripes(
+    data: &mut ChunkData,
+    center_x: f32,
+    center_z: f32,
+    road_width: f32,
+    crossing_along_z: bool,
+) {
+    let total_width = CROSSWALK_STRIPE_COUNT as f32 * CROSSWALK_STRIPE_WIDTH
+        + (CROSSWALK_STRIPE_COUNT - 1) as f32 * CROSSWALK_STRIPE_GAP;
+    let start_offset = -total_width / 2.0 + CROSSWALK_STRIPE_WIDTH / 2.0;
+    let stripe_length = road_width * 0.8;
+
+    for stripe_index in 0..CROSSWALK_STRIPE_COUNT {
+        let offset =
+            start_offset + stripe_index as f32 * (CROSSWALK_STRIPE_WIDTH + CROSSWALK_STRIPE_GAP);
+
+        let (x, z, sx, sz) = if crossing_along_z {
+            (
+                center_x + offset,
+                center_z,
+                CROSSWALK_STRIPE_WIDTH,
+                stripe_length,
+            )
+        } else {
+            (
+                center_x,
+                center_z + offset,
+                stripe_length,
+                CROSSWALK_STRIPE_WIDTH,
+            )
+        };
+
+        data.instance(
+            "Cube",
+            Vec3::new(x, 0.06, z),
+            Vec3::new(sx, MARKING_HEIGHT, sz),
+            "RoadMarking",
+            None,
+        );
+    }
 }
 
 fn describe_parked_vehicles(
@@ -1001,7 +1123,7 @@ fn describe_parked_vehicles(
             segment.depth
         };
 
-        if long_extent < CAR_BODY_WIDTH * 2.0 {
+        if long_extent < CAR_MIN_SIDEWALK {
             continue;
         }
 
@@ -1010,7 +1132,8 @@ fn describe_parked_vehicles(
 
         for car_index in 0..car_count {
             let offset = -long_extent / 2.0 + (car_index as f32 + 0.5) * spacing;
-            let color = CAR_COLORS[rng.random_range(0..CAR_COLORS.len())];
+            let model =
+                crate::kenney::CAR_MODELS[rng.random_range(0..crate::kenney::CAR_MODELS.len())];
 
             let (car_x, car_z) = if is_x_long {
                 (segment.x + offset, segment.z)
@@ -1018,44 +1141,21 @@ fn describe_parked_vehicles(
                 (segment.x, segment.z + offset)
             };
 
-            data.instance(
-                "Cube",
-                Vec3::new(car_x, CAR_BODY_HEIGHT / 2.0, car_z),
-                Vec3::new(
-                    if is_x_long {
-                        CAR_BODY_WIDTH
-                    } else {
-                        CAR_BODY_DEPTH
-                    },
-                    CAR_BODY_HEIGHT,
-                    if is_x_long {
-                        CAR_BODY_DEPTH
-                    } else {
-                        CAR_BODY_WIDTH
-                    },
-                ),
-                color,
-                None,
-            );
+            let rotation = if is_x_long {
+                Some(nalgebra_glm::quat_angle_axis(
+                    std::f32::consts::FRAC_PI_2,
+                    &Vec3::y(),
+                ))
+            } else {
+                None
+            };
 
             data.instance(
-                "Cube",
-                Vec3::new(car_x, CAR_BODY_HEIGHT + CAR_CABIN_HEIGHT / 2.0, car_z),
-                Vec3::new(
-                    if is_x_long {
-                        CAR_CABIN_WIDTH
-                    } else {
-                        CAR_CABIN_DEPTH
-                    },
-                    CAR_CABIN_HEIGHT,
-                    if is_x_long {
-                        CAR_CABIN_DEPTH
-                    } else {
-                        CAR_CABIN_WIDTH
-                    },
-                ),
-                color,
-                None,
+                model,
+                Vec3::new(car_x, 0.0, car_z),
+                CAR_SCALE,
+                crate::kenney::MAT_CAR,
+                rotation,
             );
         }
     }
@@ -1131,6 +1231,79 @@ fn describe_construction_cranes(
         "DockMetal",
         None,
     );
+}
+
+const TRAFFIC_POLE_HEIGHT: f32 = 3.0;
+const TRAFFIC_POLE_RADIUS: f32 = 0.08;
+const TRAFFIC_BOX_WIDTH: f32 = 0.3;
+const TRAFFIC_BOX_HEIGHT: f32 = 0.6;
+const TRAFFIC_LIGHT_RADIUS: f32 = 0.08;
+const TRAFFIC_SIDEWALK_OFFSET: f32 = 2.8;
+
+fn describe_traffic_lights(data: &mut ChunkData, layout: &CityChunkLayout) {
+    for intersection in &layout.intersection_positions {
+        let corner_hash = ((intersection.x * 73.0) as u32)
+            .wrapping_mul(((intersection.z * 47.0) as u32).wrapping_add(17));
+        let corner = (corner_hash.wrapping_add(2)) % 4;
+
+        let (dx, dz) = match corner {
+            0 => (TRAFFIC_SIDEWALK_OFFSET, TRAFFIC_SIDEWALK_OFFSET),
+            1 => (TRAFFIC_SIDEWALK_OFFSET, -TRAFFIC_SIDEWALK_OFFSET),
+            2 => (-TRAFFIC_SIDEWALK_OFFSET, TRAFFIC_SIDEWALK_OFFSET),
+            _ => (-TRAFFIC_SIDEWALK_OFFSET, -TRAFFIC_SIDEWALK_OFFSET),
+        };
+
+        let pole_x = intersection.x + dx;
+        let pole_z = intersection.z + dz;
+
+        data.instance(
+            "Cylinder",
+            Vec3::new(pole_x, TRAFFIC_POLE_HEIGHT / 2.0, pole_z),
+            Vec3::new(
+                TRAFFIC_POLE_RADIUS * 2.0,
+                TRAFFIC_POLE_HEIGHT,
+                TRAFFIC_POLE_RADIUS * 2.0,
+            ),
+            "LampPole",
+            None,
+        );
+
+        let box_y = TRAFFIC_POLE_HEIGHT + TRAFFIC_BOX_HEIGHT / 2.0;
+        data.instance(
+            "Cube",
+            Vec3::new(pole_x, box_y, pole_z),
+            Vec3::new(TRAFFIC_BOX_WIDTH, TRAFFIC_BOX_HEIGHT, TRAFFIC_BOX_WIDTH),
+            "ConcreteDark",
+            None,
+        );
+
+        let light_spacing = TRAFFIC_BOX_HEIGHT / 3.0;
+        let light_diameter = TRAFFIC_LIGHT_RADIUS * 2.0;
+
+        data.instance(
+            "Sphere",
+            Vec3::new(pole_x, box_y + light_spacing, pole_z),
+            Vec3::new(light_diameter, light_diameter, light_diameter),
+            "TrafficRed",
+            None,
+        );
+
+        data.instance(
+            "Sphere",
+            Vec3::new(pole_x, box_y, pole_z),
+            Vec3::new(light_diameter, light_diameter, light_diameter),
+            "TrafficYellow",
+            None,
+        );
+
+        data.instance(
+            "Sphere",
+            Vec3::new(pole_x, box_y - light_spacing, pole_z),
+            Vec3::new(light_diameter, light_diameter, light_diameter),
+            "TrafficGreen",
+            None,
+        );
+    }
 }
 
 fn chebyshev_distance(a: (i32, i32), b: (i32, i32)) -> i32 {

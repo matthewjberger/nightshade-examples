@@ -1046,7 +1046,8 @@ struct BulletHell {
 
     texture_sizes: Vec<(f32, f32)>,
     uv_max_table: Vec<nalgebra_glm::Vec2>,
-    initialized: bool,
+    left_was_pressed: bool,
+    right_was_pressed: bool,
 }
 
 impl Default for BulletHell {
@@ -1111,7 +1112,8 @@ impl Default for BulletHell {
 
             texture_sizes: Vec::new(),
             uv_max_table: Vec::new(),
-            initialized: false,
+            left_was_pressed: false,
+            right_was_pressed: false,
         }
     }
 }
@@ -1370,33 +1372,17 @@ impl BulletHell {
 
         let delta_time = world.resources.window.timing.delta_time;
 
-        let left_just_pressed =
-            world
-                .resources
-                .input
-                .keyboard
-                .frame_keys
-                .iter()
-                .any(|(key, pressed)| {
-                    *pressed && (*key == KeyCode::KeyA || *key == KeyCode::ArrowLeft)
-                });
-        let right_just_pressed =
-            world
-                .resources
-                .input
-                .keyboard
-                .frame_keys
-                .iter()
-                .any(|(key, pressed)| {
-                    *pressed && (*key == KeyCode::KeyD || *key == KeyCode::ArrowRight)
-                });
-
         let keyboard = &world.resources.input.keyboard;
 
         let left =
             keyboard.is_key_pressed(KeyCode::KeyA) || keyboard.is_key_pressed(KeyCode::ArrowLeft);
         let right =
             keyboard.is_key_pressed(KeyCode::KeyD) || keyboard.is_key_pressed(KeyCode::ArrowRight);
+
+        let left_just_pressed = left && !self.left_was_pressed;
+        let right_just_pressed = right && !self.right_was_pressed;
+        self.left_was_pressed = left;
+        self.right_was_pressed = right;
         let up =
             keyboard.is_key_pressed(KeyCode::KeyW) || keyboard.is_key_pressed(KeyCode::ArrowUp);
         let down =
@@ -1617,7 +1603,7 @@ impl BulletHell {
         to_remove.dedup();
         for index in to_remove.into_iter().rev() {
             let bullet = self.player_bullets.remove(index);
-            world.despawn_entities(&[bullet.entity]);
+            despawn_entities_with_cache_cleanup(world, &[bullet.entity]);
         }
     }
 
@@ -1641,7 +1627,7 @@ impl BulletHell {
                 self.game_state = GameState::Bombing;
 
                 for bullet in self.enemy_bullets.drain(..) {
-                    world.despawn_entities(&[bullet.entity]);
+                    despawn_entities_with_cache_cleanup(world, &[bullet.entity]);
                 }
 
                 for enemy in &mut self.enemies {
@@ -1990,7 +1976,7 @@ impl BulletHell {
 
         for index in to_remove.into_iter().rev() {
             let bullet = self.enemy_bullets.remove(index);
-            world.despawn_entities(&[bullet.entity]);
+            despawn_entities_with_cache_cleanup(world, &[bullet.entity]);
         }
     }
 
@@ -2066,14 +2052,14 @@ impl BulletHell {
         bullets_to_remove.dedup();
         for index in bullets_to_remove.into_iter().rev() {
             let bullet = self.player_bullets.remove(index);
-            world.despawn_entities(&[bullet.entity]);
+            despawn_entities_with_cache_cleanup(world, &[bullet.entity]);
         }
 
         enemies_to_remove.sort_unstable();
         enemies_to_remove.dedup();
         for index in enemies_to_remove.into_iter().rev() {
             let enemy = self.enemies.remove(index);
-            world.despawn_entities(&[enemy.entity]);
+            despawn_entities_with_cache_cleanup(world, &[enemy.entity]);
         }
 
         for position in spawn_explosions {
@@ -2112,7 +2098,7 @@ impl BulletHell {
 
         for index in bullets_to_remove.into_iter().rev() {
             let bullet = self.enemy_bullets.remove(index);
-            world.despawn_entities(&[bullet.entity]);
+            despawn_entities_with_cache_cleanup(world, &[bullet.entity]);
         }
 
         if hit {
@@ -2195,7 +2181,7 @@ impl BulletHell {
 
         for index in enemies_to_remove.into_iter().rev() {
             let enemy = self.enemies.remove(index);
-            world.despawn_entities(&[enemy.entity]);
+            despawn_entities_with_cache_cleanup(world, &[enemy.entity]);
         }
 
         if hit {
@@ -2248,6 +2234,8 @@ impl BulletHell {
 
         let entity = world.spawn_entities(
             SPRITE
+                | RENDER_MESH
+                | MATERIAL_REF
                 | VISIBILITY
                 | SPRITE_ANIMATOR
                 | LOCAL_TRANSFORM
@@ -2259,16 +2247,25 @@ impl BulletHell {
         if let Some(local_transform) = world.get_local_transform_mut(entity) {
             local_transform.translation =
                 nalgebra_glm::Vec3::new(position.x, position.y, LAYER_EXPLOSIONS);
+            local_transform.scale =
+                nalgebra_glm::Vec3::new(explosion_size.x, explosion_size.y, 1.0);
+        }
+
+        if let Some(render_mesh) = world.get_render_mesh_mut(entity) {
+            render_mesh.name = "SpriteQuad".to_string();
+        }
+        if let Some(material_ref) = world.get_material_ref_mut(entity) {
+            material_ref.name = "sprite_atlas".to_string();
         }
 
         if let Some(sprite) = world.get_sprite_mut(entity) {
-            sprite.size = explosion_size;
             sprite.texture_index = SLOT_FIRE0;
             sprite.texture_index2 = SLOT_FIRE0;
             sprite.color = [1.0, 1.0, 1.0, 1.0];
             sprite.uv_min = first_uv_min;
             sprite.uv_max = first_uv_max;
         }
+
         world.set_visibility(entity, Visibility { visible: true });
 
         world.set_sprite_animator(
@@ -2321,7 +2318,7 @@ impl BulletHell {
 
         for index in to_remove.into_iter().rev() {
             let explosion = self.explosions.remove(index);
-            world.despawn_entities(&[explosion.entity]);
+            despawn_entities_with_cache_cleanup(world, &[explosion.entity]);
         }
     }
 
@@ -2344,7 +2341,7 @@ impl BulletHell {
 
         for index in to_remove.into_iter().rev() {
             let flash = self.graze_flashes.remove(index);
-            world.despawn_entities(&[flash.entity]);
+            despawn_entities_with_cache_cleanup(world, &[flash.entity]);
         }
     }
 
@@ -2426,7 +2423,7 @@ impl BulletHell {
         to_remove.dedup();
         for index in to_remove.into_iter().rev() {
             let powerup = self.powerups.remove(index);
-            world.despawn_entities(&[powerup.entity]);
+            despawn_entities_with_cache_cleanup(world, &[powerup.entity]);
         }
     }
 
@@ -2500,7 +2497,7 @@ impl BulletHell {
 
         for index in to_remove.into_iter().rev() {
             let enemy = self.enemies.remove(index);
-            world.despawn_entities(&[enemy.entity]);
+            despawn_entities_with_cache_cleanup(world, &[enemy.entity]);
         }
     }
 
@@ -2517,32 +2514,26 @@ impl BulletHell {
             return;
         }
 
-        let restart = world
-            .resources
-            .input
-            .keyboard
-            .frame_keys
-            .iter()
-            .any(|(key, pressed)| *key == KeyCode::KeyR && *pressed);
+        let restart = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyR);
 
         if restart {
             for bullet in self.player_bullets.drain(..) {
-                world.despawn_entities(&[bullet.entity]);
+                despawn_entities_with_cache_cleanup(world, &[bullet.entity]);
             }
             for bullet in self.enemy_bullets.drain(..) {
-                world.despawn_entities(&[bullet.entity]);
+                despawn_entities_with_cache_cleanup(world, &[bullet.entity]);
             }
             for enemy in self.enemies.drain(..) {
-                world.despawn_entities(&[enemy.entity]);
+                despawn_entities_with_cache_cleanup(world, &[enemy.entity]);
             }
             for explosion in self.explosions.drain(..) {
-                world.despawn_entities(&[explosion.entity]);
+                despawn_entities_with_cache_cleanup(world, &[explosion.entity]);
             }
             for flash in self.graze_flashes.drain(..) {
-                world.despawn_entities(&[flash.entity]);
+                despawn_entities_with_cache_cleanup(world, &[flash.entity]);
             }
             for powerup in self.powerups.drain(..) {
-                world.despawn_entities(&[powerup.entity]);
+                despawn_entities_with_cache_cleanup(world, &[powerup.entity]);
             }
 
             self.player_position = nalgebra_glm::Vec2::new(0.0, -PLAY_AREA_HALF_HEIGHT * 0.7);
@@ -2655,23 +2646,20 @@ impl State for BulletHell {
         }
         world.resources.active_camera = Some(camera);
         self.camera_entity = Some(camera);
+
+        self.spawn_background(world);
+        self.spawn_star_field(world);
+        self.spawn_meteors(world);
+        self.spawn_player(world);
+        self.spawn_hud(world);
+        self.announce(
+            world,
+            &format!("WAVE {}", self.wave_number),
+            WAVE_INTRO_DURATION,
+        );
     }
 
     fn run_systems(&mut self, world: &mut World) {
-        if !self.initialized {
-            self.initialized = true;
-            self.spawn_background(world);
-            self.spawn_star_field(world);
-            self.spawn_meteors(world);
-            self.spawn_player(world);
-            self.spawn_hud(world);
-            self.announce(
-                world,
-                &format!("WAVE {}", self.wave_number),
-                WAVE_INTRO_DURATION,
-            );
-        }
-
         self.game_time += world.resources.window.timing.delta_time;
 
         sprite_animation_system(world);

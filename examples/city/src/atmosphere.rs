@@ -38,31 +38,31 @@ const EMISSIVE_TARGETS: &[EmissiveTarget] = &[
     },
     EmissiveTarget {
         name: "NeonRed",
-        day_strength: 0.3,
-        night_strength: 2.0,
-        day_factor: [0.5, 0.05, 0.03],
-        night_factor: [3.0, 0.3, 0.2],
+        day_strength: 0.2,
+        night_strength: 1.5,
+        day_factor: [0.3, 0.03, 0.02],
+        night_factor: [1.8, 0.2, 0.12],
     },
     EmissiveTarget {
         name: "NeonBlue",
-        day_strength: 0.3,
-        night_strength: 2.0,
-        day_factor: [0.03, 0.1, 0.5],
-        night_factor: [0.2, 0.6, 3.0],
+        day_strength: 0.2,
+        night_strength: 1.5,
+        day_factor: [0.02, 0.06, 0.3],
+        night_factor: [0.12, 0.36, 1.8],
     },
     EmissiveTarget {
         name: "NeonPink",
-        day_strength: 0.3,
-        night_strength: 2.0,
-        day_factor: [0.5, 0.06, 0.2],
-        night_factor: [3.0, 0.4, 1.2],
+        day_strength: 0.2,
+        night_strength: 1.5,
+        day_factor: [0.3, 0.04, 0.12],
+        night_factor: [1.8, 0.24, 0.72],
     },
     EmissiveTarget {
         name: "LampGlow",
         day_strength: 0.0,
-        night_strength: 3.0,
+        night_strength: 2.0,
         day_factor: [0.0, 0.0, 0.0],
-        night_factor: [2.0, 1.5, 0.8],
+        night_factor: [1.5, 1.1, 0.6],
     },
     EmissiveTarget {
         name: "BillboardWhite",
@@ -98,6 +98,89 @@ pub fn update_window_emissive(world: &mut World, hour: f32) {
     }
 }
 
+const TRAFFIC_CYCLE_DURATION: f32 = 30.0;
+
+struct TrafficLightPhase {
+    red: f32,
+    yellow: f32,
+    green: f32,
+}
+
+fn traffic_light_phase(time: f32) -> TrafficLightPhase {
+    let cycle_time = time % TRAFFIC_CYCLE_DURATION;
+    if cycle_time < 12.0 {
+        TrafficLightPhase {
+            red: 0.0,
+            yellow: 0.0,
+            green: 1.0,
+        }
+    } else if cycle_time < 15.0 {
+        TrafficLightPhase {
+            red: 0.0,
+            yellow: 1.0,
+            green: 0.0,
+        }
+    } else if cycle_time < 27.0 {
+        TrafficLightPhase {
+            red: 1.0,
+            yellow: 0.0,
+            green: 0.0,
+        }
+    } else {
+        TrafficLightPhase {
+            red: 0.0,
+            yellow: 1.0,
+            green: 0.0,
+        }
+    }
+}
+
+pub fn update_traffic_lights(world: &mut World, time: f32) {
+    let phase = traffic_light_phase(time);
+
+    let inactive_factor = [0.02, 0.02, 0.02];
+    let inactive_strength = 0.05;
+
+    if let Some(material) = registry_entry_by_name_mut(
+        &mut world.resources.material_registry.registry,
+        "TrafficRed",
+    ) {
+        if phase.red > 0.5 {
+            material.emissive_factor = [1.5, 0.05, 0.02];
+            material.emissive_strength = 1.0;
+        } else {
+            material.emissive_factor = inactive_factor;
+            material.emissive_strength = inactive_strength;
+        }
+    }
+
+    if let Some(material) = registry_entry_by_name_mut(
+        &mut world.resources.material_registry.registry,
+        "TrafficYellow",
+    ) {
+        if phase.yellow > 0.5 {
+            material.emissive_factor = [1.5, 1.2, 0.1];
+            material.emissive_strength = 1.0;
+        } else {
+            material.emissive_factor = inactive_factor;
+            material.emissive_strength = inactive_strength;
+        }
+    }
+
+    if let Some(material) = registry_entry_by_name_mut(
+        &mut world.resources.material_registry.registry,
+        "TrafficGreen",
+    ) {
+        if phase.green > 0.5 {
+            material.emissive_factor = [0.1, 1.5, 0.15];
+            material.emissive_strength = 1.0;
+        } else {
+            material.emissive_factor = inactive_factor;
+            material.emissive_strength = inactive_strength;
+        }
+    }
+}
+
 const CAMPFIRE_BASE_COLOR: Vec3 = Vec3::new(1.0, 0.65, 0.25);
 const CAMPFIRE_BASE_INTENSITY: f32 = 6.0;
 
@@ -125,6 +208,40 @@ pub fn update_campfire_lights(world: &mut World, time: f32) {
 
         if let Some(light) = world.get_light_mut(entity) {
             light.intensity = CAMPFIRE_BASE_INTENSITY + flicker1 + flicker2 + flicker3;
+        }
+    }
+}
+
+const NEON_BASE_INTENSITY: f32 = 3.0;
+
+pub fn update_neon_lights(world: &mut World, time: f32) {
+    let light_entities: Vec<Entity> = world.query_entities(LIGHT).collect();
+
+    for entity in light_entities {
+        let Some(light) = world.get_light(entity) else {
+            continue;
+        };
+        if light.light_type != LightType::Point {
+            continue;
+        }
+
+        let is_neon = (light.color.x > 0.8 || light.color.z > 0.8) && light.color.y < 0.4;
+        if !is_neon {
+            continue;
+        }
+
+        let phase = entity.id as f32 * std::f32::consts::PI;
+        let flicker = (time * 3.0 + phase).sin();
+        let multiplier = if flicker > 0.95 {
+            0.3
+        } else if flicker > 0.9 {
+            0.7
+        } else {
+            1.0
+        };
+
+        if let Some(light) = world.get_light_mut(entity) {
+            light.intensity = NEON_BASE_INTENSITY * multiplier;
         }
     }
 }

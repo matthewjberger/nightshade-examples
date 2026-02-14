@@ -15,7 +15,7 @@ use crate::player_systems;
 
 const VIEW_MODEL: &[u8] = include_bytes!("../../../assets/models/view_model.glb");
 
-const GROUND_COLLIDER_THICKNESS: f32 = 0.1;
+const GROUND_COLLIDER_THICKNESS: f32 = 1.0;
 const COLLIDER_RADIUS: i32 = 5;
 const COLLIDER_UNLOAD_RADIUS: i32 = COLLIDER_RADIUS + 2;
 const MAX_COLLIDER_CHUNKS_PER_FRAME: usize = 2;

@@ -1,1 +1,0 @@
-324000 bunnies, 94.2 FPS, headroom 34.2, batch 2000

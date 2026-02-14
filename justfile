@@ -47,7 +47,7 @@ lint-wasm:
 lint-wasm:
     #!/usr/bin/env bash
     set -euo pipefail
-    excludes="--exclude multiplayer_pong --exclude steam --exclude benchmark --exclude text_adventure --exclude terminal_breakout --exclude assets"
+    excludes="--exclude demo_scene --exclude multiplayer_pong --exclude steam --exclude benchmark --exclude text_adventure --exclude terminal_breakout --exclude assets"
     for dir in examples-terminal/*/; do
         name=$(basename "$dir")
         excludes="$excludes --exclude $name"

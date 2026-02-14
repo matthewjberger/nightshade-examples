@@ -106,6 +106,13 @@ struct WorldInstance {
     name: String,
     selected_entities: Vec<Entity>,
     viewport_rect: Option<egui::Rect>,
+    popped_out_window_index: Option<usize>,
+}
+
+impl WorldInstance {
+    fn is_popped_out(&self) -> bool {
+        self.popped_out_window_index.is_some()
+    }
 }
 
 struct AnimatedEntity {
@@ -122,7 +129,10 @@ struct TileBehavior<'a> {
     selected_world: &'a mut Option<u32>,
     selected_tile: &'a mut Option<egui_tiles::TileId>,
     world_to_tile: &'a mut HashMap<u32, egui_tiles::TileId>,
+    active_window: &'a mut Option<Option<usize>>,
+    window_id: Option<usize>,
     pixels_per_point: f32,
+    texture_id_overrides: Option<&'a HashMap<u32, egui::TextureId>>,
     #[cfg(not(target_arch = "wasm32"))]
     web_widget_rects: &'a mut Vec<(String, String, egui::Rect)>,
 }
@@ -189,7 +199,26 @@ impl<'a> TileBehavior<'a> {
         if let Some(instance) = self.worlds.get_mut(&world_id) {
             instance.viewport_rect = Some(rect);
 
-            let clicked = if let Some(texture_id) = instance.egui_texture_id {
+            if instance.is_popped_out() {
+                ui.allocate_rect(rect, egui::Sense::hover());
+                ui.painter()
+                    .rect_filled(rect, 0.0, egui::Color32::from_rgb(30, 30, 30));
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    format!("{} (Popped Out)", instance.name),
+                    egui::FontId::default(),
+                    egui::Color32::GRAY,
+                );
+                return;
+            }
+
+            let texture_id = self
+                .texture_id_overrides
+                .and_then(|overrides| overrides.get(&world_id).copied())
+                .or(instance.egui_texture_id);
+
+            let clicked = if let Some(texture_id) = texture_id {
                 let (tex_w, tex_h) = instance.viewport_size.dimensions();
                 let tex_w = tex_w as f32;
                 let tex_h = tex_h as f32;
@@ -231,14 +260,17 @@ impl<'a> TileBehavior<'a> {
             if self.selected_world.is_none() {
                 *self.selected_world = Some(world_id);
                 *self.selected_tile = Some(tile_id);
+                *self.active_window = Some(self.window_id);
             }
 
             if clicked {
                 *self.selected_world = Some(world_id);
                 *self.selected_tile = Some(tile_id);
+                *self.active_window = Some(self.window_id);
             }
 
-            let is_selected = *self.selected_tile == Some(tile_id);
+            let is_active = *self.active_window == Some(self.window_id);
+            let is_selected = is_active && *self.selected_tile == Some(tile_id);
             if is_selected {
                 ui.painter().rect_stroke(
                     rect,
@@ -275,16 +307,28 @@ impl<'a> TileBehavior<'a> {
     }
 }
 
+#[derive(Default)]
+struct PerWindowState {
+    tile_tree: Option<egui_tiles::Tree<PaneKind>>,
+    selected_tile: Option<egui_tiles::TileId>,
+    world_to_tile: HashMap<u32, egui_tiles::TileId>,
+    world_texture_ids: HashMap<u32, egui::TextureId>,
+    world_ids: Vec<u32>,
+}
+
 struct MultiWorldDemo {
     worlds: HashMap<u32, WorldInstance>,
     tile_tree: Option<egui_tiles::Tree<PaneKind>>,
     selected_world: Option<u32>,
     selected_tile: Option<egui_tiles::TileId>,
     world_to_tile: HashMap<u32, egui_tiles::TileId>,
+    active_window: Option<Option<usize>>,
     next_world_id: u32,
+    primary_world_ids: Vec<u32>,
+    window_states: HashMap<usize, PerWindowState>,
     initialized: bool,
     frame_count: u64,
-    pending_spawn: bool,
+    pending_spawns: Vec<Option<usize>>,
     bumper_cooldown: f32,
     x_button_cooldown: f32,
     total_time: f32,
@@ -311,6 +355,8 @@ struct MultiWorldDemo {
     webview_manager: webview_manager::WebviewManager,
     #[cfg(not(target_arch = "wasm32"))]
     web_widget_rects: Vec<(String, String, egui::Rect)>,
+    popped_out_worlds: HashMap<usize, u32>,
+    pending_popout_world_ids: Vec<u32>,
 }
 
 impl Default for MultiWorldDemo {
@@ -321,10 +367,12 @@ impl Default for MultiWorldDemo {
             selected_world: None,
             selected_tile: None,
             world_to_tile: HashMap::new(),
+            active_window: None,
             next_world_id: 1,
+            primary_world_ids: Vec::new(),
             initialized: false,
             frame_count: 0,
-            pending_spawn: false,
+            pending_spawns: Vec::new(),
             bumper_cooldown: 0.0,
             x_button_cooldown: 0.0,
             total_time: 0.0,
@@ -351,6 +399,9 @@ impl Default for MultiWorldDemo {
             webview_manager: webview_manager::WebviewManager::default(),
             #[cfg(not(target_arch = "wasm32"))]
             web_widget_rects: Vec::new(),
+            popped_out_worlds: HashMap::new(),
+            pending_popout_world_ids: Vec::new(),
+            window_states: HashMap::new(),
         }
     }
 }
@@ -453,6 +504,27 @@ impl State for MultiWorldDemo {
         self.bumper_cooldown = (self.bumper_cooldown - delta_time).max(0.0);
         self.x_button_cooldown = (self.x_button_cooldown - delta_time).max(0.0);
 
+        if self.x_button_cooldown <= 0.0
+            && world
+                .resources
+                .input
+                .keyboard
+                .is_key_pressed(KeyCode::ControlLeft)
+            && world.resources.input.keyboard.is_key_pressed(KeyCode::KeyN)
+        {
+            world
+                .resources
+                .secondary_windows
+                .pending_spawns
+                .push(WindowSpawnRequest {
+                    title: "Multi-World Demo".to_string(),
+                    width: 1280,
+                    height: 720,
+                    egui_enabled: true,
+                });
+            self.x_button_cooldown = 0.5;
+        }
+
         if let Some(ref gilrs) = world.resources.input.gamepad.gilrs
             && let Some(gamepad_id) = world.resources.input.gamepad.gamepad
         {
@@ -472,6 +544,7 @@ impl State for MultiWorldDemo {
                     let new_world_id = world_ids[next_index];
                     self.selected_world = Some(new_world_id);
                     self.selected_tile = self.world_to_tile.get(&new_world_id).copied();
+                    self.active_window = Some(None);
                     self.bumper_cooldown = 0.2;
                 } else if gamepad.is_pressed(gilrs::Button::LeftTrigger) {
                     let prev_index = if current_index == 0 {
@@ -482,6 +555,7 @@ impl State for MultiWorldDemo {
                     let new_world_id = world_ids[prev_index];
                     self.selected_world = Some(new_world_id);
                     self.selected_tile = self.world_to_tile.get(&new_world_id).copied();
+                    self.active_window = Some(None);
                     self.bumper_cooldown = 0.2;
                 }
             }
@@ -532,30 +606,102 @@ impl State for MultiWorldDemo {
             }
         }
 
-        if let Some(selected_id) = self.selected_world {
-            let mouse = world.resources.input.mouse;
-            let keystates: std::collections::HashMap<_, _> = world
-                .resources
-                .input
-                .keyboard
-                .keystates
-                .iter()
-                .map(|(k, v)| (*k, *v))
-                .collect();
-            let hud_wants_pointer = world.resources.user_interface.hud_wants_pointer;
-
-            let gamepad_input = read_gamepad_input(world);
-
-            if let Some(instance) = self.worlds.get_mut(&selected_id) {
-                instance.world.resources.input.mouse = mouse;
-                instance.world.resources.input.keyboard.keystates = keystates;
-                instance.world.resources.user_interface.hud_wants_pointer = hud_wants_pointer;
+        for secondary_window in &world.resources.secondary_windows.states {
+            if let Some(&world_id) = self.popped_out_worlds.get(&secondary_window.index)
+                && let Some(instance) = self.worlds.get_mut(&world_id)
+            {
+                instance.world.resources.input.mouse.position =
+                    secondary_window.input.mouse_position;
+                instance.world.resources.input.mouse.state = secondary_window.input.mouse_state;
+                instance.world.resources.input.mouse.position_delta =
+                    secondary_window.input.mouse_position_delta;
+                instance.world.resources.input.mouse.raw_mouse_delta =
+                    secondary_window.input.raw_mouse_delta;
+                instance.world.resources.input.mouse.wheel_delta =
+                    secondary_window.input.mouse_wheel_delta;
+                instance.world.resources.input.keyboard.keystates = secondary_window
+                    .input
+                    .keyboard_keystates
+                    .iter()
+                    .map(|(k, v)| (*k, *v))
+                    .collect();
+                instance.world.resources.user_interface.hud_wants_pointer = false;
                 pan_orbit_camera_system(&mut instance.world);
-                if let Some(input) = gamepad_input {
-                    apply_gamepad_to_pan_orbit(&mut instance.world, &input, delta_time);
-                }
-                update_picking(&mut instance.world, &mut instance.selected_entities);
             }
+        }
+
+        if let Some(selected_id) = self.selected_world {
+            match self.active_window {
+                Some(None) => {
+                    let gamepad_input = read_gamepad_input(world);
+                    if let Some(instance) = self.worlds.get_mut(&selected_id) {
+                        instance.world.resources.input.mouse = world.resources.input.mouse;
+                        instance.world.resources.input.keyboard.keystates = world
+                            .resources
+                            .input
+                            .keyboard
+                            .keystates
+                            .iter()
+                            .map(|(k, v)| (*k, *v))
+                            .collect();
+                        instance.world.resources.user_interface.hud_wants_pointer =
+                            world.resources.user_interface.hud_wants_pointer;
+                        pan_orbit_camera_system(&mut instance.world);
+                        if let Some(input) = gamepad_input {
+                            apply_gamepad_to_pan_orbit(&mut instance.world, &input, delta_time);
+                        }
+                        update_picking(&mut instance.world, &mut instance.selected_entities);
+                    }
+                }
+                Some(Some(window_index)) => {
+                    if let Some(secondary_window) = world
+                        .resources
+                        .secondary_windows
+                        .states
+                        .iter()
+                        .find(|w| w.index == window_index)
+                        && !self.popped_out_worlds.contains_key(&window_index)
+                        && let Some(instance) = self.worlds.get_mut(&selected_id)
+                    {
+                        instance.world.resources.input.mouse.position =
+                            secondary_window.input.mouse_position;
+                        instance.world.resources.input.mouse.state =
+                            secondary_window.input.mouse_state;
+                        instance.world.resources.input.mouse.position_delta =
+                            secondary_window.input.mouse_position_delta;
+                        instance.world.resources.input.mouse.raw_mouse_delta =
+                            secondary_window.input.raw_mouse_delta;
+                        instance.world.resources.input.mouse.wheel_delta =
+                            secondary_window.input.mouse_wheel_delta;
+                        instance.world.resources.input.keyboard.keystates = secondary_window
+                            .input
+                            .keyboard_keystates
+                            .iter()
+                            .map(|(k, v)| (*k, *v))
+                            .collect();
+                        instance.world.resources.user_interface.hud_wants_pointer = false;
+                        pan_orbit_camera_system(&mut instance.world);
+                        update_picking(&mut instance.world, &mut instance.selected_entities);
+                    }
+                }
+                None => {}
+            }
+        }
+
+        for secondary_window in &mut world.resources.secondary_windows.states {
+            secondary_window.input.mouse_state.remove(
+                MouseState::LEFT_JUST_PRESSED
+                    | MouseState::LEFT_JUST_RELEASED
+                    | MouseState::MIDDLE_JUST_PRESSED
+                    | MouseState::MIDDLE_JUST_RELEASED
+                    | MouseState::RIGHT_JUST_PRESSED
+                    | MouseState::RIGHT_JUST_RELEASED
+                    | MouseState::MOVED
+                    | MouseState::SCROLLED,
+            );
+            secondary_window.input.raw_mouse_delta = nalgebra_glm::Vec2::zeros();
+            secondary_window.input.mouse_wheel_delta = nalgebra_glm::Vec2::zeros();
+            secondary_window.input.mouse_position_delta = nalgebra_glm::Vec2::zeros();
         }
     }
 
@@ -602,14 +748,75 @@ impl State for MultiWorldDemo {
             }
         }
 
-        if self.pending_spawn {
+        let pending_spawns: Vec<Option<usize>> = self.pending_spawns.drain(..).collect();
+        for target_window in pending_spawns {
             let instance = self.create_world_instance(renderer);
             let world_id = self.next_world_id - 1;
             self.worlds.insert(world_id, instance);
-            self.selected_world = Some(world_id);
-            self.rebuild_tile_tree();
-            self.pending_spawn = false;
+
+            match target_window {
+                None => {
+                    self.primary_world_ids.push(world_id);
+                    self.selected_world = Some(world_id);
+                    self.active_window = Some(None);
+                    self.rebuild_tile_tree();
+                }
+                Some(window_index) => {
+                    if let Some(window_state) = self.window_states.get_mut(&window_index) {
+                        window_state.world_ids.push(world_id);
+                        self.selected_world = Some(world_id);
+                        self.active_window = Some(Some(window_index));
+                        Self::rebuild_window_tile_tree(window_state);
+                    }
+                }
+            }
         }
+
+        if !self.pending_popout_world_ids.is_empty() {
+            for secondary_window in &main_world.resources.secondary_windows.states {
+                if !self.popped_out_worlds.contains_key(&secondary_window.index)
+                    && !self.pending_popout_world_ids.is_empty()
+                {
+                    let world_id = self.pending_popout_world_ids.remove(0);
+                    self.popped_out_worlds
+                        .insert(secondary_window.index, world_id);
+                    if let Some(instance) = self.worlds.get_mut(&world_id) {
+                        instance.popped_out_window_index = Some(secondary_window.index);
+                    }
+                }
+            }
+        }
+
+        let closed_popout_indices: Vec<usize> = self
+            .popped_out_worlds
+            .keys()
+            .filter(|index| {
+                !main_world
+                    .resources
+                    .secondary_windows
+                    .states
+                    .iter()
+                    .any(|w| w.index == **index)
+            })
+            .copied()
+            .collect();
+        for index in closed_popout_indices {
+            if let Some(world_id) = self.popped_out_worlds.remove(&index)
+                && let Some(instance) = self.worlds.get_mut(&world_id)
+            {
+                instance.popped_out_window_index = None;
+            }
+        }
+
+        let active_indices: Vec<usize> = main_world
+            .resources
+            .secondary_windows
+            .states
+            .iter()
+            .map(|w| w.index)
+            .collect();
+        self.window_states
+            .retain(|index, _| active_indices.contains(index));
 
         for (name, rgba_data, width, height) in self.pendingtexture_loads.drain(..) {
             main_world.queue_command(WorldCommand::LoadTexture {
@@ -624,7 +831,29 @@ impl State for MultiWorldDemo {
             if instance.egui_texture_id.is_none() {
                 instance.egui_texture_id = renderer.register_egui_texture(&instance.texture_view);
             }
+        }
 
+        let window_indices: Vec<usize> = self.window_states.keys().copied().collect();
+        for window_index in window_indices {
+            let world_ids: Vec<u32> = self.worlds.keys().copied().collect();
+            for world_id in world_ids {
+                let already_registered = self
+                    .window_states
+                    .get(&window_index)
+                    .map(|state| state.world_texture_ids.contains_key(&world_id))
+                    .unwrap_or(true);
+                if !already_registered
+                    && let Some(instance) = self.worlds.get(&world_id)
+                    && let Some(texture_id) = renderer
+                        .register_secondary_egui_texture(window_index, &instance.texture_view)
+                    && let Some(window_state) = self.window_states.get_mut(&window_index)
+                {
+                    window_state.world_texture_ids.insert(world_id, texture_id);
+                }
+            }
+        }
+
+        for instance in self.worlds.values_mut() {
             instance
                 .world
                 .resources
@@ -712,6 +941,9 @@ impl State for MultiWorldDemo {
 
         for (world_id, _viewport_size) in worlds_to_render {
             if let Some(instance) = self.worlds.get_mut(&world_id) {
+                if instance.is_popped_out() {
+                    continue;
+                }
                 let (width, height) = instance.viewport_size.dimensions();
                 let _ = renderer.render_world_to_texture(
                     &mut instance.world,
@@ -719,6 +951,15 @@ impl State for MultiWorldDemo {
                     width,
                     height,
                 );
+                instance.last_render_frame = self.frame_count;
+                instance.dirty = false;
+            }
+        }
+
+        for (&window_index, &world_id) in &self.popped_out_worlds {
+            if let Some(instance) = self.worlds.get_mut(&world_id) {
+                let _ =
+                    renderer.render_world_to_secondary_surface(window_index, &mut instance.world);
                 instance.last_render_frame = self.frame_count;
                 instance.dirty = false;
             }
@@ -769,13 +1010,29 @@ impl State for MultiWorldDemo {
     }
 
     fn ui(&mut self, _world: &mut World, ctx: &egui::Context) {
+        let mut pending_popout_world_id: Option<u32> = None;
+        let mut pending_popin_world_id: Option<u32> = None;
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Multi-World Demo");
                 ui.separator();
 
                 if ui.button("+ World").clicked() {
-                    self.pending_spawn = true;
+                    self.pending_spawns.push(None);
+                }
+
+                if ui.button("New Window").clicked() {
+                    _world
+                        .resources
+                        .secondary_windows
+                        .pending_spawns
+                        .push(WindowSpawnRequest {
+                            title: "Multi-World Demo".to_string(),
+                            width: 1280,
+                            height: 720,
+                            egui_enabled: true,
+                        });
                 }
 
                 if ui.button("Arrange").clicked() {
@@ -867,7 +1124,8 @@ impl State for MultiWorldDemo {
                     }
                 }
 
-                if let Some(selected_id) = self.selected_world
+                if self.active_window == Some(None)
+                    && let Some(selected_id) = self.selected_world
                     && let Some(instance) = self.worlds.get(&selected_id)
                 {
                     ui.separator();
@@ -875,6 +1133,8 @@ impl State for MultiWorldDemo {
                     ui.separator();
 
                     let current_size = instance.viewport_size;
+                    let is_popped_out = instance.is_popped_out();
+
                     egui::ComboBox::from_label("")
                         .selected_text(current_size.name())
                         .show_ui(ui, |ui| {
@@ -909,6 +1169,15 @@ impl State for MultiWorldDemo {
                             let _ = open_directory(&screenshots_dir);
                         }
                     }
+
+                    ui.separator();
+                    if is_popped_out {
+                        if ui.button("Pop In").clicked() {
+                            pending_popin_world_id = Some(selected_id);
+                        }
+                    } else if ui.button("Pop Out").clicked() {
+                        pending_popout_world_id = Some(selected_id);
+                    }
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -920,13 +1189,13 @@ impl State for MultiWorldDemo {
         let pixels_per_point = ctx.pixels_per_point();
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            if self.worlds.is_empty() {
+            if self.primary_world_ids.is_empty() {
                 ui.centered_and_justified(|ui| {
                     ui.vertical_centered(|ui| {
                         ui.heading("No worlds yet");
                         ui.add_space(10.0);
                         if ui.button("Create First World").clicked() {
-                            self.pending_spawn = true;
+                            self.pending_spawns.push(None);
                         }
                     });
                 });
@@ -939,13 +1208,49 @@ impl State for MultiWorldDemo {
                     selected_world: &mut self.selected_world,
                     selected_tile: &mut self.selected_tile,
                     world_to_tile: &mut self.world_to_tile,
+                    active_window: &mut self.active_window,
+                    window_id: None,
                     pixels_per_point,
+                    texture_id_overrides: None,
                     #[cfg(not(target_arch = "wasm32"))]
                     web_widget_rects: &mut self.web_widget_rects,
                 };
                 tree.ui(&mut behavior, ui);
             }
         });
+
+        if let Some(world_id) = pending_popout_world_id
+            && let Some(instance) = self.worlds.get(&world_id)
+        {
+            _world
+                .resources
+                .secondary_windows
+                .pending_spawns
+                .push(WindowSpawnRequest {
+                    title: instance.name.clone(),
+                    width: 1280,
+                    height: 720,
+                    egui_enabled: false,
+                });
+            self.pending_popout_world_ids.push(world_id);
+        }
+
+        if let Some(world_id) = pending_popin_world_id
+            && let Some(instance) = self.worlds.get_mut(&world_id)
+            && let Some(window_index) = instance.popped_out_window_index
+        {
+            self.popped_out_worlds.remove(&window_index);
+            instance.popped_out_window_index = None;
+            if let Some(window_state) = _world
+                .resources
+                .secondary_windows
+                .states
+                .iter_mut()
+                .find(|w| w.index == window_index)
+            {
+                window_state.close_requested = true;
+            }
+        }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -970,6 +1275,117 @@ impl State for MultiWorldDemo {
 
             self.webview_manager.ensure_all_visible();
         }
+    }
+
+    fn secondary_ui(&mut self, _world: &mut World, window_index: usize, ctx: &egui::Context) {
+        self.window_states.entry(window_index).or_default();
+
+        egui::TopBottomPanel::top("secondary_top_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Multi-World Demo");
+                ui.separator();
+
+                if ui.button("+ World").clicked() {
+                    self.pending_spawns.push(Some(window_index));
+                }
+
+                if ui.button("Arrange").clicked()
+                    && let Some(window_state) = self.window_states.get_mut(&window_index)
+                {
+                    Self::rebuild_window_tile_tree(window_state);
+                }
+
+                ui.separator();
+
+                if self.dancer_model.is_some()
+                    && ui.button("+ Dancer").clicked()
+                    && let Some(selected_id) = self.selected_world
+                {
+                    self.spawn_dancer_in_world(selected_id);
+                }
+
+                if self.helmet_model.is_some()
+                    && ui.button("+ Helmet").clicked()
+                    && let Some(selected_id) = self.selected_world
+                {
+                    self.spawn_helmet_in_world(selected_id);
+                }
+
+                if ui.button("+ Cube").clicked()
+                    && let Some(selected_id) = self.selected_world
+                {
+                    self.spawn_cube_in_world(selected_id);
+                }
+
+                if ui.button("+ Sphere").clicked()
+                    && let Some(selected_id) = self.selected_world
+                {
+                    self.spawn_sphere_in_world(selected_id);
+                }
+
+                if ui.button("+ Point Light").clicked()
+                    && let Some(selected_id) = self.selected_world
+                {
+                    self.spawn_point_light_in_world(selected_id);
+                }
+
+                if ui.button("+ Spot Light").clicked()
+                    && let Some(selected_id) = self.selected_world
+                {
+                    self.spawn_spot_light_in_world(selected_id);
+                }
+
+                if ui.button("+ Text").clicked()
+                    && let Some(selected_id) = self.selected_world
+                {
+                    self.spawn_text_in_world(selected_id);
+                }
+
+                ui.separator();
+                ui.label(format!("Worlds: {}", self.worlds.len()));
+
+                if self.active_window == Some(Some(window_index))
+                    && let Some(selected_id) = self.selected_world
+                    && let Some(instance) = self.worlds.get(&selected_id)
+                {
+                    ui.separator();
+                    ui.label(format!("Selected: {}", instance.name));
+                }
+            });
+        });
+
+        let pixels_per_point = ctx.pixels_per_point();
+        let mut window_state = self.window_states.remove(&window_index).unwrap();
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if window_state.world_ids.is_empty() {
+                ui.centered_and_justified(|ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.heading("No worlds yet");
+                        ui.add_space(10.0);
+                        if ui.button("Create First World").clicked() {
+                            self.pending_spawns.push(Some(window_index));
+                        }
+                    });
+                });
+            } else if let Some(tree) = &mut window_state.tile_tree {
+                let mut behavior = TileBehavior {
+                    worlds: &mut self.worlds,
+                    selected_world: &mut self.selected_world,
+                    selected_tile: &mut window_state.selected_tile,
+                    world_to_tile: &mut window_state.world_to_tile,
+                    active_window: &mut self.active_window,
+                    window_id: Some(window_index),
+                    pixels_per_point,
+                    texture_id_overrides: Some(&window_state.world_texture_ids),
+                    #[cfg(not(target_arch = "wasm32"))]
+                    web_widget_rects: &mut Vec::new(),
+                };
+                tree.ui(&mut behavior, ui);
+            }
+        });
+
+        self.window_states.insert(window_index, window_state);
     }
 }
 
@@ -1098,11 +1514,51 @@ impl MultiWorldDemo {
         screenshots_dir.join(format!("{}_{}.png", name, timestamp))
     }
 
+    fn rebuild_window_tile_tree(window_state: &mut PerWindowState) {
+        let mut tiles = egui_tiles::Tiles::default();
+        let mut world_panes = Vec::new();
+
+        let mut sorted_ids = window_state.world_ids.clone();
+        sorted_ids.sort();
+
+        for world_id in sorted_ids {
+            world_panes.push(tiles.insert_pane(PaneKind::World(world_id)));
+        }
+
+        if world_panes.is_empty() {
+            window_state.tile_tree = None;
+            return;
+        }
+
+        let count = world_panes.len();
+        let root = if count == 1 {
+            world_panes[0]
+        } else {
+            let cols = (count as f32).sqrt().ceil() as usize;
+            let mut rows_tiles = Vec::new();
+            for row_panes in world_panes.chunks(cols) {
+                if row_panes.len() == 1 {
+                    rows_tiles.push(row_panes[0]);
+                } else {
+                    rows_tiles.push(tiles.insert_horizontal_tile(row_panes.to_vec()));
+                }
+            }
+            if rows_tiles.len() == 1 {
+                rows_tiles[0]
+            } else {
+                tiles.insert_vertical_tile(rows_tiles)
+            }
+        };
+
+        window_state.tile_tree = Some(egui_tiles::Tree::new("secondary_world_tiles", root, tiles));
+        window_state.world_to_tile.clear();
+    }
+
     fn rebuild_tile_tree(&mut self) {
         let mut tiles = egui_tiles::Tiles::default();
         let mut world_panes = Vec::new();
 
-        let mut world_ids: Vec<u32> = self.worlds.keys().copied().collect();
+        let mut world_ids = self.primary_world_ids.clone();
         world_ids.sort();
 
         for world_id in world_ids {
@@ -1230,6 +1686,7 @@ impl MultiWorldDemo {
             name,
             selected_entities: Vec::new(),
             viewport_rect: None,
+            popped_out_window_index: None,
         }
     }
 

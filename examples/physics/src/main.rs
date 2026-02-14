@@ -1,4 +1,3 @@
-use nightshade::ecs::generational_registry::registry_entry_by_name_mut;
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::light::components::{Light, LightType};
 use nightshade::ecs::material::resources::material_registry_insert;

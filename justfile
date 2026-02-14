@@ -40,7 +40,7 @@ lint:
 # Runs linter for wasm32 target (excludes native-only and terminal examples)
 [windows]
 lint-wasm:
-    $excludes = @("multiplayer_pong", "steam", "benchmark", "text_adventure", "terminal_breakout", "assets"); Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $excludes += $_.Name }; $flags = ($excludes | ForEach-Object { "--exclude $_" }) -join " "; Invoke-Expression "cargo clippy --workspace --target wasm32-unknown-unknown $flags -- -D warnings"
+    $excludes = @("demo_scene", "multiplayer_pong", "steam", "benchmark", "text_adventure", "terminal_breakout", "assets"); Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $excludes += $_.Name }; $flags = ($excludes | ForEach-Object { "--exclude $_" }) -join " "; Invoke-Expression "cargo clippy --workspace --target wasm32-unknown-unknown $flags -- -D warnings"
 
 # Runs linter for wasm32 target (excludes native-only and terminal examples)
 [unix]

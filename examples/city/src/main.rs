@@ -229,6 +229,7 @@ impl State for CityDemo {
     fn initialize(&mut self, world: &mut World) {
         world.resources.graphics.atmosphere = Atmosphere::DayNight;
         world.resources.graphics.day_night_hour = self.current_hour;
+        capture_procedural_atmosphere_ibl(world, Atmosphere::DayNight, self.current_hour);
         capture_ibl_snapshots(
             world,
             Atmosphere::DayNight,

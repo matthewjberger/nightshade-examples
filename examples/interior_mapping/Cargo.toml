@@ -1,0 +1,10 @@
+[package]
+name = "interior_mapping"
+description = "Interior mapping shader technique demo"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+
+[dependencies]
+nightshade = { workspace = true, features = ["egui", "tracing"] }
+image = { version = "0.25", default-features = false, features = ["tga"] }

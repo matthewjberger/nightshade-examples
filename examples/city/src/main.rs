@@ -26,6 +26,7 @@ use nightshade::ecs::physics::{physics_debug_draw_system, run_physics_systems};
 use nightshade::ecs::water::Water;
 use nightshade::ecs::world::{WATER, WorldCommand};
 use nightshade::prelude::*;
+use nightshade::render::wgpu::passes;
 
 const MIN_CAMERA_Y: f32 = 2.0;
 

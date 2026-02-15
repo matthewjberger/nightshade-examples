@@ -15,6 +15,15 @@ enum MeshType {
     Sphere,
 }
 
+const DEFAULT_WALL_FREQUENCIES: [f32; 3] = [2.99, 7.99, 2.99];
+const DEFAULT_LIGHT_THRESHOLD: f32 = 0.6;
+const DEFAULT_ALPHA_PLANE_DISTANCE: f32 = 0.1;
+const DEFAULT_DISPLACEMENT_STRENGTHS: [f32; 3] = [1.0, 0.0, 1.0];
+const DEFAULT_UV_MULTIPLIER: f32 = 2.0;
+const DEFAULT_GRID_SIZE: i32 = 3;
+const DEFAULT_SPACING: f32 = 2.0;
+const BUILDING_FLOORS: i32 = 3;
+
 struct InteriorMappingDemo {
     state_handle: passes::InteriorMappingStateHandle,
     textures: passes::InteriorMappingTextures,
@@ -30,14 +39,19 @@ impl Default for InteriorMappingDemo {
             let mut state = state_handle.write().unwrap();
             state.mesh_data = Some(passes::generate_cube_mesh());
             state.mesh_dirty = true;
-            state.instances = build_instances(1, 1.5);
+            state.instances = build_instances(DEFAULT_GRID_SIZE, DEFAULT_SPACING);
+            state.wall_frequencies = DEFAULT_WALL_FREQUENCIES;
+            state.light_threshold = DEFAULT_LIGHT_THRESHOLD;
+            state.alpha_plane_distance = DEFAULT_ALPHA_PLANE_DISTANCE;
+            state.displacement_strengths = DEFAULT_DISPLACEMENT_STRENGTHS;
+            state.uv_multiplier = DEFAULT_UV_MULTIPLIER;
         }
         Self {
             state_handle,
             textures: load_textures(),
             mesh_type: MeshType::Box,
-            grid_size: 1,
-            spacing: 1.5,
+            grid_size: DEFAULT_GRID_SIZE,
+            spacing: DEFAULT_SPACING,
         }
     }
 }
@@ -108,8 +122,11 @@ fn build_instances(grid_size: i32, spacing: f32) -> Vec<passes::InteriorMappingI
         for col in 0..grid_size {
             let x = col as f32 * spacing - offset;
             let z = row as f32 * spacing - offset;
-            let model_matrix = nalgebra_glm::translation(&nalgebra_glm::Vec3::new(x, 0.0, z));
-            instances.push(passes::InteriorMappingInstance { model_matrix });
+            for floor in 0..BUILDING_FLOORS {
+                let y = floor as f32 + 0.5;
+                let model_matrix = nalgebra_glm::translation(&nalgebra_glm::Vec3::new(x, y, z));
+                instances.push(passes::InteriorMappingInstance { model_matrix });
+            }
         }
     }
     instances
@@ -122,12 +139,14 @@ impl State for InteriorMappingDemo {
 
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = true;
-        world.resources.graphics.show_grid = false;
+        world.resources.graphics.show_grid = true;
+        world.resources.graphics.atmosphere = Atmosphere::Sky;
 
+        let building_center_y = BUILDING_FLOORS as f32 * 0.5;
         let camera = spawn_pan_orbit_camera(
             world,
-            Vec3::new(0.0, 0.0, 0.0),
-            3.0,
+            Vec3::new(0.0, building_center_y, 0.0),
+            4.0,
             0.5,
             0.3,
             "Camera".to_string(),
@@ -273,9 +292,21 @@ impl State for InteriorMappingDemo {
     }
 
     fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {
+        let mut reset = false;
+
         egui::Window::new("Interior Mapping").show(ui_context, |ui| {
             let mut state = self.state_handle.write().unwrap();
 
+            if ui.button("Reset").clicked() {
+                state.wall_frequencies = DEFAULT_WALL_FREQUENCIES;
+                state.light_threshold = DEFAULT_LIGHT_THRESHOLD;
+                state.alpha_plane_distance = DEFAULT_ALPHA_PLANE_DISTANCE;
+                state.displacement_strengths = DEFAULT_DISPLACEMENT_STRENGTHS;
+                state.uv_multiplier = DEFAULT_UV_MULTIPLIER;
+                reset = true;
+            }
+
+            ui.separator();
             ui.heading("Wall Frequencies");
             ui.add(egui::Slider::new(&mut state.wall_frequencies[0], 0.1..=20.0).text("X (U/J)"));
             ui.add(egui::Slider::new(&mut state.wall_frequencies[1], 0.1..=20.0).text("Y (I/K)"));
@@ -315,5 +346,22 @@ impl State for InteriorMappingDemo {
                 self.grid_size * self.grid_size
             ));
         });
+
+        if reset {
+            if self.mesh_type != MeshType::Box {
+                self.mesh_type = MeshType::Box;
+                let mut state = self.state_handle.write().unwrap();
+                state.mesh_data = Some(passes::generate_cube_mesh());
+                state.mesh_dirty = true;
+            }
+            if self.grid_size != DEFAULT_GRID_SIZE
+                || (self.spacing - DEFAULT_SPACING).abs() > f32::EPSILON
+            {
+                self.grid_size = DEFAULT_GRID_SIZE;
+                self.spacing = DEFAULT_SPACING;
+                let mut state = self.state_handle.write().unwrap();
+                state.instances = build_instances(self.grid_size, self.spacing);
+            }
+        }
     }
 }

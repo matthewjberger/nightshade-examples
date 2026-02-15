@@ -197,12 +197,36 @@ build-wasm $example="alpha_blending":
 run-wasm $example="alpha_blending":
     trunk serve --release --open --config examples/{{example}}/Trunk.toml
 
-# Build all examples for WASM (Windows)
+# Build only examples/ for WASM (Windows)
+[windows]
+build-examples-wasm:
+    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
+
+# Build only examples/ for WASM (Unix)
+[unix]
+build-examples-wasm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    prefix="${PUBLIC_URL_PREFIX:-}"
+    root="$(pwd)"
+    for trunk_file in examples/*/Trunk.toml; do
+        [ -f "$trunk_file" ] || continue
+        example=$(basename "$(dirname "$trunk_file")")
+        echo "Building $example for WASM..."
+        if [ -n "$prefix" ]; then
+            trunk build --release --config "$trunk_file" --dist "$root/dist/wasm/$example" --public-url "${prefix}$example/"
+        else
+            trunk build --release --config "$trunk_file" --dist "$root/dist/wasm/$example"
+        fi
+    done
+    echo "All WASM builds complete! Output in dist/wasm/"
+
+# Build all examples for WASM (includes examples/ and examples-terminal/) (Windows)
 [windows]
 build-all-wasm:
     $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Get-ChildItem -Path "examples-terminal/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example (terminal) for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
 
-# Build all examples for WASM (Unix)
+# Build all examples for WASM (includes examples/ and examples-terminal/) (Unix)
 [unix]
 build-all-wasm:
     #!/usr/bin/env bash

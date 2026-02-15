@@ -1,4 +1,5 @@
 use nightshade::ecs::picking::PickingRay;
+use nightshade::ecs::prefab::resources::mesh_cache_insert;
 use nightshade::ecs::sdf::{CsgOperation, SdfEdit, SdfPrimitive};
 use nightshade::prelude::*;
 
@@ -21,6 +22,18 @@ enum BrushOperation {
     Subtract,
     SmoothAdd,
     SmoothSubtract,
+    PhysicsSphere,
+    PhysicsBox,
+    PhysicsCapsule,
+    PhysicsSnowman,
+}
+
+struct PhysicsSdfObject {
+    entity: Entity,
+    edit_indices: Vec<usize>,
+    local_offsets: Vec<nalgebra_glm::Mat4>,
+    last_translation: Vec3,
+    last_rotation: Quat,
 }
 
 #[derive(Default)]
@@ -47,6 +60,12 @@ struct SdfDemo {
     debug_brick_coloring: bool,
     terrain_enabled: bool,
     terrain_height: f32,
+    helmet_entity: Option<Entity>,
+    physics_objects: Vec<PhysicsSdfObject>,
+    ground_entity: Option<Entity>,
+    physics_spawn_size: f32,
+    physics_spawn_material: u32,
+    physics_spawn_smoothness: f32,
 }
 
 impl SdfDemo {
@@ -582,6 +601,10 @@ impl SdfDemo {
                 Some(BrushOperation::Subtract) | Some(BrushOperation::SmoothSubtract) => {
                     Vec4::new(1.0, 0.2, 0.2, 1.0)
                 }
+                Some(BrushOperation::PhysicsSphere)
+                | Some(BrushOperation::PhysicsBox)
+                | Some(BrushOperation::PhysicsCapsule)
+                | Some(BrushOperation::PhysicsSnowman) => Vec4::new(0.2, 0.6, 1.0, 1.0),
                 None => Vec4::new(1.0, 1.0, 1.0, 1.0),
             };
 
@@ -600,7 +623,35 @@ impl SdfDemo {
         }
     }
 
-    fn apply_brush_edit(&self, world: &mut World) {
+    fn apply_brush_edit(&mut self, world: &mut World) {
+        match self.brush_operation {
+            Some(BrushOperation::PhysicsSphere) => {
+                let spawn_pos =
+                    self.brush_position + Vec3::new(0.0, self.physics_spawn_size + 2.0, 0.0);
+                self.spawn_physics_sphere(world, spawn_pos);
+                return;
+            }
+            Some(BrushOperation::PhysicsBox) => {
+                let spawn_pos =
+                    self.brush_position + Vec3::new(0.0, self.physics_spawn_size + 2.0, 0.0);
+                self.spawn_physics_box(world, spawn_pos);
+                return;
+            }
+            Some(BrushOperation::PhysicsCapsule) => {
+                let spawn_pos =
+                    self.brush_position + Vec3::new(0.0, self.physics_spawn_size + 2.0, 0.0);
+                self.spawn_physics_capsule(world, spawn_pos);
+                return;
+            }
+            Some(BrushOperation::PhysicsSnowman) => {
+                let spawn_pos =
+                    self.brush_position + Vec3::new(0.0, self.physics_spawn_size + 2.0, 0.0);
+                self.spawn_physics_snowman(world, spawn_pos);
+                return;
+            }
+            _ => {}
+        }
+
         let primitive = match self.brush_primitive {
             Some(BrushPrimitive::Sphere) => SdfPrimitive::Sphere {
                 radius: self.brush_size,
@@ -632,7 +683,7 @@ impl SdfDemo {
             Some(BrushOperation::SmoothSubtract) => CsgOperation::SmoothSubtraction {
                 smoothness: self.brush_smoothness,
             },
-            None => return,
+            _ => return,
         };
 
         let transform = nalgebra_glm::translation(&self.brush_position);
@@ -757,6 +808,10 @@ impl SdfDemo {
                     Some(BrushOperation::Subtract) | Some(BrushOperation::SmoothSubtract) => {
                         -normal * self.brush_size * 0.3
                     }
+                    Some(BrushOperation::PhysicsSphere)
+                    | Some(BrushOperation::PhysicsBox)
+                    | Some(BrushOperation::PhysicsCapsule)
+                    | Some(BrushOperation::PhysicsSnowman) => normal * 0.1,
                     None => Vec3::zeros(),
                 };
 
@@ -786,6 +841,319 @@ impl SdfDemo {
             }
         }
     }
+
+    fn make_physics_edit(
+        &self,
+        primitive: SdfPrimitive,
+        transform: nalgebra_glm::Mat4,
+        material_id: u32,
+    ) -> SdfEdit {
+        if self.physics_spawn_smoothness > 0.0 {
+            SdfEdit::smooth_union(
+                primitive,
+                transform,
+                material_id,
+                self.physics_spawn_smoothness,
+            )
+        } else {
+            SdfEdit::union(primitive, transform, material_id)
+        }
+    }
+
+    fn spawn_ground_body(&mut self, world: &mut World) {
+        let ground = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RIGID_BODY | COLLIDER,
+            1,
+        )[0];
+
+        let ground_y = self.terrain_height - 0.05;
+        world.set_local_transform(
+            ground,
+            LocalTransform {
+                translation: Vec3::new(0.0, ground_y, 0.0),
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_local_transform_dirty(ground, LocalTransformDirty);
+        world.set_global_transform(ground, GlobalTransform::default());
+
+        if let Some(rigid_body) = world.get_rigid_body_mut(ground) {
+            *rigid_body = RigidBodyComponent::new_static().with_translation(0.0, ground_y, 0.0);
+        }
+        if let Some(collider) = world.get_collider_mut(ground) {
+            *collider = ColliderComponent::new_cuboid(200.0, 0.05, 200.0).with_friction(0.6);
+        }
+
+        self.ground_entity = Some(ground);
+    }
+
+    fn spawn_physics_sphere(&mut self, world: &mut World, position: Vec3) {
+        let radius = self.physics_spawn_size;
+        let material_id = self.physics_spawn_material;
+
+        let entity = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RIGID_BODY | COLLIDER,
+            1,
+        )[0];
+
+        world.set_local_transform(
+            entity,
+            LocalTransform {
+                translation: position,
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.set_global_transform(entity, GlobalTransform::default());
+
+        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+            *rigid_body = RigidBodyComponent::new_dynamic()
+                .with_translation(position.x, position.y, position.z)
+                .with_mass(5.0);
+        }
+        if let Some(collider) = world.get_collider_mut(entity) {
+            *collider = ColliderComponent::new_ball(radius)
+                .with_restitution(0.3)
+                .with_friction(0.5);
+        }
+
+        let transform = nalgebra_glm::translation(&position);
+        let primitive = SdfPrimitive::Sphere { radius };
+        let edit = self.make_physics_edit(primitive, transform, material_id);
+        let edit_index = world.resources.sdf_world.add_edit_no_undo(edit);
+
+        self.physics_objects.push(PhysicsSdfObject {
+            entity,
+            edit_indices: vec![edit_index],
+            local_offsets: vec![nalgebra_glm::identity()],
+            last_translation: position,
+            last_rotation: Quat::identity(),
+        });
+    }
+
+    fn spawn_physics_box(&mut self, world: &mut World, position: Vec3) {
+        let half_extent = self.physics_spawn_size;
+        let material_id = self.physics_spawn_material;
+
+        let entity = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RIGID_BODY | COLLIDER,
+            1,
+        )[0];
+
+        world.set_local_transform(
+            entity,
+            LocalTransform {
+                translation: position,
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.set_global_transform(entity, GlobalTransform::default());
+
+        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+            *rigid_body = RigidBodyComponent::new_dynamic()
+                .with_translation(position.x, position.y, position.z)
+                .with_mass(8.0);
+        }
+        if let Some(collider) = world.get_collider_mut(entity) {
+            *collider = ColliderComponent::new_cuboid(half_extent, half_extent, half_extent)
+                .with_restitution(0.2)
+                .with_friction(0.5);
+        }
+
+        let transform = nalgebra_glm::translation(&position);
+        let half_extents = Vec3::new(half_extent, half_extent, half_extent);
+        let primitive = SdfPrimitive::Box { half_extents };
+        let edit = self.make_physics_edit(primitive, transform, material_id);
+        let edit_index = world.resources.sdf_world.add_edit_no_undo(edit);
+
+        self.physics_objects.push(PhysicsSdfObject {
+            entity,
+            edit_indices: vec![edit_index],
+            local_offsets: vec![nalgebra_glm::identity()],
+            last_translation: position,
+            last_rotation: Quat::identity(),
+        });
+    }
+
+    fn spawn_physics_capsule(&mut self, world: &mut World, position: Vec3) {
+        let radius = self.physics_spawn_size * 0.5;
+        let half_height = self.physics_spawn_size;
+        let material_id = self.physics_spawn_material;
+
+        let entity = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RIGID_BODY | COLLIDER,
+            1,
+        )[0];
+
+        world.set_local_transform(
+            entity,
+            LocalTransform {
+                translation: position,
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.set_global_transform(entity, GlobalTransform::default());
+
+        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+            *rigid_body = RigidBodyComponent::new_dynamic()
+                .with_translation(position.x, position.y, position.z)
+                .with_mass(4.0);
+        }
+        if let Some(collider) = world.get_collider_mut(entity) {
+            *collider = ColliderComponent::new_capsule(half_height, radius)
+                .with_restitution(0.3)
+                .with_friction(0.5);
+        }
+
+        let transform = nalgebra_glm::translation(&position);
+        let primitive = SdfPrimitive::Capsule {
+            radius,
+            half_height,
+        };
+        let edit = self.make_physics_edit(primitive, transform, material_id);
+        let edit_index = world.resources.sdf_world.add_edit_no_undo(edit);
+
+        self.physics_objects.push(PhysicsSdfObject {
+            entity,
+            edit_indices: vec![edit_index],
+            local_offsets: vec![nalgebra_glm::identity()],
+            last_translation: position,
+            last_rotation: Quat::identity(),
+        });
+    }
+
+    fn spawn_physics_snowman(&mut self, world: &mut World, position: Vec3) {
+        let base_radius = self.physics_spawn_size;
+        let material_id = self.physics_spawn_material;
+
+        let entity = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RIGID_BODY | COLLIDER,
+            1,
+        )[0];
+
+        world.set_local_transform(
+            entity,
+            LocalTransform {
+                translation: position,
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.set_global_transform(entity, GlobalTransform::default());
+
+        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+            *rigid_body = RigidBodyComponent::new_dynamic()
+                .with_translation(position.x, position.y, position.z)
+                .with_mass(10.0);
+        }
+        if let Some(collider) = world.get_collider_mut(entity) {
+            *collider = ColliderComponent::new_ball(base_radius)
+                .with_restitution(0.1)
+                .with_friction(0.6);
+        }
+
+        let body_offset = Vec3::new(0.0, 0.0, 0.0);
+        let mid_offset = Vec3::new(0.0, base_radius + base_radius * 0.65, 0.0);
+        let head_offset = Vec3::new(
+            0.0,
+            base_radius + base_radius * 0.65 * 2.0 + base_radius * 0.4,
+            0.0,
+        );
+
+        let offsets = [body_offset, mid_offset, head_offset];
+        let radii = [base_radius, base_radius * 0.65, base_radius * 0.4];
+
+        let mut edit_indices = Vec::new();
+        let mut local_offsets = Vec::new();
+
+        for (part_index, (offset, radius)) in offsets.iter().zip(radii.iter()).enumerate() {
+            let world_pos = position + offset;
+            let transform = nalgebra_glm::translation(&world_pos);
+
+            let primitive = SdfPrimitive::Sphere { radius: *radius };
+            let edit = if part_index == 0 {
+                self.make_physics_edit(primitive, transform, material_id)
+            } else {
+                let structural_smoothness = 0.15_f32.max(self.physics_spawn_smoothness);
+                SdfEdit::smooth_union(primitive, transform, material_id, structural_smoothness)
+            };
+
+            let edit_index = world.resources.sdf_world.add_edit_no_undo(edit);
+            edit_indices.push(edit_index);
+            local_offsets.push(nalgebra_glm::translation(offset));
+        }
+
+        self.physics_objects.push(PhysicsSdfObject {
+            entity,
+            edit_indices,
+            local_offsets,
+            last_translation: position,
+            last_rotation: Quat::identity(),
+        });
+    }
+
+    fn sync_physics_objects(&mut self, world: &mut World) {
+        for object in &mut self.physics_objects {
+            let (entity_translation, entity_rotation) =
+                if let Some(transform) = world.get_local_transform(object.entity) {
+                    (transform.translation, transform.rotation)
+                } else {
+                    continue;
+                };
+
+            let translation_delta =
+                nalgebra_glm::length(&(entity_translation - object.last_translation));
+            let rotation_dot =
+                nalgebra_glm::quat_dot(&entity_rotation, &object.last_rotation).abs();
+
+            if translation_delta < 0.0005 && rotation_dot > 0.9999 {
+                continue;
+            }
+
+            object.last_translation = entity_translation;
+            object.last_rotation = entity_rotation;
+
+            let entity_matrix = nalgebra_glm::translation(&entity_translation)
+                * nalgebra_glm::quat_to_mat4(&entity_rotation);
+
+            for (offset_index, &edit_index) in object.edit_indices.iter().enumerate() {
+                if edit_index >= world.resources.sdf_world.edits.len() {
+                    continue;
+                }
+                let local_offset = &object.local_offsets[offset_index];
+                let world_transform = entity_matrix * local_offset;
+                world
+                    .resources
+                    .sdf_world
+                    .modify_edit_no_undo(edit_index, |edit| {
+                        edit.set_transform(world_transform);
+                    });
+            }
+        }
+    }
+
+    fn clear_physics_objects(&mut self) {
+        self.physics_objects.clear();
+    }
+
+    fn adjust_physics_indices_after_removal(&mut self, removed_index: usize) {
+        self.physics_objects.retain_mut(|object| {
+            object.edit_indices.retain(|&index| index != removed_index);
+            for index in &mut object.edit_indices {
+                if *index > removed_index {
+                    *index -= 1;
+                }
+            }
+            !object.edit_indices.is_empty()
+        });
+    }
 }
 
 impl State for SdfDemo {
@@ -801,23 +1169,17 @@ impl State for SdfDemo {
         world.resources.graphics.bloom_enabled = true;
         world.resources.graphics.bloom_intensity = 0.05;
 
+        capture_procedural_atmosphere_ibl(world, Atmosphere::Sunset, 0.0);
+
         let camera = world.spawn_entities(
-            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | CAMERA | PAN_ORBIT_CAMERA,
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | CAMERA,
             1,
         )[0];
 
-        let initial_focus = Vec3::new(0.0, 0.0, 0.0);
-        let initial_radius = 20.0;
-        let initial_pitch = 0.4;
-        let initial_yaw = 0.0;
-
-        let (initial_position, initial_rotation) =
-            nightshade::ecs::camera::compute_pan_orbit_transform(
-                initial_focus,
-                initial_yaw,
-                initial_pitch,
-                initial_radius,
-            );
+        let look_target = Vec3::new(0.0, 0.0, 0.0);
+        let initial_position = Vec3::new(0.0, 10.0, 20.0);
+        let look_direction = nalgebra_glm::normalize(&(look_target - initial_position));
+        let initial_rotation = nalgebra_glm::quat_look_at(&look_direction, &Vec3::y());
 
         world.set_local_transform(
             camera,
@@ -841,20 +1203,6 @@ impl State for SdfDemo {
                 smoothing: Some(Smoothing::default()),
             },
         );
-        world.set_pan_orbit_camera(
-            camera,
-            PanOrbitCamera {
-                focus: initial_focus,
-                target_focus: initial_focus,
-                radius: initial_radius,
-                target_radius: initial_radius,
-                pitch: initial_pitch,
-                target_pitch: initial_pitch,
-                yaw: initial_yaw,
-                target_yaw: initial_yaw,
-                ..Default::default()
-            },
-        );
         world.resources.active_camera = Some(camera);
 
         self.brush_primitive = Some(BrushPrimitive::Sphere);
@@ -872,6 +1220,13 @@ impl State for SdfDemo {
         self.show_brick_grid = false;
         self.brick_grid_level = 0;
         self.brick_grid_radius = 32;
+        self.terrain_enabled = true;
+        self.terrain_height = 0.0;
+        self.physics_spawn_size = 1.0;
+        self.physics_spawn_material = 1;
+        self.physics_spawn_smoothness = 0.0;
+
+        self.spawn_ground_body(world);
 
         let brush_preview = world.spawn_entities(
             LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | VISIBILITY | LINES,
@@ -911,9 +1266,40 @@ impl State for SdfDemo {
 
         self.spawn_initial_scene(world);
 
+        let sun = spawn_sun(world);
+        if let Some(light) = world.get_light_mut(sun) {
+            light.cast_shadows = true;
+            light.intensity = 3.0;
+        }
+
+        const GLTF_DATA: &[u8] = include_bytes!("../../../assets/gltf/DamagedHelmet.glb");
+        if let Ok(result) = nightshade::ecs::prefab::import_gltf_from_bytes(GLTF_DATA) {
+            for (name, (rgba_data, width, height)) in result.textures {
+                world.queue_command(WorldCommand::LoadTexture {
+                    name,
+                    rgba_data,
+                    width,
+                    height,
+                });
+            }
+
+            for (name, mesh) in result.meshes {
+                mesh_cache_insert(&mut world.resources.mesh_cache, name, mesh);
+            }
+
+            for prefab in result.prefabs {
+                let entity = nightshade::ecs::prefab::spawn_prefab(
+                    world,
+                    &prefab,
+                    nalgebra_glm::vec3(8.0, 2.0, 0.0),
+                );
+                self.helmet_entity = Some(entity);
+            }
+        }
+
         spawn_hud_text_with_properties(
             world,
-            "SDF Sculpt Demo\nHold Left-Click: Sculpt | Right-Drag: Orbit | Scroll: Zoom | ESC: Exit",
+            "SDF Sculpt Demo\nWASD: Move | Right-Drag: Look | Left-Click: Sculpt | ESC: Exit",
             HudAnchor::TopCenter,
             Vec2::new(0.0, 20.0),
             TextProperties {
@@ -929,7 +1315,7 @@ impl State for SdfDemo {
 
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
-        pan_orbit_camera_system(world);
+        fly_camera_system(world);
         sync_text_meshes_system(world);
 
         let camera_position = if let Some(camera_entity) = world.resources.active_camera {
@@ -948,10 +1334,23 @@ impl State for SdfDemo {
         let ui_wants_input = world.resources.user_interface.hud_wants_pointer
             || world.resources.user_interface.consumed_event;
 
+        let is_physics_mode = matches!(
+            self.brush_operation,
+            Some(BrushOperation::PhysicsSphere)
+                | Some(BrushOperation::PhysicsBox)
+                | Some(BrushOperation::PhysicsCapsule)
+                | Some(BrushOperation::PhysicsSnowman)
+        );
+        let effective_interval = if is_physics_mode {
+            0.3
+        } else {
+            self.apply_interval
+        };
+
         if self.mouse_down
             && self.brush_valid
             && !ui_wants_input
-            && current_time - self.last_apply_time >= self.apply_interval
+            && current_time - self.last_apply_time >= effective_interval
         {
             self.apply_brush_edit(world);
             self.last_apply_time = current_time;
@@ -960,12 +1359,29 @@ impl State for SdfDemo {
         self.update_brush_preview(world);
         self.update_brick_grid_vis(world, camera_position);
 
+        self.sync_physics_objects(world);
+
         world.resources.sdf_world.debug_brick_coloring = self.debug_brick_coloring;
         world
             .resources
             .sdf_world
             .set_terrain(self.terrain_enabled, self.terrain_height, 0);
+
+        let old_clipmap_center = world.resources.sdf_world.clipmap.center;
         world.resources.sdf_world.update(camera_position);
+
+        let center_delta =
+            nalgebra_glm::length(&(world.resources.sdf_world.clipmap.center - old_clipmap_center));
+        if center_delta > 0.001 && !self.physics_objects.is_empty() {
+            let edit_indices: Vec<usize> = self
+                .physics_objects
+                .iter()
+                .flat_map(|object| object.edit_indices.iter().copied())
+                .collect();
+            for edit_index in edit_indices {
+                world.resources.sdf_world.mark_edit_dirty(edit_index);
+            }
+        }
     }
 
     fn configure_render_graph(
@@ -1020,20 +1436,26 @@ impl State for SdfDemo {
             return;
         }
 
+        if world.resources.user_interface.hud_wants_pointer
+            || world.resources.user_interface.consumed_event
+        {
+            return;
+        }
+
         match key {
             KeyCode::Digit1 => self.brush_primitive = Some(BrushPrimitive::Sphere),
             KeyCode::Digit2 => self.brush_primitive = Some(BrushPrimitive::Box),
             KeyCode::Digit3 => self.brush_primitive = Some(BrushPrimitive::Cylinder),
             KeyCode::Digit4 => self.brush_primitive = Some(BrushPrimitive::Torus),
             KeyCode::Digit5 => self.brush_primitive = Some(BrushPrimitive::Capsule),
-            KeyCode::KeyA => self.brush_operation = Some(BrushOperation::Add),
-            KeyCode::KeyS => self.brush_operation = Some(BrushOperation::Subtract),
-            KeyCode::KeyD => self.brush_operation = Some(BrushOperation::SmoothAdd),
-            KeyCode::KeyF => self.brush_operation = Some(BrushOperation::SmoothSubtract),
-            KeyCode::KeyR => {
-                world.resources.sdf_world.clear();
-                self.spawn_initial_scene(world);
-            }
+            KeyCode::F1 => self.brush_operation = Some(BrushOperation::Add),
+            KeyCode::F2 => self.brush_operation = Some(BrushOperation::Subtract),
+            KeyCode::F3 => self.brush_operation = Some(BrushOperation::SmoothAdd),
+            KeyCode::F4 => self.brush_operation = Some(BrushOperation::SmoothSubtract),
+            KeyCode::F5 => self.brush_operation = Some(BrushOperation::PhysicsSphere),
+            KeyCode::F6 => self.brush_operation = Some(BrushOperation::PhysicsBox),
+            KeyCode::F7 => self.brush_operation = Some(BrushOperation::PhysicsCapsule),
+            KeyCode::F8 => self.brush_operation = Some(BrushOperation::PhysicsSnowman),
             _ => {}
         }
     }
@@ -1121,6 +1543,22 @@ impl State for SdfDemo {
 
                 ui.separator();
 
+                let mut smoothness_scale = world.resources.sdf_world.smoothness_scale;
+                if ui
+                    .add(
+                        egui::Slider::new(&mut smoothness_scale, 0.0..=2.0)
+                            .text("Global Smoothness"),
+                    )
+                    .changed()
+                {
+                    world
+                        .resources
+                        .sdf_world
+                        .set_smoothness_scale(smoothness_scale);
+                }
+
+                ui.separator();
+
                 ui.heading("Grid Snapping");
                 ui.checkbox(&mut self.snap_to_grid, "Snap to Grid");
                 if self.snap_to_grid {
@@ -1134,6 +1572,7 @@ impl State for SdfDemo {
                 ui.separator();
 
                 if ui.button("Reset Scene").clicked() {
+                    self.clear_physics_objects();
                     world.resources.sdf_world.clear();
                     self.spawn_initial_scene(world);
                 }
@@ -1143,8 +1582,75 @@ impl State for SdfDemo {
                 ui.checkbox(&mut self.terrain_enabled, "Enable Terrain");
                 if self.terrain_enabled {
                     ui.add(
-                        egui::Slider::new(&mut self.terrain_height, -10.0..=10.0).text("Height"),
+                        egui::Slider::new(&mut self.terrain_height, -20.0..=20.0).text("Height"),
                     );
+                }
+
+                ui.separator();
+
+                ui.heading("Physics Objects");
+                ui.horizontal(|ui| {
+                    ui.selectable_value(
+                        &mut self.brush_operation,
+                        Some(BrushOperation::PhysicsSphere),
+                        "Sphere",
+                    );
+                    ui.selectable_value(
+                        &mut self.brush_operation,
+                        Some(BrushOperation::PhysicsBox),
+                        "Box",
+                    );
+                });
+                ui.horizontal(|ui| {
+                    ui.selectable_value(
+                        &mut self.brush_operation,
+                        Some(BrushOperation::PhysicsCapsule),
+                        "Capsule",
+                    );
+                    ui.selectable_value(
+                        &mut self.brush_operation,
+                        Some(BrushOperation::PhysicsSnowman),
+                        "Snowman",
+                    );
+                });
+
+                let is_physics_mode = matches!(
+                    self.brush_operation,
+                    Some(BrushOperation::PhysicsSphere)
+                        | Some(BrushOperation::PhysicsBox)
+                        | Some(BrushOperation::PhysicsCapsule)
+                        | Some(BrushOperation::PhysicsSnowman)
+                );
+
+                if is_physics_mode {
+                    ui.add(
+                        egui::Slider::new(&mut self.physics_spawn_size, 0.3..=3.0)
+                            .text("Spawn Size"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut self.physics_spawn_material, 0..=5)
+                            .text("Spawn Material"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut self.physics_spawn_smoothness, 0.0..=1.0)
+                            .text("Blending"),
+                    );
+                }
+
+                ui.label(format!("Active: {}", self.physics_objects.len()));
+                if ui.button("Clear Physics").clicked() {
+                    let physics_edit_indices: Vec<usize> = self
+                        .physics_objects
+                        .iter()
+                        .flat_map(|object| object.edit_indices.iter().copied())
+                        .collect();
+
+                    let mut sorted_indices = physics_edit_indices;
+                    sorted_indices.sort_unstable();
+                    for &index in sorted_indices.iter().rev() {
+                        world.resources.sdf_world.remove_edit(index);
+                    }
+                    self.physics_objects.clear();
                 }
 
                 ui.separator();
@@ -1187,8 +1693,8 @@ impl State for SdfDemo {
                     ));
                     ui.label(format!("Clipmap levels: {}", sdf_world.level_count()));
                     ui.label(format!(
-                        "Pending uploads: {}",
-                        sdf_world.pending_uploads.len()
+                        "Pending GPU dispatches: {}",
+                        sdf_world.pending_gpu_dispatches.len()
                     ));
 
                     let voxel_sizes = sdf_world.voxel_sizes();
@@ -1299,21 +1805,25 @@ impl State for SdfDemo {
 
                         ui.add_space(2.0);
                         if edit_count > 0 && ui.small_button("Clear All").clicked() {
+                            self.clear_physics_objects();
                             world.resources.sdf_world.clear();
                         }
                     });
 
                 if let Some(index) = edit_to_remove {
                     world.resources.sdf_world.remove_edit(index);
+                    self.adjust_physics_indices_after_removal(index);
                 }
 
                 ui.separator();
 
                 ui.label("Controls:");
+                ui.label("WASD: Move | Space/Shift: Up/Down");
+                ui.label("Right-Drag: Look");
                 ui.label("Hold Left-Click: Sculpt");
                 ui.label("1-5: Select primitive");
-                ui.label("A/S/D/F: Select operation");
-                ui.label("R: Reset scene");
+                ui.label("F1-F4: Select operation");
+                ui.label("F5: Spawn physics sphere");
             });
     }
 }

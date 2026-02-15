@@ -3647,6 +3647,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             .entity_to_handle
             .insert(entity, handle);
 
+        world.resources.mesh_render_state.mark_entity_added(entity);
+        self.physics_objects.push(entity);
+
         if let Some(interpolation) = world.get_physics_interpolation_mut(entity) {
             interpolation.previous_translation = position;
             interpolation.previous_rotation = nalgebra_glm::quat_identity();

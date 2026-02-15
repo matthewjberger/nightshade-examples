@@ -1,15 +1,11 @@
-#[cfg(target_arch = "wasm32")]
-use std::cell::RefCell;
 use std::collections::HashMap;
-#[cfg(target_arch = "wasm32")]
-use std::rc::Rc;
 
-use nightshade::mosaic::{
-    EventLog, FpsCounter, Mosaic, StatusBar, ThemeState, ToastKind, Toasts, ViewportWidget, Widget,
-    WidgetContext, WidgetEntry, apply_theme, render_theme_editor_window,
-};
 #[cfg(not(target_arch = "wasm32"))]
-use nightshade::mosaic::{FileFilter, Settings};
+use nightshade::mosaic::Settings;
+use nightshade::mosaic::{
+    EventLog, FpsCounter, Mosaic, PendingFileLoad, StatusBar, ThemeState, ToastKind, Toasts,
+    ViewportWidget, Widget, WidgetContext, WidgetEntry, apply_theme, render_theme_editor_window,
+};
 use nightshade::prelude::*;
 
 use std::f32::consts::TAU;
@@ -109,8 +105,7 @@ struct BasicApp {
     status_bar: StatusBar,
     #[cfg(not(target_arch = "wasm32"))]
     settings: Option<Settings<BasicAppSettings>>,
-    #[cfg(target_arch = "wasm32")]
-    pending_project_load: Rc<RefCell<Option<Vec<u8>>>>,
+    pending_file_load: Option<PendingFileLoad>,
     pending_messages: Vec<AppMessage>,
     new_window_cooldown: f32,
     active_window: Option<usize>,
@@ -128,8 +123,7 @@ impl Default for BasicApp {
             status_bar: StatusBar::new(),
             #[cfg(not(target_arch = "wasm32"))]
             settings: None,
-            #[cfg(target_arch = "wasm32")]
-            pending_project_load: Rc::new(RefCell::new(None)),
+            pending_file_load: None,
             pending_messages: Vec::new(),
             new_window_cooldown: 0.0,
             active_window: None,
@@ -314,9 +308,7 @@ impl State for BasicApp {
         self.secondary
             .retain(|index, _| active_indices.contains(index));
 
-        #[cfg(target_arch = "wasm32")]
-        self.process_pending_project_load();
-
+        self.process_pending_file_load();
         self.process_messages();
     }
 
@@ -498,226 +490,45 @@ impl BasicApp {
         );
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn save_project_dialog(&mut self) {
-        let filters = [FileFilter {
-            name: "Project".to_string(),
-            extensions: vec!["json".to_string()],
-        }];
-
-        if let Some(path) = nightshade::mosaic::save_file_dialog(&filters) {
-            match self.primary.save_tree() {
-                Ok(tree_json) => {
-                    let json = serde_json::to_string_pretty(&tree_json).unwrap_or_default();
-                    match nightshade::mosaic::write_file(&path, json.as_bytes()) {
-                        Ok(()) => {
-                            self.pending_messages.push(AppMessage::Toast {
-                                message: format!("Saved project to {}", path.display()),
-                                kind: ToastKind::Success,
-                                duration: 3.0,
-                            });
-                        }
-                        Err(error) => {
-                            self.pending_messages.push(AppMessage::Toast {
-                                message: format!("Failed to save: {}", error),
-                                kind: ToastKind::Error,
-                                duration: 4.0,
-                            });
-                        }
-                    }
-                }
-                Err(error) => {
-                    self.pending_messages.push(AppMessage::Toast {
-                        message: format!("Failed to serialize: {}", error),
-                        kind: ToastKind::Error,
-                        duration: 4.0,
-                    });
-                }
+        match self.primary.save_project_to_file("project.json") {
+            Ok(()) => {
+                self.pending_messages.push(AppMessage::Toast {
+                    message: "Project saved".to_string(),
+                    kind: ToastKind::Success,
+                    duration: 3.0,
+                });
             }
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn load_project_dialog(&mut self) {
-        let filters = [FileFilter {
-            name: "Project".to_string(),
-            extensions: vec!["json".to_string()],
-        }];
-
-        if let Some(path) = nightshade::mosaic::pick_file(&filters) {
-            match nightshade::mosaic::read_file(&path) {
-                Ok(bytes) => match serde_json::from_slice::<serde_json::Value>(&bytes) {
-                    Ok(value) => match self.primary.load_tree(value) {
-                        Ok(()) => {
-                            self.pending_messages.push(AppMessage::Toast {
-                                message: format!("Loaded project from {}", path.display()),
-                                kind: ToastKind::Success,
-                                duration: 3.0,
-                            });
-                        }
-                        Err(error) => {
-                            self.pending_messages.push(AppMessage::Toast {
-                                message: format!("Failed to load tree: {}", error),
-                                kind: ToastKind::Error,
-                                duration: 4.0,
-                            });
-                        }
-                    },
-                    Err(error) => {
-                        self.pending_messages.push(AppMessage::Toast {
-                            message: format!("Invalid JSON: {}", error),
-                            kind: ToastKind::Error,
-                            duration: 4.0,
-                        });
-                    }
-                },
-                Err(error) => {
-                    self.pending_messages.push(AppMessage::Toast {
-                        message: format!("Failed to read file: {}", error),
-                        kind: ToastKind::Error,
-                        duration: 4.0,
-                    });
-                }
-            }
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn save_project_dialog(&mut self) {
-        use nightshade::prelude::{js_sys, wasm_bindgen, web_sys};
-        use wasm_bindgen::JsCast;
-
-        let tree_json = match self.primary.save_tree() {
-            Ok(value) => value,
             Err(error) => {
                 self.pending_messages.push(AppMessage::Toast {
-                    message: format!("Failed to serialize: {}", error),
+                    message: format!("Failed to save: {}", error),
                     kind: ToastKind::Error,
                     duration: 4.0,
                 });
-                return;
             }
-        };
-
-        let json = serde_json::to_string_pretty(&tree_json).unwrap_or_default();
-
-        let Some(window) = web_sys::window() else {
-            return;
-        };
-        let Some(document) = window.document() else {
-            return;
-        };
-
-        let array = js_sys::Array::new();
-        array.push(&wasm_bindgen::JsValue::from_str(&json));
-
-        let options = web_sys::BlobPropertyBag::new();
-        options.set_type("application/json");
-
-        let Ok(blob) = web_sys::Blob::new_with_str_sequence_and_options(&array, &options) else {
-            return;
-        };
-
-        let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else {
-            return;
-        };
-
-        let Some(anchor) = document
-            .create_element("a")
-            .ok()
-            .and_then(|element| element.dyn_into::<web_sys::HtmlAnchorElement>().ok())
-        else {
-            return;
-        };
-
-        anchor.set_href(&url);
-        anchor.set_download("project.json");
-        anchor.click();
-
-        let _ = web_sys::Url::revoke_object_url(&url);
-
-        self.pending_messages.push(AppMessage::Toast {
-            message: "Initiated project download".to_string(),
-            kind: ToastKind::Success,
-            duration: 3.0,
-        });
+        }
     }
 
-    #[cfg(target_arch = "wasm32")]
     fn load_project_dialog(&mut self) {
-        use nightshade::prelude::{js_sys, wasm_bindgen, wasm_bindgen_futures, web_sys};
-        use wasm_bindgen::JsCast;
-        use wasm_bindgen::prelude::*;
-
-        let Some(window) = web_sys::window() else {
-            return;
-        };
-        let Some(document) = window.document() else {
-            return;
-        };
-
-        let Some(input) = document
-            .create_element("input")
-            .ok()
-            .and_then(|element| element.dyn_into::<web_sys::HtmlInputElement>().ok())
-        else {
-            return;
-        };
-
-        input.set_type("file");
-        input.set_accept(".json");
-
-        let pending = self.pending_project_load.clone();
-        let input_for_closure = input.clone();
-        let closure = Closure::once(Box::new(move |_event: web_sys::Event| {
-            let input_clone = input_for_closure;
-            let pending_clone = pending;
-
-            wasm_bindgen_futures::spawn_local(async move {
-                if let Some(files) = input_clone.files()
-                    && let Some(file) = files.get(0)
-                {
-                    let array_buffer_promise = file.array_buffer();
-                    if let Ok(array_buffer) =
-                        wasm_bindgen_futures::JsFuture::from(array_buffer_promise).await
-                    {
-                        let uint8_array = js_sys::Uint8Array::new(&array_buffer);
-                        let bytes = uint8_array.to_vec();
-                        *pending_clone.borrow_mut() = Some(bytes);
-                    }
-                }
-            });
-        }) as Box<dyn FnOnce(_)>);
-
-        input.set_onchange(Some(closure.as_ref().unchecked_ref()));
-        closure.forget();
-        input.click();
+        self.pending_file_load = Some(self.primary.request_project_load());
     }
 
-    #[cfg(target_arch = "wasm32")]
-    fn process_pending_project_load(&mut self) {
-        let data = self.pending_project_load.borrow_mut().take();
-        if let Some(bytes) = data {
-            match serde_json::from_slice::<serde_json::Value>(&bytes) {
-                Ok(value) => match self.primary.load_tree(value) {
-                    Ok(()) => {
-                        self.pending_messages.push(AppMessage::Toast {
-                            message: "Loaded project".to_string(),
-                            kind: ToastKind::Success,
-                            duration: 3.0,
-                        });
-                    }
-                    Err(error) => {
-                        self.pending_messages.push(AppMessage::Toast {
-                            message: format!("Failed to load tree: {}", error),
-                            kind: ToastKind::Error,
-                            duration: 4.0,
-                        });
-                    }
-                },
+    fn process_pending_file_load(&mut self) {
+        if let Some(pending) = &self.pending_file_load
+            && let Some(loaded) = pending.take()
+        {
+            self.pending_file_load = None;
+            match self.primary.load_project_from_bytes(&loaded.bytes) {
+                Ok(()) => {
+                    self.pending_messages.push(AppMessage::Toast {
+                        message: format!("Loaded project: {}", loaded.name),
+                        kind: ToastKind::Success,
+                        duration: 3.0,
+                    });
+                }
                 Err(error) => {
                     self.pending_messages.push(AppMessage::Toast {
-                        message: format!("Invalid JSON: {}", error),
+                        message: format!("Failed to load: {}", error),
                         kind: ToastKind::Error,
                         duration: 4.0,
                     });

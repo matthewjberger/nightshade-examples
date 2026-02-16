@@ -546,6 +546,8 @@ impl PhysicsBenchmark {
             material,
         );
 
+        world.resources.mesh_render_state.mark_entity_added(entity);
+
         if let Some(collider) = world.get_collider_mut(entity) {
             collider.friction = 0.5;
             collider.restitution = 0.7;

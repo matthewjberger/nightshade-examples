@@ -184,7 +184,7 @@ impl State for BasicApp {
             self.active_window = None;
         }
 
-        self.primary.set_active_window(self.active_window.is_none());
+        self.primary.is_active_window = self.active_window.is_none();
         self.render_toolbar(world, ui_context, None);
         self.update_status_bar(world);
         self.status_bar.render(ui_context);
@@ -214,7 +214,7 @@ impl State for BasicApp {
             ])
             .with_title(window_title);
             mosaic.set_viewport_textures(vec![]);
-            mosaic.set_window_index(Some(window_index));
+            mosaic.window_index = Some(window_index);
             mosaic
         });
 
@@ -225,7 +225,7 @@ impl State for BasicApp {
         self.render_toolbar(world, ui_context, Some(window_index));
 
         if let Some(mosaic) = self.secondary.get_mut(&window_index) {
-            mosaic.set_active_window(self.active_window == Some(window_index));
+            mosaic.is_active_window = self.active_window == Some(window_index);
             mosaic.show(world, ui_context, &mut self.context);
         }
 
@@ -387,10 +387,10 @@ impl BasicApp {
                     let mosaic_title = if let Some(index) = window_index {
                         self.secondary
                             .get(&index)
-                            .map(|mosaic| mosaic.title().to_string())
+                            .map(|mosaic| mosaic.title.clone())
                             .unwrap_or_else(|| "Window".to_string())
                     } else {
-                        self.primary.title().to_string()
+                        self.primary.title.clone()
                     };
                     ui.label(&mosaic_title);
                     ui.separator();

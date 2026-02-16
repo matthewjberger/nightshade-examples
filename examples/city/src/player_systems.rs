@@ -5,7 +5,7 @@ use nightshade::prelude::*;
 
 use crate::CityDemo;
 
-const STANDING_CAMERA_HEIGHT: f32 = 0.8;
+pub const STANDING_CAMERA_HEIGHT: f32 = 0.8;
 const CROUCHING_CAMERA_HEIGHT: f32 = 0.3;
 const LEAN_AMOUNT: f32 = 0.4;
 const LEAN_ANGLE: f32 = 0.15;

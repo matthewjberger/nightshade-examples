@@ -337,20 +337,29 @@ impl State for ShaderStudio {
             }
         }
 
+        let mut compilation_tasks: Vec<(usize, String, u64, bool)> = Vec::new();
         for pass_index in 0..5 {
             if shared.pass_needs_recompile[pass_index] && !shared.pass_is_compiling[pass_index] {
                 shared.pass_needs_recompile[pass_index] = false;
-                shared.pass_is_compiling[pass_index] = true;
                 let common = shared.common_source.clone();
                 let source = shared.pass_sources[pass_index].clone();
                 let generation = shared.compilation_generation;
+                let full_source = if common.is_empty() {
+                    source
+                } else {
+                    format!("{common}\n{source}")
+                };
+                let has_common = !common.is_empty();
+                compilation_tasks.push((pass_index, full_source, generation, has_common));
+            }
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            for (pass_index, full_source, generation, has_common) in compilation_tasks {
+                shared.pass_is_compiling[pass_index] = true;
                 let shared_clone = self.shared.clone();
                 std::thread::spawn(move || {
-                    let full_source = if common.is_empty() {
-                        source
-                    } else {
-                        format!("{common}\n{source}")
-                    };
                     let result = shader_pass::validate_shader(&full_source);
                     let mut shared = shared_clone.lock().unwrap();
                     shared.pass_is_compiling[pass_index] = false;
@@ -361,18 +370,45 @@ impl State for ShaderStudio {
                         Ok(mode) => {
                             shared.pass_compilation_errors[pass_index] = None;
                             shared.pass_pending_validated[pass_index] = Some((full_source, mode));
-                            if !common.is_empty() {
+                            if has_common {
                                 shared.common_error = None;
                             }
                         }
                         Err(error) => {
-                            if !common.is_empty() {
+                            if has_common {
                                 shared.common_error = Some(error.clone());
                             }
                             shared.pass_compilation_errors[pass_index] = Some(error);
                         }
                     }
                 });
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            drop(shared);
+            for (pass_index, full_source, generation, has_common) in compilation_tasks {
+                let result = shader_pass::validate_shader(&full_source);
+                let mut shared = self.shared.lock().unwrap();
+                if shared.compilation_generation != generation {
+                    continue;
+                }
+                match result {
+                    Ok(mode) => {
+                        shared.pass_compilation_errors[pass_index] = None;
+                        shared.pass_pending_validated[pass_index] = Some((full_source, mode));
+                        if has_common {
+                            shared.common_error = None;
+                        }
+                    }
+                    Err(error) => {
+                        if has_common {
+                            shared.common_error = Some(error.clone());
+                        }
+                        shared.pass_compilation_errors[pass_index] = Some(error);
+                    }
+                }
             }
         }
     }

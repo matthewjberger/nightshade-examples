@@ -33,6 +33,10 @@ pub fn enter_first_person(demo: &mut CityDemo, world: &mut World) {
     demo.player_entity = Some(player_entity);
     demo.player_camera_entity = Some(player_camera);
 
+    if let Some(transform) = world.get_local_transform_mut(player_camera) {
+        transform.translation.y = crate::player_systems::STANDING_CAMERA_HEIGHT;
+    }
+
     if let Some(camera_component) = world.get_camera_mut(player_camera) {
         camera_component.projection = Projection::Perspective(PerspectiveCamera {
             aspect_ratio: None,
@@ -428,7 +432,8 @@ fn spawn_static_cuboid(world: &mut World, position: Vec3, hx: f32, hy: f32, hz: 
     }
 
     if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
-        *rigid_body = RigidBodyComponent::new_static();
+        *rigid_body =
+            RigidBodyComponent::new_static().with_translation(position.x, position.y, position.z);
     }
 
     if let Some(collider) = world.get_collider_mut(entity) {

@@ -1,6 +1,11 @@
+use std::collections::{HashMap, HashSet};
+
+use nightshade::ecs::gpu_picking::GpuPickResult;
 use nightshade::ecs::picking::PickingRay;
 use nightshade::ecs::prefab::resources::mesh_cache_insert;
-use nightshade::ecs::sdf::{CsgOperation, SdfEdit, SdfPrimitive};
+use nightshade::ecs::sdf::{
+    CollisionChunkResult, CsgOperation, SdfCollisionMesh, SdfEdit, SdfPrimitive,
+};
 use nightshade::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,7 +41,11 @@ struct PhysicsSdfObject {
     last_rotation: Quat,
 }
 
-#[derive(Default)]
+struct CollisionChunkInfo {
+    entity: Entity,
+    wireframe_lines: Vec<Line>,
+}
+
 struct SdfDemo {
     brush_primitive: Option<BrushPrimitive>,
     brush_operation: Option<BrushOperation>,
@@ -59,13 +68,84 @@ struct SdfDemo {
     brick_grid_radius: i32,
     debug_brick_coloring: bool,
     terrain_enabled: bool,
-    terrain_height: f32,
+    terrain_base_height: f32,
+    terrain_seed: u32,
+    terrain_frequency: f32,
+    terrain_amplitude: f32,
+    terrain_octaves: u32,
+    terrain_gain: f32,
     helmet_entity: Option<Entity>,
     physics_objects: Vec<PhysicsSdfObject>,
     ground_entity: Option<Entity>,
     physics_spawn_size: f32,
     physics_spawn_material: u32,
     physics_spawn_smoothness: f32,
+    collision_mesh: SdfCollisionMesh,
+    collision_chunks: HashMap<nalgebra_glm::IVec3, CollisionChunkInfo>,
+    collision_mesh_enabled: bool,
+    collision_cell_size: f32,
+    collision_radius: f32,
+    show_collision_wireframe: bool,
+    collision_wireframe_entity: Option<Entity>,
+    last_collision_camera_pos: Vec3,
+    wireframe_dirty: bool,
+    last_pick_result: Option<GpuPickResult>,
+    last_pick_mouse_pos: (u32, u32),
+    fps_hud_text: Option<Entity>,
+}
+
+impl Default for SdfDemo {
+    fn default() -> Self {
+        let chunk_size = 16.0;
+        let cell_size = 2.0;
+        Self {
+            brush_primitive: None,
+            brush_operation: None,
+            brush_size: 0.0,
+            brush_smoothness: 0.0,
+            current_material: 0,
+            sdf_pass_configured: false,
+            show_debug_info: false,
+            brush_preview_entity: None,
+            brush_position: Vec3::zeros(),
+            brush_valid: false,
+            mouse_down: false,
+            last_apply_time: 0.0,
+            apply_interval: 0.0,
+            snap_to_grid: false,
+            snap_level: 0,
+            show_brick_grid: false,
+            brick_grid_entity: None,
+            brick_grid_level: 0,
+            brick_grid_radius: 0,
+            debug_brick_coloring: false,
+            terrain_enabled: false,
+            terrain_base_height: 0.0,
+            terrain_seed: 0,
+            terrain_frequency: 0.0,
+            terrain_amplitude: 0.0,
+            terrain_octaves: 0,
+            terrain_gain: 0.0,
+            helmet_entity: None,
+            physics_objects: Vec::new(),
+            ground_entity: None,
+            physics_spawn_size: 0.0,
+            physics_spawn_material: 0,
+            physics_spawn_smoothness: 0.0,
+            collision_mesh: SdfCollisionMesh::new(chunk_size, cell_size),
+            collision_chunks: HashMap::new(),
+            collision_mesh_enabled: true,
+            collision_cell_size: cell_size,
+            collision_radius: 40.0,
+            show_collision_wireframe: true,
+            collision_wireframe_entity: None,
+            last_collision_camera_pos: Vec3::new(f32::MAX, f32::MAX, f32::MAX),
+            wireframe_dirty: false,
+            last_pick_result: None,
+            last_pick_mouse_pos: (u32::MAX, u32::MAX),
+            fps_hud_text: None,
+        }
+    }
 }
 
 impl SdfDemo {
@@ -114,6 +194,12 @@ impl SdfDemo {
             nightshade::ecs::sdf::SdfMaterial::new(Vec3::new(0.5, 0.5, 0.5))
                 .with_roughness(0.7)
                 .with_metallic(0.1),
+        );
+
+        let _terrain_material = world.resources.sdf_materials.add_material(
+            nightshade::ecs::sdf::SdfMaterial::new(Vec3::new(0.35, 0.55, 0.25))
+                .with_roughness(0.85)
+                .with_metallic(0.05),
         );
 
         world
@@ -689,6 +775,7 @@ impl SdfDemo {
         let transform = nalgebra_glm::translation(&self.brush_position);
         let edit = SdfEdit::from_operation(primitive, operation, transform, self.current_material);
         world.resources.sdf_world.add_edit(edit);
+        self.mark_collision_dirty_for_edit_bounds(self.brush_position, self.brush_size * 2.0);
     }
 
     fn generate_brick_grid_lines(&self, world: &World, camera_pos: Vec3) -> Vec<Line> {
@@ -787,58 +874,57 @@ impl SdfDemo {
     }
 
     fn update_brush_position_from_mouse(&mut self, world: &World) {
-        let mouse_pos = world.resources.input.mouse.position;
-        let screen_pos = Vec2::new(mouse_pos.x, mouse_pos.y);
-
         self.brush_valid = false;
 
-        if let Some(ray) = PickingRay::from_screen_position(world, screen_pos) {
-            if let Some(hit_pos) =
-                world
+        if let Some(ref pick) = self.last_pick_result
+            && pick.depth < 0.9999
+        {
+            let normal = pick.world_normal;
+
+            let offset = match self.brush_operation {
+                Some(BrushOperation::Add) | Some(BrushOperation::SmoothAdd) => {
+                    normal * self.brush_size * 0.5
+                }
+                Some(BrushOperation::Subtract) | Some(BrushOperation::SmoothSubtract) => {
+                    -normal * self.brush_size * 0.3
+                }
+                Some(BrushOperation::PhysicsSphere)
+                | Some(BrushOperation::PhysicsBox)
+                | Some(BrushOperation::PhysicsCapsule)
+                | Some(BrushOperation::PhysicsSnowman) => normal * 0.1,
+                None => Vec3::zeros(),
+            };
+
+            let mut final_pos = pick.world_position + offset;
+
+            if self.snap_to_grid {
+                final_pos = world
                     .resources
                     .sdf_world
-                    .raycast(ray.origin, ray.direction, 100.0)
-            {
-                let normal = world.resources.sdf_world.evaluate_normal_at(hit_pos);
-
-                let offset = match self.brush_operation {
-                    Some(BrushOperation::Add) | Some(BrushOperation::SmoothAdd) => {
-                        normal * self.brush_size * 0.5
-                    }
-                    Some(BrushOperation::Subtract) | Some(BrushOperation::SmoothSubtract) => {
-                        -normal * self.brush_size * 0.3
-                    }
-                    Some(BrushOperation::PhysicsSphere)
-                    | Some(BrushOperation::PhysicsBox)
-                    | Some(BrushOperation::PhysicsCapsule)
-                    | Some(BrushOperation::PhysicsSnowman) => normal * 0.1,
-                    None => Vec3::zeros(),
-                };
-
-                let mut final_pos = hit_pos + offset;
-
-                if self.snap_to_grid {
-                    final_pos = world
-                        .resources
-                        .sdf_world
-                        .snap_to_voxel_grid(final_pos, self.snap_level);
-                }
-
-                self.brush_position = final_pos;
-                self.brush_valid = true;
-            } else if let Some(ground_pos) = ray.intersect_ground_plane(0.0) {
-                let mut final_pos = ground_pos;
-
-                if self.snap_to_grid {
-                    final_pos = world
-                        .resources
-                        .sdf_world
-                        .snap_to_voxel_grid(final_pos, self.snap_level);
-                }
-
-                self.brush_position = final_pos;
-                self.brush_valid = true;
+                    .snap_to_voxel_grid(final_pos, self.snap_level);
             }
+
+            self.brush_position = final_pos;
+            self.brush_valid = true;
+            return;
+        }
+
+        let mouse_pos = world.resources.input.mouse.position;
+        let screen_pos = Vec2::new(mouse_pos.x, mouse_pos.y);
+        if let Some(ray) = PickingRay::from_screen_position(world, screen_pos)
+            && let Some(ground_pos) = ray.intersect_ground_plane(0.0)
+        {
+            let mut final_pos = ground_pos;
+
+            if self.snap_to_grid {
+                final_pos = world
+                    .resources
+                    .sdf_world
+                    .snap_to_voxel_grid(final_pos, self.snap_level);
+            }
+
+            self.brush_position = final_pos;
+            self.brush_valid = true;
         }
     }
 
@@ -866,7 +952,7 @@ impl SdfDemo {
             1,
         )[0];
 
-        let ground_y = self.terrain_height - 0.05;
+        let ground_y = self.terrain_base_height - 0.05;
         world.set_local_transform(
             ground,
             LocalTransform {
@@ -1117,18 +1203,52 @@ impl SdfDemo {
                 continue;
             }
 
+            let old_translation = object.last_translation;
+            let old_rotation = object.last_rotation;
             object.last_translation = entity_translation;
             object.last_rotation = entity_rotation;
 
             let entity_matrix = nalgebra_glm::translation(&entity_translation)
                 * nalgebra_glm::quat_to_mat4(&entity_rotation);
+            let old_entity_matrix = nalgebra_glm::translation(&old_translation)
+                * nalgebra_glm::quat_to_mat4(&old_rotation);
 
             for (offset_index, &edit_index) in object.edit_indices.iter().enumerate() {
                 if edit_index >= world.resources.sdf_world.edits.len() {
                     continue;
                 }
+
                 let local_offset = &object.local_offsets[offset_index];
                 let world_transform = entity_matrix * local_offset;
+
+                if self.collision_mesh_enabled {
+                    let bounding_radius = world.resources.sdf_world.edits[edit_index]
+                        .primitive()
+                        .bounding_radius();
+                    let dirty_radius = bounding_radius + 1.0;
+
+                    let old_part_transform = old_entity_matrix * local_offset;
+                    let old_part_pos = Vec3::new(
+                        old_part_transform[(0, 3)],
+                        old_part_transform[(1, 3)],
+                        old_part_transform[(2, 3)],
+                    );
+                    let new_part_pos = Vec3::new(
+                        world_transform[(0, 3)],
+                        world_transform[(1, 3)],
+                        world_transform[(2, 3)],
+                    );
+
+                    self.collision_mesh.mark_dirty_in_bounds(
+                        old_part_pos - Vec3::new(dirty_radius, dirty_radius, dirty_radius),
+                        old_part_pos + Vec3::new(dirty_radius, dirty_radius, dirty_radius),
+                    );
+                    self.collision_mesh.mark_dirty_in_bounds(
+                        new_part_pos - Vec3::new(dirty_radius, dirty_radius, dirty_radius),
+                        new_part_pos + Vec3::new(dirty_radius, dirty_radius, dirty_radius),
+                    );
+                }
+
                 world
                     .resources
                     .sdf_world
@@ -1153,6 +1273,252 @@ impl SdfDemo {
             }
             !object.edit_indices.is_empty()
         });
+    }
+
+    fn populate_new_collision_chunks(&mut self, world: &World, camera_pos: Vec3) {
+        let terrain = &world.resources.sdf_world.terrain;
+        if !terrain.enabled {
+            return;
+        }
+
+        let extent = terrain.max_surface_extent();
+        let chunk_size = self.collision_mesh.chunk_size;
+
+        let bounds_min = Vec3::new(
+            camera_pos.x - self.collision_radius,
+            terrain.base_height - extent,
+            camera_pos.z - self.collision_radius,
+        );
+        let bounds_max = Vec3::new(
+            camera_pos.x + self.collision_radius,
+            terrain.base_height + extent,
+            camera_pos.z + self.collision_radius,
+        );
+
+        let chunk_min = nalgebra_glm::IVec3::new(
+            (bounds_min.x / chunk_size).floor() as i32,
+            (bounds_min.y / chunk_size).floor() as i32,
+            (bounds_min.z / chunk_size).floor() as i32,
+        );
+        let chunk_max = nalgebra_glm::IVec3::new(
+            (bounds_max.x / chunk_size).ceil() as i32,
+            (bounds_max.y / chunk_size).ceil() as i32,
+            (bounds_max.z / chunk_size).ceil() as i32,
+        );
+
+        for cz in chunk_min.z..=chunk_max.z {
+            for cy in chunk_min.y..=chunk_max.y {
+                for cx in chunk_min.x..=chunk_max.x {
+                    let coord = nalgebra_glm::IVec3::new(cx, cy, cz);
+                    if !self.collision_chunks.contains_key(&coord) {
+                        self.collision_mesh.dirty_chunks.insert(coord);
+                    }
+                }
+            }
+        }
+    }
+
+    fn evict_out_of_range_chunks(&mut self, world: &mut World, camera_pos: Vec3) {
+        let eviction_radius = self.collision_radius + self.collision_mesh.chunk_size * 2.0;
+        let eviction_radius_sq = eviction_radius * eviction_radius;
+        let chunk_size = self.collision_mesh.chunk_size;
+
+        let chunks_to_remove: Vec<nalgebra_glm::IVec3> = self
+            .collision_chunks
+            .keys()
+            .filter(|coord| {
+                let center_x = (coord.x as f32 + 0.5) * chunk_size;
+                let center_z = (coord.z as f32 + 0.5) * chunk_size;
+                let dx = center_x - camera_pos.x;
+                let dz = center_z - camera_pos.z;
+                dx * dx + dz * dz > eviction_radius_sq
+            })
+            .copied()
+            .collect();
+
+        if !chunks_to_remove.is_empty() {
+            self.wireframe_dirty = true;
+            let entities: Vec<Entity> = chunks_to_remove
+                .iter()
+                .filter_map(|coord| self.collision_chunks.remove(coord).map(|info| info.entity))
+                .collect();
+            if !entities.is_empty() {
+                world.despawn_entities(&entities);
+            }
+            for coord in &chunks_to_remove {
+                self.collision_mesh.dirty_chunks.remove(coord);
+            }
+        }
+    }
+
+    fn generate_chunk_wireframe_lines(vertices: &[[f32; 3]], indices: &[[u32; 3]]) -> Vec<Line> {
+        let color = Vec4::new(0.0, 1.0, 0.5, 0.6);
+        let mut lines = Vec::with_capacity(indices.len() * 3);
+
+        for triangle in indices {
+            let v0 = vertices[triangle[0] as usize];
+            let v1 = vertices[triangle[1] as usize];
+            let v2 = vertices[triangle[2] as usize];
+
+            let p0 = Vec3::new(v0[0], v0[1], v0[2]);
+            let p1 = Vec3::new(v1[0], v1[1], v1[2]);
+            let p2 = Vec3::new(v2[0], v2[1], v2[2]);
+
+            lines.push(Line {
+                start: p0,
+                end: p1,
+                color,
+            });
+            lines.push(Line {
+                start: p1,
+                end: p2,
+                color,
+            });
+            lines.push(Line {
+                start: p2,
+                end: p0,
+                color,
+            });
+        }
+
+        lines
+    }
+
+    fn update_collision_mesh(&mut self, world: &mut World, camera_pos: Vec3) {
+        if !self.collision_mesh_enabled {
+            return;
+        }
+
+        let camera_moved = nalgebra_glm::length(&(camera_pos - self.last_collision_camera_pos))
+            > self.collision_mesh.chunk_size * 0.5;
+        if camera_moved {
+            self.populate_new_collision_chunks(world, camera_pos);
+            self.evict_out_of_range_chunks(world, camera_pos);
+            self.last_collision_camera_pos = camera_pos;
+        }
+
+        let physics_edit_indices: HashSet<usize> = self
+            .physics_objects
+            .iter()
+            .flat_map(|object| object.edit_indices.iter().copied())
+            .collect();
+        let results = self.collision_mesh.update(
+            &world.resources.sdf_world,
+            camera_pos,
+            &physics_edit_indices,
+        );
+
+        if !results.is_empty() {
+            self.wireframe_dirty = true;
+        }
+
+        for (chunk_coord, result) in results {
+            match result {
+                CollisionChunkResult::Mesh { vertices, indices } => {
+                    let wireframe_lines = Self::generate_chunk_wireframe_lines(&vertices, &indices);
+
+                    if let Some(existing_info) = self.collision_chunks.get(&chunk_coord) {
+                        world.despawn_entities(&[existing_info.entity]);
+                    }
+
+                    let entity = world.spawn_entities(
+                        LOCAL_TRANSFORM
+                            | LOCAL_TRANSFORM_DIRTY
+                            | GLOBAL_TRANSFORM
+                            | RIGID_BODY
+                            | COLLIDER,
+                        1,
+                    )[0];
+
+                    world.set_local_transform(
+                        entity,
+                        LocalTransform {
+                            translation: Vec3::zeros(),
+                            rotation: Quat::identity(),
+                            scale: Vec3::new(1.0, 1.0, 1.0),
+                        },
+                    );
+                    world.set_local_transform_dirty(entity, LocalTransformDirty);
+                    world.set_global_transform(entity, GlobalTransform::default());
+
+                    if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+                        *rigid_body = RigidBodyComponent::new_static();
+                    }
+                    if let Some(collider) = world.get_collider_mut(entity) {
+                        *collider = ColliderComponent {
+                            shape: ColliderShape::TriMesh { vertices, indices },
+                            friction: 0.6,
+                            restitution: 0.0,
+                            ..Default::default()
+                        };
+                    }
+
+                    self.collision_chunks.insert(
+                        chunk_coord,
+                        CollisionChunkInfo {
+                            entity,
+                            wireframe_lines,
+                        },
+                    );
+                }
+                CollisionChunkResult::Empty => {
+                    if let Some(info) = self.collision_chunks.remove(&chunk_coord) {
+                        world.despawn_entities(&[info.entity]);
+                    }
+                }
+            }
+        }
+    }
+
+    fn clear_collision_mesh(&mut self, world: &mut World) {
+        let entities: Vec<Entity> = self
+            .collision_chunks
+            .values()
+            .map(|info| info.entity)
+            .collect();
+        if !entities.is_empty() {
+            world.despawn_entities(&entities);
+        }
+        self.collision_chunks.clear();
+        self.collision_mesh.clear();
+        self.last_collision_camera_pos = Vec3::new(f32::MAX, f32::MAX, f32::MAX);
+        self.wireframe_dirty = true;
+    }
+
+    fn mark_collision_dirty_for_edit_bounds(&mut self, position: Vec3, radius: f32) {
+        if self.collision_mesh_enabled {
+            let bounds_min = position - Vec3::new(radius, radius, radius);
+            let bounds_max = position + Vec3::new(radius, radius, radius);
+            self.collision_mesh
+                .mark_dirty_in_bounds(bounds_min, bounds_max);
+        }
+    }
+
+    fn update_collision_wireframe(&mut self, world: &mut World) {
+        if let Some(entity) = self.collision_wireframe_entity {
+            if let Some(visibility) = world.get_visibility_mut(entity) {
+                visibility.visible = self.show_collision_wireframe;
+            }
+
+            if !self.show_collision_wireframe {
+                return;
+            }
+
+            if !self.wireframe_dirty {
+                return;
+            }
+            self.wireframe_dirty = false;
+
+            let mut all_lines = Vec::new();
+            for info in self.collision_chunks.values() {
+                all_lines.extend_from_slice(&info.wireframe_lines);
+            }
+
+            if let Some(lines) = world.get_lines_mut(entity) {
+                lines.lines = all_lines;
+                lines.mark_dirty();
+            }
+        }
     }
 }
 
@@ -1221,12 +1587,19 @@ impl State for SdfDemo {
         self.brick_grid_level = 0;
         self.brick_grid_radius = 32;
         self.terrain_enabled = true;
-        self.terrain_height = 0.0;
+        self.terrain_base_height = 7.0;
+        self.terrain_seed = 0;
+        self.terrain_frequency = 0.01;
+        self.terrain_amplitude = 30.0;
+        self.terrain_octaves = 11;
+        self.terrain_gain = 0.5;
         self.physics_spawn_size = 1.0;
         self.physics_spawn_material = 1;
         self.physics_spawn_smoothness = 0.0;
 
-        self.spawn_ground_body(world);
+        if !self.collision_mesh_enabled && !self.terrain_enabled {
+            self.spawn_ground_body(world);
+        }
 
         let brush_preview = world.spawn_entities(
             LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | VISIBILITY | LINES,
@@ -1263,6 +1636,24 @@ impl State for SdfDemo {
         world.set_visibility(brick_grid, Visibility { visible: false });
         world.set_lines(brick_grid, Lines::default());
         self.brick_grid_entity = Some(brick_grid);
+
+        let collision_wireframe = world.spawn_entities(
+            LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | VISIBILITY | LINES,
+            1,
+        )[0];
+        world.set_local_transform(
+            collision_wireframe,
+            LocalTransform {
+                translation: Vec3::zeros(),
+                rotation: Quat::identity(),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+            },
+        );
+        world.set_local_transform_dirty(collision_wireframe, LocalTransformDirty);
+        world.set_global_transform(collision_wireframe, GlobalTransform::default());
+        world.set_visibility(collision_wireframe, Visibility { visible: false });
+        world.set_lines(collision_wireframe, Lines::default());
+        self.collision_wireframe_entity = Some(collision_wireframe);
 
         self.spawn_initial_scene(world);
 
@@ -1311,12 +1702,62 @@ impl State for SdfDemo {
                 ..Default::default()
             },
         );
+
+        let fps_text = spawn_hud_text_with_properties(
+            world,
+            "FPS: 0",
+            HudAnchor::TopRight,
+            Vec2::new(-10.0, 10.0),
+            TextProperties {
+                font_size: 48.0,
+                color: Vec4::new(0.0, 1.0, 0.0, 1.0),
+                ..Default::default()
+            },
+        );
+        self.fps_hud_text = Some(fps_text);
     }
 
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
         fly_camera_system(world);
         sync_text_meshes_system(world);
+
+        if let Some(fps_text_entity) = self.fps_hud_text {
+            let fps = world.resources.window.timing.frames_per_second;
+            let text_index = world.get_hud_text(fps_text_entity).map(|t| t.text_index);
+            if let Some(text_index) = text_index {
+                world
+                    .resources
+                    .text_cache
+                    .set_text(text_index, format!("FPS: {:.0}", fps));
+                if let Some(hud_text) = world.get_hud_text_mut(fps_text_entity) {
+                    hud_text.properties.color = if fps >= 56.0 {
+                        Vec4::new(0.0, 1.0, 0.0, 1.0)
+                    } else if fps >= 30.0 {
+                        Vec4::new(1.0, 1.0, 0.0, 1.0)
+                    } else {
+                        Vec4::new(1.0, 0.3, 0.0, 1.0)
+                    };
+                    hud_text.dirty = true;
+                }
+            }
+        }
+
+        if let Some(result) = world.resources.gpu_picking.take_result() {
+            self.last_pick_result = Some(result);
+        }
+
+        let mouse_pos = world.resources.input.mouse.position;
+        let current_mouse_pos = (mouse_pos.x as u32, mouse_pos.y as u32);
+        if !world.resources.user_interface.hud_wants_pointer
+            && current_mouse_pos != self.last_pick_mouse_pos
+        {
+            world
+                .resources
+                .gpu_picking
+                .request_pick(current_mouse_pos.0, current_mouse_pos.1);
+            self.last_pick_mouse_pos = current_mouse_pos;
+        }
 
         let camera_position = if let Some(camera_entity) = world.resources.active_camera {
             if let Some(transform) = world.get_global_transform(camera_entity) {
@@ -1365,7 +1806,17 @@ impl State for SdfDemo {
         world
             .resources
             .sdf_world
-            .set_terrain(self.terrain_enabled, self.terrain_height, 0);
+            .set_terrain_config(nightshade::ecs::sdf::TerrainConfig {
+                enabled: self.terrain_enabled,
+                base_height: self.terrain_base_height,
+                material_id: 6,
+                seed: self.terrain_seed,
+                frequency: self.terrain_frequency,
+                amplitude: self.terrain_amplitude,
+                octaves: self.terrain_octaves,
+                lacunarity: 2.0,
+                gain: self.terrain_gain,
+            });
 
         let old_clipmap_center = world.resources.sdf_world.clipmap.center;
         world.resources.sdf_world.update(camera_position);
@@ -1382,6 +1833,22 @@ impl State for SdfDemo {
                 world.resources.sdf_world.mark_edit_dirty(edit_index);
             }
         }
+
+        if !self.collision_mesh_enabled && !self.collision_chunks.is_empty() {
+            self.clear_collision_mesh(world);
+        }
+
+        let need_ground_body = !self.collision_mesh_enabled && !self.terrain_enabled;
+        if !need_ground_body && self.ground_entity.is_some() {
+            if let Some(entity) = self.ground_entity.take() {
+                world.despawn_entities(&[entity]);
+            }
+        } else if need_ground_body && self.ground_entity.is_none() {
+            self.spawn_ground_body(world);
+        }
+
+        self.update_collision_mesh(world, camera_position);
+        self.update_collision_wireframe(world);
     }
 
     fn configure_render_graph(
@@ -1573,6 +2040,7 @@ impl State for SdfDemo {
 
                 if ui.button("Reset Scene").clicked() {
                     self.clear_physics_objects();
+                    self.clear_collision_mesh(world);
                     world.resources.sdf_world.clear();
                     self.spawn_initial_scene(world);
                 }
@@ -1581,9 +2049,72 @@ impl State for SdfDemo {
 
                 ui.checkbox(&mut self.terrain_enabled, "Enable Terrain");
                 if self.terrain_enabled {
-                    ui.add(
-                        egui::Slider::new(&mut self.terrain_height, -20.0..=20.0).text("Height"),
-                    );
+                    egui::CollapsingHeader::new("Terrain Settings")
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut self.terrain_base_height, -20.0..=20.0)
+                                    .text("Base Height"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.terrain_seed, 0..=9999).text("Seed"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.terrain_frequency, 0.01..=1.0)
+                                    .logarithmic(true)
+                                    .text("Frequency"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.terrain_amplitude, 0.1..=30.0)
+                                    .text("Amplitude"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.terrain_octaves, 1..=11)
+                                    .text("Octaves"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.terrain_gain, 0.1..=0.9).text("Gain"),
+                            );
+                        });
+                }
+
+                ui.separator();
+
+                ui.checkbox(&mut self.collision_mesh_enabled, "Collision Mesh");
+                if self.collision_mesh_enabled {
+                    egui::CollapsingHeader::new("Collision Mesh Settings")
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::Slider::new(&mut self.collision_cell_size, 0.5..=4.0)
+                                    .text("Cell Size"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.collision_mesh.terrain_octaves, 1..=11)
+                                    .text("Octaves"),
+                            );
+                            ui.add(
+                                egui::Slider::new(&mut self.collision_radius, 20.0..=80.0)
+                                    .text("Radius"),
+                            );
+                            ui.add(
+                                egui::Slider::new(
+                                    &mut self.collision_mesh.max_chunks_per_frame,
+                                    1..=8,
+                                )
+                                .text("Chunks/Frame"),
+                            );
+                            ui.checkbox(&mut self.show_collision_wireframe, "Show Wireframe");
+                            ui.label(format!("Active chunks: {}", self.collision_chunks.len()));
+                            ui.label(format!(
+                                "Dirty chunks: {}",
+                                self.collision_mesh.dirty_chunks.len()
+                            ));
+                            if ui.button("Rebuild All").clicked() {
+                                self.clear_collision_mesh(world);
+                                self.collision_mesh.cell_size = self.collision_cell_size;
+                            }
+                        });
                 }
 
                 ui.separator();

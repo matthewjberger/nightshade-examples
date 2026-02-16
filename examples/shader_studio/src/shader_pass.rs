@@ -600,6 +600,7 @@ impl ShaderPass {
     ) -> Result<(), String> {
         let target_format = BUFFER_FORMAT;
 
+        #[cfg(not(target_arch = "wasm32"))]
         device.push_error_scope(wgpu::ErrorFilter::Validation);
 
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -654,6 +655,7 @@ impl ShaderPass {
                     cache: None,
                 });
 
+                #[cfg(not(target_arch = "wasm32"))]
                 if let Some(error) = pollster::block_on(device.pop_error_scope()) {
                     return Err(format!("GPU pipeline error: {error}"));
                 }
@@ -702,6 +704,7 @@ impl ShaderPass {
                     cache: None,
                 });
 
+                #[cfg(not(target_arch = "wasm32"))]
                 if let Some(error) = pollster::block_on(device.pop_error_scope()) {
                     return Err(format!("GPU pipeline error: {error}"));
                 }

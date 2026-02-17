@@ -1,0 +1,14 @@
+[package]
+name = "village_survival"
+description = "Village survival simulation combining Q-learning and genetic algorithms"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+
+[features]
+default = []
+openxr = ["nightshade/openxr"]
+
+[dependencies]
+nightshade = { workspace = true, features = ["egui", "tracing"] }
+rand = "0.9"

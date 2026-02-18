@@ -40,14 +40,14 @@ lint:
 # Runs linter for wasm32 target (excludes native-only and terminal examples)
 [windows]
 lint-wasm:
-    $excludes = @("demo_scene", "multiplayer_pong", "steam", "benchmark", "text_adventure", "terminal_breakout", "assets"); Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $excludes += $_.Name }; $flags = ($excludes | ForEach-Object { "--exclude $_" }) -join " "; Invoke-Expression "cargo clippy --workspace --target wasm32-unknown-unknown $flags -- -D warnings"
+    $excludes = @("demo_scene", "multiplayer_pong", "steam", "text_adventure", "assets", "claude_chat", "claude_chat_mcp"); Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $excludes += $_.Name }; $flags = ($excludes | ForEach-Object { "--exclude $_" }) -join " "; Invoke-Expression "cargo clippy --workspace --target wasm32-unknown-unknown $flags -- -D warnings"
 
 # Runs linter for wasm32 target (excludes native-only and terminal examples)
 [unix]
 lint-wasm:
     #!/usr/bin/env bash
     set -euo pipefail
-    excludes="--exclude demo_scene --exclude multiplayer_pong --exclude steam --exclude benchmark --exclude text_adventure --exclude terminal_breakout --exclude assets"
+    excludes="--exclude demo_scene --exclude multiplayer_pong --exclude steam --exclude text_adventure --exclude assets --exclude claude_chat --exclude claude_chat_mcp"
     for dir in examples-terminal/*/; do
         name=$(basename "$dir")
         excludes="$excludes --exclude $name"
@@ -69,92 +69,517 @@ run-tui-wasm $example:
 # Interactively pick and run an example
 [windows]
 pick:
-    $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a demo> "); if ($example) { cargo run -r -p $example }
+    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "cyberdust" = "Neon runner game"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "pixel_platformer" = "Pixel art platformer"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "tappy_plane" = "Flappy plane game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { cargo run -r -p $example }
 
 # Interactively pick and run an example
 [unix]
 pick:
     #!/usr/bin/env bash
     set -euo pipefail
-    example=$(ls -d examples/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a demo> ")
+    declare -A descriptions=(
+        ["alpha_blending"]="Alpha blending and transparency"
+        ["asteroid_belt"]="Asteroid belt simulation"
+        ["audio"]="Spatial audio playback"
+        ["block_breaker"]="Block breaker arcade game"
+        ["block_breaker_scripts"]="Block breaker with WASM scripts"
+        ["bloom"]="Bloom post-processing"
+        ["bunnymark"]="Sprite rendering benchmark"
+        ["camera_in_camera"]="Nested camera rendering"
+        ["castle_siege"]="GOAP AI castle siege"
+        ["chess"]="3D chess game"
+        ["chip8"]="Super CHIP-8 emulator"
+        ["city"]="Procedural city generator"
+        ["custom_multipass"]="Gaussian blur multipass"
+        ["custom_pass"]="Custom render pass"
+        ["cyberdust"]="Neon runner game"
+        ["dance"]="Skinned mesh benchmark"
+        ["decals"]="Decal projection"
+        ["depth_of_field"]="Depth of field effect"
+        ["doom"]="Doom-style renderer"
+        ["farming"]="Farming simulation"
+        ["fireworks"]="Fireworks particle effects"
+        ["genetic_walkers"]="Genetic algorithm walkers"
+        ["gizmo"]="Transform gizmo"
+        ["hex_war"]="Hex-based strategy game"
+        ["hiz"]="Hi-Z occlusion culling"
+        ["horror"]="First-person horror demo"
+        ["hud_text"]="HUD text rendering"
+        ["immersive_sim"]="Immersive sim sandbox"
+        ["interior_mapping"]="Interior mapping shader"
+        ["jigsaw"]="Jigsaw puzzle game"
+        ["lattice"]="Lattice deformation"
+        ["lights"]="Clustered forward rendering"
+        ["maps"]="Map rendering"
+        ["menu"]="Menu system demo"
+        ["morph"]="Morph targets animation"
+        ["mosaic"]="Multi-window mosaic"
+        ["multi_world"]="Multiple ECS worlds"
+        ["navmesh"]="NavMesh pathfinding"
+        ["neon_lights"]="Neon light effects"
+        ["physics"]="Physics interaction"
+        ["physics_benchmark"]="Physics stress test"
+        ["picking"]="3D mouse picking"
+        ["pixel_platformer"]="Pixel art platformer"
+        ["platformer"]="Physics-based platformer"
+        ["pong"]="Classic pong game"
+        ["prefabs"]="Prefab loading and instancing"
+        ["psx"]="PS1-style rendering"
+        ["render_layers"]="Render layer filtering"
+        ["roguelike"]="Roguelike dungeon crawler"
+        ["sdf_sculpt"]="SDF sculpting tool"
+        ["sdf_text"]="SDF text rendering"
+        ["shader_studio"]="Live shader editor"
+        ["shadows"]="Shadow mapping"
+        ["shell"]="Shell texturing demo"
+        ["skybox"]="HDR skybox loading"
+        ["sokoban"]="Sokoban puzzle game"
+        ["space_shooter"]="Bullet hell shooter"
+        ["speedreader"]="Speed reading trainer"
+        ["spotlight_shadows"]="Spotlight shadow mapping"
+        ["sprites"]="2D sprite rendering"
+        ["ssao"]="Screen-space ambient occlusion"
+        ["ssr"]="Screen-space reflections"
+        ["survivors"]="Survivors-style action game"
+        ["tappy_plane"]="Flappy plane game"
+        ["terrain"]="Infinite procedural terrain"
+        ["text_adventure"]="Text adventure game"
+        ["textures"]="Texture loading and display"
+        ["topdown_shooter"]="Top-down twin-stick shooter"
+        ["tower_defense"]="Tower defense with ECS"
+        ["ui"]="UI widgets and layouts"
+        ["village_survival"]="Village survival simulation"
+        ["voxels"]="Voxel rendering"
+        ["water"]="Water surface rendering"
+        ["winter"]="Third-person character control"
+    )
+    items=""
+    for dir in examples/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
     [ -n "$example" ] && cargo run -r -p "$example"
 
 # Interactively pick and serve an example in browser
 [windows]
 pick-wasm:
-    $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a WASM demo> "); if ($example) { trunk serve --release --open --config "examples/$example/Trunk.toml" }
+    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "cyberdust" = "Neon runner game"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "pixel_platformer" = "Pixel art platformer"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "tappy_plane" = "Flappy plane game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a WASM demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { trunk serve --release --open --config "examples/$example/Trunk.toml" }
 
 # Interactively pick and serve an example in browser
 [unix]
 pick-wasm:
     #!/usr/bin/env bash
     set -euo pipefail
-    example=$(ls -d examples/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a WASM demo> ")
+    declare -A descriptions=(
+        ["alpha_blending"]="Alpha blending and transparency"
+        ["asteroid_belt"]="Asteroid belt simulation"
+        ["audio"]="Spatial audio playback"
+        ["block_breaker"]="Block breaker arcade game"
+        ["block_breaker_scripts"]="Block breaker with WASM scripts"
+        ["bloom"]="Bloom post-processing"
+        ["bunnymark"]="Sprite rendering benchmark"
+        ["camera_in_camera"]="Nested camera rendering"
+        ["castle_siege"]="GOAP AI castle siege"
+        ["chess"]="3D chess game"
+        ["chip8"]="Super CHIP-8 emulator"
+        ["city"]="Procedural city generator"
+        ["custom_multipass"]="Gaussian blur multipass"
+        ["custom_pass"]="Custom render pass"
+        ["cyberdust"]="Neon runner game"
+        ["dance"]="Skinned mesh benchmark"
+        ["decals"]="Decal projection"
+        ["depth_of_field"]="Depth of field effect"
+        ["doom"]="Doom-style renderer"
+        ["farming"]="Farming simulation"
+        ["fireworks"]="Fireworks particle effects"
+        ["genetic_walkers"]="Genetic algorithm walkers"
+        ["gizmo"]="Transform gizmo"
+        ["hex_war"]="Hex-based strategy game"
+        ["hiz"]="Hi-Z occlusion culling"
+        ["horror"]="First-person horror demo"
+        ["hud_text"]="HUD text rendering"
+        ["immersive_sim"]="Immersive sim sandbox"
+        ["interior_mapping"]="Interior mapping shader"
+        ["jigsaw"]="Jigsaw puzzle game"
+        ["lattice"]="Lattice deformation"
+        ["lights"]="Clustered forward rendering"
+        ["maps"]="Map rendering"
+        ["menu"]="Menu system demo"
+        ["morph"]="Morph targets animation"
+        ["mosaic"]="Multi-window mosaic"
+        ["multi_world"]="Multiple ECS worlds"
+        ["navmesh"]="NavMesh pathfinding"
+        ["neon_lights"]="Neon light effects"
+        ["physics"]="Physics interaction"
+        ["physics_benchmark"]="Physics stress test"
+        ["picking"]="3D mouse picking"
+        ["pixel_platformer"]="Pixel art platformer"
+        ["platformer"]="Physics-based platformer"
+        ["pong"]="Classic pong game"
+        ["prefabs"]="Prefab loading and instancing"
+        ["psx"]="PS1-style rendering"
+        ["render_layers"]="Render layer filtering"
+        ["roguelike"]="Roguelike dungeon crawler"
+        ["sdf_sculpt"]="SDF sculpting tool"
+        ["sdf_text"]="SDF text rendering"
+        ["shader_studio"]="Live shader editor"
+        ["shadows"]="Shadow mapping"
+        ["shell"]="Shell texturing demo"
+        ["skybox"]="HDR skybox loading"
+        ["sokoban"]="Sokoban puzzle game"
+        ["space_shooter"]="Bullet hell shooter"
+        ["speedreader"]="Speed reading trainer"
+        ["spotlight_shadows"]="Spotlight shadow mapping"
+        ["sprites"]="2D sprite rendering"
+        ["ssao"]="Screen-space ambient occlusion"
+        ["ssr"]="Screen-space reflections"
+        ["survivors"]="Survivors-style action game"
+        ["tappy_plane"]="Flappy plane game"
+        ["terrain"]="Infinite procedural terrain"
+        ["text_adventure"]="Text adventure game"
+        ["textures"]="Texture loading and display"
+        ["topdown_shooter"]="Top-down twin-stick shooter"
+        ["tower_defense"]="Tower defense with ECS"
+        ["ui"]="UI widgets and layouts"
+        ["village_survival"]="Village survival simulation"
+        ["voxels"]="Voxel rendering"
+        ["water"]="Water surface rendering"
+        ["winter"]="Third-person character control"
+    )
+    items=""
+    for dir in examples/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a WASM demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
     [ -n "$example" ] && trunk serve --release --open --config "examples/$example/Trunk.toml"
 
 # Interactively pick and run a native-only example
 [windows]
 pick-native:
-    $example = (Get-ChildItem -Directory "examples-native" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a native demo> "); if ($example) { cargo run -r -p $example }
+    $descriptions = @{ "assets" = "3D model and asset viewer"; "claude_chat" = "Claude chat with egui UI"; "claude_chat_leptos" = "Claude chat with Leptos webview"; "claude_chat_leptos_mcp" = "Claude chat with Leptos + MCP tools"; "claude_chat_mcp" = "Claude chat with MCP scene tools"; "demo_scene" = "Visual effects and lighting demo"; "mcp" = "MCP model viewer"; "multiplayer_pong" = "Networked multiplayer pong"; "plugins" = "WASM plugin system demo"; "steam" = "Steam integration demo"; "webview" = "Embedded webview demo" }; $example = (Get-ChildItem -Directory "examples-native" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a native demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { if (Test-Path "examples-native/$example/justfile") { Push-Location "examples-native/$example"; just run; Pop-Location } else { cargo run -r -p $example } }
 
 # Interactively pick and run a native-only example
 [unix]
 pick-native:
     #!/usr/bin/env bash
     set -euo pipefail
-    example=$(ls -d examples-native/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a native demo> ")
-    [ -n "$example" ] && cargo run -r -p "$example"
+    declare -A descriptions=(
+        ["assets"]="3D model and asset viewer"
+        ["claude_chat"]="Claude chat with egui UI"
+        ["claude_chat_leptos"]="Claude chat with Leptos webview"
+        ["claude_chat_leptos_mcp"]="Claude chat with Leptos + MCP tools"
+        ["claude_chat_mcp"]="Claude chat with MCP scene tools"
+        ["demo_scene"]="Visual effects and lighting demo"
+        ["mcp"]="MCP model viewer"
+        ["multiplayer_pong"]="Networked multiplayer pong"
+        ["plugins"]="WASM plugin system demo"
+        ["steam"]="Steam integration demo"
+        ["webview"]="Embedded webview demo"
+    )
+    items=""
+    for dir in examples-native/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a native demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
+    if [ -n "$example" ]; then
+        if [ -f "examples-native/$example/justfile" ]; then
+            cd "examples-native/$example" && just run
+        else
+            cargo run -r -p "$example"
+        fi
+    fi
 
 # Interactively pick and run a terminal example (in terminal)
 [windows]
 pick-terminal:
-    $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a terminal demo> "); if ($example) { cargo run -r -p $example }
+    $descriptions = @{ "asteroids" = "Classic asteroids arcade"; "bomberman" = "Bomberman grid game"; "bouncing_balls" = "Physics bouncing simulation"; "breakout" = "Breakout paddle game"; "bullet_hell" = "Bullet hell shooter"; "colony" = "Colony management sim"; "deck_builder" = "Deck-building card game"; "falling_sand" = "Falling sand simulation"; "flappy_bird" = "Flappy bird clone"; "frogger" = "Frogger road crossing"; "game_of_life" = "Conway's Game of Life"; "hex_strategy" = "Hex-based strategy"; "lemonade" = "Lemonade stand business sim"; "match3" = "Match-3 puzzle game"; "minesweeper" = "Minesweeper"; "pacman" = "Pac-Man maze game"; "pathfinding_demo" = "Pathfinding visualization"; "puzzle_2048" = "2048 number puzzle"; "rhythm" = "Rhythm music game"; "snake" = "Classic snake game"; "solitaire" = "Klondike solitaire"; "space_invaders" = "Space invaders arcade"; "terminal_chess" = "Chess with AI"; "terminal_doom" = "Doom-style FPS"; "terminal_platformer" = "Side-scrolling platformer"; "terminal_pong" = "Classic pong"; "terminal_roguelike" = "Roguelike dungeon crawler"; "terminal_sokoban" = "Sokoban box puzzles"; "terminal_text_adventure" = "Text adventure RPG"; "terminal_tower_defense" = "Tower defense strategy"; "tetris" = "Classic tetris"; "typing_game" = "Typing speed game"; "wasteland" = "Post-apocalyptic survival"; "wordle" = "Wordle word guessing" }; $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a terminal demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { cargo run -r -p $example }
 
 # Interactively pick and run a terminal example (in terminal)
 [unix]
 pick-terminal:
     #!/usr/bin/env bash
     set -euo pipefail
-    example=$(ls -d examples-terminal/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a terminal demo> ")
+    declare -A descriptions=(
+        ["asteroids"]="Classic asteroids arcade"
+        ["bomberman"]="Bomberman grid game"
+        ["bouncing_balls"]="Physics bouncing simulation"
+        ["breakout"]="Breakout paddle game"
+        ["bullet_hell"]="Bullet hell shooter"
+        ["colony"]="Colony management sim"
+        ["deck_builder"]="Deck-building card game"
+        ["falling_sand"]="Falling sand simulation"
+        ["flappy_bird"]="Flappy bird clone"
+        ["frogger"]="Frogger road crossing"
+        ["game_of_life"]="Conway's Game of Life"
+        ["hex_strategy"]="Hex-based strategy"
+        ["lemonade"]="Lemonade stand business sim"
+        ["match3"]="Match-3 puzzle game"
+        ["minesweeper"]="Minesweeper"
+        ["pacman"]="Pac-Man maze game"
+        ["pathfinding_demo"]="Pathfinding visualization"
+        ["puzzle_2048"]="2048 number puzzle"
+        ["rhythm"]="Rhythm music game"
+        ["snake"]="Classic snake game"
+        ["solitaire"]="Klondike solitaire"
+        ["space_invaders"]="Space invaders arcade"
+        ["terminal_chess"]="Chess with AI"
+        ["terminal_doom"]="Doom-style FPS"
+        ["terminal_platformer"]="Side-scrolling platformer"
+        ["terminal_pong"]="Classic pong"
+        ["terminal_roguelike"]="Roguelike dungeon crawler"
+        ["terminal_sokoban"]="Sokoban box puzzles"
+        ["terminal_text_adventure"]="Text adventure RPG"
+        ["terminal_tower_defense"]="Tower defense strategy"
+        ["tetris"]="Classic tetris"
+        ["typing_game"]="Typing speed game"
+        ["wasteland"]="Post-apocalyptic survival"
+        ["wordle"]="Wordle word guessing"
+    )
+    items=""
+    for dir in examples-terminal/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a terminal demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
     [ -n "$example" ] && cargo run -r -p "$example"
 
 # Interactively pick and run a terminal example in TUI mode (windowed)
 [windows]
 pick-tui:
-    $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a TUI demo> "); if ($example) { cargo run -r -p $example --no-default-features --features tui }
+    $descriptions = @{ "asteroids" = "Classic asteroids arcade"; "bomberman" = "Bomberman grid game"; "bouncing_balls" = "Physics bouncing simulation"; "breakout" = "Breakout paddle game"; "bullet_hell" = "Bullet hell shooter"; "colony" = "Colony management sim"; "deck_builder" = "Deck-building card game"; "falling_sand" = "Falling sand simulation"; "flappy_bird" = "Flappy bird clone"; "frogger" = "Frogger road crossing"; "game_of_life" = "Conway's Game of Life"; "hex_strategy" = "Hex-based strategy"; "lemonade" = "Lemonade stand business sim"; "match3" = "Match-3 puzzle game"; "minesweeper" = "Minesweeper"; "pacman" = "Pac-Man maze game"; "pathfinding_demo" = "Pathfinding visualization"; "puzzle_2048" = "2048 number puzzle"; "rhythm" = "Rhythm music game"; "snake" = "Classic snake game"; "solitaire" = "Klondike solitaire"; "space_invaders" = "Space invaders arcade"; "terminal_chess" = "Chess with AI"; "terminal_doom" = "Doom-style FPS"; "terminal_platformer" = "Side-scrolling platformer"; "terminal_pong" = "Classic pong"; "terminal_roguelike" = "Roguelike dungeon crawler"; "terminal_sokoban" = "Sokoban box puzzles"; "terminal_text_adventure" = "Text adventure RPG"; "terminal_tower_defense" = "Tower defense strategy"; "tetris" = "Classic tetris"; "typing_game" = "Typing speed game"; "wasteland" = "Post-apocalyptic survival"; "wordle" = "Wordle word guessing" }; $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a TUI demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { cargo run -r -p $example --no-default-features --features tui }
 
 # Interactively pick and run a terminal example in TUI mode (windowed)
 [unix]
 pick-tui:
     #!/usr/bin/env bash
     set -euo pipefail
-    example=$(ls -d examples-terminal/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a TUI demo> ")
+    declare -A descriptions=(
+        ["asteroids"]="Classic asteroids arcade"
+        ["bomberman"]="Bomberman grid game"
+        ["bouncing_balls"]="Physics bouncing simulation"
+        ["breakout"]="Breakout paddle game"
+        ["bullet_hell"]="Bullet hell shooter"
+        ["colony"]="Colony management sim"
+        ["deck_builder"]="Deck-building card game"
+        ["falling_sand"]="Falling sand simulation"
+        ["flappy_bird"]="Flappy bird clone"
+        ["frogger"]="Frogger road crossing"
+        ["game_of_life"]="Conway's Game of Life"
+        ["hex_strategy"]="Hex-based strategy"
+        ["lemonade"]="Lemonade stand business sim"
+        ["match3"]="Match-3 puzzle game"
+        ["minesweeper"]="Minesweeper"
+        ["pacman"]="Pac-Man maze game"
+        ["pathfinding_demo"]="Pathfinding visualization"
+        ["puzzle_2048"]="2048 number puzzle"
+        ["rhythm"]="Rhythm music game"
+        ["snake"]="Classic snake game"
+        ["solitaire"]="Klondike solitaire"
+        ["space_invaders"]="Space invaders arcade"
+        ["terminal_chess"]="Chess with AI"
+        ["terminal_doom"]="Doom-style FPS"
+        ["terminal_platformer"]="Side-scrolling platformer"
+        ["terminal_pong"]="Classic pong"
+        ["terminal_roguelike"]="Roguelike dungeon crawler"
+        ["terminal_sokoban"]="Sokoban box puzzles"
+        ["terminal_text_adventure"]="Text adventure RPG"
+        ["terminal_tower_defense"]="Tower defense strategy"
+        ["tetris"]="Classic tetris"
+        ["typing_game"]="Typing speed game"
+        ["wasteland"]="Post-apocalyptic survival"
+        ["wordle"]="Wordle word guessing"
+    )
+    items=""
+    for dir in examples-terminal/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a TUI demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
     [ -n "$example" ] && cargo run -r -p "$example" --no-default-features --features tui
 
 # Interactively pick and serve a terminal example in browser
 [windows]
 pick-wasm-tui:
-    $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a WASM TUI demo> "); if ($example) { trunk serve --release --open --config "examples-terminal/$example/Trunk.toml" }
+    $descriptions = @{ "asteroids" = "Classic asteroids arcade"; "bomberman" = "Bomberman grid game"; "bouncing_balls" = "Physics bouncing simulation"; "breakout" = "Breakout paddle game"; "bullet_hell" = "Bullet hell shooter"; "colony" = "Colony management sim"; "deck_builder" = "Deck-building card game"; "falling_sand" = "Falling sand simulation"; "flappy_bird" = "Flappy bird clone"; "frogger" = "Frogger road crossing"; "game_of_life" = "Conway's Game of Life"; "hex_strategy" = "Hex-based strategy"; "lemonade" = "Lemonade stand business sim"; "match3" = "Match-3 puzzle game"; "minesweeper" = "Minesweeper"; "pacman" = "Pac-Man maze game"; "pathfinding_demo" = "Pathfinding visualization"; "puzzle_2048" = "2048 number puzzle"; "rhythm" = "Rhythm music game"; "snake" = "Classic snake game"; "solitaire" = "Klondike solitaire"; "space_invaders" = "Space invaders arcade"; "terminal_chess" = "Chess with AI"; "terminal_doom" = "Doom-style FPS"; "terminal_platformer" = "Side-scrolling platformer"; "terminal_pong" = "Classic pong"; "terminal_roguelike" = "Roguelike dungeon crawler"; "terminal_sokoban" = "Sokoban box puzzles"; "terminal_text_adventure" = "Text adventure RPG"; "terminal_tower_defense" = "Tower defense strategy"; "tetris" = "Classic tetris"; "typing_game" = "Typing speed game"; "wasteland" = "Post-apocalyptic survival"; "wordle" = "Wordle word guessing" }; $example = (Get-ChildItem -Directory "examples-terminal" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a WASM TUI demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { trunk serve --release --open --config "examples-terminal/$example/Trunk.toml" }
 
 # Interactively pick and serve a terminal example in browser
 [unix]
 pick-wasm-tui:
     #!/usr/bin/env bash
     set -euo pipefail
-    example=$(ls -d examples-terminal/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a WASM TUI demo> ")
+    declare -A descriptions=(
+        ["asteroids"]="Classic asteroids arcade"
+        ["bomberman"]="Bomberman grid game"
+        ["bouncing_balls"]="Physics bouncing simulation"
+        ["breakout"]="Breakout paddle game"
+        ["bullet_hell"]="Bullet hell shooter"
+        ["colony"]="Colony management sim"
+        ["deck_builder"]="Deck-building card game"
+        ["falling_sand"]="Falling sand simulation"
+        ["flappy_bird"]="Flappy bird clone"
+        ["frogger"]="Frogger road crossing"
+        ["game_of_life"]="Conway's Game of Life"
+        ["hex_strategy"]="Hex-based strategy"
+        ["lemonade"]="Lemonade stand business sim"
+        ["match3"]="Match-3 puzzle game"
+        ["minesweeper"]="Minesweeper"
+        ["pacman"]="Pac-Man maze game"
+        ["pathfinding_demo"]="Pathfinding visualization"
+        ["puzzle_2048"]="2048 number puzzle"
+        ["rhythm"]="Rhythm music game"
+        ["snake"]="Classic snake game"
+        ["solitaire"]="Klondike solitaire"
+        ["space_invaders"]="Space invaders arcade"
+        ["terminal_chess"]="Chess with AI"
+        ["terminal_doom"]="Doom-style FPS"
+        ["terminal_platformer"]="Side-scrolling platformer"
+        ["terminal_pong"]="Classic pong"
+        ["terminal_roguelike"]="Roguelike dungeon crawler"
+        ["terminal_sokoban"]="Sokoban box puzzles"
+        ["terminal_text_adventure"]="Text adventure RPG"
+        ["terminal_tower_defense"]="Tower defense strategy"
+        ["tetris"]="Classic tetris"
+        ["typing_game"]="Typing speed game"
+        ["wasteland"]="Post-apocalyptic survival"
+        ["wordle"]="Wordle word guessing"
+    )
+    items=""
+    for dir in examples-terminal/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a WASM TUI demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
     [ -n "$example" ] && trunk serve --release --open --config "examples-terminal/$example/Trunk.toml"
 
 # Interactively pick an example and generate a snapshot
 [windows]
 pick-snapshot:
-    $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $_.Name } | Sort-Object | fzf --prompt="Pick a demo to snapshot> "); if ($example) { New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null; $env:NIGHTSHADE_SNAPSHOT_PATH = "snapshots/$example.png"; cargo run -r -p $example }
+    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "cyberdust" = "Neon runner game"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "pixel_platformer" = "Pixel art platformer"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "tappy_plane" = "Flappy plane game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a demo to snapshot> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null; $env:NIGHTSHADE_SNAPSHOT_PATH = "snapshots/$example.png"; cargo run -r -p $example }
 
 # Interactively pick an example and generate a snapshot
 [unix]
 pick-snapshot:
     #!/usr/bin/env bash
     set -euo pipefail
-    example=$(ls -d examples/*/ 2>/dev/null | xargs -I{} basename {} | sort | fzf --prompt="Pick a demo to snapshot> ")
+    declare -A descriptions=(
+        ["alpha_blending"]="Alpha blending and transparency"
+        ["asteroid_belt"]="Asteroid belt simulation"
+        ["audio"]="Spatial audio playback"
+        ["block_breaker"]="Block breaker arcade game"
+        ["block_breaker_scripts"]="Block breaker with WASM scripts"
+        ["bloom"]="Bloom post-processing"
+        ["bunnymark"]="Sprite rendering benchmark"
+        ["camera_in_camera"]="Nested camera rendering"
+        ["castle_siege"]="GOAP AI castle siege"
+        ["chess"]="3D chess game"
+        ["chip8"]="Super CHIP-8 emulator"
+        ["city"]="Procedural city generator"
+        ["custom_multipass"]="Gaussian blur multipass"
+        ["custom_pass"]="Custom render pass"
+        ["cyberdust"]="Neon runner game"
+        ["dance"]="Skinned mesh benchmark"
+        ["decals"]="Decal projection"
+        ["depth_of_field"]="Depth of field effect"
+        ["doom"]="Doom-style renderer"
+        ["farming"]="Farming simulation"
+        ["fireworks"]="Fireworks particle effects"
+        ["genetic_walkers"]="Genetic algorithm walkers"
+        ["gizmo"]="Transform gizmo"
+        ["hex_war"]="Hex-based strategy game"
+        ["hiz"]="Hi-Z occlusion culling"
+        ["horror"]="First-person horror demo"
+        ["hud_text"]="HUD text rendering"
+        ["immersive_sim"]="Immersive sim sandbox"
+        ["interior_mapping"]="Interior mapping shader"
+        ["jigsaw"]="Jigsaw puzzle game"
+        ["lattice"]="Lattice deformation"
+        ["lights"]="Clustered forward rendering"
+        ["maps"]="Map rendering"
+        ["menu"]="Menu system demo"
+        ["morph"]="Morph targets animation"
+        ["mosaic"]="Multi-window mosaic"
+        ["multi_world"]="Multiple ECS worlds"
+        ["navmesh"]="NavMesh pathfinding"
+        ["neon_lights"]="Neon light effects"
+        ["physics"]="Physics interaction"
+        ["physics_benchmark"]="Physics stress test"
+        ["picking"]="3D mouse picking"
+        ["pixel_platformer"]="Pixel art platformer"
+        ["platformer"]="Physics-based platformer"
+        ["pong"]="Classic pong game"
+        ["prefabs"]="Prefab loading and instancing"
+        ["psx"]="PS1-style rendering"
+        ["render_layers"]="Render layer filtering"
+        ["roguelike"]="Roguelike dungeon crawler"
+        ["sdf_sculpt"]="SDF sculpting tool"
+        ["sdf_text"]="SDF text rendering"
+        ["shader_studio"]="Live shader editor"
+        ["shadows"]="Shadow mapping"
+        ["shell"]="Shell texturing demo"
+        ["skybox"]="HDR skybox loading"
+        ["sokoban"]="Sokoban puzzle game"
+        ["space_shooter"]="Bullet hell shooter"
+        ["speedreader"]="Speed reading trainer"
+        ["spotlight_shadows"]="Spotlight shadow mapping"
+        ["sprites"]="2D sprite rendering"
+        ["ssao"]="Screen-space ambient occlusion"
+        ["ssr"]="Screen-space reflections"
+        ["survivors"]="Survivors-style action game"
+        ["tappy_plane"]="Flappy plane game"
+        ["terrain"]="Infinite procedural terrain"
+        ["text_adventure"]="Text adventure game"
+        ["textures"]="Texture loading and display"
+        ["topdown_shooter"]="Top-down twin-stick shooter"
+        ["tower_defense"]="Tower defense with ECS"
+        ["ui"]="UI widgets and layouts"
+        ["village_survival"]="Village survival simulation"
+        ["voxels"]="Voxel rendering"
+        ["water"]="Water surface rendering"
+        ["winter"]="Third-person character control"
+    )
+    items=""
+    for dir in examples/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a demo to snapshot> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
     if [ -n "$example" ]; then
         mkdir -p snapshots
         NIGHTSHADE_SNAPSHOT_PATH="snapshots/$example.png" cargo run -r -p "$example"

@@ -1,0 +1,9 @@
+[package]
+name = "mcp"
+description = "3D scene viewer with nightshade's built-in MCP server for AI-driven scene manipulation"
+version = "0.1.0"
+authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
+edition = "2024"
+
+[dependencies]
+nightshade = { workspace = true, features = ["mcp", "egui", "physics"] }

@@ -53,6 +53,8 @@ impl State for PluginsDemo {
     }
 
     fn initialize(&mut self, world: &mut World) {
+        world.resources.graphics.atmosphere = Atmosphere::Sky;
+        world.resources.graphics.show_grid = true;
         spawn_sun(world);
         spawn_camera(world);
 

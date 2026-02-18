@@ -1,0 +1,9 @@
+[package]
+name = "claude_chat_mcp"
+description = "Chat UI with Claude and nightshade's built-in MCP server for AI-driven scene manipulation with toast notifications"
+version = "0.1.0"
+authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
+edition = "2024"
+
+[dependencies]
+nightshade = { workspace = true, features = ["claude", "mcp", "egui", "mosaic"] }

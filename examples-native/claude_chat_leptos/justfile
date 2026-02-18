@@ -1,0 +1,23 @@
+set windows-shell := ["powershell.exe"]
+
+@just:
+    just --list
+
+[working-directory: 'site']
+run: setup
+  npx tailwindcss -i public/input.css -o public/output.css
+  trunk build --release
+  cargo run --manifest-path ../Cargo.toml
+
+[working-directory: 'site']
+setup:
+  npm install
+
+format:
+  cargo fmt --all
+
+lint:
+  cargo clippy --all -- -D warnings
+
+check:
+  cargo check --all

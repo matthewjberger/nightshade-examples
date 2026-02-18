@@ -1,0 +1,21 @@
+[package]
+name = "claude-chat-site"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+leptos = { version = "0.8", features = ["csr", "nightly"] }
+console_log = "1"
+log = "0.4"
+console_error_panic_hook = "0.1"
+claude_chat_protocol = { path = "../protocol" }
+nightshade = { git = "https://github.com/matthewjberger/nightshade.git", default-features = false, features = [
+    "webview",
+] }
+web-sys = { version = "0.3", features = ["Document", "Window", "HtmlTextAreaElement", "KeyboardEvent", "HtmlElement", "ScrollBehavior", "ScrollIntoViewOptions", "Event"] }
+js-sys = "0.3"
+
+[dev-dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-test = "0.3"

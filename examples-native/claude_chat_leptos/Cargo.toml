@@ -1,0 +1,42 @@
+[workspace]
+resolver = "2"
+members = [".", "site", "protocol"]
+
+[package]
+name = "claude-chat-leptos"
+version = "0.1.0"
+authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
+description = "Chat UI for Claude CLI using nightshade webview with a Leptos frontend"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[[bin]]
+name = "claude-chat-leptos"
+path = "src/main.rs"
+
+[dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+nightshade = { git = "https://github.com/matthewjberger/nightshade.git", default-features = false, features = [
+    "runtime",
+    "wgpu",
+    "egui",
+    "webview",
+    "claude",
+] }
+include_dir = "0.7"
+claude_chat_protocol = { path = "protocol" }
+serde_json = "1"
+
+[build-dependencies]
+
+[patch."https://github.com/matthewjberger/nightshade.git"]
+nightshade = { path = "../../../nightshade/crates/nightshade" }
+
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = "abort"

@@ -1,0 +1,12 @@
+[package]
+name = "claude_chat_protocol"
+version = "0.1.0"
+authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
+description = "Shared message types for claude_chat_leptos bidirectional communication"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[dependencies]
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }

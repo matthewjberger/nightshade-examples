@@ -9,4 +9,5 @@ edition = "2024"
 openxr = ["nightshade/openxr"]
 
 [dependencies]
+bytemuck = { version = "1", features = ["derive"] }
 nightshade = { workspace = true, features = ["egui", "tracing"] }

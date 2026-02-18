@@ -691,7 +691,7 @@ impl SceneViewWidget {
         }
     }
 
-    fn required_camera(&self, _world: &World) -> Option<Entity> {
+    fn required_camera(&self, _cached_cameras: &[Entity]) -> Option<Entity> {
         self.camera_entity
     }
 
@@ -835,10 +835,10 @@ impl Widget<AppContext, AppMessage> for AppWidget {
         }
     }
 
-    fn required_camera(&self, world: &World) -> Option<Entity> {
+    fn required_camera(&self, cached_cameras: &[Entity]) -> Option<Entity> {
         match self {
-            AppWidget::Viewport(widget) => widget.required_camera(world),
-            AppWidget::SceneView(widget) => widget.required_camera(world),
+            AppWidget::Viewport(widget) => widget.required_camera(cached_cameras),
+            AppWidget::SceneView(widget) => widget.required_camera(cached_cameras),
             AppWidget::SceneGraph(_) | AppWidget::Properties(_) | AppWidget::Log(_) => None,
         }
     }

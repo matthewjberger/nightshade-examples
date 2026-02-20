@@ -495,7 +495,7 @@ impl State for MultiWorldDemo {
                 animate_objects_fixed(&mut instance.world, self.total_time, animated);
             }
 
-            update_animation_players(&mut instance.world, delta_time);
+            update_animation_players(&mut instance.world);
             apply_animations(&mut instance.world);
             sync_text_meshes_system(&mut instance.world);
             update_global_transforms_system(&mut instance.world);

@@ -145,37 +145,21 @@ fn spawn_bunnies(world: &mut World, bunny_world: &mut BunnyWorld, count: usize) 
     let spawn_x = bunny_world.resources.max_x * 0.5;
     let spawn_y = bunny_world.resources.max_y * 0.9;
 
-    let new_entities = world.spawn_entities(
-        SPRITE
-            | RENDER_MESH
-            | MATERIAL_REF
-            | VISIBILITY
-            | LOCAL_TRANSFORM
-            | LOCAL_TRANSFORM_DIRTY
-            | GLOBAL_TRANSFORM,
-        count,
-    );
+    let new_entities = world.spawn_entities(SPRITE | VISIBILITY, count);
 
     for &entity in &new_entities {
         if let Some(sprite) = world.get_sprite_mut(entity) {
+            sprite.position = Vec2::new(spawn_x, spawn_y);
             sprite.texture_index = 0;
             sprite.uv_min = Vec2::new(0.0, 0.0);
             sprite.uv_max = Vec2::new(1.0, 1.0);
             sprite.color = [1.0, 1.0, 1.0, 1.0];
+            sprite.size = Vec2::new(BUNNY_SIZE, BUNNY_SIZE);
         }
 
-        if let Some(render_mesh) = world.get_render_mesh_mut(entity) {
-            render_mesh.name = "SpriteQuad".to_string();
+        if let Some(visibility) = world.get_visibility_mut(entity) {
+            visibility.visible = true;
         }
-        if let Some(material_ref) = world.get_material_ref_mut(entity) {
-            material_ref.name = "sprite_atlas".to_string();
-        }
-
-        if let Some(transform) = world.get_local_transform_mut(entity) {
-            transform.translation = Vec3::new(spawn_x, spawn_y, 0.0);
-            transform.scale = Vec3::new(BUNNY_SIZE, BUNNY_SIZE, 1.0);
-        }
-        mark_local_transform_dirty(world, entity);
 
         bunny_world.resources.engine_entities.push(entity);
         bunny_world.resources.velocities.push(Vec2::new(
@@ -247,28 +231,26 @@ fn update_physics(world: &mut World, bunny_world: &mut BunnyWorld) {
 
         velocity.y += GRAVITY * delta_time;
 
-        if let Some(transform) = world.get_local_transform_mut(entity) {
-            transform.translation.x += velocity.x * delta_time;
-            transform.translation.y += velocity.y * delta_time;
+        if let Some(sprite) = world.get_sprite_mut(entity) {
+            sprite.position.x += velocity.x * delta_time;
+            sprite.position.y += velocity.y * delta_time;
 
-            if transform.translation.x > max_x - BUNNY_SIZE {
-                transform.translation.x = max_x - BUNNY_SIZE;
+            if sprite.position.x > max_x - BUNNY_SIZE {
+                sprite.position.x = max_x - BUNNY_SIZE;
                 velocity.x = -velocity.x;
-            } else if transform.translation.x < 0.0 {
-                transform.translation.x = 0.0;
+            } else if sprite.position.x < 0.0 {
+                sprite.position.x = 0.0;
                 velocity.x = -velocity.x;
             }
 
-            if transform.translation.y < 0.0 {
-                transform.translation.y = 0.0;
+            if sprite.position.y < 0.0 {
+                sprite.position.y = 0.0;
                 velocity.y = -velocity.y;
-            } else if transform.translation.y > max_y - BUNNY_SIZE {
-                transform.translation.y = max_y - BUNNY_SIZE;
+            } else if sprite.position.y > max_y - BUNNY_SIZE {
+                sprite.position.y = max_y - BUNNY_SIZE;
                 velocity.y = -velocity.y;
             }
         }
-
-        mark_local_transform_dirty(world, entity);
     }
 }
 

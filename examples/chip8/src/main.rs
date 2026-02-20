@@ -79,7 +79,7 @@ impl State for Chip8App {
 
                 let entity = spawn_sprite(
                     world,
-                    Vec3::new(world_x, world_y, 0.0),
+                    Vec2::new(world_x, world_y),
                     Vec2::new(PIXEL_SIZE - 0.5, PIXEL_SIZE - 0.5),
                 );
 

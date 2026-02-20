@@ -1137,7 +1137,6 @@ impl State for AssetViewer {
         }
 
         if let Some(ref mut viewer) = self.model_viewer {
-            let delta_time = world.resources.window.timing.delta_time;
             viewer.world.resources.window.timing = world.resources.window.timing.clone();
 
             viewer.world.resources.input.mouse = world.resources.input.mouse;
@@ -1152,13 +1151,12 @@ impl State for AssetViewer {
             viewer.world.resources.user_interface.hud_wants_pointer = false;
 
             pan_orbit_camera_system(&mut viewer.world);
-            update_animation_players(&mut viewer.world, delta_time);
+            update_animation_players(&mut viewer.world);
             apply_animations(&mut viewer.world);
             update_global_transforms_system(&mut viewer.world);
         }
 
         if let Some(ref mut zoo) = self.asset_zoo {
-            let delta_time = world.resources.window.timing.delta_time;
             zoo.world.resources.window.timing = world.resources.window.timing.clone();
 
             zoo.world.resources.input.mouse = world.resources.input.mouse;
@@ -1173,7 +1171,7 @@ impl State for AssetViewer {
             zoo.world.resources.user_interface.hud_wants_pointer = false;
 
             pan_orbit_camera_system(&mut zoo.world);
-            update_animation_players(&mut zoo.world, delta_time);
+            update_animation_players(&mut zoo.world);
             apply_animations(&mut zoo.world);
             update_global_transforms_system(&mut zoo.world);
         }

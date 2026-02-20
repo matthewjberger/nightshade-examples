@@ -1,4 +1,5 @@
 use image::GenericImageView;
+use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::transform::commands::mark_local_transform_dirty;
 use nightshade::prelude::*;
 
@@ -20,12 +21,11 @@ const WAVE_CLEAR_DURATION: f32 = 2.0;
 const BOSS_INTRO_DURATION: f32 = 3.0;
 const METEOR_COUNT: usize = 8;
 const STAR_COUNT: usize = 40;
-const BG_TILE_COUNT: i32 = 3;
-const PLAY_AREA_HALF_WIDTH: f32 = 450.0;
-const PLAY_AREA_HALF_HEIGHT: f32 = 500.0;
+const BG_TILE_COUNT: i32 = 5;
+const PLAYER_EDGE_MARGIN: f32 = 40.0;
 const EXTRA_LIFE_SCORE_INTERVAL: u64 = 500_000;
 const SCREEN_SHAKE_DECAY: f32 = 10.0;
-const GRAZE_FLASH_DURATION: f32 = 0.15;
+const GRAZE_FLASH_DURATION: f32 = 0.6;
 const ENEMY_BULLET_BASE_SPEED: f32 = 280.0;
 const DESPAWN_MARGIN: f32 = 100.0;
 const CAMERA_Z: f32 = 1303.0;
@@ -36,6 +36,7 @@ const PLAYER_TILT_SPEED: f32 = 8.0;
 const BARREL_ROLL_DURATION: f32 = 0.4;
 const BARREL_ROLL_INVINCIBILITY: f32 = 0.5;
 const DOUBLE_TAP_WINDOW: f32 = 0.3;
+const GAMEPAD_DEADZONE: f32 = 0.15;
 
 const SLOT_BG: u32 = 0;
 const SLOT_PLAYER: u32 = 1;
@@ -189,25 +190,21 @@ fn uv_for_slot(
 
 fn entity_position_2d(world: &World, entity: freecs::Entity) -> nalgebra_glm::Vec2 {
     world
-        .get_local_transform(entity)
-        .map(|transform| nalgebra_glm::Vec2::new(transform.translation.x, transform.translation.y))
+        .get_sprite(entity)
+        .map(|sprite| sprite.position)
         .unwrap_or_default()
 }
 
 fn set_entity_position_2d(world: &mut World, entity: freecs::Entity, position: nalgebra_glm::Vec2) {
-    if let Some(transform) = world.get_local_transform_mut(entity) {
-        transform.translation.x = position.x;
-        transform.translation.y = position.y;
+    if let Some(sprite) = world.get_sprite_mut(entity) {
+        sprite.position = position;
     }
-    mark_local_transform_dirty(world, entity);
 }
 
 fn translate_entity_2d(world: &mut World, entity: freecs::Entity, delta: nalgebra_glm::Vec2) {
-    if let Some(transform) = world.get_local_transform_mut(entity) {
-        transform.translation.x += delta.x;
-        transform.translation.y += delta.y;
+    if let Some(sprite) = world.get_sprite_mut(entity) {
+        sprite.position += delta;
     }
-    mark_local_transform_dirty(world, entity);
 }
 
 fn texture_size_from_list(sizes: &[(f32, f32)], slot: u32) -> nalgebra_glm::Vec2 {
@@ -577,7 +574,11 @@ struct WaveDefinition {
     spawns: Vec<WaveSpawnEntry>,
 }
 
-fn generate_wave(wave_number: u32) -> WaveDefinition {
+fn generate_wave(
+    wave_number: u32,
+    play_area_half_width: f32,
+    play_area_half_height: f32,
+) -> WaveDefinition {
     use rand::Rng;
     let mut rng = rand::rng();
 
@@ -585,11 +586,11 @@ fn generate_wave(wave_number: u32) -> WaveDefinition {
     let is_miniboss_wave = wave_number.is_multiple_of(5) && !is_boss_wave && wave_number > 0;
 
     if is_boss_wave {
-        return generate_boss_wave(wave_number);
+        return generate_boss_wave(wave_number, play_area_half_height);
     }
 
     if is_miniboss_wave {
-        return generate_miniboss_wave(wave_number);
+        return generate_miniboss_wave(wave_number, play_area_half_height);
     }
 
     let enemy_count = (8 + wave_number * 3).min(60);
@@ -601,8 +602,8 @@ fn generate_wave(wave_number: u32) -> WaveDefinition {
     let mut accumulated_delay = 0.0;
 
     for enemy_index in 0..enemy_count {
-        let spawn_x = rng.random_range(-PLAY_AREA_HALF_WIDTH * 0.8..PLAY_AREA_HALF_WIDTH * 0.8);
-        let spawn_y = PLAY_AREA_HALF_HEIGHT + 80.0;
+        let spawn_x = rng.random_range(-play_area_half_width * 0.8..play_area_half_width * 0.8);
+        let spawn_y = play_area_half_height + 80.0;
         let position = nalgebra_glm::Vec2::new(spawn_x, spawn_y);
 
         let kind = pick_enemy_kind_for_wave(wave_number, &mut rng);
@@ -621,7 +622,7 @@ fn generate_wave(wave_number: u32) -> WaveDefinition {
                         speed: 80.0 + rng.random_range(0.0..40.0),
                     }
                 } else {
-                    let target_y = rng.random_range(0.0..PLAY_AREA_HALF_HEIGHT * 0.6);
+                    let target_y = rng.random_range(0.0..play_area_half_height * 0.6);
                     EnemyBehavior::SwoopToY {
                         target_y,
                         speed: 200.0,
@@ -629,13 +630,13 @@ fn generate_wave(wave_number: u32) -> WaveDefinition {
                 }
             }
             EnemyKind::Blue => EnemyBehavior::HoverAtY {
-                target_y: rng.random_range(100.0..PLAY_AREA_HALF_HEIGHT * 0.7),
+                target_y: rng.random_range(100.0..play_area_half_height * 0.7),
                 speed: 180.0,
                 sway_amplitude: rng.random_range(60.0..150.0),
                 sway_frequency: rng.random_range(0.8..2.0),
             },
             EnemyKind::Red => EnemyBehavior::HoverAtY {
-                target_y: rng.random_range(150.0..PLAY_AREA_HALF_HEIGHT * 0.5),
+                target_y: rng.random_range(150.0..play_area_half_height * 0.5),
                 speed: 150.0,
                 sway_amplitude: rng.random_range(40.0..100.0),
                 sway_frequency: rng.random_range(0.5..1.5),
@@ -666,7 +667,7 @@ fn generate_wave(wave_number: u32) -> WaveDefinition {
     WaveDefinition { spawns }
 }
 
-fn generate_miniboss_wave(wave_number: u32) -> WaveDefinition {
+fn generate_miniboss_wave(wave_number: u32, play_area_half_height: f32) -> WaveDefinition {
     use rand::Rng;
     let mut rng = rand::rng();
 
@@ -687,7 +688,7 @@ fn generate_miniboss_wave(wave_number: u32) -> WaveDefinition {
         };
         spawns.push(WaveSpawnEntry {
             kind: escort_kind,
-            position: nalgebra_glm::Vec2::new(x_offset, PLAY_AREA_HALF_HEIGHT + 80.0),
+            position: nalgebra_glm::Vec2::new(x_offset, play_area_half_height + 80.0),
             behavior: EnemyBehavior::HoverAtY {
                 target_y: rng.random_range(150.0..300.0),
                 speed: 180.0,
@@ -739,7 +740,7 @@ fn generate_miniboss_wave(wave_number: u32) -> WaveDefinition {
 
     spawns.push(WaveSpawnEntry {
         kind: EnemyKind::UfoBlue,
-        position: nalgebra_glm::Vec2::new(0.0, PLAY_AREA_HALF_HEIGHT + 80.0),
+        position: nalgebra_glm::Vec2::new(0.0, play_area_half_height + 80.0),
         behavior: EnemyBehavior::HoverAtY {
             target_y: 280.0,
             speed: 140.0,
@@ -754,7 +755,7 @@ fn generate_miniboss_wave(wave_number: u32) -> WaveDefinition {
     WaveDefinition { spawns }
 }
 
-fn generate_boss_wave(wave_number: u32) -> WaveDefinition {
+fn generate_boss_wave(wave_number: u32, play_area_half_height: f32) -> WaveDefinition {
     let speed_scale = 1.0 + (wave_number as f32 - 1.0) * 0.08;
     let bullet_speed = ENEMY_BULLET_BASE_SPEED * speed_scale;
     let extra_bullets = wave_number;
@@ -829,7 +830,7 @@ fn generate_boss_wave(wave_number: u32) -> WaveDefinition {
         let x_offset = side * (200.0 + (escort_index / 2) as f32 * 100.0);
         spawns.push(WaveSpawnEntry {
             kind: EnemyKind::Red,
-            position: nalgebra_glm::Vec2::new(x_offset, PLAY_AREA_HALF_HEIGHT + 80.0),
+            position: nalgebra_glm::Vec2::new(x_offset, play_area_half_height + 80.0),
             behavior: EnemyBehavior::HoverAtY {
                 target_y: rng.random_range(180.0..320.0),
                 speed: 160.0,
@@ -844,7 +845,7 @@ fn generate_boss_wave(wave_number: u32) -> WaveDefinition {
 
     spawns.push(WaveSpawnEntry {
         kind: EnemyKind::UfoRed,
-        position: nalgebra_glm::Vec2::new(0.0, PLAY_AREA_HALF_HEIGHT + 80.0),
+        position: nalgebra_glm::Vec2::new(0.0, play_area_half_height + 80.0),
         behavior: EnemyBehavior::CircleAroundPoint {
             center_x: 0.0,
             center_y: 280.0,
@@ -971,6 +972,7 @@ struct Meteor {
 
 struct Explosion {
     entity: freecs::Entity,
+    lifetime: f32,
 }
 
 struct GrazeFlash {
@@ -990,6 +992,7 @@ struct BulletHell {
     camera_entity: Option<freecs::Entity>,
     player_entity: Option<freecs::Entity>,
     hitbox_entity: Option<freecs::Entity>,
+    engine_exhaust_entity: Option<freecs::Entity>,
     player_position: nalgebra_glm::Vec2,
     power_level: u32,
     fire_cooldown: f32,
@@ -1048,6 +1051,15 @@ struct BulletHell {
     uv_max_table: Vec<nalgebra_glm::Vec2>,
     left_was_pressed: bool,
     right_was_pressed: bool,
+    play_area_half_width: f32,
+    play_area_half_height: f32,
+}
+
+fn visible_half_extents(viewport_width: u32, viewport_height: u32) -> (f32, f32) {
+    let aspect_ratio = viewport_width as f32 / viewport_height.max(1) as f32;
+    let half_height = CAMERA_Z * (45.0_f32.to_radians() / 2.0).tan();
+    let half_width = half_height * aspect_ratio;
+    (half_width, half_height)
 }
 
 impl Default for BulletHell {
@@ -1056,7 +1068,8 @@ impl Default for BulletHell {
             camera_entity: None,
             player_entity: None,
             hitbox_entity: None,
-            player_position: nalgebra_glm::Vec2::new(0.0, -PLAY_AREA_HALF_HEIGHT * 0.7),
+            engine_exhaust_entity: None,
+            player_position: nalgebra_glm::Vec2::zeros(),
             power_level: 0,
             fire_cooldown: 0.0,
             invincible_timer: 0.0,
@@ -1114,6 +1127,8 @@ impl Default for BulletHell {
             uv_max_table: Vec::new(),
             left_was_pressed: false,
             right_was_pressed: false,
+            play_area_half_width: 0.0,
+            play_area_half_height: 0.0,
         }
     }
 }
@@ -1128,16 +1143,13 @@ impl BulletHell {
         uv_max_table: &[nalgebra_glm::Vec2],
     ) -> freecs::Entity {
         let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
-        let entity = spawn_sprite(
-            world,
-            nalgebra_glm::Vec3::new(position.x, position.y, z_layer),
-            size,
-        );
+        let entity = spawn_sprite(world, position, size);
         if let Some(sprite) = world.get_sprite_mut(entity) {
             sprite.texture_index = texture_slot;
             sprite.texture_index2 = texture_slot;
             sprite.uv_min = uv_min;
             sprite.uv_max = uv_max;
+            sprite.depth = z_layer;
         }
         entity
     }
@@ -1167,8 +1179,8 @@ impl BulletHell {
     fn spawn_star_field(&self, world: &mut World) {
         use rand::Rng;
         let mut rng = rand::rng();
-        let spread_x = PLAY_AREA_HALF_WIDTH + 200.0;
-        let spread_y = PLAY_AREA_HALF_HEIGHT + 200.0;
+        let spread_x = self.play_area_half_width + 200.0;
+        let spread_y = self.play_area_half_height + 200.0;
 
         for _ in 0..STAR_COUNT {
             let position = nalgebra_glm::Vec2::new(
@@ -1197,8 +1209,8 @@ impl BulletHell {
 
         for _ in 0..METEOR_COUNT {
             let position = nalgebra_glm::Vec2::new(
-                rng.random_range(-PLAY_AREA_HALF_WIDTH..PLAY_AREA_HALF_WIDTH),
-                rng.random_range(-PLAY_AREA_HALF_HEIGHT..PLAY_AREA_HALF_HEIGHT),
+                rng.random_range(-self.play_area_half_width..self.play_area_half_width),
+                rng.random_range(-self.play_area_half_height..self.play_area_half_height),
             );
             let meteor_size = self.texture_size(SLOT_METEOR);
             let scale = rng.random_range(0.5..1.2);
@@ -1243,6 +1255,31 @@ impl BulletHell {
             sprite.color = [1.0, 0.3, 0.3, 0.0];
         }
         self.hitbox_entity = Some(hitbox_entity);
+
+        let exhaust_entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
+        let exhaust_y = self.player_position.y - player_size.y * 0.45;
+        world.set_sprite_particle_emitter(
+            exhaust_entity,
+            SpriteParticleEmitter::fire_trail(self.player_position.x, exhaust_y)
+                .with_depth(LAYER_PLAYER - 0.1)
+                .with_spawn_rate(120.0)
+                .with_max_particles(256)
+                .with_velocity(
+                    nalgebra_glm::Vec2::new(-15.0, -80.0),
+                    nalgebra_glm::Vec2::new(15.0, -30.0),
+                )
+                .with_gravity(nalgebra_glm::Vec2::new(0.0, -50.0))
+                .with_size(
+                    nalgebra_glm::Vec2::new(6.0, 6.0),
+                    nalgebra_glm::Vec2::new(2.0, 2.0),
+                )
+                .with_lifetime(0.15, 0.4)
+                .with_color(ColorRange2D::new(
+                    [0.4, 0.7, 1.0, 0.9],
+                    [0.2, 0.3, 1.0, 0.0],
+                )),
+        );
+        self.engine_exhaust_entity = Some(exhaust_entity);
     }
 
     fn spawn_hud(&mut self, world: &mut World) {
@@ -1374,29 +1411,49 @@ impl BulletHell {
 
         let keyboard = &world.resources.input.keyboard;
 
-        let left =
+        let mut left =
             keyboard.is_key_pressed(KeyCode::KeyA) || keyboard.is_key_pressed(KeyCode::ArrowLeft);
-        let right =
+        let mut right =
             keyboard.is_key_pressed(KeyCode::KeyD) || keyboard.is_key_pressed(KeyCode::ArrowRight);
 
         let left_just_pressed = left && !self.left_was_pressed;
         let right_just_pressed = right && !self.right_was_pressed;
         self.left_was_pressed = left;
         self.right_was_pressed = right;
-        let up =
+        let mut up =
             keyboard.is_key_pressed(KeyCode::KeyW) || keyboard.is_key_pressed(KeyCode::ArrowUp);
-        let down =
+        let mut down =
             keyboard.is_key_pressed(KeyCode::KeyS) || keyboard.is_key_pressed(KeyCode::ArrowDown);
 
         self.focused = keyboard.is_key_pressed(KeyCode::ShiftLeft)
             || keyboard.is_key_pressed(KeyCode::ShiftRight);
+
+        if let Some(gamepad) = query_active_gamepad(world) {
+            let stick_x = gamepad.value(gilrs::Axis::LeftStickX);
+            let stick_y = gamepad.value(gilrs::Axis::LeftStickY);
+            if stick_x < -GAMEPAD_DEADZONE {
+                left = true;
+            }
+            if stick_x > GAMEPAD_DEADZONE {
+                right = true;
+            }
+            if stick_y > GAMEPAD_DEADZONE {
+                up = true;
+            }
+            if stick_y < -GAMEPAD_DEADZONE {
+                down = true;
+            }
+            if gamepad.is_pressed(gilrs::Button::LeftTrigger2) {
+                self.focused = true;
+            }
+        }
 
         if !self.barrel_roll_active {
             if left_just_pressed {
                 if self.game_time - self.last_left_tap_time < DOUBLE_TAP_WINDOW {
                     self.barrel_roll_active = true;
                     self.barrel_roll_timer = BARREL_ROLL_DURATION;
-                    self.barrel_roll_direction = -1.0;
+                    self.barrel_roll_direction = 1.0;
                     self.invincible_timer = self.invincible_timer.max(BARREL_ROLL_INVINCIBILITY);
                     self.last_left_tap_time = -1.0;
                 } else {
@@ -1407,12 +1464,28 @@ impl BulletHell {
                 if self.game_time - self.last_right_tap_time < DOUBLE_TAP_WINDOW {
                     self.barrel_roll_active = true;
                     self.barrel_roll_timer = BARREL_ROLL_DURATION;
-                    self.barrel_roll_direction = 1.0;
+                    self.barrel_roll_direction = -1.0;
                     self.invincible_timer = self.invincible_timer.max(BARREL_ROLL_INVINCIBILITY);
                     self.last_right_tap_time = -1.0;
                 } else {
                     self.last_right_tap_time = self.game_time;
                 }
+            }
+        }
+
+        if let Some(gamepad) = query_active_gamepad(world)
+            && !self.barrel_roll_active
+        {
+            if gamepad.is_pressed(gilrs::Button::LeftTrigger) {
+                self.barrel_roll_active = true;
+                self.barrel_roll_timer = BARREL_ROLL_DURATION;
+                self.barrel_roll_direction = 1.0;
+                self.invincible_timer = self.invincible_timer.max(BARREL_ROLL_INVINCIBILITY);
+            } else if gamepad.is_pressed(gilrs::Button::RightTrigger) {
+                self.barrel_roll_active = true;
+                self.barrel_roll_timer = BARREL_ROLL_DURATION;
+                self.barrel_roll_direction = -1.0;
+                self.invincible_timer = self.invincible_timer.max(BARREL_ROLL_INVINCIBILITY);
             }
         }
 
@@ -1450,23 +1523,19 @@ impl BulletHell {
             self.player_position += movement * speed * delta_time;
         }
 
-        self.player_position.x = self
-            .player_position
-            .x
-            .clamp(-PLAY_AREA_HALF_WIDTH, PLAY_AREA_HALF_WIDTH);
-        self.player_position.y = self
-            .player_position
-            .y
-            .clamp(-PLAY_AREA_HALF_HEIGHT, PLAY_AREA_HALF_HEIGHT);
+        let clamp_width = self.play_area_half_width - PLAYER_EDGE_MARGIN;
+        let clamp_height = self.play_area_half_height - PLAYER_EDGE_MARGIN;
+        self.player_position.x = self.player_position.x.clamp(-clamp_width, clamp_width);
+        self.player_position.y = self.player_position.y.clamp(-clamp_height, clamp_height);
 
         let y_rotation = if self.barrel_roll_active {
             let progress = 1.0 - (self.barrel_roll_timer / BARREL_ROLL_DURATION);
             self.barrel_roll_direction * progress * std::f32::consts::TAU
         } else {
             let target_tilt = if left && !right {
-                -PLAYER_MAX_TILT
-            } else if right && !left {
                 PLAYER_MAX_TILT
+            } else if right && !left {
+                -PLAYER_MAX_TILT
             } else {
                 0.0
             };
@@ -1478,11 +1547,9 @@ impl BulletHell {
         if let Some(entity) = self.player_entity {
             set_entity_position_2d(world, entity, self.player_position);
 
-            if let Some(transform) = world.get_local_transform_mut(entity) {
-                transform.rotation =
-                    nalgebra_glm::quat_angle_axis(y_rotation, &nalgebra_glm::Vec3::y());
+            if let Some(sprite) = world.get_sprite_mut(entity) {
+                sprite.rotation = y_rotation;
             }
-            mark_local_transform_dirty(world, entity);
 
             if self.invincible_timer > 0.0 {
                 let blink = ((self.invincible_timer * 10.0).sin() + 1.0) * 0.5;
@@ -1501,6 +1568,17 @@ impl BulletHell {
                 sprite.color[3] = if self.focused { 0.9 } else { 0.0 };
             }
         }
+
+        if let Some(exhaust_entity) = self.engine_exhaust_entity {
+            let player_size = self.texture_size(SLOT_PLAYER);
+            let exhaust_position = nalgebra_glm::Vec2::new(
+                self.player_position.x,
+                self.player_position.y - player_size.y * 0.45,
+            );
+            if let Some(emitter) = world.get_sprite_particle_emitter_mut(exhaust_entity) {
+                emitter.anchor = exhaust_position;
+            }
+        }
     }
 
     fn player_shooting_system(&mut self, world: &mut World) {
@@ -1511,7 +1589,7 @@ impl BulletHell {
         let delta_time = world.resources.window.timing.delta_time;
         self.fire_cooldown -= delta_time;
 
-        let shooting = world
+        let mut shooting = world
             .resources
             .input
             .keyboard
@@ -1522,6 +1600,13 @@ impl BulletHell {
                 .mouse
                 .state
                 .contains(MouseState::LEFT_CLICKED);
+
+        if let Some(gamepad) = query_active_gamepad(world)
+            && (gamepad.is_pressed(gilrs::Button::South)
+                || gamepad.is_pressed(gilrs::Button::RightTrigger2))
+        {
+            shooting = true;
+        }
 
         if !shooting || self.fire_cooldown > 0.0 {
             return;
@@ -1551,6 +1636,9 @@ impl BulletHell {
                 LAYER_PLAYER_BULLETS,
                 &self.uv_max_table,
             );
+            if let Some(sprite) = world.get_sprite_mut(entity) {
+                sprite.blend_mode = SpriteBlendMode::Additive;
+            }
 
             self.player_bullets.push(PlayerBullet {
                 entity,
@@ -1590,10 +1678,10 @@ impl BulletHell {
             translate_entity_2d(world, bullet.entity, bullet.velocity * delta_time);
 
             let position = entity_position_2d(world, bullet.entity);
-            if position.y > PLAY_AREA_HALF_HEIGHT + DESPAWN_MARGIN
-                || position.y < -PLAY_AREA_HALF_HEIGHT - DESPAWN_MARGIN
-                || position.x > PLAY_AREA_HALF_WIDTH + DESPAWN_MARGIN
-                || position.x < -PLAY_AREA_HALF_WIDTH - DESPAWN_MARGIN
+            if position.y > self.play_area_half_height + DESPAWN_MARGIN
+                || position.y < -self.play_area_half_height - DESPAWN_MARGIN
+                || position.x > self.play_area_half_width + DESPAWN_MARGIN
+                || position.x < -self.play_area_half_width - DESPAWN_MARGIN
             {
                 to_remove.push(index);
             }
@@ -1611,13 +1699,20 @@ impl BulletHell {
         let delta_time = world.resources.window.timing.delta_time;
 
         if self.game_state == GameState::Playing {
-            let bomb_pressed = world
+            let mut bomb_pressed = world
                 .resources
                 .input
                 .keyboard
                 .frame_keys
                 .iter()
                 .any(|(key, pressed)| *key == KeyCode::KeyX && *pressed);
+
+            if let Some(gamepad) = query_active_gamepad(world)
+                && (gamepad.is_pressed(gilrs::Button::West)
+                    || gamepad.is_pressed(gilrs::Button::East))
+            {
+                bomb_pressed = true;
+            }
 
             if bomb_pressed && self.bombs > 0 {
                 self.bombs -= 1;
@@ -1665,7 +1760,11 @@ impl BulletHell {
                 self.state_timer -= delta_time;
                 if self.state_timer <= 0.0 {
                     self.game_state = GameState::Playing;
-                    self.wave_definition = Some(generate_wave(self.wave_number));
+                    self.wave_definition = Some(generate_wave(
+                        self.wave_number,
+                        self.play_area_half_width,
+                        self.play_area_half_height,
+                    ));
                     self.wave_spawn_index = 0;
                     self.wave_elapsed = 0.0;
                 }
@@ -1674,7 +1773,11 @@ impl BulletHell {
                 self.state_timer -= delta_time;
                 if self.state_timer <= 0.0 {
                     self.game_state = GameState::Playing;
-                    self.wave_definition = Some(generate_wave(self.wave_number));
+                    self.wave_definition = Some(generate_wave(
+                        self.wave_number,
+                        self.play_area_half_width,
+                        self.play_area_half_height,
+                    ));
                     self.wave_spawn_index = 0;
                     self.wave_elapsed = 0.0;
                 }
@@ -1777,14 +1880,8 @@ impl BulletHell {
                 &self.uv_max_table,
             );
 
-            if flip {
-                if let Some(local_transform) = world.get_local_transform_mut(entity) {
-                    local_transform.rotation = nalgebra_glm::quat_angle_axis(
-                        std::f32::consts::PI,
-                        &nalgebra_glm::Vec3::z(),
-                    );
-                }
-                mark_local_transform_dirty(world, entity);
+            if flip && let Some(sprite) = world.get_sprite_mut(entity) {
+                sprite.flip_y = true;
             }
 
             let emitters = spawn_entry
@@ -1880,8 +1977,8 @@ impl BulletHell {
         for enemy in &mut self.enemies {
             let enemy_pos = entity_position_2d(world, enemy.entity);
 
-            if enemy_pos.y > PLAY_AREA_HALF_HEIGHT + 50.0
-                || enemy_pos.y < -PLAY_AREA_HALF_HEIGHT - 50.0
+            if enemy_pos.y > self.play_area_half_height + 50.0
+                || enemy_pos.y < -self.play_area_half_height - 50.0
             {
                 continue;
             }
@@ -1941,10 +2038,11 @@ impl BulletHell {
                 &self.uv_max_table,
             );
 
-            if color == BulletColor::Blue
-                && let Some(sprite) = world.get_sprite_mut(entity)
-            {
-                sprite.color = [0.3, 0.6, 1.0, 1.0];
+            if let Some(sprite) = world.get_sprite_mut(entity) {
+                sprite.blend_mode = SpriteBlendMode::Additive;
+                if color == BulletColor::Blue {
+                    sprite.color = [0.3, 0.6, 1.0, 1.0];
+                }
             }
 
             self.enemy_bullets.push(EnemyBullet {
@@ -1965,10 +2063,10 @@ impl BulletHell {
             bullet.position += bullet.velocity * delta_time;
             set_entity_position_2d(world, bullet.entity, bullet.position);
 
-            if bullet.position.x > PLAY_AREA_HALF_WIDTH + DESPAWN_MARGIN
-                || bullet.position.x < -PLAY_AREA_HALF_WIDTH - DESPAWN_MARGIN
-                || bullet.position.y > PLAY_AREA_HALF_HEIGHT + DESPAWN_MARGIN
-                || bullet.position.y < -PLAY_AREA_HALF_HEIGHT - DESPAWN_MARGIN
+            if bullet.position.x > self.play_area_half_width + DESPAWN_MARGIN
+                || bullet.position.x < -self.play_area_half_width - DESPAWN_MARGIN
+                || bullet.position.y > self.play_area_half_height + DESPAWN_MARGIN
+                || bullet.position.y < -self.play_area_half_height - DESPAWN_MARGIN
             {
                 to_remove.push(index);
             }
@@ -2205,7 +2303,7 @@ impl BulletHell {
         if self.lives == 0 {
             self.game_state = GameState::GameOver;
             let text = format!(
-                "GAME OVER\nScore: {}\nWave: {}\nGraze: {}\nPress R to restart",
+                "GAME OVER\nScore: {}\nWave: {}\nGraze: {}\nPress R or Start to restart",
                 self.score, self.wave_number, self.graze_count
             );
             self.announce(world, &text, f32::MAX);
@@ -2216,87 +2314,35 @@ impl BulletHell {
     }
 
     fn spawn_explosion(&mut self, world: &mut World, position: nalgebra_glm::Vec2) {
-        let explosion_size = self.texture_size(SLOT_FIRE0) * 2.0;
-
-        let fire_slots = [SLOT_FIRE0, SLOT_FIRE1, SLOT_FIRE2, SLOT_FIRE3];
-        let mut frames = Vec::new();
-        for &slot in &fire_slots {
-            let (uv_min, uv_max) = uv_for_slot(&self.uv_max_table, slot);
-            frames.push(SpriteFrame {
-                uv_min,
-                uv_max,
-                duration: 0.08,
-                texture_index: Some(slot),
-            });
-        }
-
-        let (first_uv_min, first_uv_max) = uv_for_slot(&self.uv_max_table, SLOT_FIRE0);
-
-        let entity = world.spawn_entities(
-            SPRITE
-                | RENDER_MESH
-                | MATERIAL_REF
-                | VISIBILITY
-                | SPRITE_ANIMATOR
-                | LOCAL_TRANSFORM
-                | LOCAL_TRANSFORM_DIRTY
-                | GLOBAL_TRANSFORM,
-            1,
-        )[0];
-
-        if let Some(local_transform) = world.get_local_transform_mut(entity) {
-            local_transform.translation =
-                nalgebra_glm::Vec3::new(position.x, position.y, LAYER_EXPLOSIONS);
-            local_transform.scale =
-                nalgebra_glm::Vec3::new(explosion_size.x, explosion_size.y, 1.0);
-        }
-
-        if let Some(render_mesh) = world.get_render_mesh_mut(entity) {
-            render_mesh.name = "SpriteQuad".to_string();
-        }
-        if let Some(material_ref) = world.get_material_ref_mut(entity) {
-            material_ref.name = "sprite_atlas".to_string();
-        }
-
-        if let Some(sprite) = world.get_sprite_mut(entity) {
-            sprite.texture_index = SLOT_FIRE0;
-            sprite.texture_index2 = SLOT_FIRE0;
-            sprite.color = [1.0, 1.0, 1.0, 1.0];
-            sprite.uv_min = first_uv_min;
-            sprite.uv_max = first_uv_max;
-        }
-
-        world.set_visibility(entity, Visibility { visible: true });
-
-        world.set_sprite_animator(
+        let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
+        world.set_sprite_particle_emitter(
             entity,
-            SpriteAnimator {
-                frames,
-                current_frame: 0,
-                elapsed: 0.0,
-                loop_mode: LoopMode::Once,
-                playing: true,
-                speed: 1.0,
-                ping_pong_forward: true,
-            },
+            SpriteParticleEmitter::explosion(position.x, position.y).with_depth(LAYER_EXPLOSIONS),
         );
+        self.explosions.push(Explosion {
+            entity,
+            lifetime: 1.0,
+        });
 
-        self.explosions.push(Explosion { entity });
+        self.shake_timer = self.shake_timer.max(0.15);
+        self.shake_intensity = self.shake_intensity.max(4.0);
     }
 
     fn spawn_graze_flash(&mut self, world: &mut World, position: nalgebra_glm::Vec2) {
-        let flash_size = nalgebra_glm::Vec2::new(6.0, 6.0);
-        let entity = Self::spawn_game_sprite(
-            world,
-            position,
-            flash_size,
-            SLOT_STAR,
-            LAYER_EXPLOSIONS,
-            &self.uv_max_table,
+        let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
+        world.set_sprite_particle_emitter(
+            entity,
+            SpriteParticleEmitter::sparks(position.x, position.y)
+                .with_depth(LAYER_EXPLOSIONS)
+                .with_color(ColorRange2D::new(
+                    [0.0, 1.0, 1.0, 1.0],
+                    [0.0, 0.5, 1.0, 0.0],
+                ))
+                .with_size(
+                    nalgebra_glm::Vec2::new(4.0, 4.0),
+                    nalgebra_glm::Vec2::new(1.0, 1.0),
+                ),
         );
-        if let Some(sprite) = world.get_sprite_mut(entity) {
-            sprite.color = [0.0, 1.0, 1.0, 1.0];
-        }
         self.graze_flashes.push(GrazeFlash {
             entity,
             lifetime: GRAZE_FLASH_DURATION,
@@ -2304,14 +2350,12 @@ impl BulletHell {
     }
 
     fn explosion_cleanup_system(&mut self, world: &mut World) {
+        let delta_time = world.resources.window.timing.delta_time;
         let mut to_remove = Vec::new();
 
-        for (index, explosion) in self.explosions.iter().enumerate() {
-            if let Some(animator) = world.get_sprite_animator(explosion.entity) {
-                if !animator.playing && animator.current_frame + 1 >= animator.frames.len() {
-                    to_remove.push(index);
-                }
-            } else {
+        for (index, explosion) in self.explosions.iter_mut().enumerate() {
+            explosion.lifetime -= delta_time;
+            if explosion.lifetime <= 0.0 {
                 to_remove.push(index);
             }
         }
@@ -2330,12 +2374,6 @@ impl BulletHell {
             flash.lifetime -= delta_time;
             if flash.lifetime <= 0.0 {
                 to_remove.push(index);
-                continue;
-            }
-
-            let alpha = flash.lifetime / GRAZE_FLASH_DURATION;
-            if let Some(sprite) = world.get_sprite_mut(flash.entity) {
-                sprite.color[3] = alpha;
             }
         }
 
@@ -2389,10 +2427,9 @@ impl BulletHell {
 
             powerup.bob_phase += delta_time * 3.0;
 
-            if let Some(local_transform) = world.get_local_transform_mut(powerup.entity) {
-                local_transform.translation.y = powerup.base_y + powerup.bob_phase.sin() * 10.0;
+            if let Some(sprite) = world.get_sprite_mut(powerup.entity) {
+                sprite.position.y = powerup.base_y + powerup.bob_phase.sin() * 10.0;
             }
-            mark_local_transform_dirty(world, powerup.entity);
 
             if powerup.lifetime < 3.0
                 && let Some(sprite) = world.get_sprite_mut(powerup.entity)
@@ -2445,10 +2482,16 @@ impl BulletHell {
         self.shake_intensity *= (1.0 - SCREEN_SHAKE_DECAY * delta_time).max(0.0);
 
         if let Some(camera_entity) = self.camera_entity {
-            use rand::Rng;
-            let mut rng = rand::rng();
-            let offset_x = rng.random_range(-self.shake_intensity..self.shake_intensity);
-            let offset_y = rng.random_range(-self.shake_intensity..self.shake_intensity);
+            let (offset_x, offset_y) = if self.shake_intensity > 0.001 {
+                use rand::Rng;
+                let mut rng = rand::rng();
+                (
+                    rng.random_range(-self.shake_intensity..self.shake_intensity),
+                    rng.random_range(-self.shake_intensity..self.shake_intensity),
+                )
+            } else {
+                (0.0, 0.0)
+            };
 
             if let Some(transform) = world.get_local_transform_mut(camera_entity) {
                 transform.translation.x = offset_x;
@@ -2467,14 +2510,14 @@ impl BulletHell {
             translate_entity_2d(world, meteor.entity, meteor.velocity * delta_time);
 
             let meteor_pos = entity_position_2d(world, meteor.entity);
-            let out_of_bounds = meteor_pos.x.abs() > PLAY_AREA_HALF_WIDTH + 200.0
-                || meteor_pos.y.abs() > PLAY_AREA_HALF_HEIGHT + 200.0;
+            let out_of_bounds = meteor_pos.x.abs() > self.play_area_half_width + 200.0
+                || meteor_pos.y.abs() > self.play_area_half_height + 200.0;
 
             if out_of_bounds {
                 let mut rng = rand::rng();
                 let new_pos = nalgebra_glm::Vec2::new(
-                    rng.random_range(-PLAY_AREA_HALF_WIDTH..PLAY_AREA_HALF_WIDTH),
-                    PLAY_AREA_HALF_HEIGHT + 100.0,
+                    rng.random_range(-self.play_area_half_width..self.play_area_half_width),
+                    self.play_area_half_height + 100.0,
                 );
                 set_entity_position_2d(world, meteor.entity, new_pos);
                 meteor.velocity = nalgebra_glm::Vec2::new(
@@ -2490,7 +2533,7 @@ impl BulletHell {
 
         for (index, enemy) in self.enemies.iter().enumerate() {
             let enemy_pos = entity_position_2d(world, enemy.entity);
-            if enemy_pos.y < -PLAY_AREA_HALF_HEIGHT - 200.0 {
+            if enemy_pos.y < -self.play_area_half_height - 200.0 {
                 to_remove.push(index);
             }
         }
@@ -2514,7 +2557,12 @@ impl BulletHell {
             return;
         }
 
-        let restart = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyR);
+        let mut restart = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyR);
+        if let Some(gamepad) = query_active_gamepad(world)
+            && gamepad.is_pressed(gilrs::Button::Start)
+        {
+            restart = true;
+        }
 
         if restart {
             for bullet in self.player_bullets.drain(..) {
@@ -2536,11 +2584,22 @@ impl BulletHell {
                 despawn_entities_with_cache_cleanup(world, &[powerup.entity]);
             }
 
-            self.player_position = nalgebra_glm::Vec2::new(0.0, -PLAY_AREA_HALF_HEIGHT * 0.7);
+            self.player_position = nalgebra_glm::Vec2::new(0.0, -self.play_area_half_height * 0.7);
             if let Some(entity) = self.player_entity {
                 set_entity_position_2d(world, entity, self.player_position);
                 if let Some(sprite) = world.get_sprite_mut(entity) {
                     sprite.color[3] = 1.0;
+                }
+            }
+
+            if let Some(exhaust_entity) = self.engine_exhaust_entity {
+                let player_size = self.texture_size(SLOT_PLAYER);
+                let exhaust_position = nalgebra_glm::Vec2::new(
+                    self.player_position.x,
+                    self.player_position.y - player_size.y * 0.45,
+                );
+                if let Some(emitter) = world.get_sprite_particle_emitter_mut(exhaust_entity) {
+                    emitter.anchor = exhaust_position;
                 }
             }
 
@@ -2588,13 +2647,18 @@ impl BulletHell {
         }
     }
 
-    fn escape_exit_system(&self, world: &World) {
-        if world
+    fn escape_exit_system(&self, world: &mut World) {
+        let mut should_exit = world
             .resources
             .input
             .keyboard
-            .is_key_pressed(KeyCode::Escape)
+            .is_key_pressed(KeyCode::Escape);
+        if let Some(gamepad) = query_active_gamepad(world)
+            && gamepad.is_pressed(gilrs::Button::Select)
         {
+            should_exit = true;
+        }
+        if should_exit {
             std::process::exit(0);
         }
     }
@@ -2647,6 +2711,14 @@ impl State for BulletHell {
         world.resources.active_camera = Some(camera);
         self.camera_entity = Some(camera);
 
+        if let Some(window_handle) = &world.resources.window.handle {
+            let size = window_handle.inner_size();
+            let (half_width, half_height) = visible_half_extents(size.width, size.height);
+            self.play_area_half_width = half_width;
+            self.play_area_half_height = half_height;
+        }
+        self.player_position = nalgebra_glm::Vec2::new(0.0, -self.play_area_half_height * 0.7);
+
         self.spawn_background(world);
         self.spawn_star_field(world);
         self.spawn_meteors(world);
@@ -2660,9 +2732,13 @@ impl State for BulletHell {
     }
 
     fn run_systems(&mut self, world: &mut World) {
-        self.game_time += world.resources.window.timing.delta_time;
+        if let Some((width, height)) = world.resources.window.cached_viewport_size {
+            let (half_width, half_height) = visible_half_extents(width, height);
+            self.play_area_half_width = half_width;
+            self.play_area_half_height = half_height;
+        }
 
-        sprite_animation_system(world);
+        self.game_time += world.resources.window.timing.delta_time;
 
         self.escape_exit_system(world);
         self.player_input_system(world);

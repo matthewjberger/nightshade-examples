@@ -586,8 +586,8 @@ impl State for BlockBreakerScripts {
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
 
-        let mut runtime = std::mem::take(&mut world.resources.script_runtime);
-        nightshade::ecs::script::run_scripts_system(world, &mut runtime);
+        let runtime = std::mem::take(&mut world.resources.script_runtime);
+        nightshade::ecs::script::run_scripts_system(world);
 
         let score = runtime.game_state.get("score").copied().unwrap_or(0.0) as u32;
         let lives = runtime.game_state.get("lives").copied().unwrap_or(3.0) as i32;

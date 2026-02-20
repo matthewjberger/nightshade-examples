@@ -148,7 +148,8 @@ fn uv_for_slot(uv_max_table: &[Vec2], slot: u32) -> (Vec2, Vec2) {
 
 fn spawn_textured_sprite(
     world: &mut World,
-    position: Vec3,
+    position: Vec2,
+    depth: f32,
     size: Vec2,
     texture_slot: u32,
     uv_max_table: &[Vec2],
@@ -156,6 +157,7 @@ fn spawn_textured_sprite(
     let entity = spawn_sprite(world, position, size);
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
     if let Some(sprite) = world.get_sprite_mut(entity) {
+        sprite.depth = depth;
         sprite.texture_index = texture_slot;
         sprite.texture_index2 = texture_slot;
         sprite.uv_min = uv_min;
@@ -288,7 +290,8 @@ impl TopdownShooter {
                         self.solid_tiles[index] = true;
                         let entity = spawn_textured_sprite(
                             world,
-                            Vec3::new(world_x, world_y, LAYER_FLOOR + 0.5),
+                            Vec2::new(world_x, world_y),
+                            LAYER_FLOOR + 0.5,
                             Vec2::new(TILE_SIZE, TILE_SIZE),
                             SLOT_WALL,
                             &self.uv_max_table,
@@ -298,7 +301,8 @@ impl TopdownShooter {
                     _ => {
                         let entity = spawn_textured_sprite(
                             world,
-                            Vec3::new(world_x, world_y, LAYER_FLOOR),
+                            Vec2::new(world_x, world_y),
+                            LAYER_FLOOR,
                             Vec2::new(TILE_SIZE, TILE_SIZE),
                             SLOT_FLOOR_GRASS,
                             &self.uv_max_table,
@@ -315,7 +319,8 @@ impl TopdownShooter {
 
         let player_entity = spawn_textured_sprite(
             world,
-            Vec3::new(self.player_x, self.player_y, LAYER_PLAYER),
+            Vec2::new(self.player_x, self.player_y),
+            LAYER_PLAYER,
             Vec2::new(50.0, 43.0),
             SLOT_PLAYER,
             &self.uv_max_table,
@@ -416,7 +421,8 @@ impl TopdownShooter {
 
             let entity = spawn_textured_sprite(
                 world,
-                Vec3::new(bullet_x, bullet_y, LAYER_BULLETS),
+                Vec2::new(bullet_x, bullet_y),
+                LAYER_BULLETS,
                 Vec2::new(8.0, 8.0),
                 SLOT_BULLET,
                 &self.uv_max_table,
@@ -619,7 +625,8 @@ impl TopdownShooter {
 
             let entity = spawn_textured_sprite(
                 world,
-                Vec3::new(spawn_x, spawn_y, LAYER_ENTITIES),
+                Vec2::new(spawn_x, spawn_y),
+                LAYER_ENTITIES,
                 Vec2::new(44.0, 51.0),
                 SLOT_ZOMBIE,
                 &self.uv_max_table,
@@ -647,31 +654,25 @@ impl TopdownShooter {
     }
 
     fn render_sync(&mut self, world: &mut World) {
-        if let Some(player_entity) = self.player_entity {
-            if let Some(transform) = world.get_local_transform_mut(player_entity) {
-                transform.translation.x = self.player_x;
-                transform.translation.y = self.player_y;
-                transform.rotation = nalgebra_glm::quat_angle_axis(self.player_angle, &Vec3::z());
-            }
-            mark_local_transform_dirty(world, player_entity);
+        if let Some(player_entity) = self.player_entity
+            && let Some(sprite) = world.get_sprite_mut(player_entity)
+        {
+            sprite.position = Vec2::new(self.player_x, self.player_y);
+            sprite.rotation = self.player_angle;
         }
 
         for bullet in &self.bullets {
-            if let Some(transform) = world.get_local_transform_mut(bullet.entity) {
-                transform.translation.x = bullet.x;
-                transform.translation.y = bullet.y;
+            if let Some(sprite) = world.get_sprite_mut(bullet.entity) {
+                sprite.position = Vec2::new(bullet.x, bullet.y);
             }
-            mark_local_transform_dirty(world, bullet.entity);
         }
 
         for zombie in &self.zombies {
             let angle = (self.player_y - zombie.y).atan2(self.player_x - zombie.x);
-            if let Some(transform) = world.get_local_transform_mut(zombie.entity) {
-                transform.translation.x = zombie.x;
-                transform.translation.y = zombie.y;
-                transform.rotation = nalgebra_glm::quat_angle_axis(angle, &Vec3::z());
+            if let Some(sprite) = world.get_sprite_mut(zombie.entity) {
+                sprite.position = Vec2::new(zombie.x, zombie.y);
+                sprite.rotation = angle;
             }
-            mark_local_transform_dirty(world, zombie.entity);
         }
     }
 

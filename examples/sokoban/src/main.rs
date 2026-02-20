@@ -1,64 +1,106 @@
 use image::GenericImageView;
-use nightshade::ecs::transform::commands::mark_local_transform_dirty;
 use nightshade::prelude::*;
 
 const TILE_SIZE: f32 = 64.0;
 
-const SLOT_FLOOR: u32 = 0;
-const SLOT_TARGET: u32 = 1;
-const SLOT_WALL: u32 = 2;
-const SLOT_CRATE: u32 = 3;
-const SLOT_CRATE_DARK: u32 = 4;
-const SLOT_PLAYER_FRONT: u32 = 5;
-const SLOT_PLAYER_BACK: u32 = 6;
-const SLOT_PLAYER_LEFT: u32 = 7;
-const SLOT_PLAYER_RIGHT: u32 = 8;
+const SLOT_TILE_SHEET: u32 = 0;
+const SLOT_CRATE: u32 = 1;
+const SLOT_CRATE_DARK: u32 = 2;
+const SLOT_PLAYER_FRONT: u32 = 3;
+const SLOT_PLAYER_BACK: u32 = 4;
+const SLOT_PLAYER_LEFT: u32 = 5;
+const SLOT_PLAYER_RIGHT: u32 = 6;
+
+const TILE_FLOOR: u32 = 0;
+const TILE_WALL: u32 = 1;
+const TILE_TARGET: u32 = 2;
+const SHEET_COLUMNS: u32 = 4;
+const SHEET_ROWS: u32 = 1;
 
 const LAYER_FLOOR: f32 = 0.0;
 const LAYER_TARGET: f32 = 1.0;
 const LAYER_OBJECTS: f32 = 2.0;
 const LAYER_PLAYER: f32 = 3.0;
 
-struct TextureEntry {
+fn build_tile_sheet(world: &mut World) -> Vec2 {
+    let tile_images: Vec<(&[u8], u32)> = vec![
+        (include_bytes!("../assets/floor.png"), TILE_FLOOR),
+        (include_bytes!("../assets/wall.png"), TILE_WALL),
+        (include_bytes!("../assets/target.png"), TILE_TARGET),
+    ];
+
+    let mut decoded: Vec<(image::DynamicImage, u32)> = Vec::new();
+    let mut cell_width: u32 = 0;
+    let mut cell_height: u32 = 0;
+
+    for (bytes, tile_id) in &tile_images {
+        let image = image::load_from_memory(bytes).expect("Failed to decode tile image");
+        let (width, height) = image.dimensions();
+        cell_width = cell_width.max(width);
+        cell_height = cell_height.max(height);
+        decoded.push((image, *tile_id));
+    }
+
+    let sheet_pixel_width = SHEET_COLUMNS * cell_width;
+    let sheet_pixel_height = SHEET_ROWS * cell_height;
+    let mut sheet = image::RgbaImage::new(sheet_pixel_width, sheet_pixel_height);
+
+    for (image, tile_id) in &decoded {
+        let (width, height) = image.dimensions();
+        let column = tile_id % SHEET_COLUMNS;
+        let row = tile_id / SHEET_COLUMNS;
+        let dest_x = column * cell_width + (cell_width - width) / 2;
+        let dest_y = row * cell_height + (cell_height - height) / 2;
+        image::imageops::overlay(&mut sheet, &image.to_rgba8(), dest_x as i64, dest_y as i64);
+    }
+
+    world
+        .resources
+        .command_queue
+        .push(WorldCommand::UploadSpriteTexture {
+            slot: SLOT_TILE_SHEET,
+            rgba_data: sheet.into_raw(),
+            width: sheet_pixel_width,
+            height: sheet_pixel_height,
+        });
+
+    let atlas_slot_size = nightshade::render::SPRITE_ATLAS_SLOT_SIZE;
+    let half_texel_x = 0.5 / atlas_slot_size.0 as f32;
+    let half_texel_y = 0.5 / atlas_slot_size.1 as f32;
+    Vec2::new(
+        sheet_pixel_width as f32 / atlas_slot_size.0 as f32 - half_texel_x,
+        sheet_pixel_height as f32 / atlas_slot_size.1 as f32 - half_texel_y,
+    )
+}
+
+struct SpriteTextureEntry {
     slot: u32,
     bytes: &'static [u8],
 }
 
-fn load_textures(world: &mut World) -> Vec<Vec2> {
+fn load_sprite_textures(world: &mut World) -> Vec<Vec2> {
     let entries = [
-        TextureEntry {
-            slot: SLOT_FLOOR,
-            bytes: include_bytes!("../assets/floor.png"),
-        },
-        TextureEntry {
-            slot: SLOT_TARGET,
-            bytes: include_bytes!("../assets/target.png"),
-        },
-        TextureEntry {
-            slot: SLOT_WALL,
-            bytes: include_bytes!("../assets/wall.png"),
-        },
-        TextureEntry {
+        SpriteTextureEntry {
             slot: SLOT_CRATE,
             bytes: include_bytes!("../assets/crate.png"),
         },
-        TextureEntry {
+        SpriteTextureEntry {
             slot: SLOT_CRATE_DARK,
             bytes: include_bytes!("../assets/crate_dark.png"),
         },
-        TextureEntry {
+        SpriteTextureEntry {
             slot: SLOT_PLAYER_FRONT,
             bytes: include_bytes!("../assets/player_front.png"),
         },
-        TextureEntry {
+        SpriteTextureEntry {
             slot: SLOT_PLAYER_BACK,
             bytes: include_bytes!("../assets/player_back.png"),
         },
-        TextureEntry {
+        SpriteTextureEntry {
             slot: SLOT_PLAYER_LEFT,
             bytes: include_bytes!("../assets/player_left.png"),
         },
-        TextureEntry {
+        SpriteTextureEntry {
             slot: SLOT_PLAYER_RIGHT,
             bytes: include_bytes!("../assets/player_right.png"),
         },
@@ -68,9 +110,9 @@ fn load_textures(world: &mut World) -> Vec<Vec2> {
     let mut uv_max_table = vec![Vec2::new(1.0, 1.0); 128];
 
     for entry in &entries {
-        let img = image::load_from_memory(entry.bytes).expect("Failed to decode image");
-        let (width, height) = img.dimensions();
-        let rgba = img.to_rgba8().into_raw();
+        let image = image::load_from_memory(entry.bytes).expect("Failed to decode image");
+        let (width, height) = image.dimensions();
+        let rgba = image.to_rgba8().into_raw();
 
         world
             .resources
@@ -104,7 +146,8 @@ fn uv_for_slot(uv_max_table: &[Vec2], slot: u32) -> (Vec2, Vec2) {
 
 fn spawn_textured_sprite(
     world: &mut World,
-    position: Vec3,
+    position: Vec2,
+    depth: f32,
     size: Vec2,
     texture_slot: u32,
     uv_max_table: &[Vec2],
@@ -112,6 +155,7 @@ fn spawn_textured_sprite(
     let entity = spawn_sprite(world, position, size);
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
     if let Some(sprite) = world.get_sprite_mut(entity) {
+        sprite.depth = depth;
         sprite.texture_index = texture_slot;
         sprite.texture_index2 = texture_slot;
         sprite.uv_min = uv_min;
@@ -286,6 +330,7 @@ const LEVELS: &[&str] = &[
 struct Sokoban {
     camera_entity: Option<Entity>,
     uv_max_table: Vec<Vec2>,
+    tile_sheet_uv_max: Vec2,
     current_level: usize,
     level_data: Option<LevelData>,
     player_pos: GridPos,
@@ -293,9 +338,8 @@ struct Sokoban {
     crate_positions: Vec<GridPos>,
     undo_stack: Vec<UndoState>,
     level_complete: bool,
-    floor_entities: Vec<Entity>,
-    wall_entities: Vec<Entity>,
-    target_entities: Vec<Entity>,
+    floor_tilemap_entity: Option<Entity>,
+    target_tilemap_entity: Option<Entity>,
     crate_entities: Vec<Entity>,
     player_entity: Option<Entity>,
     score_hud: Option<Entity>,
@@ -311,6 +355,7 @@ impl Default for Sokoban {
         Self {
             camera_entity: None,
             uv_max_table: Vec::new(),
+            tile_sheet_uv_max: Vec2::new(1.0, 1.0),
             current_level: 0,
             level_data: None,
             player_pos: GridPos { x: 0, y: 0 },
@@ -318,9 +363,8 @@ impl Default for Sokoban {
             crate_positions: Vec::new(),
             undo_stack: Vec::new(),
             level_complete: false,
-            floor_entities: Vec::new(),
-            wall_entities: Vec::new(),
-            target_entities: Vec::new(),
+            floor_tilemap_entity: None,
+            target_tilemap_entity: None,
             crate_entities: Vec::new(),
             player_entity: None,
             score_hud: None,
@@ -419,103 +463,6 @@ impl Sokoban {
         }
     }
 
-    fn load_level(&mut self, world: &mut World) {
-        self.despawn_level(world);
-
-        let level_index = self.current_level % LEVELS.len();
-        let level = parse_level(LEVELS[level_index]);
-
-        self.player_pos = level.initial_player;
-        self.crate_positions = level.initial_crates.clone();
-        self.player_direction = Direction::Down;
-        self.undo_stack.clear();
-        self.level_complete = false;
-        self.moves = 0;
-        self.pushes = 0;
-
-        for row in 0..level.height {
-            for col in 0..level.width {
-                let pos = GridPos {
-                    x: col as i32,
-                    y: row as i32,
-                };
-                let world_pos = self.grid_to_world_with_level(&level, pos);
-
-                let is_wall = level.walls[row * level.width + col];
-                if is_wall {
-                    let entity = spawn_textured_sprite(
-                        world,
-                        Vec3::new(world_pos.x, world_pos.y, LAYER_OBJECTS),
-                        Vec2::new(TILE_SIZE, TILE_SIZE),
-                        SLOT_WALL,
-                        &self.uv_max_table,
-                    );
-                    self.wall_entities.push(entity);
-                } else {
-                    let has_content = is_wall
-                        || level.targets.contains(&pos)
-                        || level.initial_crates.contains(&pos)
-                        || level.initial_player == pos
-                        || self.is_floor_neighbor(&level, pos);
-
-                    if has_content {
-                        let entity = spawn_textured_sprite(
-                            world,
-                            Vec3::new(world_pos.x, world_pos.y, LAYER_FLOOR),
-                            Vec2::new(TILE_SIZE, TILE_SIZE),
-                            SLOT_FLOOR,
-                            &self.uv_max_table,
-                        );
-                        self.floor_entities.push(entity);
-                    }
-                }
-            }
-        }
-
-        for target in &level.targets {
-            let world_pos = self.grid_to_world_with_level(&level, *target);
-            let entity = spawn_textured_sprite(
-                world,
-                Vec3::new(world_pos.x, world_pos.y, LAYER_TARGET),
-                Vec2::new(TILE_SIZE, TILE_SIZE),
-                SLOT_TARGET,
-                &self.uv_max_table,
-            );
-            self.target_entities.push(entity);
-        }
-
-        for _ in &self.crate_positions {
-            let entity = spawn_textured_sprite(
-                world,
-                Vec3::new(0.0, 0.0, LAYER_OBJECTS),
-                Vec2::new(TILE_SIZE, TILE_SIZE),
-                SLOT_CRATE,
-                &self.uv_max_table,
-            );
-            self.crate_entities.push(entity);
-        }
-
-        let player_entity = spawn_textured_sprite(
-            world,
-            Vec3::new(0.0, 0.0, LAYER_PLAYER),
-            Vec2::new(TILE_SIZE, TILE_SIZE),
-            SLOT_PLAYER_FRONT,
-            &self.uv_max_table,
-        );
-        self.player_entity = Some(player_entity);
-
-        self.level_data = Some(level);
-    }
-
-    fn grid_to_world_with_level(&self, level: &LevelData, pos: GridPos) -> Vec2 {
-        let offset_x = level.width as f32 * TILE_SIZE / 2.0;
-        let offset_y = level.height as f32 * TILE_SIZE / 2.0;
-        Vec2::new(
-            pos.x as f32 * TILE_SIZE - offset_x + TILE_SIZE / 2.0,
-            offset_y - pos.y as f32 * TILE_SIZE - TILE_SIZE / 2.0,
-        )
-    }
-
     fn is_floor_neighbor(&self, level: &LevelData, pos: GridPos) -> bool {
         for delta_y in -1..=1_i32 {
             for delta_x in -1..=1_i32 {
@@ -546,11 +493,129 @@ impl Sokoban {
         false
     }
 
+    fn load_level(&mut self, world: &mut World) {
+        self.despawn_level(world);
+
+        let level_index = self.current_level % LEVELS.len();
+        let level = parse_level(LEVELS[level_index]);
+
+        self.player_pos = level.initial_player;
+        self.crate_positions = level.initial_crates.clone();
+        self.player_direction = Direction::Down;
+        self.undo_stack.clear();
+        self.level_complete = false;
+        self.moves = 0;
+        self.pushes = 0;
+
+        let grid_width = level.width as u32;
+        let grid_height = level.height as u32;
+        let tilemap_position = Vec2::new(
+            -(level.width as f32 * TILE_SIZE / 2.0),
+            -(level.height as f32 * TILE_SIZE / 2.0),
+        );
+        let tile_size = Vec2::new(TILE_SIZE, TILE_SIZE);
+
+        let floor_entity =
+            spawn_tilemap(world, tilemap_position, tile_size, grid_width, grid_height);
+        if let Some(tilemap) = world.get_tilemap_mut(floor_entity) {
+            tilemap.texture_index = SLOT_TILE_SHEET;
+            tilemap.sheet_columns = SHEET_COLUMNS;
+            tilemap.sheet_rows = SHEET_ROWS;
+            tilemap.depth = LAYER_FLOOR;
+            tilemap.uv_max = self.tile_sheet_uv_max;
+
+            for row in 0..level.height {
+                for col in 0..level.width {
+                    let pos = GridPos {
+                        x: col as i32,
+                        y: row as i32,
+                    };
+                    let tilemap_row = (grid_height - 1) - row as u32;
+
+                    let is_wall = level.walls[row * level.width + col];
+                    if is_wall {
+                        tilemap.set_tile(col as u32, tilemap_row, Some(TileData::new(TILE_WALL)));
+                    } else {
+                        let has_content = level.targets.contains(&pos)
+                            || level.initial_crates.contains(&pos)
+                            || level.initial_player == pos
+                            || self.is_floor_neighbor(&level, pos);
+
+                        if has_content {
+                            tilemap.set_tile(
+                                col as u32,
+                                tilemap_row,
+                                Some(TileData::new(TILE_FLOOR)),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        self.floor_tilemap_entity = Some(floor_entity);
+
+        let target_entity =
+            spawn_tilemap(world, tilemap_position, tile_size, grid_width, grid_height);
+        if let Some(tilemap) = world.get_tilemap_mut(target_entity) {
+            tilemap.texture_index = SLOT_TILE_SHEET;
+            tilemap.sheet_columns = SHEET_COLUMNS;
+            tilemap.sheet_rows = SHEET_ROWS;
+            tilemap.depth = LAYER_TARGET;
+            tilemap.uv_max = self.tile_sheet_uv_max;
+
+            for target in &level.targets {
+                let tilemap_row = (grid_height - 1) - target.y as u32;
+                tilemap.set_tile(
+                    target.x as u32,
+                    tilemap_row,
+                    Some(TileData::new(TILE_TARGET)),
+                );
+            }
+        }
+        self.target_tilemap_entity = Some(target_entity);
+
+        for _ in &self.crate_positions {
+            let entity = spawn_textured_sprite(
+                world,
+                Vec2::new(0.0, 0.0),
+                LAYER_OBJECTS,
+                Vec2::new(TILE_SIZE, TILE_SIZE),
+                SLOT_CRATE,
+                &self.uv_max_table,
+            );
+            self.crate_entities.push(entity);
+        }
+
+        let player_entity = spawn_textured_sprite(
+            world,
+            Vec2::new(0.0, 0.0),
+            LAYER_PLAYER,
+            Vec2::new(TILE_SIZE, TILE_SIZE),
+            SLOT_PLAYER_FRONT,
+            &self.uv_max_table,
+        );
+        self.player_entity = Some(player_entity);
+
+        self.level_data = Some(level);
+    }
+
+    fn grid_to_world_with_level(&self, level: &LevelData, pos: GridPos) -> Vec2 {
+        let offset_x = level.width as f32 * TILE_SIZE / 2.0;
+        let offset_y = level.height as f32 * TILE_SIZE / 2.0;
+        Vec2::new(
+            pos.x as f32 * TILE_SIZE - offset_x + TILE_SIZE / 2.0,
+            offset_y - pos.y as f32 * TILE_SIZE - TILE_SIZE / 2.0,
+        )
+    }
+
     fn despawn_level(&mut self, world: &mut World) {
         let mut to_despawn = Vec::new();
-        to_despawn.extend(&self.floor_entities);
-        to_despawn.extend(&self.wall_entities);
-        to_despawn.extend(&self.target_entities);
+        if let Some(entity) = self.floor_tilemap_entity {
+            to_despawn.push(entity);
+        }
+        if let Some(entity) = self.target_tilemap_entity {
+            to_despawn.push(entity);
+        }
         to_despawn.extend(&self.crate_entities);
         if let Some(player) = self.player_entity {
             to_despawn.push(player);
@@ -558,9 +623,8 @@ impl Sokoban {
         if !to_despawn.is_empty() {
             world.despawn_entities(&to_despawn);
         }
-        self.floor_entities.clear();
-        self.wall_entities.clear();
-        self.target_entities.clear();
+        self.floor_tilemap_entity = None;
+        self.target_tilemap_entity = None;
         self.crate_entities.clear();
         self.player_entity = None;
     }
@@ -574,11 +638,9 @@ impl Sokoban {
 
         if let Some(player_entity) = self.player_entity {
             let world_pos = self.grid_to_world_with_level(level, self.player_pos);
-            if let Some(transform) = world.get_local_transform_mut(player_entity) {
-                transform.translation.x = world_pos.x;
-                transform.translation.y = world_pos.y;
+            if let Some(sprite) = world.get_sprite_mut(player_entity) {
+                sprite.position = world_pos;
             }
-            mark_local_transform_dirty(world, player_entity);
             set_sprite_texture(
                 world,
                 player_entity,
@@ -591,11 +653,9 @@ impl Sokoban {
             if index < self.crate_entities.len() {
                 let entity = self.crate_entities[index];
                 let world_pos = self.grid_to_world_with_level(level, *crate_pos);
-                if let Some(transform) = world.get_local_transform_mut(entity) {
-                    transform.translation.x = world_pos.x;
-                    transform.translation.y = world_pos.y;
+                if let Some(sprite) = world.get_sprite_mut(entity) {
+                    sprite.position = world_pos;
                 }
-                mark_local_transform_dirty(world, entity);
 
                 let on_target = level.targets.contains(crate_pos);
                 let slot = if on_target {
@@ -671,7 +731,8 @@ impl State for Sokoban {
         let camera = spawn_ortho_camera(world, Vec2::new(0.0, 0.0));
         self.camera_entity = Some(camera);
 
-        self.uv_max_table = load_textures(world);
+        self.tile_sheet_uv_max = build_tile_sheet(world);
+        self.uv_max_table = load_sprite_textures(world);
     }
 
     fn run_systems(&mut self, world: &mut World) {

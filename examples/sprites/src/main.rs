@@ -1,120 +1,148 @@
-use image::GenericImageView;
-use nightshade::ecs::sprite_animator::SpriteFrame;
-use nightshade::ecs::transform::commands::mark_local_transform_dirty;
+use nightshade::ecs::input::resources::mouse::MouseState;
 use nightshade::prelude::*;
 
-const SLOT_BG: u32 = 0;
-const SLOT_SHIP: u32 = 1;
-const SLOT_UFO_BLUE: u32 = 2;
-const SLOT_UFO_RED: u32 = 3;
-const SLOT_METEOR: u32 = 4;
-const SLOT_STAR: u32 = 5;
-const SLOT_ALIEN_STAND: u32 = 6;
-const SLOT_ALIEN_WALK1: u32 = 7;
-const SLOT_ALIEN_WALK2: u32 = 8;
-const SLOT_ALIEN_JUMP: u32 = 9;
+const SLOT_CIRCLE: u32 = 0;
+const SLOT_SQUARE: u32 = 1;
+const SLOT_RING: u32 = 2;
+const SLOT_SOFT_CIRCLE: u32 = 3;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    launch(SpriteDemo::default())?;
-    Ok(())
+const TAG_POSITION: u32 = 0;
+const TAG_SCALE: u32 = 1;
+const TAG_ALPHA: u32 = 2;
+const TAG_COLOR: u32 = 3;
+
+const SCENE_FILE: &str = "effects_scene.json";
+
+struct SpriteShowcase {
+    camera_entity: Option<Entity>,
+    initialized: bool,
+    uv_max_table: Vec<Vec2>,
+
+    tween_entities: Vec<Entity>,
+    emitter_entities: Vec<Entity>,
+
+    selected_particle: usize,
+    held_emitter: Option<Entity>,
+    show_save_feedback: f32,
+    show_load_feedback: f32,
 }
 
-freecs::ecs! {
-    SpriteDemo {
-        bounce_velocity: BounceVelocity => BOUNCE_VELOCITY,
-        engine_entity: EngineEntity => ENGINE_ENTITY,
+impl Default for SpriteShowcase {
+    fn default() -> Self {
+        Self {
+            camera_entity: None,
+            initialized: false,
+            uv_max_table: Vec::new(),
+            tween_entities: Vec::new(),
+            emitter_entities: Vec::new(),
+            selected_particle: 0,
+            held_emitter: None,
+            show_save_feedback: 0.0,
+            show_load_feedback: 0.0,
+        }
     }
-    DemoResources {
-        camera_entity: Option<Entity>,
-        fps_hud: Option<Entity>,
-        camera_hud: Option<Entity>,
-        sprite_count_hud: Option<Entity>,
-        auto_pan: bool,
-        auto_pan_time: f32,
-        texture_uv_max: Vec<Vec2>,
+}
+
+fn generate_circle_texture(size: u32) -> Vec<u8> {
+    let mut data = vec![0u8; (size * size * 4) as usize];
+    let center = size as f32 / 2.0 - 0.5;
+    let radius = size as f32 / 2.0 - 1.0;
+    for pixel_y in 0..size {
+        for pixel_x in 0..size {
+            let distance_x = pixel_x as f32 - center;
+            let distance_y = pixel_y as f32 - center;
+            let distance = (distance_x * distance_x + distance_y * distance_y).sqrt();
+            let index = ((pixel_y * size + pixel_x) * 4) as usize;
+            if distance < radius {
+                data[index] = 255;
+                data[index + 1] = 255;
+                data[index + 2] = 255;
+                data[index + 3] = 255;
+            }
+        }
     }
+    data
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct BounceVelocity {
-    pub velocity: Vec2,
+fn generate_soft_circle_texture(size: u32) -> Vec<u8> {
+    let mut data = vec![0u8; (size * size * 4) as usize];
+    let center = size as f32 / 2.0 - 0.5;
+    let radius = size as f32 / 2.0 - 1.0;
+    for pixel_y in 0..size {
+        for pixel_x in 0..size {
+            let distance_x = pixel_x as f32 - center;
+            let distance_y = pixel_y as f32 - center;
+            let distance = (distance_x * distance_x + distance_y * distance_y).sqrt();
+            let index = ((pixel_y * size + pixel_x) * 4) as usize;
+            if distance < radius {
+                let alpha = (1.0 - distance / radius).powf(1.5);
+                data[index] = 255;
+                data[index + 1] = 255;
+                data[index + 2] = 255;
+                data[index + 3] = (alpha * 255.0) as u8;
+            }
+        }
+    }
+    data
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct EngineEntity(pub Entity);
-
-struct TextureEntry {
-    slot: u32,
-    bytes: &'static [u8],
+fn generate_ring_texture(size: u32) -> Vec<u8> {
+    let mut data = vec![0u8; (size * size * 4) as usize];
+    let center = size as f32 / 2.0 - 0.5;
+    let outer_radius = size as f32 / 2.0 - 1.0;
+    let inner_radius = outer_radius * 0.6;
+    for pixel_y in 0..size {
+        for pixel_x in 0..size {
+            let distance_x = pixel_x as f32 - center;
+            let distance_y = pixel_y as f32 - center;
+            let distance = (distance_x * distance_x + distance_y * distance_y).sqrt();
+            let index = ((pixel_y * size + pixel_x) * 4) as usize;
+            if distance < outer_radius && distance > inner_radius {
+                let edge_distance =
+                    ((distance - inner_radius) / (outer_radius - inner_radius) - 0.5).abs() * 2.0;
+                let alpha = (1.0 - edge_distance).clamp(0.0, 1.0).powf(0.5);
+                data[index] = 255;
+                data[index + 1] = 255;
+                data[index + 2] = 255;
+                data[index + 3] = (alpha * 255.0) as u8;
+            }
+        }
+    }
+    data
 }
 
-fn load_textures(world: &mut World) -> Vec<Vec2> {
-    let entries = [
-        TextureEntry {
-            slot: SLOT_BG,
-            bytes: include_bytes!("../assets/bg_blue.png"),
-        },
-        TextureEntry {
-            slot: SLOT_SHIP,
-            bytes: include_bytes!("../assets/ship_blue.png"),
-        },
-        TextureEntry {
-            slot: SLOT_UFO_BLUE,
-            bytes: include_bytes!("../assets/ufo_blue.png"),
-        },
-        TextureEntry {
-            slot: SLOT_UFO_RED,
-            bytes: include_bytes!("../assets/ufo_red.png"),
-        },
-        TextureEntry {
-            slot: SLOT_METEOR,
-            bytes: include_bytes!("../assets/meteor_brown1.png"),
-        },
-        TextureEntry {
-            slot: SLOT_STAR,
-            bytes: include_bytes!("../assets/star_large.png"),
-        },
-        TextureEntry {
-            slot: SLOT_ALIEN_STAND,
-            bytes: include_bytes!("../assets/alien_stand.png"),
-        },
-        TextureEntry {
-            slot: SLOT_ALIEN_WALK1,
-            bytes: include_bytes!("../assets/alien_walk1.png"),
-        },
-        TextureEntry {
-            slot: SLOT_ALIEN_WALK2,
-            bytes: include_bytes!("../assets/alien_walk2.png"),
-        },
-        TextureEntry {
-            slot: SLOT_ALIEN_JUMP,
-            bytes: include_bytes!("../assets/alien_jump.png"),
-        },
-    ];
-
+fn load_procedural_textures(world: &mut World) -> Vec<Vec2> {
     let atlas_slot_size = nightshade::render::SPRITE_ATLAS_SLOT_SIZE;
     let mut uv_max_table = vec![Vec2::new(1.0, 1.0); 128];
 
-    for entry in &entries {
-        let img = image::load_from_memory(entry.bytes).expect("Failed to decode image");
-        let (width, height) = img.dimensions();
-        let rgba = img.to_rgba8().into_raw();
+    let texture_size = 64u32;
 
+    let textures: [(u32, Vec<u8>); 4] = [
+        (SLOT_CIRCLE, generate_circle_texture(texture_size)),
+        (
+            SLOT_SQUARE,
+            vec![255u8; (texture_size * texture_size * 4) as usize],
+        ),
+        (SLOT_RING, generate_ring_texture(texture_size)),
+        (SLOT_SOFT_CIRCLE, generate_soft_circle_texture(texture_size)),
+    ];
+
+    for (slot, rgba_data) in &textures {
         world
             .resources
             .command_queue
             .push(WorldCommand::UploadSpriteTexture {
-                slot: entry.slot,
-                rgba_data: rgba,
-                width,
-                height,
+                slot: *slot,
+                rgba_data: rgba_data.clone(),
+                width: texture_size,
+                height: texture_size,
             });
 
         let half_texel_x = 0.5 / atlas_slot_size.0 as f32;
         let half_texel_y = 0.5 / atlas_slot_size.1 as f32;
-        uv_max_table[entry.slot as usize] = Vec2::new(
-            width as f32 / atlas_slot_size.0 as f32 - half_texel_x,
-            height as f32 / atlas_slot_size.1 as f32 - half_texel_y,
+        uv_max_table[*slot as usize] = Vec2::new(
+            texture_size as f32 / atlas_slot_size.0 as f32 - half_texel_x,
+            texture_size as f32 / atlas_slot_size.1 as f32 - half_texel_y,
         );
     }
 
@@ -132,7 +160,8 @@ fn uv_for_slot(uv_max_table: &[Vec2], slot: u32) -> (Vec2, Vec2) {
 
 fn spawn_textured_sprite(
     world: &mut World,
-    position: Vec3,
+    position: Vec2,
+    depth: f32,
     size: Vec2,
     texture_slot: u32,
     uv_max_table: &[Vec2],
@@ -140,6 +169,7 @@ fn spawn_textured_sprite(
     let entity = spawn_sprite(world, position, size);
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
     if let Some(sprite) = world.get_sprite_mut(entity) {
+        sprite.depth = depth;
         sprite.texture_index = texture_slot;
         sprite.texture_index2 = texture_slot;
         sprite.uv_min = uv_min;
@@ -148,477 +178,531 @@ fn spawn_textured_sprite(
     entity
 }
 
-impl State for SpriteDemo {
+const EASING_NAMES: &[(&str, EasingFunction)] = &[
+    ("Linear", EasingFunction::Linear),
+    ("QuadInOut", EasingFunction::QuadInOut),
+    ("CubicInOut", EasingFunction::CubicInOut),
+    ("QuartInOut", EasingFunction::QuartInOut),
+    ("SineInOut", EasingFunction::SineInOut),
+    ("ExpoInOut", EasingFunction::ExpoInOut),
+    ("CircInOut", EasingFunction::CircInOut),
+    ("BackInOut", EasingFunction::BackInOut),
+    ("ElasticOut", EasingFunction::ElasticOut),
+    ("BounceOut", EasingFunction::BounceOut),
+];
+
+const PARTICLE_PRESETS: &[&str] = &[
+    "Explosion",
+    "Fire Trail",
+    "Smoke",
+    "Sparks",
+    "Snow",
+    "Fountain",
+];
+
+impl SpriteShowcase {
+    fn build_tween_showcase(&mut self, world: &mut World) {
+        let start_x = -350.0;
+        let end_x = 350.0;
+        let start_y = 200.0;
+        let spacing_y = 40.0;
+        let label_x = -460.0;
+
+        for (index, &(name, easing)) in EASING_NAMES.iter().enumerate() {
+            let position_y = start_y - index as f32 * spacing_y;
+
+            let entity = spawn_textured_sprite(
+                world,
+                Vec2::new(start_x, position_y),
+                10.0,
+                Vec2::new(24.0, 24.0),
+                SLOT_CIRCLE,
+                &self.uv_max_table,
+            );
+
+            let hue = index as f32 / EASING_NAMES.len() as f32;
+            let (red, green, blue) = hue_to_rgb(hue);
+
+            if let Some(sprite) = world.get_sprite_mut(entity) {
+                sprite.color = [red, green, blue, 1.0];
+            }
+
+            let label = spawn_sprite_text(
+                world,
+                name,
+                Vec2::new(label_x, position_y - 5.0),
+                14.0,
+            );
+            if let Some(text) = world.get_sprite_text_mut(label) {
+                text.color = [red, green, blue, 1.0];
+                text.depth = 10.0;
+            }
+
+            world.add_components(entity, TWEEN);
+            let mut tween = Tween::new();
+
+            tween.add_track(
+                TweenTrack::new(
+                    TweenValue::Vec2(Vec2::new(start_x, position_y)),
+                    TweenValue::Vec2(Vec2::new(end_x, position_y)),
+                    2.5,
+                )
+                .with_easing(easing)
+                .with_loop_mode(TweenLoopMode::PingPong)
+                .with_tag(TAG_POSITION),
+            );
+
+            tween.add_track(
+                TweenTrack::new(TweenValue::F32(0.8), TweenValue::F32(1.6), 2.5)
+                    .with_easing(easing)
+                    .with_loop_mode(TweenLoopMode::PingPong)
+                    .with_tag(TAG_SCALE),
+            );
+
+            world.set_tween(entity, tween);
+            self.tween_entities.push(entity);
+        }
+
+        let color_sprite = spawn_textured_sprite(
+            world,
+            Vec2::new(0.0, start_y + 60.0),
+            10.0,
+            Vec2::new(60.0, 60.0),
+            SLOT_RING,
+            &self.uv_max_table,
+        );
+        world.add_components(color_sprite, TWEEN);
+        let mut color_tween = Tween::new();
+        color_tween.add_track(
+            TweenTrack::new(
+                TweenValue::Vec4(Vec4::new(1.0, 0.2, 0.2, 1.0)),
+                TweenValue::Vec4(Vec4::new(0.2, 0.5, 1.0, 1.0)),
+                3.0,
+            )
+            .with_easing(EasingFunction::SineInOut)
+            .with_loop_mode(TweenLoopMode::PingPong)
+            .with_tag(TAG_COLOR),
+        );
+        color_tween.add_track(
+            TweenTrack::new(TweenValue::F32(1.0), TweenValue::F32(2.5), 2.0)
+                .with_easing(EasingFunction::ElasticOut)
+                .with_loop_mode(TweenLoopMode::PingPong)
+                .with_tag(TAG_SCALE),
+        );
+        world.set_tween(color_sprite, color_tween);
+        self.tween_entities.push(color_sprite);
+    }
+
+    fn build_particle_showcase(&mut self, world: &mut World) {
+        let emitter_positions = [
+            Vec2::new(-300.0, -250.0),
+            Vec2::new(-100.0, -250.0),
+            Vec2::new(100.0, -250.0),
+            Vec2::new(300.0, -250.0),
+        ];
+
+        let (uv_min, uv_max) = uv_for_slot(&self.uv_max_table, SLOT_SOFT_CIRCLE);
+
+        let emitter_configs = [
+            SpriteParticleEmitter::fire_trail(emitter_positions[0].x, emitter_positions[0].y)
+                .with_texture(SLOT_SOFT_CIRCLE)
+                .with_uv(uv_min, uv_max)
+                .with_depth(20.0),
+            SpriteParticleEmitter::smoke(emitter_positions[1].x, emitter_positions[1].y)
+                .with_texture(SLOT_SOFT_CIRCLE)
+                .with_uv(uv_min, uv_max)
+                .with_depth(20.0),
+            {
+                let mut fountain = SpriteParticleEmitter {
+                    enabled: true,
+                    spawn_rate: 60.0,
+                    max_particles: 500,
+                    lifetime_min: 1.0,
+                    lifetime_max: 2.0,
+                    velocity_min: Vec2::new(-40.0, 100.0),
+                    velocity_max: Vec2::new(40.0, 200.0),
+                    gravity: Vec2::new(0.0, -200.0),
+                    drag: 0.02,
+                    size_start: Vec2::new(6.0, 6.0),
+                    size_end: Vec2::new(3.0, 3.0),
+                    color: ColorRange2D::new([0.3, 0.6, 1.0, 1.0], [0.1, 0.3, 1.0, 0.0]),
+                    blend_mode: SpriteBlendMode::Additive,
+                    texture_index: SLOT_SOFT_CIRCLE,
+                    uv_min,
+                    uv_max,
+                    depth: 20.0,
+                    anchor: Vec2::new(emitter_positions[2].x, emitter_positions[2].y),
+                    shape: EmitterShape2D::Point,
+                    ..Default::default()
+                };
+                fountain.rotation_speed_min = -1.0;
+                fountain.rotation_speed_max = 1.0;
+                fountain
+            },
+            {
+                let mut snow = SpriteParticleEmitter {
+                    enabled: true,
+                    spawn_rate: 40.0,
+                    max_particles: 400,
+                    lifetime_min: 2.0,
+                    lifetime_max: 4.0,
+                    velocity_min: Vec2::new(-30.0, -20.0),
+                    velocity_max: Vec2::new(30.0, -60.0),
+                    gravity: Vec2::new(0.0, -10.0),
+                    drag: 0.1,
+                    size_start: Vec2::new(4.0, 4.0),
+                    size_end: Vec2::new(2.0, 2.0),
+                    color: ColorRange2D::new([1.0, 1.0, 1.0, 0.9], [0.8, 0.9, 1.0, 0.0]),
+                    blend_mode: SpriteBlendMode::Alpha,
+                    texture_index: SLOT_SOFT_CIRCLE,
+                    uv_min,
+                    uv_max,
+                    depth: 20.0,
+                    anchor: Vec2::new(emitter_positions[3].x, emitter_positions[3].y + 100.0),
+                    shape: EmitterShape2D::Rectangle {
+                        half_extents: Vec2::new(80.0, 5.0),
+                    },
+                    ..Default::default()
+                };
+                snow.rotation_speed_min = -0.5;
+                snow.rotation_speed_max = 0.5;
+                snow
+            },
+        ];
+
+        for emitter_config in emitter_configs {
+            let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
+            world.set_sprite_particle_emitter(entity, emitter_config);
+            self.emitter_entities.push(entity);
+        }
+    }
+
+    fn apply_tweens(&self, world: &mut World) {
+        for &entity in &self.tween_entities {
+            let tween_data = world.get_tween(entity).cloned();
+            let Some(tween) = tween_data else {
+                continue;
+            };
+
+            if let Some(track) = tween.track_by_tag(TAG_POSITION) {
+                let position = track.value_vec2();
+                if let Some(sprite) = world.get_sprite_mut(entity) {
+                    sprite.position = position;
+                }
+            }
+
+            if let Some(track) = tween.track_by_tag(TAG_SCALE) {
+                let scale = track.value_f32();
+                if let Some(sprite) = world.get_sprite_mut(entity) {
+                    sprite.scale = Vec2::new(scale, scale);
+                }
+            }
+
+            if let Some(track) = tween.track_by_tag(TAG_ALPHA) {
+                let alpha = track.value_f32();
+                if let Some(sprite) = world.get_sprite_mut(entity) {
+                    sprite.color[3] = alpha;
+                }
+            }
+
+            if let Some(track) = tween.track_by_tag(TAG_COLOR) {
+                let color = track.value_vec4();
+                if let Some(sprite) = world.get_sprite_mut(entity) {
+                    sprite.color = [color.x, color.y, color.z, color.w];
+                }
+            }
+        }
+    }
+
+    fn screen_to_world(&self, world: &World, screen_position: Vec2) -> Vec2 {
+        let window_size = world
+            .resources
+            .window
+            .handle
+            .as_ref()
+            .map(|handle| {
+                let size = handle.inner_size();
+                Vec2::new(size.width as f32, size.height as f32)
+            })
+            .unwrap_or(Vec2::new(1920.0, 1080.0));
+
+        let camera_position = self
+            .camera_entity
+            .and_then(|entity| world.get_local_transform(entity))
+            .map(|transform| Vec2::new(transform.translation.x, transform.translation.y))
+            .unwrap_or(Vec2::zeros());
+
+        let half_view = self
+            .camera_entity
+            .and_then(|entity| world.get_camera(entity))
+            .map(|camera| {
+                if let Projection::Orthographic(ortho) = &camera.projection {
+                    Vec2::new(ortho.x_mag, ortho.y_mag)
+                } else {
+                    Vec2::new(480.0, 270.0)
+                }
+            })
+            .unwrap_or(Vec2::new(480.0, 270.0));
+
+        let normalized_x = screen_position.x / window_size.x - 0.5;
+        let normalized_y = -(screen_position.y / window_size.y - 0.5);
+
+        Vec2::new(
+            camera_position.x + normalized_x * 2.0 * half_view.x,
+            camera_position.y + normalized_y * 2.0 * half_view.y,
+        )
+    }
+
+    fn spawn_stream_emitter(
+        &self,
+        world: &mut World,
+        position: Vec2,
+        preset_index: usize,
+    ) -> Entity {
+        let (uv_min, uv_max) = uv_for_slot(&self.uv_max_table, SLOT_SOFT_CIRCLE);
+
+        let emitter = match preset_index {
+            0 => SpriteParticleEmitter {
+                spawn_rate: 80.0,
+                ..SpriteParticleEmitter::explosion(position.x, position.y)
+                    .with_texture(SLOT_SOFT_CIRCLE)
+                    .with_uv(uv_min, uv_max)
+                    .with_depth(30.0)
+            },
+            1 => SpriteParticleEmitter::fire_trail(position.x, position.y)
+                .with_texture(SLOT_SOFT_CIRCLE)
+                .with_uv(uv_min, uv_max)
+                .with_depth(30.0),
+            2 => SpriteParticleEmitter::smoke(position.x, position.y)
+                .with_texture(SLOT_SOFT_CIRCLE)
+                .with_uv(uv_min, uv_max)
+                .with_depth(30.0),
+            3 => SpriteParticleEmitter {
+                spawn_rate: 60.0,
+                ..SpriteParticleEmitter::sparks(position.x, position.y)
+                    .with_texture(SLOT_SOFT_CIRCLE)
+                    .with_uv(uv_min, uv_max)
+                    .with_depth(30.0)
+            },
+            4 => {
+                let mut snow = SpriteParticleEmitter {
+                    enabled: true,
+                    spawn_rate: 40.0,
+                    max_particles: 400,
+                    lifetime_min: 1.5,
+                    lifetime_max: 3.0,
+                    velocity_min: Vec2::new(-60.0, -10.0),
+                    velocity_max: Vec2::new(60.0, -50.0),
+                    gravity: Vec2::new(0.0, -15.0),
+                    drag: 0.1,
+                    size_start: Vec2::new(5.0, 5.0),
+                    size_end: Vec2::new(2.0, 2.0),
+                    color: ColorRange2D::new([1.0, 1.0, 1.0, 1.0], [0.8, 0.9, 1.0, 0.0]),
+                    blend_mode: SpriteBlendMode::Alpha,
+                    texture_index: SLOT_SOFT_CIRCLE,
+                    uv_min,
+                    uv_max,
+                    depth: 30.0,
+                    anchor: Vec2::new(position.x, position.y),
+                    shape: EmitterShape2D::Circle { radius: 20.0 },
+                    ..Default::default()
+                };
+                snow.rotation_speed_min = -0.5;
+                snow.rotation_speed_max = 0.5;
+                snow
+            }
+            _ => {
+                let mut fountain = SpriteParticleEmitter {
+                    enabled: true,
+                    spawn_rate: 60.0,
+                    max_particles: 500,
+                    lifetime_min: 0.8,
+                    lifetime_max: 1.5,
+                    velocity_min: Vec2::new(-60.0, 80.0),
+                    velocity_max: Vec2::new(60.0, 200.0),
+                    gravity: Vec2::new(0.0, -250.0),
+                    drag: 0.05,
+                    size_start: Vec2::new(5.0, 5.0),
+                    size_end: Vec2::new(2.0, 2.0),
+                    color: ColorRange2D::new([0.3, 0.8, 1.0, 1.0], [0.1, 0.3, 1.0, 0.0]),
+                    blend_mode: SpriteBlendMode::Additive,
+                    texture_index: SLOT_SOFT_CIRCLE,
+                    uv_min,
+                    uv_max,
+                    depth: 30.0,
+                    anchor: Vec2::new(position.x, position.y),
+                    shape: EmitterShape2D::Point,
+                    ..Default::default()
+                };
+                fountain.rotation_speed_min = -2.0;
+                fountain.rotation_speed_max = 2.0;
+                fountain
+            }
+        };
+
+        let mut final_emitter = emitter;
+        final_emitter.one_shot = false;
+        final_emitter.burst_count = 0;
+
+        let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
+        world.set_sprite_particle_emitter(entity, final_emitter);
+        entity
+    }
+
+    fn handle_mouse_particles(&mut self, world: &mut World) {
+        let mouse_state = world.resources.input.mouse.state;
+        let screen_position = Vec2::new(
+            world.resources.input.mouse.position.x,
+            world.resources.input.mouse.position.y,
+        );
+
+        if mouse_state.contains(MouseState::LEFT_JUST_PRESSED) {
+            let world_position = self.screen_to_world(world, screen_position);
+            let entity = self.spawn_stream_emitter(world, world_position, self.selected_particle);
+            self.held_emitter = Some(entity);
+        } else if mouse_state.contains(MouseState::LEFT_CLICKED) {
+            if let Some(entity) = self.held_emitter {
+                let world_position = self.screen_to_world(world, screen_position);
+                if let Some(emitter) = world.get_sprite_particle_emitter_mut(entity) {
+                    emitter.anchor = world_position;
+                }
+            }
+        } else if let Some(entity) = self.held_emitter.take()
+            && let Some(emitter) = world.get_sprite_particle_emitter_mut(entity)
+        {
+            emitter.enabled = false;
+        }
+    }
+
+    fn save_scene(&mut self, world: &World) {
+        let scene = world_to_scene_2d(world, Some("Sprite Showcase"));
+        let path = std::path::Path::new(SCENE_FILE);
+        if save_scene_2d(&scene, path).is_ok() {
+            self.show_save_feedback = 2.0;
+        }
+    }
+
+    fn load_scene(&mut self, world: &mut World) {
+        let path = std::path::Path::new(SCENE_FILE);
+        if let Ok(scene) = load_scene_2d(path)
+            && spawn_scene_2d(world, &scene).is_ok()
+        {
+            self.show_load_feedback = 2.0;
+        }
+    }
+}
+
+fn hue_to_rgb(hue: f32) -> (f32, f32, f32) {
+    let hue = hue.fract();
+    let segment = hue * 6.0;
+    let fraction = segment.fract();
+    match segment as u32 {
+        0 => (1.0, fraction, 0.0),
+        1 => (1.0 - fraction, 1.0, 0.0),
+        2 => (0.0, 1.0, fraction),
+        3 => (0.0, 1.0 - fraction, 1.0),
+        4 => (fraction, 0.0, 1.0),
+        _ => (1.0, 0.0, 1.0 - fraction),
+    }
+}
+
+impl State for SpriteShowcase {
+    fn title(&self) -> &str {
+        "Sprite Showcase"
+    }
+
     fn initialize(&mut self, world: &mut World) {
         world.resources.graphics.show_grid = false;
         world.resources.graphics.atmosphere = Atmosphere::None;
-        world.resources.graphics.clear_color = [0.02, 0.02, 0.08, 1.0];
+        world.resources.graphics.clear_color = [0.05, 0.05, 0.12, 1.0];
         world.resources.user_interface.enabled = true;
 
-        self.resources.auto_pan = false;
-        self.resources.auto_pan_time = 0.0;
-
         let camera = spawn_ortho_camera(world, Vec2::new(0.0, 0.0));
-        self.resources.camera_entity = Some(camera);
+        self.camera_entity = Some(camera);
 
-        self.resources.texture_uv_max = load_textures(world);
+        if let Some(camera_data) = world.get_camera_mut(camera)
+            && let Projection::Orthographic(ref mut ortho) = camera_data.projection
+        {
+            ortho.x_mag = 480.0;
+            ortho.y_mag = 270.0;
+        }
 
-        spawn_background_layer(world, &self.resources.texture_uv_max);
-        spawn_midground_layer(world, &self.resources.texture_uv_max);
-        spawn_foreground_ships(world, &self.resources.texture_uv_max);
-        spawn_animated_aliens(world, &self.resources.texture_uv_max);
-        spawn_bouncing_ufos(world, self);
-
-        let fps_hud = spawn_hud_text_with_properties(
-            world,
-            "FPS: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 10.0),
-            TextProperties {
-                font_size: 36.0,
-                color: Vec4::new(0.0, 1.0, 0.0, 1.0),
-                ..Default::default()
-            },
-        );
-        self.resources.fps_hud = Some(fps_hud);
-
-        let camera_hud = spawn_hud_text_with_properties(
-            world,
-            "Camera: (0, 0) Zoom: 1.0x",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 55.0),
-            TextProperties {
-                font_size: 24.0,
-                color: Vec4::new(0.8, 0.8, 0.8, 1.0),
-                ..Default::default()
-            },
-        );
-        self.resources.camera_hud = Some(camera_hud);
-
-        let sprite_count_hud = spawn_hud_text_with_properties(
-            world,
-            "Sprites: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 90.0),
-            TextProperties {
-                font_size: 24.0,
-                color: Vec4::new(0.8, 0.8, 0.8, 1.0),
-                ..Default::default()
-            },
-        );
-        self.resources.sprite_count_hud = Some(sprite_count_hud);
+        self.uv_max_table = load_procedural_textures(world);
     }
 
     fn run_systems(&mut self, world: &mut World) {
+        if !self.initialized {
+            self.initialized = true;
+            self.build_tween_showcase(world);
+            self.build_particle_showcase(world);
+        }
+
+        let delta_time = world.resources.window.timing.delta_time;
+
         escape_key_exit_system(world);
-        ortho_camera_system(world);
-        sprite_animation_system(world);
-        update_bouncing_ufos(world, self);
-        update_auto_pan(world, self);
-        update_hud(world, self);
+
+        self.apply_tweens(world);
+        self.handle_mouse_particles(world);
+
+        if self.show_save_feedback > 0.0 {
+            self.show_save_feedback -= delta_time;
+        }
+        if self.show_load_feedback > 0.0 {
+            self.show_load_feedback -= delta_time;
+        }
     }
 
     fn ui(&mut self, world: &mut World, ui_context: &egui::Context) {
-        egui::Window::new("2D Sprite Demo")
+        egui::Window::new("Sprite Showcase")
             .default_pos([10.0, 10.0])
             .show(ui_context, |ui| {
-                ui.heading("Controls");
-                ui.separator();
-                ui.label("WASD / Arrows - Pan camera");
-                ui.label("Mouse Wheel - Zoom");
-                ui.label("Q / E - Rotate camera");
+                let fps = world.resources.window.timing.frames_per_second;
+                ui.label(format!("FPS: {:.0}", fps));
                 ui.separator();
 
-                if let Some(camera_entity) = self.resources.camera_entity {
-                    if let Some(camera) = world.get_camera(camera_entity)
-                        && let Projection::Orthographic(ortho) = &camera.projection
-                    {
-                        let viewport_width = world
-                            .resources
-                            .window
-                            .handle
-                            .as_ref()
-                            .map(|handle| handle.inner_size().width as f32)
-                            .unwrap_or(1920.0);
-                        let zoom = viewport_width / (2.0 * ortho.x_mag);
-                        ui.label(format!("Zoom: {:.2}x", zoom));
+                ui.heading("Tweening");
+                ui.label("10 easing curves animating position and scale simultaneously.");
+                ui.label("Top ring cycles color via SineInOut + scale via ElasticOut.");
+                ui.separator();
+
+                ui.heading("Particles");
+                ui.label("4 continuous emitters: fire, smoke, fountain, snow.");
+                ui.label("Click and hold to stream particles. Release to stop.");
+
+                ui.horizontal(|ui| {
+                    ui.label("Click spawns:");
+                    for (index, &name) in PARTICLE_PRESETS.iter().enumerate() {
+                        if ui
+                            .selectable_label(self.selected_particle == index, name)
+                            .clicked()
+                        {
+                            self.selected_particle = index;
+                        }
                     }
-                    if let Some(transform) = world.get_local_transform(camera_entity) {
-                        let right = transform.right_vector();
-                        let rotation = right.y.atan2(right.x);
-                        ui.label(format!("Rotation: {:.1} deg", rotation.to_degrees()));
-                        ui.label(format!(
-                            "Position: ({:.0}, {:.0})",
-                            transform.translation.x, transform.translation.y
-                        ));
+                });
+                ui.separator();
+
+                ui.heading("Scene Serialization");
+                ui.horizontal(|ui| {
+                    if ui.button("Save Scene").clicked() {
+                        self.save_scene(world);
                     }
+                    if ui.button("Load Scene").clicked() {
+                        self.load_scene(world);
+                    }
+                });
+                if self.show_save_feedback > 0.0 {
+                    ui.colored_label(egui::Color32::GREEN, format!("Saved to {SCENE_FILE}"));
                 }
-
-                ui.separator();
-                ui.checkbox(&mut self.resources.auto_pan, "Auto-pan camera");
-
-                ui.separator();
-                if ui.button("Reset Camera").clicked()
-                    && let Some(camera_entity) = self.resources.camera_entity
-                {
-                    if let Some(transform) = world.get_local_transform_mut(camera_entity) {
-                        transform.translation.x = 0.0;
-                        transform.translation.y = 0.0;
-                    }
-                    if let Some(camera) = world.get_camera_mut(camera_entity)
-                        && let Projection::Orthographic(ref mut ortho) = camera.projection
-                    {
-                        ortho.x_mag = 960.0;
-                        ortho.y_mag = 540.0;
-                    }
-                    mark_local_transform_dirty(world, camera_entity);
+                if self.show_load_feedback > 0.0 {
+                    ui.colored_label(egui::Color32::GREEN, format!("Loaded from {SCENE_FILE}"));
                 }
-
-                if ui.button("Spawn 50 more UFOs").clicked() {
-                    spawn_bouncing_ufos(world, self);
-                }
-
-                ui.separator();
-                ui.heading("Layers (Z depth)");
-                ui.label("Background (Z=0) - far back");
-                ui.label("Stars/Meteors (Z=100-200) - midground");
-                ui.label("Ships/UFOs (Z=500) - foreground");
-                ui.label("Aliens (Z=600) - closest");
+                ui.label("Saves all sprites, tweens, and emitters to JSON.");
             });
+
     }
 }
 
-fn spawn_background_layer(world: &mut World, uv_max_table: &[Vec2]) {
-    let tile_size = 256.0;
-
-    for row in -8..=8 {
-        for col in -12..=12 {
-            let entity = spawn_textured_sprite(
-                world,
-                Vec3::new(col as f32 * tile_size, row as f32 * tile_size, 0.0),
-                Vec2::new(tile_size, tile_size),
-                SLOT_BG,
-                uv_max_table,
-            );
-            if let Some(sprite) = world.get_sprite_mut(entity) {
-                sprite.color = [1.0, 1.0, 1.0, 1.0];
-            }
-        }
-    }
-}
-
-fn spawn_midground_layer(world: &mut World, uv_max_table: &[Vec2]) {
-    for index in 0..30 {
-        let angle = index as f32 * 0.7;
-        let radius = 200.0 + index as f32 * 60.0;
-        let scale_factor = 0.8 + (index as f32 * 0.3).sin().abs() * 0.8;
-
-        let entity = spawn_textured_sprite(
-            world,
-            Vec3::new(angle.cos() * radius, angle.sin() * radius, 200.0),
-            Vec2::new(101.0, 84.0),
-            SLOT_METEOR,
-            uv_max_table,
-        );
-        if let Some(sprite) = world.get_sprite_mut(entity) {
-            sprite.color = [1.0, 1.0, 1.0, 0.9];
-        }
-        if let Some(local_transform) = world.get_local_transform_mut(entity) {
-            local_transform.rotation = nalgebra_glm::quat_angle_axis(angle * 2.0, &Vec3::z());
-            local_transform.scale = Vec3::new(scale_factor, scale_factor, 1.0);
-        }
-        mark_local_transform_dirty(world, entity);
-    }
-
-    for index in 0..20 {
-        let angle = index as f32 * 1.1 + 0.5;
-        let radius = 300.0 + index as f32 * 50.0;
-        let scale_factor = 0.5 + (index as f32 * 0.5).sin().abs();
-
-        let entity = spawn_textured_sprite(
-            world,
-            Vec3::new(angle.cos() * radius, angle.sin() * radius, 100.0),
-            Vec2::new(64.0, 64.0),
-            SLOT_STAR,
-            uv_max_table,
-        );
-        if let Some(sprite) = world.get_sprite_mut(entity) {
-            sprite.color = [1.0, 1.0, 1.0, 0.7];
-        }
-        if let Some(local_transform) = world.get_local_transform_mut(entity) {
-            local_transform.scale = Vec3::new(scale_factor, scale_factor, 1.0);
-        }
-        mark_local_transform_dirty(world, entity);
-    }
-}
-
-fn spawn_foreground_ships(world: &mut World, uv_max_table: &[Vec2]) {
-    let positions = [
-        Vec2::new(200.0, 100.0),
-        Vec2::new(-300.0, -200.0),
-        Vec2::new(400.0, -100.0),
-        Vec2::new(-200.0, 300.0),
-        Vec2::new(0.0, -400.0),
-        Vec2::new(500.0, 200.0),
-    ];
-
-    for (index, position) in positions.iter().enumerate() {
-        let entity = spawn_textured_sprite(
-            world,
-            Vec3::new(position.x, position.y, 500.0),
-            Vec2::new(99.0, 75.0),
-            SLOT_SHIP,
-            uv_max_table,
-        );
-        if let Some(local_transform) = world.get_local_transform_mut(entity) {
-            local_transform.rotation =
-                nalgebra_glm::quat_angle_axis((index as f32 * 0.8).sin() * 0.5, &Vec3::z());
-            local_transform.scale = Vec3::new(1.5, 1.5, 1.0);
-        }
-        mark_local_transform_dirty(world, entity);
-    }
-}
-
-fn spawn_animated_aliens(world: &mut World, uv_max_table: &[Vec2]) {
-    let frame_slots = [
-        SLOT_ALIEN_STAND,
-        SLOT_ALIEN_WALK1,
-        SLOT_ALIEN_WALK2,
-        SLOT_ALIEN_JUMP,
-    ];
-
-    let positions = [
-        Vec2::new(-100.0, 0.0),
-        Vec2::new(100.0, 0.0),
-        Vec2::new(0.0, 200.0),
-        Vec2::new(0.0, -200.0),
-        Vec2::new(-250.0, 150.0),
-        Vec2::new(250.0, -150.0),
-    ];
-
-    for (index, position) in positions.iter().enumerate() {
-        let mut frames = Vec::new();
-        for &slot in &frame_slots {
-            let (uv_min, uv_max) = uv_for_slot(uv_max_table, slot);
-            frames.push(SpriteFrame {
-                uv_min,
-                uv_max,
-                duration: 0.2 + index as f32 * 0.03,
-                texture_index: Some(slot),
-            });
-        }
-
-        let entity = world.spawn_entities(
-            nightshade::ecs::SPRITE
-                | nightshade::ecs::RENDER_MESH
-                | nightshade::ecs::MATERIAL_REF
-                | nightshade::ecs::VISIBILITY
-                | nightshade::ecs::SPRITE_ANIMATOR
-                | nightshade::ecs::LOCAL_TRANSFORM
-                | nightshade::ecs::LOCAL_TRANSFORM_DIRTY
-                | nightshade::ecs::GLOBAL_TRANSFORM,
-            1,
-        )[0];
-
-        let first_slot = frame_slots[0];
-        let (first_uv_min, first_uv_max) = uv_for_slot(uv_max_table, first_slot);
-
-        if let Some(local_transform) = world.get_local_transform_mut(entity) {
-            local_transform.translation = Vec3::new(position.x, position.y, 600.0);
-            local_transform.scale = Vec3::new(128.0 * 0.4, 256.0 * 0.4, 1.0);
-        }
-
-        if let Some(render_mesh) = world.get_render_mesh_mut(entity) {
-            render_mesh.name = "SpriteQuad".to_string();
-        }
-        if let Some(material_ref) = world.get_material_ref_mut(entity) {
-            material_ref.name = "sprite_atlas".to_string();
-        }
-
-        if let Some(sprite) = world.get_sprite_mut(entity) {
-            sprite.texture_index = first_slot;
-            sprite.texture_index2 = first_slot;
-            sprite.color = [1.0, 1.0, 1.0, 1.0];
-            sprite.uv_min = first_uv_min;
-            sprite.uv_max = first_uv_max;
-        }
-
-        if let Some(visibility) = world.get_visibility_mut(entity) {
-            visibility.visible = true;
-        }
-
-        if let Some(animator) = world.get_sprite_animator_mut(entity) {
-            animator.frames = frames;
-            animator.playing = true;
-            animator.speed = 0.8 + (index as f32 * 0.3).sin().abs() * 0.8;
-            animator.loop_mode = if index % 2 == 0 {
-                nightshade::ecs::sprite_animator::LoopMode::Loop
-            } else {
-                nightshade::ecs::sprite_animator::LoopMode::PingPong
-            };
-        }
-    }
-}
-
-fn spawn_bouncing_ufos(world: &mut World, demo: &mut SpriteDemo) {
-    let uv_max_table = demo.resources.texture_uv_max.clone();
-
-    for index in 0..50 {
-        let angle = index as f32 * 0.4;
-        let radius = 80.0 + index as f32 * 12.0;
-        let use_red = index % 3 == 0;
-        let slot = if use_red { SLOT_UFO_RED } else { SLOT_UFO_BLUE };
-        let scale_factor = 0.6 + (index as f32 * 0.2).sin().abs() * 0.4;
-
-        let engine_entity = spawn_textured_sprite(
-            world,
-            Vec3::new(angle.cos() * radius, angle.sin() * radius, 500.0),
-            Vec2::new(91.0, 91.0),
-            slot,
-            &uv_max_table,
-        );
-
-        if let Some(local_transform) = world.get_local_transform_mut(engine_entity) {
-            local_transform.scale = Vec3::new(scale_factor, scale_factor, 1.0);
-        }
-        mark_local_transform_dirty(world, engine_entity);
-
-        let game_entity = demo.spawn_entities(BOUNCE_VELOCITY | ENGINE_ENTITY, 1)[0];
-        demo.set_bounce_velocity(
-            game_entity,
-            BounceVelocity {
-                velocity: Vec2::new((angle + 1.0).cos() * 120.0, (angle + 1.0).sin() * 120.0),
-            },
-        );
-        demo.set_engine_entity(game_entity, EngineEntity(engine_entity));
-    }
-}
-
-fn update_bouncing_ufos(world: &mut World, demo: &mut SpriteDemo) {
-    let delta_time = world.resources.window.timing.delta_time;
-    let elapsed = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
-
-    let entities: Vec<_> = demo
-        .query_entities(BOUNCE_VELOCITY | ENGINE_ENTITY)
-        .collect();
-
-    for entity in entities {
-        let handle = demo.get_engine_entity(entity).copied();
-
-        if let (Some(physics), Some(handle)) = (demo.get_bounce_velocity_mut(entity), handle) {
-            if let Some(local_transform) = world.get_local_transform_mut(handle.0) {
-                local_transform.translation.x += physics.velocity.x * delta_time;
-                local_transform.translation.y += physics.velocity.y * delta_time;
-
-                let bound = 800.0;
-                if local_transform.translation.x.abs() > bound {
-                    physics.velocity.x *= -1.0;
-                    local_transform.translation.x =
-                        local_transform.translation.x.clamp(-bound, bound);
-                }
-                if local_transform.translation.y.abs() > bound {
-                    physics.velocity.y *= -1.0;
-                    local_transform.translation.y =
-                        local_transform.translation.y.clamp(-bound, bound);
-                }
-
-                local_transform.rotation = nalgebra_glm::quat_angle_axis(
-                    elapsed * physics.velocity.x.signum() * 1.5,
-                    &Vec3::z(),
-                );
-            }
-            mark_local_transform_dirty(world, handle.0);
-        }
-    }
-}
-
-fn update_auto_pan(world: &mut World, demo: &mut SpriteDemo) {
-    if !demo.resources.auto_pan {
-        return;
-    }
-
-    let delta_time = world.resources.window.timing.delta_time;
-    demo.resources.auto_pan_time += delta_time;
-
-    if let Some(camera_entity) = demo.resources.camera_entity {
-        let time = demo.resources.auto_pan_time;
-        let target_x = (time * 0.3).sin() * 600.0;
-        let target_y = (time * 0.2).cos() * 400.0;
-
-        if let Some(transform) = world.get_local_transform_mut(camera_entity) {
-            let lerp_factor = 1.0 - 0.95_f32.powf(delta_time * 60.0);
-            transform.translation.x += (target_x - transform.translation.x) * lerp_factor;
-            transform.translation.y += (target_y - transform.translation.y) * lerp_factor;
-        }
-        mark_local_transform_dirty(world, camera_entity);
-    }
-}
-
-fn update_hud(world: &mut World, demo: &mut SpriteDemo) {
-    if let Some(fps_entity) = demo.resources.fps_hud {
-        let fps = world.resources.window.timing.frames_per_second;
-        let text_index = world.get_hud_text(fps_entity).map(|text| text.text_index);
-        if let Some(text_index) = text_index {
-            world
-                .resources
-                .text_cache
-                .set_text(text_index, format!("FPS: {:.0}", fps));
-            if let Some(hud_text) = world.get_hud_text_mut(fps_entity) {
-                hud_text.dirty = true;
-            }
-        }
-    }
-
-    if let Some(camera_hud_entity) = demo.resources.camera_hud {
-        let camera_info = demo.resources.camera_entity.and_then(|camera_entity| {
-            let transform = world.get_local_transform(camera_entity)?;
-            let camera = world.get_camera(camera_entity)?;
-            let Projection::Orthographic(ortho) = &camera.projection else {
-                return None;
-            };
-            let viewport_width = world
-                .resources
-                .window
-                .handle
-                .as_ref()
-                .map(|handle| handle.inner_size().width as f32)
-                .unwrap_or(1920.0);
-            let zoom = viewport_width / (2.0 * ortho.x_mag);
-            let right = transform.right_vector();
-            let rotation = right.y.atan2(right.x);
-            Some(format!(
-                "Camera: ({:.0}, {:.0}) Zoom: {:.2}x Rot: {:.0} deg",
-                transform.translation.x,
-                transform.translation.y,
-                zoom,
-                rotation.to_degrees()
-            ))
-        });
-
-        if let Some(info) = camera_info {
-            let text_index = world
-                .get_hud_text(camera_hud_entity)
-                .map(|text| text.text_index);
-            if let Some(text_index) = text_index {
-                world.resources.text_cache.set_text(text_index, info);
-                if let Some(hud_text) = world.get_hud_text_mut(camera_hud_entity) {
-                    hud_text.dirty = true;
-                }
-            }
-        }
-    }
-
-    if let Some(count_entity) = demo.resources.sprite_count_hud {
-        let sprite_count = world.query_entities(nightshade::ecs::SPRITE).count();
-        let text_index = world.get_hud_text(count_entity).map(|text| text.text_index);
-        if let Some(text_index) = text_index {
-            world
-                .resources
-                .text_cache
-                .set_text(text_index, format!("Sprites: {}", sprite_count));
-            if let Some(hud_text) = world.get_hud_text_mut(count_entity) {
-                hud_text.dirty = true;
-            }
-        }
-    }
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    launch(SpriteShowcase::default())
 }

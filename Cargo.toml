@@ -11,5 +11,5 @@ exclude = [
 [workspace.dependencies]
 nightshade = { git = "https://github.com/matthewjberger/nightshade.git" }
 
-# [patch."https://github.com/matthewjberger/nightshade.git"]
-# nightshade = { path = "../nightshade/crates/nightshade" }
+[patch."https://github.com/matthewjberger/nightshade.git"]
+nightshade = { path = "../nightshade/crates/nightshade" }

@@ -227,12 +227,7 @@ impl SpriteShowcase {
                 sprite.color = [red, green, blue, 1.0];
             }
 
-            let label = spawn_sprite_text(
-                world,
-                name,
-                Vec2::new(label_x, position_y - 5.0),
-                14.0,
-            );
+            let label = spawn_sprite_text(world, name, Vec2::new(label_x, position_y - 5.0), 14.0);
             if let Some(text) = world.get_sprite_text_mut(label) {
                 text.color = [red, green, blue, 1.0];
                 text.depth = 10.0;
@@ -699,7 +694,6 @@ impl State for SpriteShowcase {
                 }
                 ui.label("Saves all sprites, tweens, and emitters to JSON.");
             });
-
     }
 }
 

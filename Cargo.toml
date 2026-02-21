@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["examples/*", "examples-native/*", "examples-terminal/*"]
+members = [
+    "examples-2d/*",
+    "examples-3d/*",
+    "examples-native/*",
+    "examples-terminal/*",
+]
 exclude = [
     "examples-native/plugins",
     "examples-native/webview",

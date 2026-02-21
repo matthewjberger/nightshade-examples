@@ -66,12 +66,12 @@ build-wasm-tui $example:
 run-tui-wasm $example:
     trunk serve --release --open --config examples-terminal/{{example}}/Trunk.toml
 
-# Interactively pick and run an example
+# Interactively pick and run any example (2D or 3D)
 [windows]
 pick:
-    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "cyberdust" = "Neon runner game"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "pixel_platformer" = "Pixel art platformer"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "tappy_plane" = "Flappy plane game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { cargo run -r -p $example }
+    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gfx" = "2D shape primitives and beziers"; "gfx_showcase" = "2D shape primitives showcase"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (@("examples-2d", "examples-3d") | ForEach-Object { Get-ChildItem -Directory $_ } | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { cargo run -r -p $example }
 
-# Interactively pick and run an example
+# Interactively pick and run any example (2D or 3D)
 [unix]
 pick:
     #!/usr/bin/env bash
@@ -91,7 +91,6 @@ pick:
         ["city"]="Procedural city generator"
         ["custom_multipass"]="Gaussian blur multipass"
         ["custom_pass"]="Custom render pass"
-        ["cyberdust"]="Neon runner game"
         ["dance"]="Skinned mesh benchmark"
         ["decals"]="Decal projection"
         ["depth_of_field"]="Depth of field effect"
@@ -99,6 +98,8 @@ pick:
         ["farming"]="Farming simulation"
         ["fireworks"]="Fireworks particle effects"
         ["genetic_walkers"]="Genetic algorithm walkers"
+        ["gfx"]="2D shape primitives and beziers"
+        ["gfx_showcase"]="2D shape primitives showcase"
         ["gizmo"]="Transform gizmo"
         ["hex_war"]="Hex-based strategy game"
         ["hiz"]="Hi-Z occlusion culling"
@@ -119,7 +120,6 @@ pick:
         ["physics"]="Physics interaction"
         ["physics_benchmark"]="Physics stress test"
         ["picking"]="3D mouse picking"
-        ["pixel_platformer"]="Pixel art platformer"
         ["platformer"]="Physics-based platformer"
         ["pong"]="Classic pong game"
         ["prefabs"]="Prefab loading and instancing"
@@ -140,7 +140,6 @@ pick:
         ["ssao"]="Screen-space ambient occlusion"
         ["ssr"]="Screen-space reflections"
         ["survivors"]="Survivors-style action game"
-        ["tappy_plane"]="Flappy plane game"
         ["terrain"]="Infinite procedural terrain"
         ["text_adventure"]="Text adventure game"
         ["textures"]="Texture loading and display"
@@ -153,7 +152,7 @@ pick:
         ["winter"]="Third-person character control"
     )
     items=""
-    for dir in examples/*/; do
+    for dir in examples-2d/*/ examples-3d/*/; do
         name=$(basename "$dir")
         desc="${descriptions[$name]:-}"
         if [ -n "$desc" ]; then
@@ -165,10 +164,133 @@ pick:
     example=$(echo -e "$items" | sort | fzf --prompt="Pick a demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
     [ -n "$example" ] && cargo run -r -p "$example"
 
+# Interactively pick and run a 2D example
+[windows]
+pick-2d:
+    $descriptions = @{ "bunnymark" = "Sprite rendering benchmark"; "chip8" = "Super CHIP-8 emulator"; "fireworks" = "Fireworks particle effects"; "gfx" = "2D shape primitives and beziers"; "gfx_showcase" = "2D shape primitives showcase"; "hud_text" = "HUD text rendering"; "roguelike" = "Roguelike dungeon crawler"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "sprites" = "2D sprite rendering"; "text_adventure" = "Text adventure game"; "topdown_shooter" = "Top-down twin-stick shooter"; "ui" = "UI widgets and layouts" }; $example = (Get-ChildItem -Directory "examples-2d" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a 2D demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { cargo run -r -p $example }
+
+# Interactively pick and run a 2D example
+[unix]
+pick-2d:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    declare -A descriptions=(
+        ["bunnymark"]="Sprite rendering benchmark"
+        ["chip8"]="Super CHIP-8 emulator"
+        ["fireworks"]="Fireworks particle effects"
+        ["gfx"]="2D shape primitives and beziers"
+        ["gfx_showcase"]="2D shape primitives showcase"
+        ["hud_text"]="HUD text rendering"
+        ["roguelike"]="Roguelike dungeon crawler"
+        ["sokoban"]="Sokoban puzzle game"
+        ["space_shooter"]="Bullet hell shooter"
+        ["sprites"]="2D sprite rendering"
+        ["text_adventure"]="Text adventure game"
+        ["topdown_shooter"]="Top-down twin-stick shooter"
+        ["ui"]="UI widgets and layouts"
+    )
+    items=""
+    for dir in examples-2d/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a 2D demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
+    [ -n "$example" ] && cargo run -r -p "$example"
+
+# Interactively pick and run a 3D example
+[windows]
+pick-3d:
+    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "genetic_walkers" = "Genetic algorithm walkers"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "terrain" = "Infinite procedural terrain"; "textures" = "Texture loading and display"; "tower_defense" = "Tower defense with ECS"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (Get-ChildItem -Directory "examples-3d" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a 3D demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { cargo run -r -p $example }
+
+# Interactively pick and run a 3D example
+[unix]
+pick-3d:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    declare -A descriptions=(
+        ["alpha_blending"]="Alpha blending and transparency"
+        ["asteroid_belt"]="Asteroid belt simulation"
+        ["audio"]="Spatial audio playback"
+        ["block_breaker"]="Block breaker arcade game"
+        ["block_breaker_scripts"]="Block breaker with WASM scripts"
+        ["bloom"]="Bloom post-processing"
+        ["camera_in_camera"]="Nested camera rendering"
+        ["castle_siege"]="GOAP AI castle siege"
+        ["chess"]="3D chess game"
+        ["city"]="Procedural city generator"
+        ["custom_multipass"]="Gaussian blur multipass"
+        ["custom_pass"]="Custom render pass"
+        ["dance"]="Skinned mesh benchmark"
+        ["decals"]="Decal projection"
+        ["depth_of_field"]="Depth of field effect"
+        ["doom"]="Doom-style renderer"
+        ["farming"]="Farming simulation"
+        ["genetic_walkers"]="Genetic algorithm walkers"
+        ["gizmo"]="Transform gizmo"
+        ["hex_war"]="Hex-based strategy game"
+        ["hiz"]="Hi-Z occlusion culling"
+        ["horror"]="First-person horror demo"
+        ["immersive_sim"]="Immersive sim sandbox"
+        ["interior_mapping"]="Interior mapping shader"
+        ["jigsaw"]="Jigsaw puzzle game"
+        ["lattice"]="Lattice deformation"
+        ["lights"]="Clustered forward rendering"
+        ["maps"]="Map rendering"
+        ["menu"]="Menu system demo"
+        ["morph"]="Morph targets animation"
+        ["mosaic"]="Multi-window mosaic"
+        ["multi_world"]="Multiple ECS worlds"
+        ["navmesh"]="NavMesh pathfinding"
+        ["neon_lights"]="Neon light effects"
+        ["physics"]="Physics interaction"
+        ["physics_benchmark"]="Physics stress test"
+        ["picking"]="3D mouse picking"
+        ["platformer"]="Physics-based platformer"
+        ["pong"]="Classic pong game"
+        ["prefabs"]="Prefab loading and instancing"
+        ["psx"]="PS1-style rendering"
+        ["render_layers"]="Render layer filtering"
+        ["sdf_sculpt"]="SDF sculpting tool"
+        ["sdf_text"]="SDF text rendering"
+        ["shader_studio"]="Live shader editor"
+        ["shadows"]="Shadow mapping"
+        ["shell"]="Shell texturing demo"
+        ["skybox"]="HDR skybox loading"
+        ["speedreader"]="Speed reading trainer"
+        ["spotlight_shadows"]="Spotlight shadow mapping"
+        ["ssao"]="Screen-space ambient occlusion"
+        ["ssr"]="Screen-space reflections"
+        ["survivors"]="Survivors-style action game"
+        ["terrain"]="Infinite procedural terrain"
+        ["textures"]="Texture loading and display"
+        ["tower_defense"]="Tower defense with ECS"
+        ["village_survival"]="Village survival simulation"
+        ["voxels"]="Voxel rendering"
+        ["water"]="Water surface rendering"
+        ["winter"]="Third-person character control"
+    )
+    items=""
+    for dir in examples-3d/*/; do
+        name=$(basename "$dir")
+        desc="${descriptions[$name]:-}"
+        if [ -n "$desc" ]; then
+            items+="${name}\t${desc}\n"
+        else
+            items+="${name}\n"
+        fi
+    done
+    example=$(echo -e "$items" | sort | fzf --prompt="Pick a 3D demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
+    [ -n "$example" ] && cargo run -r -p "$example"
+
 # Interactively pick and serve an example in browser
 [windows]
 pick-wasm:
-    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "cyberdust" = "Neon runner game"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "pixel_platformer" = "Pixel art platformer"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "tappy_plane" = "Flappy plane game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a WASM demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { trunk serve --release --open --config "examples/$example/Trunk.toml" }
+    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gfx" = "2D shape primitives and beziers"; "gfx_showcase" = "2D shape primitives showcase"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (@("examples-2d", "examples-3d") | ForEach-Object { Get-ChildItem -Directory $_ } | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a WASM demo> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { $config = @("examples-2d", "examples-3d") | ForEach-Object { "$_/$example/Trunk.toml" } | Where-Object { Test-Path $_ } | Select-Object -First 1; if ($config) { trunk serve --release --open --config $config } }
 
 # Interactively pick and serve an example in browser
 [unix]
@@ -190,7 +312,6 @@ pick-wasm:
         ["city"]="Procedural city generator"
         ["custom_multipass"]="Gaussian blur multipass"
         ["custom_pass"]="Custom render pass"
-        ["cyberdust"]="Neon runner game"
         ["dance"]="Skinned mesh benchmark"
         ["decals"]="Decal projection"
         ["depth_of_field"]="Depth of field effect"
@@ -198,6 +319,8 @@ pick-wasm:
         ["farming"]="Farming simulation"
         ["fireworks"]="Fireworks particle effects"
         ["genetic_walkers"]="Genetic algorithm walkers"
+        ["gfx"]="2D shape primitives and beziers"
+        ["gfx_showcase"]="2D shape primitives showcase"
         ["gizmo"]="Transform gizmo"
         ["hex_war"]="Hex-based strategy game"
         ["hiz"]="Hi-Z occlusion culling"
@@ -218,7 +341,6 @@ pick-wasm:
         ["physics"]="Physics interaction"
         ["physics_benchmark"]="Physics stress test"
         ["picking"]="3D mouse picking"
-        ["pixel_platformer"]="Pixel art platformer"
         ["platformer"]="Physics-based platformer"
         ["pong"]="Classic pong game"
         ["prefabs"]="Prefab loading and instancing"
@@ -239,7 +361,6 @@ pick-wasm:
         ["ssao"]="Screen-space ambient occlusion"
         ["ssr"]="Screen-space reflections"
         ["survivors"]="Survivors-style action game"
-        ["tappy_plane"]="Flappy plane game"
         ["terrain"]="Infinite procedural terrain"
         ["text_adventure"]="Text adventure game"
         ["textures"]="Texture loading and display"
@@ -252,7 +373,7 @@ pick-wasm:
         ["winter"]="Third-person character control"
     )
     items=""
-    for dir in examples/*/; do
+    for dir in examples-2d/*/ examples-3d/*/; do
         name=$(basename "$dir")
         desc="${descriptions[$name]:-}"
         if [ -n "$desc" ]; then
@@ -262,7 +383,10 @@ pick-wasm:
         fi
     done
     example=$(echo -e "$items" | sort | fzf --prompt="Pick a WASM demo> " --delimiter='\t' --with-nth=1.. --nth=1 --tabstop=30 | cut -f1)
-    [ -n "$example" ] && trunk serve --release --open --config "examples/$example/Trunk.toml"
+    if [ -n "$example" ]; then
+        config=$(find examples-2d examples-3d -maxdepth 2 -path "*/$example/Trunk.toml" 2>/dev/null | head -1)
+        [ -n "$config" ] && trunk serve --release --open --config "$config"
+    fi
 
 # Interactively pick and run a native-only example
 [windows]
@@ -486,7 +610,7 @@ pick-wasm-tui:
 # Interactively pick an example and generate a snapshot
 [windows]
 pick-snapshot:
-    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "cyberdust" = "Neon runner game"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "pixel_platformer" = "Pixel art platformer"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "tappy_plane" = "Flappy plane game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (Get-ChildItem -Directory "examples" | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a demo to snapshot> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null; $env:NIGHTSHADE_SNAPSHOT_PATH = "snapshots/$example.png"; cargo run -r -p $example }
+    $descriptions = @{ "alpha_blending" = "Alpha blending and transparency"; "asteroid_belt" = "Asteroid belt simulation"; "audio" = "Spatial audio playback"; "block_breaker" = "Block breaker arcade game"; "block_breaker_scripts" = "Block breaker with WASM scripts"; "bloom" = "Bloom post-processing"; "bunnymark" = "Sprite rendering benchmark"; "camera_in_camera" = "Nested camera rendering"; "castle_siege" = "GOAP AI castle siege"; "chess" = "3D chess game"; "chip8" = "Super CHIP-8 emulator"; "city" = "Procedural city generator"; "custom_multipass" = "Gaussian blur multipass"; "custom_pass" = "Custom render pass"; "dance" = "Skinned mesh benchmark"; "decals" = "Decal projection"; "depth_of_field" = "Depth of field effect"; "doom" = "Doom-style renderer"; "farming" = "Farming simulation"; "fireworks" = "Fireworks particle effects"; "genetic_walkers" = "Genetic algorithm walkers"; "gfx" = "2D shape primitives and beziers"; "gfx_showcase" = "2D shape primitives showcase"; "gizmo" = "Transform gizmo"; "hex_war" = "Hex-based strategy game"; "hiz" = "Hi-Z occlusion culling"; "horror" = "First-person horror demo"; "hud_text" = "HUD text rendering"; "immersive_sim" = "Immersive sim sandbox"; "interior_mapping" = "Interior mapping shader"; "jigsaw" = "Jigsaw puzzle game"; "lattice" = "Lattice deformation"; "lights" = "Clustered forward rendering"; "maps" = "Map rendering"; "menu" = "Menu system demo"; "morph" = "Morph targets animation"; "mosaic" = "Multi-window mosaic"; "multi_world" = "Multiple ECS worlds"; "navmesh" = "NavMesh pathfinding"; "neon_lights" = "Neon light effects"; "physics" = "Physics interaction"; "physics_benchmark" = "Physics stress test"; "picking" = "3D mouse picking"; "platformer" = "Physics-based platformer"; "pong" = "Classic pong game"; "prefabs" = "Prefab loading and instancing"; "psx" = "PS1-style rendering"; "render_layers" = "Render layer filtering"; "roguelike" = "Roguelike dungeon crawler"; "sdf_sculpt" = "SDF sculpting tool"; "sdf_text" = "SDF text rendering"; "shader_studio" = "Live shader editor"; "shadows" = "Shadow mapping"; "shell" = "Shell texturing demo"; "skybox" = "HDR skybox loading"; "sokoban" = "Sokoban puzzle game"; "space_shooter" = "Bullet hell shooter"; "speedreader" = "Speed reading trainer"; "spotlight_shadows" = "Spotlight shadow mapping"; "sprites" = "2D sprite rendering"; "ssao" = "Screen-space ambient occlusion"; "ssr" = "Screen-space reflections"; "survivors" = "Survivors-style action game"; "terrain" = "Infinite procedural terrain"; "text_adventure" = "Text adventure game"; "textures" = "Texture loading and display"; "topdown_shooter" = "Top-down twin-stick shooter"; "tower_defense" = "Tower defense with ECS"; "ui" = "UI widgets and layouts"; "village_survival" = "Village survival simulation"; "voxels" = "Voxel rendering"; "water" = "Water surface rendering"; "winter" = "Third-person character control" }; $example = (@("examples-2d", "examples-3d") | ForEach-Object { Get-ChildItem -Directory $_ } | ForEach-Object { $name = $_.Name; $desc = $descriptions[$name]; if ($desc) { "$name`t$desc" } else { $name } } | Sort-Object | fzf --prompt="Pick a demo to snapshot> " --delimiter="`t" --with-nth=1.. --nth=1 --tabstop=30 | ForEach-Object { ($_ -split "`t")[0] }); if ($example) { New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null; $env:NIGHTSHADE_SNAPSHOT_PATH = "snapshots/$example.png"; cargo run -r -p $example }
 
 # Interactively pick an example and generate a snapshot
 [unix]
@@ -508,7 +632,6 @@ pick-snapshot:
         ["city"]="Procedural city generator"
         ["custom_multipass"]="Gaussian blur multipass"
         ["custom_pass"]="Custom render pass"
-        ["cyberdust"]="Neon runner game"
         ["dance"]="Skinned mesh benchmark"
         ["decals"]="Decal projection"
         ["depth_of_field"]="Depth of field effect"
@@ -516,6 +639,8 @@ pick-snapshot:
         ["farming"]="Farming simulation"
         ["fireworks"]="Fireworks particle effects"
         ["genetic_walkers"]="Genetic algorithm walkers"
+        ["gfx"]="2D shape primitives and beziers"
+        ["gfx_showcase"]="2D shape primitives showcase"
         ["gizmo"]="Transform gizmo"
         ["hex_war"]="Hex-based strategy game"
         ["hiz"]="Hi-Z occlusion culling"
@@ -536,7 +661,6 @@ pick-snapshot:
         ["physics"]="Physics interaction"
         ["physics_benchmark"]="Physics stress test"
         ["picking"]="3D mouse picking"
-        ["pixel_platformer"]="Pixel art platformer"
         ["platformer"]="Physics-based platformer"
         ["pong"]="Classic pong game"
         ["prefabs"]="Prefab loading and instancing"
@@ -557,7 +681,6 @@ pick-snapshot:
         ["ssao"]="Screen-space ambient occlusion"
         ["ssr"]="Screen-space reflections"
         ["survivors"]="Survivors-style action game"
-        ["tappy_plane"]="Flappy plane game"
         ["terrain"]="Infinite procedural terrain"
         ["text_adventure"]="Text adventure game"
         ["textures"]="Texture loading and display"
@@ -570,7 +693,7 @@ pick-snapshot:
         ["winter"]="Third-person character control"
     )
     items=""
-    for dir in examples/*/; do
+    for dir in examples-2d/*/ examples-3d/*/; do
         name=$(basename "$dir")
         desc="${descriptions[$name]:-}"
         if [ -n "$desc" ]; then
@@ -588,7 +711,7 @@ pick-snapshot:
 # Generate snapshots for all examples
 [windows]
 generate-snapshots:
-    $ErrorActionPreference = "Stop"; New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null; $examples = Get-ChildItem -Directory "examples" | ForEach-Object { $_.Name } | Sort-Object; $total = $examples.Count; $current = 0; foreach ($example in $examples) { $current++; Write-Host "[$current/$total] Snapshotting $example..." -ForegroundColor Cyan; $env:NIGHTSHADE_SNAPSHOT_PATH = "snapshots/$example.png"; cargo run -r -p $example; }; Write-Host "All snapshots complete! Output in snapshots/" -ForegroundColor Green
+    $ErrorActionPreference = "Stop"; New-Item -ItemType Directory -Force -Path "snapshots" | Out-Null; $examples = @("examples-2d", "examples-3d") | ForEach-Object { Get-ChildItem -Directory $_ } | ForEach-Object { $_.Name } | Sort-Object; $total = $examples.Count; $current = 0; foreach ($example in $examples) { $current++; Write-Host "[$current/$total] Snapshotting $example..." -ForegroundColor Cyan; $env:NIGHTSHADE_SNAPSHOT_PATH = "snapshots/$example.png"; cargo run -r -p $example; }; Write-Host "All snapshots complete! Output in snapshots/" -ForegroundColor Green
 
 # Generate snapshots for all examples
 [unix]
@@ -596,7 +719,7 @@ generate-snapshots:
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p snapshots
-    examples=($(ls -d examples/*/ 2>/dev/null | xargs -I{} basename {} | sort))
+    examples=($(ls -d examples-2d/*/ examples-3d/*/ 2>/dev/null | xargs -I{} basename {} | sort))
     total=${#examples[@]}
     current=0
     for example in "${examples[@]}"; do
@@ -615,26 +738,44 @@ run-openxr $example="prefabs":
     cargo run -r -p {{example}} --features openxr
 
 # Build an example for WASM
+[windows]
 build-wasm $example="alpha_blending":
-    trunk build --release --config examples/{{example}}/Trunk.toml
+    $config = @("examples-2d", "examples-3d") | ForEach-Object { "$_/$env:example/Trunk.toml" } | Where-Object { Test-Path $_ } | Select-Object -First 1; if ($config) { trunk build --release --config $config } else { Write-Error "Trunk.toml not found for $env:example" }
+
+# Build an example for WASM
+[unix]
+build-wasm $example="alpha_blending":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config=$(find examples-2d examples-3d -maxdepth 2 -path "*/$example/Trunk.toml" 2>/dev/null | head -1)
+    [ -n "$config" ] && trunk build --release --config "$config" || echo "Trunk.toml not found for $example" >&2
 
 # Serve an example in browser
+[windows]
 run-wasm $example="alpha_blending":
-    trunk serve --release --open --config examples/{{example}}/Trunk.toml
+    $config = @("examples-2d", "examples-3d") | ForEach-Object { "$_/$env:example/Trunk.toml" } | Where-Object { Test-Path $_ } | Select-Object -First 1; if ($config) { trunk serve --release --open --config $config } else { Write-Error "Trunk.toml not found for $env:example" }
 
-# Build only examples/ for WASM (Windows)
+# Serve an example in browser
+[unix]
+run-wasm $example="alpha_blending":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config=$(find examples-2d examples-3d -maxdepth 2 -path "*/$example/Trunk.toml" 2>/dev/null | head -1)
+    [ -n "$config" ] && trunk serve --release --open --config "$config" || echo "Trunk.toml not found for $example" >&2
+
+# Build only examples-2d/ and examples-3d/ for WASM (Windows)
 [windows]
 build-examples-wasm:
-    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
+    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; @("examples-2d/*/Trunk.toml", "examples-3d/*/Trunk.toml") | ForEach-Object { Get-ChildItem -Path $_ -ErrorAction SilentlyContinue } | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
 
-# Build only examples/ for WASM (Unix)
+# Build only examples-2d/ and examples-3d/ for WASM (Unix)
 [unix]
 build-examples-wasm:
     #!/usr/bin/env bash
     set -euo pipefail
     prefix="${PUBLIC_URL_PREFIX:-}"
     root="$(pwd)"
-    for trunk_file in examples/*/Trunk.toml; do
+    for trunk_file in examples-2d/*/Trunk.toml examples-3d/*/Trunk.toml; do
         [ -f "$trunk_file" ] || continue
         example=$(basename "$(dirname "$trunk_file")")
         echo "Building $example for WASM..."
@@ -646,19 +787,19 @@ build-examples-wasm:
     done
     echo "All WASM builds complete! Output in dist/wasm/"
 
-# Build all examples for WASM (includes examples/ and examples-terminal/) (Windows)
+# Build all examples for WASM (includes examples-2d/, examples-3d/, and examples-terminal/) (Windows)
 [windows]
 build-all-wasm:
-    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; Get-ChildItem -Path "examples/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Get-ChildItem -Path "examples-terminal/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example (terminal) for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
+    $ErrorActionPreference = "Stop"; $prefix = $env:PUBLIC_URL_PREFIX; $root = (Get-Location).Path; @("examples-2d/*/Trunk.toml", "examples-3d/*/Trunk.toml") | ForEach-Object { Get-ChildItem -Path $_ -ErrorAction SilentlyContinue } | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Get-ChildItem -Path "examples-terminal/*/Trunk.toml" | ForEach-Object { $example = $_.Directory.Name; Write-Host "Building $example (terminal) for WASM..." -ForegroundColor Cyan; if ($prefix) { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" --public-url "$prefix$example/" } else { trunk build --release --config $_.FullName --dist "$root/dist/wasm/$example" } }; Write-Host "All WASM builds complete! Output in dist/wasm/" -ForegroundColor Green
 
-# Build all examples for WASM (includes examples/ and examples-terminal/) (Unix)
+# Build all examples for WASM (includes examples-2d/, examples-3d/, and examples-terminal/) (Unix)
 [unix]
 build-all-wasm:
     #!/usr/bin/env bash
     set -euo pipefail
     prefix="${PUBLIC_URL_PREFIX:-}"
     root="$(pwd)"
-    for trunk_file in examples/*/Trunk.toml examples-terminal/*/Trunk.toml; do
+    for trunk_file in examples-2d/*/Trunk.toml examples-3d/*/Trunk.toml examples-terminal/*/Trunk.toml; do
         [ -f "$trunk_file" ] || continue
         example=$(basename "$(dirname "$trunk_file")")
         echo "Building $example for WASM..."

@@ -1235,6 +1235,7 @@ impl State for AssetViewer {
 
             let _ = renderer.render_world_to_texture(
                 &mut viewer.world,
+                None,
                 &viewer.texture_view,
                 render_width,
                 render_height,
@@ -1444,6 +1445,7 @@ impl State for AssetViewer {
 
             let _ = renderer.render_world_to_texture(
                 &mut zoo.world,
+                None,
                 &zoo.texture_view,
                 render_width,
                 render_height,

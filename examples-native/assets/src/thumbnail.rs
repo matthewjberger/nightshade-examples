@@ -89,7 +89,7 @@ pub fn generate_gpu_thumbnail(
     let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     renderer
-        .render_world_to_texture(&mut world, &texture_view, size, size)
+        .render_world_to_texture(&mut world, None, &texture_view, size, size)
         .ok()?;
 
     let egui_texture_id = renderer.register_egui_texture(&texture_view)?;

@@ -107,6 +107,7 @@ impl State for DriveInDemo {
 
             let _ = renderer.render_world_to_texture(
                 &mut secondary.world,
+                None,
                 &secondary.texture_view,
                 RENDER_TEXTURE_WIDTH,
                 RENDER_TEXTURE_HEIGHT,

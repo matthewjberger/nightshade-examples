@@ -199,6 +199,7 @@ impl BillboardTextures {
             update_global_transforms_system(&mut world);
             let _ = renderer.render_world_to_texture(
                 &mut world,
+                None,
                 &texture_view,
                 TEXTURE_WIDTH,
                 TEXTURE_HEIGHT,

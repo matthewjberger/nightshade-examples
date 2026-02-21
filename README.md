@@ -18,8 +18,10 @@ Example applications built with the [Nightshade](https://github.com/matthewjberg
 just run alpha_blending
 
 # interactive pickers
-just pick            # pick from examples/
-just pick-wasm       # pick from examples/, serve in browser
+just pick            # pick from all examples
+just pick-2d         # pick from examples-2d/
+just pick-3d         # pick from examples-3d/
+just pick-wasm       # pick from examples-2d/ and examples-3d/, serve in browser
 just pick-native     # pick from examples-native/
 just pick-terminal   # pick from examples-terminal/, run in terminal
 just pick-tui        # pick from examples-terminal/, run in a window
@@ -49,39 +51,55 @@ just init-wasm
 
 ## Project Structure
 
-Examples are organized into three directories:
+Examples are organized into four directories:
 
 | Directory | Description | Run with |
 |-----------|-------------|----------|
-| `examples/` | Windowed examples using the full rendering engine. Run natively, in browser (WASM), or in VR (OpenXR). | `just run <name>` |
+| `examples-2d/` | 2D sprite-based examples (sprites, particle effects, 2D games). Run natively, in browser (WASM), or in VR (OpenXR). | `just run <name>` |
+| `examples-3d/` | 3D mesh-based examples (rendering, 3D games, physics, shaders). Run natively, in browser (WASM), or in VR (OpenXR). | `just run <name>` |
 | `examples-native/` | Native-only examples that cannot be compiled to WASM (Steam SDK, raw terminal, etc). | `just run <name>` |
 | `examples-terminal/` | Terminal UI games built with the TUI framework. Run directly in a terminal, in a window via SDF text rendering, or in a browser. | `just run <name>`, `just run-tui <name>`, `just run-tui-wasm <name>` |
 
 ## Examples
 
-### Windowed (`examples/`)
+### 2D (`examples-2d/`)
 
 | Category | Examples |
 |----------|----------|
-| Rendering | `alpha_blending`, `bloom`, `custom_multipass`, `custom_pass`, `decals`, `depth_of_field`, `hiz`, `lights`, `psx`, `render_layers`, `shadows`, `skybox`, `spotlight_shadows`, `sprites`, `ssao`, `textures`, `water` |
-| Games | `block_breaker`, `block_breaker_scripts`, `chess`, `doom`, `farming`, `hex_war`, `jigsaw`, `platformer`, `pong`, `roguelike`, `space_shooter`, `survivors`, `tower_defense` |
-| TUI (windowed) | `tui_breakout`, `tui_frogger`, `tui_roguelike`, `text_adventure`, `shell`, `speedreader` |
-| 3D Scenes | `asteroid_belt`, `demo_scene`, `horror`, `immersive_sim`, `level`, `maps`, `prefabs`, `winter` |
+| Sprites | `sprites`, `gfx`, `gfx_showcase` |
+| Games | `bunnymark`, `chip8`, `roguelike`, `sokoban`, `space_shooter`, `topdown_shooter` |
+| Effects | `fireworks` |
+| UI | `hud_text`, `ui`, `text_adventure` |
+
+### 3D (`examples-3d/`)
+
+| Category | Examples |
+|----------|----------|
+| Rendering | `alpha_blending`, `bloom`, `custom_multipass`, `custom_pass`, `decals`, `depth_of_field`, `hiz`, `lights`, `neon_lights`, `psx`, `render_layers`, `shadows`, `skybox`, `spotlight_shadows`, `ssao`, `ssr`, `textures`, `water` |
+| Games | `block_breaker`, `block_breaker_scripts`, `castle_siege`, `chess`, `doom`, `farming`, `hex_war`, `jigsaw`, `platformer`, `pong`, `survivors`, `tower_defense`, `village_survival` |
+| 3D Scenes | `asteroid_belt`, `horror`, `immersive_sim`, `maps`, `prefabs`, `winter` |
 | Physics | `physics`, `physics_benchmark`, `navmesh` |
-| UI | `hud_text`, `menu`, `ui`, `sdf_text`, `gizmo`, `picking` |
-| Procedural | `cyberdust`, `fireworks`, `sdf_sculpt`, `terrain`, `voxels`, `lattice`, `city` |
+| UI | `menu`, `sdf_text`, `gizmo`, `picking` |
+| Procedural | `sdf_sculpt`, `terrain`, `voxels`, `lattice`, `city` |
+| Shaders | `interior_mapping`, `mosaic`, `shader_studio`, `shell` |
 | Audio | `audio` |
-| Benchmarks | `bunnymark`, `physics_benchmark` |
-| Advanced | `morph`, `multi_world`, `dance` |
+| Advanced | `camera_in_camera`, `dance`, `genetic_walkers`, `morph`, `multi_world`, `speedreader` |
 
 ### Native-only (`examples-native/`)
 
 | Example | Description |
 |---------|-------------|
-| `benchmark` | Performance benchmark |
+| `assets` | 3D model and asset viewer |
+| `claude_chat` | Claude chat with egui UI |
+| `claude_chat_leptos` | Claude chat with Leptos webview |
+| `claude_chat_leptos_mcp` | Claude chat with Leptos + MCP tools |
+| `claude_chat_mcp` | Claude chat with MCP scene tools |
+| `demo_scene` | Visual effects and lighting demo |
+| `mcp` | MCP model viewer |
 | `multiplayer_pong` | Multiplayer pong (requires Steam SDK) |
+| `plugins` | WASM plugin system demo |
 | `steam` | Steam integration (requires Steam SDK) |
-| `terminal_breakout` | Breakout running directly in the terminal |
+| `webview` | Embedded webview demo |
 
 ### Terminal (`examples-terminal/`)
 
@@ -144,6 +162,7 @@ just run-openxr prefabs
 
 - `steam` and `multiplayer_pong` require the Steam SDK
 - `plugins` is a standalone workspace demonstrating the WASI plugin system
+- `claude_chat_leptos` and `claude_chat_leptos_mcp` require Node.js for the Leptos webview frontend
 
 ## License
 

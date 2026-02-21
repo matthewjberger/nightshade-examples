@@ -1,9 +1,13 @@
-use nightshade::ecs::camera::queries::{query_camera_matrices, query_window_aspect_ratio};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use nightshade::ecs::camera::queries::query_camera_frustum;
 use nightshade::ecs::input::queries::query_active_gamepad;
+use nightshade::ecs::world::WorldCommand;
+use nightshade::ecs::world::resources::MouseState;
 use nightshade::prelude::*;
 
-const OBSERVER_WIDTH: u32 = 960;
-const OBSERVER_HEIGHT: u32 = 540;
+const OBSERVER_WIDTH: u32 = 640;
+const OBSERVER_HEIGHT: u32 = 360;
 const MOVE_SPEED: f32 = 200.0;
 const TURN_SPEED: f32 = 2.0;
 const ALTITUDE_SPEED: f32 = 100.0;
@@ -97,50 +101,18 @@ impl ObserverCamera {
     }
 
     fn update_frustum_lines(&self, world: &mut World, main_camera: Entity) {
-        let Some(matrices) = query_camera_matrices(world, main_camera) else {
+        let Some(frustum) = query_camera_frustum(world, main_camera) else {
             return;
         };
 
-        let visualization_far = 500.0;
-        let projection = if let Some(camera) = world.get_camera(main_camera) {
-            match &camera.projection {
-                Projection::Perspective(persp) if persp.z_far.is_none() => {
-                    let aspect_ratio = persp
-                        .aspect_ratio
-                        .unwrap_or_else(|| query_window_aspect_ratio(world).unwrap_or(16.0 / 9.0));
-                    PerspectiveCamera {
-                        z_far: Some(visualization_far),
-                        ..*persp
-                    }
-                    .matrix_with_aspect(aspect_ratio)
-                }
-                _ => matrices.projection,
-            }
-        } else {
-            matrices.projection
-        };
-
-        let view_proj = projection * matrices.view;
-        let Some(inv_view_proj) = view_proj.try_inverse() else {
-            return;
-        };
-
-        let unproject = |ndc: Vec3| -> Vec3 {
-            let clip = inv_view_proj * Vec4::new(ndc.x, ndc.y, ndc.z, 1.0);
-            Vec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w)
-        };
-
-        let near_z = 1.0_f32;
-        let far_z = 0.0_f32;
-
-        let ntl = unproject(Vec3::new(-1.0, 1.0, near_z));
-        let ntr = unproject(Vec3::new(1.0, 1.0, near_z));
-        let nbl = unproject(Vec3::new(-1.0, -1.0, near_z));
-        let nbr = unproject(Vec3::new(1.0, -1.0, near_z));
-        let ftl = unproject(Vec3::new(-1.0, 1.0, far_z));
-        let ftr = unproject(Vec3::new(1.0, 1.0, far_z));
-        let fbl = unproject(Vec3::new(-1.0, -1.0, far_z));
-        let fbr = unproject(Vec3::new(1.0, -1.0, far_z));
+        let ntl = frustum.near_top_left;
+        let ntr = frustum.near_top_right;
+        let nbl = frustum.near_bottom_left;
+        let nbr = frustum.near_bottom_right;
+        let ftl = frustum.far_top_left;
+        let ftr = frustum.far_top_right;
+        let fbl = frustum.far_bottom_left;
+        let fbr = frustum.far_bottom_right;
 
         let hatch_steps = 8;
         let mut lines = Vec::with_capacity(12 + 4 + hatch_steps * 4);
@@ -336,17 +308,21 @@ impl ObserverCamera {
         self.update_frustum_lines(world, main_camera);
 
         let saved_camera = world.resources.active_camera;
+        let saved_fog = world.resources.graphics.fog.take();
+
         world.resources.active_camera = Some(self.camera_entity);
         world.resources.graphics.culling_camera_override = Some(main_camera);
 
         let _ = renderer.render_world_to_texture(
             world,
+            None,
             &self.texture_view,
             OBSERVER_WIDTH,
             OBSERVER_HEIGHT,
         );
 
         world.resources.active_camera = saved_camera;
+        world.resources.graphics.fog = saved_fog;
         world.resources.graphics.culling_camera_override = None;
 
         if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
@@ -355,17 +331,31 @@ impl ObserverCamera {
         }
     }
 
-    pub fn draw_ui(&self, ui_context: &egui::Context) {
+    pub fn despawn(self, world: &mut World) {
+        world.queue_command(WorldCommand::DespawnRecursive {
+            entity: self.camera_entity,
+        });
+        world.queue_command(WorldCommand::DespawnRecursive {
+            entity: self.frustum_lines_entity,
+        });
+    }
+
+    pub fn draw_ui(&self, ui_context: &egui::Context, minimap_enabled: bool) {
         let Some(texture_id) = self.egui_texture_id else {
             return;
         };
 
         let margin = 10.0;
-        let pip_width = 640.0;
+        let pip_width = 480.0;
         let pip_height = pip_width * (OBSERVER_HEIGHT as f32 / OBSERVER_WIDTH as f32);
 
+        let minimap_offset = if minimap_enabled { 220.0 + 14.0 } else { 0.0 };
+
         egui::Area::new(egui::Id::new("observer_pip"))
-            .anchor(egui::Align2::RIGHT_BOTTOM, [-margin, -margin])
+            .anchor(
+                egui::Align2::RIGHT_BOTTOM,
+                [-margin, -margin - minimap_offset],
+            )
             .interactable(false)
             .order(egui::Order::Foreground)
             .show(ui_context, |ui| {
@@ -379,5 +369,229 @@ impl ObserverCamera {
                         ));
                     });
             });
+    }
+}
+
+static FLY_CAM_HAS_CURSOR: AtomicBool = AtomicBool::new(false);
+
+pub fn fly_camera_keyboard_mouse_only(world: &mut World) {
+    fly_cam_look(world);
+    fly_cam_wasd(world);
+}
+
+fn fly_cam_look(world: &mut World) {
+    let Some(camera_entity) = world.resources.active_camera else {
+        return;
+    };
+
+    let delta_time = world.resources.window.timing.delta_time;
+
+    let right_clicked = world
+        .resources
+        .input
+        .mouse
+        .state
+        .contains(MouseState::RIGHT_CLICKED);
+
+    if right_clicked {
+        if !FLY_CAM_HAS_CURSOR.load(Ordering::Relaxed) {
+            if let Some(window_handle) = &world.resources.window.handle {
+                if window_handle
+                    .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+                    .is_err()
+                {
+                    let _ = window_handle.set_cursor_grab(winit::window::CursorGrabMode::Confined);
+                }
+                window_handle.set_cursor_visible(false);
+            }
+            FLY_CAM_HAS_CURSOR.store(true, Ordering::Relaxed);
+        }
+
+        let raw_delta = world.resources.input.mouse.raw_mouse_delta;
+
+        let Some(camera) = world.get_camera_mut(camera_entity) else {
+            return;
+        };
+        let Some(smoothing) = camera.smoothing.as_mut() else {
+            return;
+        };
+
+        let smoothing_factor = if smoothing.mouse_smoothness > 0.0 {
+            1.0 - smoothing.mouse_smoothness.powi(7).powf(delta_time)
+        } else {
+            1.0
+        };
+        smoothing.smoothed_mouse_delta = smoothing.smoothed_mouse_delta * (1.0 - smoothing_factor)
+            + raw_delta * smoothing_factor;
+
+        let pixels_to_radians = (std::f32::consts::PI / 1000.0) * smoothing.mouse_dpi_scale;
+        let mut delta =
+            smoothing.smoothed_mouse_delta * smoothing.mouse_sensitivity * pixels_to_radians;
+        delta.x *= -1.0;
+        delta.y *= -1.0;
+
+        let Some(local_transform) = world.get_local_transform_mut(camera_entity) else {
+            return;
+        };
+
+        let yaw = nalgebra_glm::quat_angle_axis(delta.x, &Vec3::y());
+        local_transform.rotation = yaw * local_transform.rotation;
+
+        let forward = local_transform.forward_vector();
+        let current_pitch = forward.y.asin();
+        let new_pitch = current_pitch + delta.y;
+        if new_pitch.abs() <= 89_f32.to_radians() {
+            let pitch = nalgebra_glm::quat_angle_axis(delta.y, &Vec3::x());
+            local_transform.rotation *= pitch;
+        }
+
+        mark_local_transform_dirty(world, camera_entity);
+    } else {
+        if FLY_CAM_HAS_CURSOR.load(Ordering::Relaxed) {
+            if let Some(window_handle) = &world.resources.window.handle {
+                let _ = window_handle.set_cursor_grab(winit::window::CursorGrabMode::None);
+                window_handle.set_cursor_visible(true);
+            }
+            FLY_CAM_HAS_CURSOR.store(false, Ordering::Relaxed);
+        }
+
+        if let Some(Camera {
+            smoothing:
+                Some(Smoothing {
+                    smoothed_mouse_delta,
+                    mouse_smoothness,
+                    ..
+                }),
+            ..
+        }) = world.get_camera_mut(camera_entity)
+        {
+            let decay_smoothness = (*mouse_smoothness * 0.5).max(0.01);
+            let smoothing_factor = 1.0 - decay_smoothness.powi(7).powf(delta_time);
+            *smoothed_mouse_delta =
+                *smoothed_mouse_delta * (1.0 - smoothing_factor) + Vec2::zeros() * smoothing_factor;
+        }
+    }
+
+    if world
+        .resources
+        .input
+        .mouse
+        .state
+        .contains(MouseState::MIDDLE_CLICKED)
+    {
+        let (right, up) = {
+            let Some(local_transform) = world.get_local_transform(camera_entity) else {
+                return;
+            };
+            (local_transform.right_vector(), local_transform.up_vector())
+        };
+
+        let mut delta =
+            world.resources.input.mouse.position_delta * world.resources.window.timing.delta_time;
+        delta.x *= -1.0;
+        delta.y *= -1.0;
+
+        let Some(local_transform) = world.get_local_transform_mut(camera_entity) else {
+            return;
+        };
+        let translation_right = right * delta.x;
+        let translation_up = up * delta.y;
+
+        local_transform.translation += translation_right;
+        local_transform.translation += translation_up;
+
+        let changed = translation_right.magnitude() > 0.0 || translation_up.magnitude() > 0.0;
+        if changed {
+            mark_local_transform_dirty(world, camera_entity);
+        }
+    }
+}
+
+fn fly_cam_wasd(world: &mut World) {
+    if let Some(gui_state) = &mut world.resources.user_interface.state
+        && gui_state.egui_ctx().wants_keyboard_input()
+    {
+        return;
+    }
+
+    let Some(camera_entity) = world.resources.active_camera else {
+        return;
+    };
+    let delta_time = world.resources.window.timing.delta_time;
+
+    let (left, right, forward_key, backward, up, shift) = {
+        let keyboard = &world.resources.input.keyboard;
+        (
+            keyboard.is_key_pressed(winit::keyboard::KeyCode::KeyA),
+            keyboard.is_key_pressed(winit::keyboard::KeyCode::KeyD),
+            keyboard.is_key_pressed(winit::keyboard::KeyCode::KeyW),
+            keyboard.is_key_pressed(winit::keyboard::KeyCode::KeyS),
+            keyboard.is_key_pressed(winit::keyboard::KeyCode::Space),
+            keyboard.is_key_pressed(winit::keyboard::KeyCode::ShiftLeft)
+                || keyboard.is_key_pressed(winit::keyboard::KeyCode::ShiftRight),
+        )
+    };
+
+    let base_speed = if shift { 60.0 } else { 20.0 };
+
+    let mut target_movement = Vec3::zeros();
+    if forward_key {
+        target_movement.z += 1.0;
+    }
+    if backward {
+        target_movement.z -= 1.0;
+    }
+    if left {
+        target_movement.x -= 1.0;
+    }
+    if right {
+        target_movement.x += 1.0;
+    }
+    if up {
+        target_movement.y += 1.0;
+    }
+
+    if target_movement.magnitude() > 0.0 {
+        target_movement = target_movement.normalize();
+    }
+
+    let Some(camera) = world.get_camera_mut(camera_entity) else {
+        return;
+    };
+    let Some(smoothing) = camera.smoothing.as_mut() else {
+        return;
+    };
+
+    let smoothing_factor = if smoothing.keyboard_smoothness > 0.0 {
+        1.0 - smoothing.keyboard_smoothness.powi(7).powf(delta_time)
+    } else {
+        1.0
+    };
+    smoothing.smoothed_movement =
+        smoothing.smoothed_movement * (1.0 - smoothing_factor) + target_movement * smoothing_factor;
+
+    let movement = smoothing.smoothed_movement;
+
+    let Some(local_transform) = world.get_local_transform_mut(camera_entity) else {
+        return;
+    };
+    let forward = local_transform.forward_vector();
+    let right = local_transform.right_vector();
+    let up = local_transform.up_vector();
+
+    let forward_translation = forward * movement.z * base_speed * delta_time;
+    let right_translation = right * movement.x * base_speed * delta_time;
+    let up_translation = up * movement.y * base_speed * delta_time;
+
+    local_transform.translation += forward_translation;
+    local_transform.translation += right_translation;
+    local_transform.translation += up_translation;
+
+    let changed = forward_translation.magnitude() > 0.0
+        || right_translation.magnitude() > 0.0
+        || up_translation.magnitude() > 0.0;
+
+    if changed {
+        mark_local_transform_dirty(world, camera_entity);
     }
 }

@@ -947,6 +947,7 @@ impl State for MultiWorldDemo {
                 let (width, height) = instance.viewport_size.dimensions();
                 let _ = renderer.render_world_to_texture(
                     &mut instance.world,
+                    None,
                     &instance.texture_view,
                     width,
                     height,
@@ -1002,7 +1003,13 @@ impl State for MultiWorldDemo {
             });
             let hq_view = hq_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-            let _ = renderer.render_world_to_texture(&mut instance.world, &hq_view, width, height);
+            let _ = renderer.render_world_to_texture(
+                &mut instance.world,
+                None,
+                &hq_view,
+                width,
+                height,
+            );
 
             let path = Self::screenshot_path(&format!("{}_hq", instance.name));
             renderer.save_texture_to_file(&hq_texture, width, height, &path);

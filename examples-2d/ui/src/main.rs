@@ -24,32 +24,13 @@ const EDIT_ITEMS: &[&str] = &[
     "Select All",
 ];
 
-const VIEW_ITEMS: &[&str] = &[
-    "Color Mixer",
-    "Metrics",
-    "Fullscreen",
-];
+const VIEW_ITEMS: &[&str] = &["Color Mixer", "Metrics", "Fullscreen"];
 
-const HELP_ITEMS: &[&str] = &[
-    "Documentation",
-    "About",
-];
+const HELP_ITEMS: &[&str] = &["Documentation", "About"];
 
-const TOOL_NAMES: &[&str] = &[
-    "Select",
-    "Move",
-    "Rotate",
-    "Scale",
-    "Paint",
-];
+const TOOL_NAMES: &[&str] = &["Select", "Move", "Rotate", "Scale", "Paint"];
 
-const DROPDOWN_OPTIONS: &[&str] = &[
-    "Apple",
-    "Banana",
-    "Cherry",
-    "Date",
-    "Elderberry",
-];
+const DROPDOWN_OPTIONS: &[&str] = &["Apple", "Banana", "Cherry", "Date", "Elderberry"];
 
 struct UiDemoState {
     ui_only_mode: bool,
@@ -112,9 +93,18 @@ impl Default for UiDemoState {
         Self {
             ui_only_mode: true,
             log: vec![
-                ("[SYS] Application started".into(), Vec4::new(0.7, 0.7, 0.7, 1.0)),
-                ("[SYS] UI system initialized".into(), Vec4::new(0.7, 0.7, 0.7, 1.0)),
-                ("[SYS] Rendering engine ready".into(), Vec4::new(0.7, 0.7, 0.7, 1.0)),
+                (
+                    "[SYS] Application started".into(),
+                    Vec4::new(0.7, 0.7, 0.7, 1.0),
+                ),
+                (
+                    "[SYS] UI system initialized".into(),
+                    Vec4::new(0.7, 0.7, 0.7, 1.0),
+                ),
+                (
+                    "[SYS] Rendering engine ready".into(),
+                    Vec4::new(0.7, 0.7, 0.7, 1.0),
+                ),
             ],
             console_input: String::new(),
 
@@ -348,17 +338,21 @@ impl UiDemoState {
             );
 
             ui.spacing(4.0);
-            ui.label(&format!("Target: {:.2}  Current: {:.2}", self.anim_target, animated_value));
+            ui.label(&format!(
+                "Target: {:.2}  Current: {:.2}",
+                self.anim_target, animated_value
+            ));
 
             ui.spacing(8.0);
             ui.label("Blended color:");
-            let blended = ImmediateUi::blend_color(
-                theme.accent_color,
-                theme.success_color,
-                animated_value,
-            );
+            let blended =
+                ImmediateUi::blend_color(theme.accent_color, theme.success_color, animated_value);
             let cursor = ui.cursor();
-            ui.draw_rect(cursor, Vec2::new(ui.available_width() - 16.0, 24.0), blended);
+            ui.draw_rect(
+                cursor,
+                Vec2::new(ui.available_width() - 16.0, 24.0),
+                blended,
+            );
             ui.spacing(32.0);
 
             ui.spacing(8.0);
@@ -522,7 +516,10 @@ impl UiDemoState {
         if ui.collapsing_header("Dropdowns", true) {
             ui.indent(8.0);
             ui.dropdown_with_label("Fruit:", DROPDOWN_OPTIONS, &mut self.dropdown_choice);
-            ui.label(&format!("Selected: {}", DROPDOWN_OPTIONS[self.dropdown_choice]));
+            ui.label(&format!(
+                "Selected: {}",
+                DROPDOWN_OPTIONS[self.dropdown_choice]
+            ));
             ui.indent(-8.0);
         }
 
@@ -555,8 +552,10 @@ impl UiDemoState {
             ui.color_picker("gallery_color", &mut self.gallery_color);
             ui.label(&format!(
                 "RGBA: ({:.2}, {:.2}, {:.2}, {:.2})",
-                self.gallery_color.x, self.gallery_color.y,
-                self.gallery_color.z, self.gallery_color.w,
+                self.gallery_color.x,
+                self.gallery_color.y,
+                self.gallery_color.z,
+                self.gallery_color.w,
             ));
             ui.indent(-8.0);
         }
@@ -687,7 +686,11 @@ impl UiDemoState {
             ui.indent(8.0);
             ui.label("Orange rect drawn on FloatingPanels layer:");
             let layer_cursor = ui.cursor();
-            ui.draw_rect(layer_cursor, Vec2::new(120.0, 30.0), theme.background_color_active);
+            ui.draw_rect(
+                layer_cursor,
+                Vec2::new(120.0, 30.0),
+                theme.background_color_active,
+            );
             ui.set_layer(UiLayer::FloatingPanels);
             ui.draw_rect(
                 layer_cursor + Vec2::new(20.0, 5.0),
@@ -719,19 +722,15 @@ impl UiDemoState {
             ui.spacing(32.0);
 
             let cycle = (self.elapsed * 0.8).sin() * 0.5 + 0.5;
-            let color_a = ImmediateUi::blend_color(
-                theme.accent_color,
-                theme.error_color,
-                cycle,
-            );
-            let color_b = ImmediateUi::blend_color(
-                theme.success_color,
-                theme.warning_color,
-                cycle,
-            );
+            let color_a = ImmediateUi::blend_color(theme.accent_color, theme.error_color, cycle);
+            let color_b = ImmediateUi::blend_color(theme.success_color, theme.warning_color, cycle);
             let blend_cursor = ui.cursor();
             ui.draw_rect(blend_cursor, Vec2::new(80.0, 24.0), color_a);
-            ui.draw_rect(blend_cursor + Vec2::new(90.0, 0.0), Vec2::new(80.0, 24.0), color_b);
+            ui.draw_rect(
+                blend_cursor + Vec2::new(90.0, 0.0),
+                Vec2::new(80.0, 24.0),
+                color_b,
+            );
             ui.spacing(32.0);
 
             ui.indent(-8.0);
@@ -883,7 +882,11 @@ impl UiDemoState {
         let auto_t = (self.elapsed.sin() * 0.5 + 0.5).clamp(0.0, 1.0);
         let auto_blended = ImmediateUi::blend_color(self.color_from, self.color_to, auto_t);
         let auto_cursor = ui.cursor();
-        ui.draw_rect(auto_cursor, Vec2::new(ui.available_width() - 16.0, 20.0), auto_blended);
+        ui.draw_rect(
+            auto_cursor,
+            Vec2::new(ui.available_width() - 16.0, 20.0),
+            auto_blended,
+        );
         ui.spacing(28.0);
 
         if ui.button("Close").clicked {
@@ -905,14 +908,24 @@ impl UiDemoState {
 
         let sample_text = "Sample Text";
         let text_width = ui.measure_text_width(sample_text, 18.0);
-        ui.label(&format!("measure_text_width(\"{}\", 18) = {:.1}", sample_text, text_width));
+        ui.label(&format!(
+            "measure_text_width(\"{}\", 18) = {:.1}",
+            sample_text, text_width
+        ));
 
         let text_height = ui.measure_text_height(18.0);
         ui.label(&format!("measure_text_height(18) = {:.1}", text_height));
 
-        ui.label(&format!("screen_size: {:.0} x {:.0}", ui.screen_size.x, ui.screen_size.y));
+        ui.label(&format!(
+            "screen_size: {:.0} x {:.0}",
+            ui.screen_size.x, ui.screen_size.y
+        ));
         ui.label(&format!("available_width: {:.0}", ui.available_width()));
-        ui.label(&format!("cursor: ({:.0}, {:.0})", ui.cursor().x, ui.cursor().y));
+        ui.label(&format!(
+            "cursor: ({:.0}, {:.0})",
+            ui.cursor().x,
+            ui.cursor().y
+        ));
 
         ui.spacing(8.0);
         if ui.button("Close").clicked {

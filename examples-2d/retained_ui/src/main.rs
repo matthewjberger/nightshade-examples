@@ -48,6 +48,22 @@ struct RetainedUiDemo {
     widget_button_error: Entity,
     widget_click_count: u32,
     widget_click_count_text_slot: usize,
+    slider_entity: Entity,
+    toggle_entity: Entity,
+    checkbox_entity: Entity,
+    radio_entities: [Entity; 3],
+    progress_entity: Entity,
+    collapsing_entity: Entity,
+    tab_bar_entity: Entity,
+    text_input_entity: Entity,
+    dropdown_entity: Entity,
+    color_picker_entity: Entity,
+    progress_value: f32,
+    scroll_area_entity: Entity,
+    menu_entity: Entity,
+    theme_dropdown_entity: Entity,
+    floating_panel_entity: Entity,
+    status_text_slot: usize,
 }
 
 impl State for RetainedUiDemo {
@@ -58,6 +74,8 @@ impl State for RetainedUiDemo {
     fn initialize(&mut self, world: &mut World) {
         world.resources.retained_ui.enabled = true;
         world.resources.graphics.clear_color = [0.02, 0.02, 0.04, 1.0];
+        world.resources.retained_ui.background_color =
+            Some(nalgebra_glm::Vec4::new(0.02, 0.02, 0.04, 1.0));
 
         let camera = spawn_ortho_camera(world, nalgebra_glm::Vec2::new(0.0, 0.0));
         world.resources.active_camera = Some(camera);
@@ -70,6 +88,7 @@ impl State for RetainedUiDemo {
         self.uptime_text_slot = world.resources.text_cache.add_text("0:00");
         self.entity_count_text_slot = world.resources.text_cache.add_text("0");
         self.widget_click_count_text_slot = world.resources.text_cache.add_text("0");
+        self.status_text_slot = world.resources.text_cache.add_text("");
 
         let mut tree = UiTreeBuilder::new(world);
 
@@ -607,42 +626,29 @@ impl RetainedUiDemo {
 
         tree.push_parent(screen);
 
-        let panel = tree
+        let left_column = tree
             .add_node()
             .boundary(
-                Ab(nalgebra_glm::Vec2::new(20.0, 20.0)),
-                Rl(nalgebra_glm::Vec2::new(98.0, 95.0)),
+                Ab(nalgebra_glm::Vec2::new(10.0, 10.0)),
+                Rl(nalgebra_glm::Vec2::new(50.0, 0.0))
+                    + Ab(nalgebra_glm::Vec2::new(-5.0, -10.0))
+                    + Rl(nalgebra_glm::Vec2::new(0.0, 100.0)),
             )
             .with_rect(6.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.4))
             .with_color::<UiBase>(CARD_BG)
             .entity();
 
-        tree.push_parent(panel);
+        tree.push_parent(left_column);
 
-        let flow_container = tree
-            .add_node()
-            .boundary(
-                Ab(nalgebra_glm::Vec2::new(16.0, 16.0)),
-                Ab(nalgebra_glm::Vec2::new(-16.0, -16.0))
-                    + Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
-            )
-            .flow(FlowDirection::Vertical, 0.0, 8.0)
-            .entity();
+        let left_scroll = tree.add_scroll_area_fill(12.0, 6.0);
+        let left_content = tree.world_mut().ui_scroll_area_content(left_scroll);
+        let left_content_entity = left_content.unwrap();
+        tree.push_parent(left_content_entity);
 
-        tree.push_parent(flow_container);
-
-        tree.add_heading("Widget Toolkit Demo");
+        tree.add_heading("Value Widgets");
         tree.add_separator();
-        tree.add_spacing(4.0);
 
-        tree.add_label("The retained UI now supports high-level widgets.");
-        tree.add_label("Buttons, labels, headings, and separators are built");
-        tree.add_label("using the flow layout system with theme integration.");
-
-        tree.add_spacing(8.0);
-        tree.add_heading("Buttons");
-        tree.add_separator();
-        tree.add_spacing(4.0);
+        tree.add_label("Buttons");
 
         self.widget_button_primary = tree.add_button("Primary Button");
 
@@ -658,12 +664,10 @@ impl RetainedUiDemo {
         self.widget_button_success = tree.add_button_colored("Success Action", success_color);
         self.widget_button_error = tree.add_button_colored("Danger Action", error_color);
 
-        tree.add_spacing(8.0);
-
         let click_count_row = tree
             .add_node()
             .flow_child(
-                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 28.0)),
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 24.0)),
             )
             .flow(FlowDirection::Horizontal, 0.0, 8.0)
             .entity();
@@ -671,35 +675,158 @@ impl RetainedUiDemo {
         tree.push_parent(click_count_row);
 
         tree.add_node()
-            .flow_child(Ab(nalgebra_glm::Vec2::new(120.0, 28.0)))
-            .with_text("Click count:", 16.0)
+            .flow_child(Ab(nalgebra_glm::Vec2::new(110.0, 24.0)))
+            .with_text("Click count:", 14.0)
             .with_color::<UiBase>(LIGHT_GRAY)
             .without_pointer_events()
             .done();
 
         tree.add_node()
-            .flow_child(Ab(nalgebra_glm::Vec2::new(60.0, 28.0)))
-            .with_text_slot(self.widget_click_count_text_slot, 16.0)
+            .flow_child(Ab(nalgebra_glm::Vec2::new(50.0, 24.0)))
+            .with_text_slot(self.widget_click_count_text_slot, 14.0)
             .with_color::<UiBase>(CYAN)
             .without_pointer_events()
             .done();
 
         tree.pop_parent();
 
-        tree.add_spacing(8.0);
-        tree.add_heading("Flow Layout");
-        tree.add_separator();
         tree.add_spacing(4.0);
+        tree.add_label("Slider");
+        self.slider_entity = tree.add_slider(0.0, 100.0, 50.0);
 
-        tree.add_label("Content above uses vertical flow with 8px spacing.");
-        tree.add_label("The click counter row uses horizontal flow.");
+        tree.add_spacing(4.0);
+        tree.add_label("Toggle");
+        self.toggle_entity = tree.add_toggle(false);
 
-        tree.add_spring();
+        tree.add_spacing(4.0);
+        tree.add_label("Checkbox");
+        self.checkbox_entity = tree.add_checkbox("Enable notifications", false);
 
-        tree.add_label_colored("This label is pushed to the bottom by a spring.", CYAN_DIM);
+        tree.add_spacing(4.0);
+        tree.add_label("Radio Buttons");
+        self.radio_entities[0] = tree.add_radio("Option A", 1, 0);
+        self.radio_entities[1] = tree.add_radio("Option B", 1, 1);
+        self.radio_entities[2] = tree.add_radio("Option C", 1, 2);
+
+        tree.add_spacing(4.0);
+        tree.add_label("Progress Bar");
+        self.progress_entity = tree.add_progress_bar(0.0);
+
+        tree.add_spacing(4.0);
+        tree.add_label("Text Input");
+        self.text_input_entity = tree.add_text_input("Type here...");
 
         tree.pop_parent();
         tree.pop_parent();
+
+        let right_column = tree
+            .add_node()
+            .boundary(
+                Rl(nalgebra_glm::Vec2::new(50.0, 0.0))
+                    + Ab(nalgebra_glm::Vec2::new(5.0, 10.0)),
+                Ab(nalgebra_glm::Vec2::new(-10.0, -10.0))
+                    + Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
+            )
+            .with_rect(6.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.4))
+            .with_color::<UiBase>(CARD_BG)
+            .entity();
+
+        tree.push_parent(right_column);
+
+        let right_scroll = tree.add_scroll_area_fill(12.0, 6.0);
+        let right_content = tree.world_mut().ui_scroll_area_content(right_scroll);
+        let right_content_entity = right_content.unwrap();
+        tree.push_parent(right_content_entity);
+
+        tree.add_heading("Layout & Compound Widgets");
+        tree.add_separator();
+
+        tree.add_label("Collapsing Header");
+        self.collapsing_entity = tree.add_collapsing_header("Click to expand", true);
+
+        let content = tree
+            .world_mut()
+            .ui_collapsing_header_content(self.collapsing_entity);
+        if let Some(content_entity) = content {
+            tree.push_parent(content_entity);
+            tree.add_label("This content is inside the collapsing header.");
+            tree.add_label("It can be toggled by clicking the header above.");
+            tree.pop_parent();
+        }
+
+        tree.add_spacing(4.0);
+        tree.add_label("Tab Bar");
+        self.tab_bar_entity = tree.add_tab_bar(&["General", "Audio", "Display"], 0);
+
+        tree.add_spacing(4.0);
+        tree.add_label("Dropdown");
+        self.dropdown_entity = tree.add_dropdown(&["Low", "Medium", "High", "Ultra"], 1);
+
+        tree.add_spacing(4.0);
+        tree.add_label("Menu");
+        self.menu_entity = tree.add_menu("Actions", &["New", "Open", "Save", "Export"]);
+
+        tree.add_spacing(4.0);
+        tree.add_label("Theme Dropdown");
+        self.theme_dropdown_entity = tree.add_theme_dropdown();
+
+        tree.add_spacing(4.0);
+        tree.add_label("Color Picker");
+        self.color_picker_entity =
+            tree.add_color_picker(nalgebra_glm::Vec4::new(0.3, 0.5, 0.9, 1.0));
+
+        tree.add_spacing(4.0);
+        tree.add_label("Scroll Area");
+        self.scroll_area_entity =
+            tree.add_scroll_area(nalgebra_glm::Vec2::new(0.0, 120.0));
+
+        let scroll_content = tree
+            .world_mut()
+            .ui_scroll_area_content(self.scroll_area_entity);
+        if let Some(scroll_content_entity) = scroll_content {
+            tree.push_parent(scroll_content_entity);
+            for index in 0..20 {
+                tree.add_label(&format!("Scrollable item {}", index + 1));
+            }
+            tree.pop_parent();
+        }
+
+        tree.add_spacing(4.0);
+        tree.add_separator();
+        tree.add_label("Widget Status:");
+
+        tree.add_node()
+            .flow_child(
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 60.0)),
+            )
+            .with_text_slot(self.status_text_slot, 12.0)
+            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
+            .with_color::<UiBase>(CYAN_DIM)
+            .without_pointer_events()
+            .done();
+
+        tree.pop_parent();
+        tree.pop_parent();
+
+        self.floating_panel_entity = tree.add_floating_panel(
+            "Floating Panel",
+            Rect {
+                min: nalgebra_glm::Vec2::new(100.0, 150.0),
+                max: nalgebra_glm::Vec2::new(350.0, 350.0),
+            },
+        );
+
+        let panel_content = tree
+            .world_mut()
+            .ui_panel_content(self.floating_panel_entity);
+        if let Some(panel_content_entity) = panel_content {
+            tree.push_parent(panel_content_entity);
+            tree.add_label("Drag the header to move.");
+            tree.add_label("This is a floating panel.");
+            tree.add_button("Panel Button");
+            tree.pop_parent();
+        }
+
         tree.pop_parent();
         screen
     }
@@ -795,6 +922,51 @@ impl RetainedUiDemo {
                 );
             }
         }
+
+        let delta = world.resources.window.timing.delta_time;
+        self.progress_value += delta * 0.1;
+        if self.progress_value > 1.0 {
+            self.progress_value = 0.0;
+        }
+        world.ui_progress_bar_set_value(self.progress_entity, self.progress_value);
+
+        if world.ui_dropdown_changed(self.theme_dropdown_entity) {
+            let selected = world.ui_dropdown_selected(self.theme_dropdown_entity);
+            world.resources.retained_ui.theme_state.select_theme(selected);
+        }
+
+        let slider_val = world.ui_slider_value(self.slider_entity);
+        let toggle_val = world.ui_toggle_value(self.toggle_entity);
+        let checkbox_val = world.ui_checkbox_value(self.checkbox_entity);
+        let radio_val = world.ui_radio_group_value(1);
+        let tab_val = world.ui_tab_bar_selected(self.tab_bar_entity);
+        let dropdown_val = world.ui_dropdown_selected(self.dropdown_entity);
+        let dropdown_opts = ["Low", "Medium", "High", "Ultra"];
+        let tab_opts = ["General", "Audio", "Display"];
+        let text_val = world.ui_text_input_value(self.text_input_entity);
+        let color_val = world.ui_color_picker_value(self.color_picker_entity);
+
+        let menu_action = world.ui_menu_clicked(self.menu_entity);
+
+        let status = format!(
+            "Slider: {:.1} | Toggle: {} | Check: {} | Radio: {} | Tab: {} | Drop: {} | Input: \"{}\" | Color: ({:.2},{:.2},{:.2},{:.2}){}",
+            slider_val,
+            if toggle_val { "ON" } else { "OFF" },
+            if checkbox_val { "ON" } else { "OFF" },
+            radio_val.map_or("None".to_string(), |v| ["A", "B", "C"][v].to_string()),
+            tab_opts.get(tab_val).unwrap_or(&"?"),
+            dropdown_opts.get(dropdown_val).unwrap_or(&"?"),
+            if text_val.len() > 20 { &text_val[..20] } else { &text_val },
+            color_val.x,
+            color_val.y,
+            color_val.z,
+            color_val.w,
+            menu_action.map_or(String::new(), |index| format!(" | Menu: clicked #{}", index)),
+        );
+        world
+            .resources
+            .text_cache
+            .set_text(self.status_text_slot, status);
     }
 }
 

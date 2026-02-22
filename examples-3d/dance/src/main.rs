@@ -127,6 +127,25 @@ impl State for DanceState {
             .read("hdr", resources.scene_color)
             .read("bloom", bloom_texture)
             .read("ssao", resources.ssao)
+            .write("output", resources.compute_output);
+
+        let fxaa_output = graph
+            .add_color_texture("fxaa_output")
+            .format(surface_format)
+            .size(resources.surface_width.max(1), resources.surface_height.max(1))
+            .transient();
+
+        let fxaa_pass = passes::FxaaPass::new(device, surface_format);
+        graph
+            .pass(Box::new(fxaa_pass))
+            .read("input", resources.compute_output)
+            .write("output", fxaa_output);
+
+        let swapchain_blit_pass = passes::BlitPass::new(device, surface_format)
+            .with_name("default_swapchain_blit");
+        graph
+            .pass(Box::new(swapchain_blit_pass))
+            .read("input", fxaa_output)
             .write("output", resources.swapchain);
     }
 

@@ -3,9 +3,6 @@ use nightshade::ecs::camera::systems::pan_orbit_camera_system;
 use nightshade::ecs::mesh::components::{MorphTarget, MorphTargetData};
 use nightshade::ecs::prefab::resources::mesh_cache_insert;
 use nightshade::prelude::*;
-use nightshade::render::wgpu::passes;
-use nightshade::render::wgpu::rendergraph::RenderGraph;
-use nightshade::run::RenderResources;
 
 const MORPH_PRIMITIVES: &[u8] = include_bytes!("../../../assets/models/MorphPrimitivesTest.glb");
 const ANIMATED_CUBE: &[u8] = include_bytes!("../../../assets/models/AnimatedMorphCube.glb");
@@ -35,39 +32,6 @@ struct MorphState {
 impl State for MorphState {
     fn title(&self) -> &str {
         "Morph Targets Demo"
-    }
-
-    fn configure_render_graph(
-        &mut self,
-        graph: &mut RenderGraph<World>,
-        device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
-        resources: RenderResources,
-    ) {
-        let (width, height) = (1920, 1080);
-        let bloom_width = width / 2;
-        let bloom_height = height / 2;
-
-        let bloom_texture = graph
-            .add_color_texture("bloom")
-            .format(wgpu::TextureFormat::Rgba16Float)
-            .size(bloom_width, bloom_height)
-            .clear_color(wgpu::Color::BLACK)
-            .transient();
-
-        let bloom_pass = passes::BloomPass::new(device, width, height);
-        graph
-            .pass(Box::new(bloom_pass))
-            .read("hdr", resources.scene_color)
-            .write("bloom", bloom_texture);
-
-        let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.08);
-        graph
-            .pass(Box::new(postprocess_pass))
-            .read("hdr", resources.scene_color)
-            .read("bloom", bloom_texture)
-            .read("ssao", resources.ssao)
-            .write("output", resources.swapchain);
     }
 
     fn initialize(&mut self, world: &mut World) {

@@ -646,6 +646,8 @@ fn spawn_monster_part(
         *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
     }
 
+    world.resources.mesh_render_state.mark_entity_added(entity);
+
     entity
 }
 

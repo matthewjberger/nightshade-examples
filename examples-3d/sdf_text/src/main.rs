@@ -21,6 +21,9 @@ impl State for SdfTextDemoState {
         let text_entity = spawn_default_text(world);
         self.selected_entity = Some(text_entity);
 
+        spawn_outline_demo(world);
+        spawn_kerning_demo(world);
+
         let camera = spawn_camera(world, Vec3::new(0.0, 4.0, 10.0), "Main Camera".to_string());
         if let Some(camera_component) = world.get_camera_mut(camera) {
             camera_component.projection = Projection::Perspective(PerspectiveCamera::default());
@@ -315,20 +318,6 @@ impl SdfTextDemoState {
                 }
             });
 
-            ui.horizontal(|ui| {
-                ui.label("Smoothing:");
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut text.properties.smoothing)
-                            .speed(0.001)
-                            .range(0.001..=0.1),
-                    )
-                    .changed()
-                {
-                    changed = true;
-                }
-            });
-
             ui.separator();
             if ui
                 .checkbox(&mut text.billboard, "Billboard (face camera)")
@@ -564,6 +553,83 @@ fn spawn_text_lattice(world: &mut World) {
             }
         }
     }
+}
+
+fn spawn_outline_demo(world: &mut World) {
+    spawn_3d_text_with_properties(
+        world,
+        "Outlined Text",
+        Vec3::new(-5.0, 4.0, 0.0),
+        TextProperties {
+            font_size: 48.0,
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            alignment: TextAlignment::Center,
+            vertical_alignment: VerticalAlignment::Middle,
+            outline_width: 0.1,
+            outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+            ..Default::default()
+        },
+    );
+
+    spawn_3d_text_with_properties(
+        world,
+        "Colored Outline",
+        Vec3::new(-5.0, 2.5, 0.0),
+        TextProperties {
+            font_size: 48.0,
+            color: Vec4::new(1.0, 0.9, 0.0, 1.0),
+            alignment: TextAlignment::Center,
+            vertical_alignment: VerticalAlignment::Middle,
+            outline_width: 0.15,
+            outline_color: Vec4::new(0.8, 0.0, 0.2, 1.0),
+            ..Default::default()
+        },
+    );
+
+    spawn_3d_text_with_properties(
+        world,
+        "Thick Outline",
+        Vec3::new(-5.0, 1.0, 0.0),
+        TextProperties {
+            font_size: 48.0,
+            color: Vec4::new(0.2, 0.6, 1.0, 1.0),
+            alignment: TextAlignment::Center,
+            vertical_alignment: VerticalAlignment::Middle,
+            outline_width: 0.25,
+            outline_color: Vec4::new(0.0, 0.0, 0.3, 1.0),
+            ..Default::default()
+        },
+    );
+}
+
+fn spawn_kerning_demo(world: &mut World) {
+    spawn_3d_text_with_properties(
+        world,
+        "AVATAR Wave Typography",
+        Vec3::new(5.0, 4.0, 0.0),
+        TextProperties {
+            font_size: 36.0,
+            color: Vec4::new(0.9, 0.9, 0.9, 1.0),
+            alignment: TextAlignment::Center,
+            vertical_alignment: VerticalAlignment::Middle,
+            ..Default::default()
+        },
+    );
+
+    spawn_3d_billboard_text_with_properties(
+        world,
+        "Billboard + Outline",
+        Vec3::new(0.0, 6.0, 0.0),
+        TextProperties {
+            font_size: 32.0,
+            color: Vec4::new(0.0, 1.0, 0.5, 1.0),
+            alignment: TextAlignment::Center,
+            vertical_alignment: VerticalAlignment::Middle,
+            outline_width: 0.08,
+            outline_color: Vec4::new(0.0, 0.0, 0.0, 1.0),
+            ..Default::default()
+        },
+    );
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

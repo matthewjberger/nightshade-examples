@@ -228,38 +228,6 @@ impl State for NeonLightsDemo {
         }
     }
 
-    fn configure_render_graph(
-        &mut self,
-        graph: &mut RenderGraph<World>,
-        device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
-        resources: RenderResources,
-    ) {
-        let (width, height) = (1920, 1080);
-        let bloom_width = width / 2;
-        let bloom_height = height / 2;
-
-        let bloom_texture = graph
-            .add_color_texture("bloom")
-            .format(wgpu::TextureFormat::Rgba16Float)
-            .size(bloom_width, bloom_height)
-            .clear_color(wgpu::Color::BLACK)
-            .transient();
-
-        let bloom_pass = passes::BloomPass::new(device, width, height);
-        graph
-            .pass(Box::new(bloom_pass))
-            .read("hdr", resources.scene_color)
-            .write("bloom", bloom_texture);
-
-        let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.4);
-        graph
-            .pass(Box::new(postprocess_pass))
-            .read("hdr", resources.scene_color)
-            .read("bloom", bloom_texture)
-            .read("ssao", resources.ssao)
-            .write("output", resources.swapchain);
-    }
 }
 
 enum UiAction {

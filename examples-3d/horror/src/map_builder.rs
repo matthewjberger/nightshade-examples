@@ -66,18 +66,10 @@ fn create_static_cube_entity(
         .with_casts_shadow(true)
         .with_visible(true);
     entity.components.physics = Some(ScenePhysics {
-        body_type: SceneBodyType::Static,
         collider: SceneCollider::Cuboid {
             half_extents: [size.x / 2.0, size.y / 2.0, size.z / 2.0],
         },
-        friction: 0.8,
-        restitution: 0.1,
-        mass: None,
-        is_sensor: false,
-        collision_membership: u32::MAX,
-        collision_filter: u32::MAX,
-        solver_membership: u32::MAX,
-        solver_filter: u32::MAX,
+        ..Default::default()
     });
     if let Some(p) = parent {
         entity = entity.with_parent(p);
@@ -792,14 +784,7 @@ fn add_door(
         collider: SceneCollider::Cuboid {
             half_extents: [scale.x / 2.0, scale.y / 2.0, scale.z / 2.0],
         },
-        friction: 0.8,
-        restitution: 0.1,
-        mass: None,
-        is_sensor: false,
-        collision_membership: u32::MAX,
-        collision_filter: u32::MAX,
-        solver_membership: u32::MAX,
-        solver_filter: u32::MAX,
+        ..Default::default()
     });
     if let Some(p) = parent {
         entity = entity.with_parent(p);

@@ -3,7 +3,7 @@ resolver = "2"
 members = [".", "site", "protocol"]
 
 [package]
-name = "webview"
+name = "nightshade-webview-example"
 version = "0.1.0"
 authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 description = "Example app using nightshade-webview"
@@ -13,7 +13,7 @@ rust-version = "1.90"
 publish = false
 
 [[bin]]
-name = "webview"
+name = "nightshade-webview-example"
 path = "src/main.rs"
 
 [dependencies]

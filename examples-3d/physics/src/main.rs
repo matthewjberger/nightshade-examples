@@ -3590,6 +3590,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 | VISIBILITY
                 | nightshade::ecs::world::RIGID_BODY
                 | nightshade::ecs::world::COLLIDER
+                | nightshade::ecs::world::COLLISION_LISTENER
                 | nightshade::ecs::world::PHYSICS_INTERPOLATION,
             1,
         )[0];
@@ -3702,13 +3703,21 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             self.despawn_bauble(world, bauble.entity);
         }
 
+        let mut collided_entities = std::collections::HashSet::new();
+        for event in world.resources.physics.collision_events() {
+            if event.kind == CollisionEventKind::Started {
+                collided_entities.insert(event.entity_a);
+                collided_entities.insert(event.entity_b);
+            }
+        }
+
         let mut baubles_to_remove = Vec::new();
         let mut baubles_just_landed = Vec::new();
 
         for (index, bauble) in self.shot_baubles.iter().enumerate() {
             let age_ms = current_time.saturating_sub(bauble.spawn_time_ms);
 
-            if !bauble.landed && age_ms > 2000 {
+            if !bauble.landed && collided_entities.contains(&bauble.entity) {
                 baubles_just_landed.push((index, bauble.entity));
             }
 

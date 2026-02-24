@@ -227,7 +227,6 @@ impl State for NeonLightsDemo {
             UiAction::None => {}
         }
     }
-
 }
 
 enum UiAction {

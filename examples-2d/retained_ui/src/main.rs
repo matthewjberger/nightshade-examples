@@ -13,8 +13,12 @@ const LIGHT_GRAY: nalgebra_glm::Vec4 = nalgebra_glm::Vec4::new(0.75, 0.75, 0.8, 
 const DARK_PANEL_HOVER: nalgebra_glm::Vec4 = nalgebra_glm::Vec4::new(0.08, 0.08, 0.14, 1.0);
 const TRANSPARENT: nalgebra_glm::Vec4 = nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0);
 const CARD_BG: nalgebra_glm::Vec4 = nalgebra_glm::Vec4::new(0.05, 0.05, 0.09, 0.9);
+const CARD_BORDER: nalgebra_glm::Vec4 = nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.4);
 const ACTIVE_INDICATOR: nalgebra_glm::Vec4 = nalgebra_glm::Vec4::new(0.0, 0.9, 1.0, 0.8);
 const INACTIVE_INDICATOR: nalgebra_glm::Vec4 = nalgebra_glm::Vec4::new(0.0, 0.9, 1.0, 0.0);
+
+const SIDEBAR_PERCENT: f32 = 16.0;
+const CONTENT_OFFSET_PERCENT: f32 = 16.5;
 
 #[derive(Clone, Copy, PartialEq, Default)]
 enum Screen {
@@ -31,18 +35,15 @@ struct RetainedUiDemo {
     nav_buttons: [Entity; 4],
     nav_indicators: [Entity; 4],
     screen_roots: [Entity; 4],
+
     fps_text_slot: usize,
     uptime_text_slot: usize,
     entity_count_text_slot: usize,
-    volume: f32,
-    brightness: f32,
-    fov: f32,
-    volume_bar: Entity,
-    brightness_bar: Entity,
-    fov_bar: Entity,
-    volume_fill: Entity,
-    brightness_fill: Entity,
-    fov_fill: Entity,
+
+    brightness_slider: Entity,
+    show_fps_toggle: Entity,
+    fps_card: Entity,
+
     widget_button_primary: Entity,
     widget_button_success: Entity,
     widget_button_error: Entity,
@@ -51,7 +52,6 @@ struct RetainedUiDemo {
     slider_entity: Entity,
     toggle_entity: Entity,
     checkbox_entity: Entity,
-    radio_entities: [Entity; 3],
     progress_entity: Entity,
     collapsing_entity: Entity,
     tab_bar_entity: Entity,
@@ -64,6 +64,24 @@ struct RetainedUiDemo {
     theme_dropdown_entity: Entity,
     floating_panel_entity: Entity,
     status_text_slot: usize,
+
+    pulse_entity: Entity,
+    color_blend_time: f32,
+
+    submit_input_entity: Entity,
+    submit_log_text_slot: usize,
+    focus_target_entity: Entity,
+    focus_button_entity: Entity,
+    disabled_button_entity: Entity,
+    disable_toggle_entity: Entity,
+
+    drag_value_entity: Entity,
+    tree_view_entity: Entity,
+    context_menu_entity: Entity,
+    confirm_dialog_entity: Entity,
+    confirm_trigger_button: Entity,
+    prop_grid_x: Entity,
+    prop_grid_y: Entity,
 }
 
 impl State for RetainedUiDemo {
@@ -80,15 +98,12 @@ impl State for RetainedUiDemo {
         let camera = spawn_ortho_camera(world, nalgebra_glm::Vec2::new(0.0, 0.0));
         world.resources.active_camera = Some(camera);
 
-        self.volume = 0.75;
-        self.brightness = 0.5;
-        self.fov = 0.6;
-
         self.fps_text_slot = world.resources.text_cache.add_text("60");
         self.uptime_text_slot = world.resources.text_cache.add_text("0:00");
         self.entity_count_text_slot = world.resources.text_cache.add_text("0");
         self.widget_click_count_text_slot = world.resources.text_cache.add_text("0");
         self.status_text_slot = world.resources.text_cache.add_text("");
+        self.submit_log_text_slot = world.resources.text_cache.add_text("Press Enter to submit");
 
         let mut tree = UiTreeBuilder::new(world);
 
@@ -109,7 +124,8 @@ impl State for RetainedUiDemo {
         let content_area = tree
             .add_node()
             .boundary(
-                Ab(nalgebra_glm::Vec2::new(202.0, 50.0)),
+                Rl(nalgebra_glm::Vec2::new(CONTENT_OFFSET_PERCENT, 0.0))
+                    + Ab(nalgebra_glm::Vec2::new(0.0, 50.0)),
                 Ab(nalgebra_glm::Vec2::new(0.0, -40.0)) + Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
             )
             .without_pointer_events()
@@ -118,7 +134,7 @@ impl State for RetainedUiDemo {
         tree.push_parent(content_area);
 
         self.screen_roots[0] = self.build_dashboard_screen(&mut tree);
-        self.screen_roots[1] = build_systems_screen(&mut tree);
+        self.screen_roots[1] = self.build_systems_screen(&mut tree);
         self.screen_roots[2] = self.build_settings_screen(&mut tree);
         self.screen_roots[3] = self.build_widgets_screen(&mut tree);
 
@@ -127,6 +143,7 @@ impl State for RetainedUiDemo {
         build_bottom_bar(&mut tree);
 
         tree.pop_parent();
+
         tree.finish();
     }
 
@@ -173,6 +190,7 @@ impl State for RetainedUiDemo {
 
         self.handle_settings_interactions(world);
         self.handle_widget_interactions(world);
+        self.update_animated_elements(world);
     }
 }
 
@@ -219,6 +237,7 @@ fn build_top_bar(tree: &mut UiTreeBuilder) {
         )
         .with_text("v0.7.0", 12.0)
         .with_color::<UiBase>(CYAN_DIM)
+        .with_tooltip("Engine version")
         .without_pointer_events();
 
     tree.add_node()
@@ -276,7 +295,8 @@ impl RetainedUiDemo {
             .add_node()
             .boundary(
                 Ab(nalgebra_glm::Vec2::new(0.0, 50.0)),
-                Ab(nalgebra_glm::Vec2::new(200.0, -40.0)) + Rl(nalgebra_glm::Vec2::new(0.0, 100.0)),
+                Rl(nalgebra_glm::Vec2::new(SIDEBAR_PERCENT, 100.0))
+                    + Ab(nalgebra_glm::Vec2::new(0.0, -40.0)),
             )
             .with_rect(0.0, 0.0, TRANSPARENT)
             .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.03, 0.03, 0.06, 0.95))
@@ -286,6 +306,12 @@ impl RetainedUiDemo {
         tree.push_parent(sidebar);
 
         let nav_labels = ["DASHBOARD", "SYSTEMS", "SETTINGS", "WIDGETS"];
+        let nav_tooltips = [
+            "System overview and metrics",
+            "Toggle active ECS systems",
+            "Display and theme settings",
+            "Widget gallery and demos",
+        ];
 
         for (index, label) in nav_labels.iter().enumerate() {
             let y_offset = 20.0 + index as f32 * 52.0;
@@ -312,15 +338,20 @@ impl RetainedUiDemo {
                 .add_node()
                 .window(
                     Ab(nalgebra_glm::Vec2::new(8.0, y_offset)),
-                    Ab(nalgebra_glm::Vec2::new(184.0, 40.0)),
+                    Ab(nalgebra_glm::Vec2::new(0.0, 40.0))
+                        + Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
+                        + Ab(nalgebra_glm::Vec2::new(-12.0, 0.0)),
                     Anchor::TopLeft,
                 )
                 .with_hover_layout(UiLayoutType::Window(WindowLayout {
                     position: Ab(nalgebra_glm::Vec2::new(12.0, y_offset)).into(),
-                    size: Ab(nalgebra_glm::Vec2::new(184.0, 40.0)).into(),
+                    size: Ab(nalgebra_glm::Vec2::new(0.0, 40.0))
+                        + Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
+                        + Ab(nalgebra_glm::Vec2::new(-12.0, 0.0)),
                     anchor: Anchor::TopLeft,
                 }))
                 .with_interaction()
+                .with_tooltip(nav_tooltips[index])
                 .with_cursor_icon(winit::window::CursorIcon::Pointer)
                 .with_rect(4.0, 0.0, TRANSPARENT)
                 .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.05, 0.05, 0.09, 0.0))
@@ -346,8 +377,8 @@ impl RetainedUiDemo {
 
         tree.add_node()
             .boundary(
-                Ab(nalgebra_glm::Vec2::new(198.0, 0.0)),
-                Ab(nalgebra_glm::Vec2::new(200.0, 0.0)) + Rl(nalgebra_glm::Vec2::new(0.0, 100.0)),
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(-2.0, 0.0)),
+                Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
             )
             .with_rect(0.0, 0.0, TRANSPARENT)
             .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.5))
@@ -363,6 +394,7 @@ impl RetainedUiDemo {
                 Rl(nalgebra_glm::Vec2::new(0.0, 0.0)),
                 Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
             )
+            .with_intro(UiAnimationType::Fade, 0.2)
             .without_pointer_events()
             .entity();
 
@@ -389,22 +421,23 @@ impl RetainedUiDemo {
         ];
 
         for (index, (label, text_slot, accent_color)) in card_data.iter().enumerate() {
-            let col = index % 2;
-            let row = index / 2;
-            let x_percent = 2.0 + col as f32 * 50.0;
-            let y_offset = 60.0 + row as f32 * 130.0;
+            let x_percent = 2.0 + index as f32 * 33.0;
 
             let card = tree
                 .add_node()
                 .boundary(
                     Rl(nalgebra_glm::Vec2::new(x_percent, 0.0))
-                        + Ab(nalgebra_glm::Vec2::new(0.0, y_offset)),
-                    Rl(nalgebra_glm::Vec2::new(x_percent + 47.0, 0.0))
-                        + Ab(nalgebra_glm::Vec2::new(0.0, y_offset + 110.0)),
+                        + Ab(nalgebra_glm::Vec2::new(0.0, 60.0)),
+                    Rl(nalgebra_glm::Vec2::new(x_percent + 31.0, 0.0))
+                        + Ab(nalgebra_glm::Vec2::new(0.0, 170.0)),
                 )
-                .with_rect(6.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.4))
+                .with_rect(6.0, 1.0, CARD_BORDER)
                 .with_color::<UiBase>(CARD_BG)
-                .without_pointer_events()
+                .with_tooltip(match index {
+                    0 => "Current frames per second",
+                    1 => "Total active ECS entities",
+                    _ => "Time since application start",
+                })
                 .entity();
 
             tree.push_parent(card);
@@ -438,52 +471,24 @@ impl RetainedUiDemo {
                 .with_color::<UiBase>(WHITE)
                 .without_pointer_events();
 
+            if index == 0 {
+                self.fps_card = card;
+            }
+
             tree.pop_parent();
         }
 
-        let memory_card = tree
+        self.pulse_entity = tree
             .add_node()
-            .boundary(
-                Rl(nalgebra_glm::Vec2::new(52.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 190.0)),
-                Rl(nalgebra_glm::Vec2::new(99.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 300.0)),
-            )
-            .with_rect(6.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.4))
-            .with_color::<UiBase>(CARD_BG)
-            .without_pointer_events()
-            .entity();
-
-        tree.push_parent(memory_card);
-
-        tree.add_node()
-            .boundary(
-                Rl(nalgebra_glm::Vec2::new(0.0, 0.0)),
-                Ab(nalgebra_glm::Vec2::new(0.0, 3.0)) + Rl(nalgebra_glm::Vec2::new(100.0, 0.0)),
-            )
-            .with_rect(6.0, 0.0, TRANSPARENT)
-            .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.9, 0.6, 0.0, 1.0))
-            .without_pointer_events();
-
-        tree.add_node()
             .window(
-                Ab(nalgebra_glm::Vec2::new(16.0, 22.0)),
-                Ab(nalgebra_glm::Vec2::new(150.0, 20.0)),
-                Anchor::TopLeft,
+                Rl(nalgebra_glm::Vec2::new(96.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 68.0)),
+                Ab(nalgebra_glm::Vec2::new(10.0, 10.0)),
+                Anchor::Center,
             )
-            .with_text("MEMORY", 12.0)
-            .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.5, 0.5, 0.6, 1.0))
-            .without_pointer_events();
-
-        tree.add_node()
-            .window(
-                Ab(nalgebra_glm::Vec2::new(16.0, 55.0)),
-                Ab(nalgebra_glm::Vec2::new(200.0, 42.0)),
-                Anchor::TopLeft,
-            )
-            .with_text("N/A", 36.0)
-            .with_color::<UiBase>(WHITE)
-            .without_pointer_events();
-
-        tree.pop_parent();
+            .with_rect(5.0, 0.0, TRANSPARENT)
+            .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.0, 1.0, 0.5, 1.0))
+            .with_tooltip("Live status indicator (animated)")
+            .done();
 
         tree.add_node()
             .solid(
@@ -491,7 +496,7 @@ impl RetainedUiDemo {
                 ScalingMode::Fit,
                 nalgebra_glm::Vec2::new(0.0, 1.0),
             )
-            .with_rect(4.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.3))
+            .with_rect(4.0, 1.0, CARD_BORDER)
             .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.03, 0.03, 0.06, 0.6))
             .with_children(|tree| {
                 tree.add_node()
@@ -517,97 +522,121 @@ impl RetainedUiDemo {
                 Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
             )
             .with_visible(false)
+            .with_intro(UiAnimationType::Fade, 0.2)
             .without_pointer_events()
             .entity();
 
         tree.push_parent(screen);
 
-        tree.add_node()
-            .window(
-                Ab(nalgebra_glm::Vec2::new(20.0, 20.0)),
-                Ab(nalgebra_glm::Vec2::new(300.0, 28.0)),
-                Anchor::TopLeft,
+        let settings_card = tree
+            .add_node()
+            .boundary(
+                Ab(nalgebra_glm::Vec2::new(10.0, 10.0)),
+                Rl(nalgebra_glm::Vec2::new(100.0, 100.0))
+                    + Ab(nalgebra_glm::Vec2::new(-10.0, -10.0)),
             )
-            .with_text("CONFIGURATION", 18.0)
-            .with_color::<UiBase>(CYAN)
-            .without_pointer_events();
+            .with_rect(6.0, 1.0, CARD_BORDER)
+            .with_color::<UiBase>(CARD_BG)
+            .entity();
 
-        let sliders = [
-            ("VOLUME", self.volume, CYAN),
-            ("BRIGHTNESS", self.brightness, MAGENTA),
-            (
-                "FIELD OF VIEW",
-                self.fov,
-                nalgebra_glm::Vec4::new(0.4, 1.0, 0.4, 1.0),
-            ),
+        tree.push_parent(settings_card);
+
+        let scroll = tree.add_scroll_area_fill(12.0, 6.0);
+        let content = tree.world_mut().ui_scroll_area_content(scroll).unwrap();
+        tree.push_parent(content);
+
+        tree.add_heading("Display");
+        tree.add_separator();
+
+        tree.add_label("Brightness");
+        self.brightness_slider = tree.add_slider(0.0, 100.0, 50.0);
+
+        tree.add_spacing(4.0);
+        tree.add_label("UI Scale");
+        tree.add_dropdown(&["75%", "100%", "125%", "150%"], 1);
+
+        tree.add_spacing(4.0);
+        tree.add_label("V-Sync");
+        tree.add_toggle(true);
+
+        tree.add_spacing(4.0);
+        tree.add_label("Show FPS Counter");
+        self.show_fps_toggle = tree.add_toggle(true);
+
+        tree.add_spacing(12.0);
+        tree.add_heading("Theme");
+        tree.add_separator();
+        self.theme_dropdown_entity = tree.add_theme_dropdown();
+
+        tree.pop_parent();
+        tree.pop_parent();
+
+        tree.pop_parent();
+        screen
+    }
+
+    fn build_systems_screen(&mut self, tree: &mut UiTreeBuilder) -> Entity {
+        let screen = tree
+            .add_node()
+            .boundary(
+                Rl(nalgebra_glm::Vec2::new(0.0, 0.0)),
+                Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
+            )
+            .with_visible(false)
+            .with_intro(UiAnimationType::Fade, 0.2)
+            .without_pointer_events()
+            .entity();
+
+        tree.push_parent(screen);
+
+        let systems_card = tree
+            .add_node()
+            .boundary(
+                Ab(nalgebra_glm::Vec2::new(10.0, 10.0)),
+                Rl(nalgebra_glm::Vec2::new(100.0, 100.0))
+                    + Ab(nalgebra_glm::Vec2::new(-10.0, -10.0)),
+            )
+            .with_rect(6.0, 1.0, CARD_BORDER)
+            .with_color::<UiBase>(CARD_BG)
+            .entity();
+
+        tree.push_parent(systems_card);
+
+        let scroll = tree.add_scroll_area_fill(8.0, 0.0);
+        let scroll_content = tree.world_mut().ui_scroll_area_content(scroll).unwrap();
+        tree.push_parent(scroll_content);
+
+        tree.add_heading("Active Systems");
+        tree.add_separator();
+
+        let system_names = [
+            "Transform Propagation",
+            "Camera Update",
+            "Sprite Rendering",
+            "Text Sync",
+            "Animation Player",
+            "Particle Update",
+            "Physics Step",
+            "Collision Detection",
+            "Audio Mixer",
+            "NavMesh Agent",
+            "UI Layout Compute",
+            "UI Picking",
+            "UI State Update",
+            "UI Color Blend",
+            "UI Render Sync",
+            "Event Bus Dispatch",
+            "Input Reset",
+            "Deferred Commands",
         ];
 
-        let mut bar_entities = Vec::new();
-        let mut fill_entities = Vec::new();
-
-        for (index, (label, value, accent)) in sliders.iter().enumerate() {
-            let y_offset = 70.0 + index as f32 * 90.0;
-
-            tree.add_node()
-                .window(
-                    Ab(nalgebra_glm::Vec2::new(20.0, y_offset)),
-                    Ab(nalgebra_glm::Vec2::new(200.0, 20.0)),
-                    Anchor::TopLeft,
-                )
-                .with_text(label, 13.0)
-                .with_color::<UiBase>(LIGHT_GRAY)
-                .without_pointer_events();
-
-            tree.add_node()
-                .boundary(
-                    Rl(nalgebra_glm::Vec2::new(90.0, 0.0))
-                        + Ab(nalgebra_glm::Vec2::new(0.0, y_offset)),
-                    Rl(nalgebra_glm::Vec2::new(98.0, 0.0))
-                        + Ab(nalgebra_glm::Vec2::new(0.0, y_offset + 20.0)),
-                )
-                .with_text(&format!("{:.0}%", value * 100.0), 13.0)
-                .with_color::<UiBase>(*accent)
-                .without_pointer_events();
-
-            let bar_bg = tree
-                .add_node()
-                .boundary(
-                    Ab(nalgebra_glm::Vec2::new(20.0, y_offset + 30.0)),
-                    Rl(nalgebra_glm::Vec2::new(98.0, 0.0))
-                        + Ab(nalgebra_glm::Vec2::new(0.0, y_offset + 54.0)),
-                )
-                .with_rect(4.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.3))
-                .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.03, 0.03, 0.06, 0.8))
-                .with_interaction()
-                .with_cursor_icon(winit::window::CursorIcon::Pointer)
-                .entity();
-
-            tree.push_parent(bar_bg);
-
-            let fill_width = *value * 100.0;
-            let fill = tree
-                .add_node()
-                .boundary(
-                    Rl(nalgebra_glm::Vec2::new(0.0, 0.0)),
-                    Rl(nalgebra_glm::Vec2::new(fill_width, 100.0)),
-                )
-                .with_rect(4.0, 0.0, TRANSPARENT)
-                .with_color::<UiBase>(accent * 0.8)
-                .without_pointer_events()
-                .done();
-
-            bar_entities.push(bar_bg);
-            fill_entities.push(fill);
-
-            tree.pop_parent();
+        for (index, name) in system_names.iter().enumerate() {
+            let initially_on = !(5..10).contains(&index);
+            tree.add_checkbox(name, initially_on);
         }
 
-        self.volume_bar = bar_entities[0];
-        self.brightness_bar = bar_entities[1];
-        self.fov_bar = bar_entities[2];
-        self.volume_fill = fill_entities[0];
-        self.brightness_fill = fill_entities[1];
-        self.fov_fill = fill_entities[2];
+        tree.pop_parent();
+        tree.pop_parent();
 
         tree.pop_parent();
         screen
@@ -621,6 +650,7 @@ impl RetainedUiDemo {
                 Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
             )
             .with_visible(false)
+            .with_intro(UiAnimationType::Fade, 0.2)
             .without_pointer_events()
             .entity();
 
@@ -634,7 +664,7 @@ impl RetainedUiDemo {
                     + Ab(nalgebra_glm::Vec2::new(-5.0, -10.0))
                     + Rl(nalgebra_glm::Vec2::new(0.0, 100.0)),
             )
-            .with_rect(6.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.4))
+            .with_rect(6.0, 1.0, CARD_BORDER)
             .with_color::<UiBase>(CARD_BG)
             .entity();
 
@@ -695,6 +725,10 @@ impl RetainedUiDemo {
         self.slider_entity = tree.add_slider(0.0, 100.0, 50.0);
 
         tree.add_spacing(4.0);
+        tree.add_label("Drag Value");
+        self.drag_value_entity = tree.add_drag_value(0.5, 0.0, 10.0, 0.01, 2);
+
+        tree.add_spacing(4.0);
         tree.add_label("Toggle");
         self.toggle_entity = tree.add_toggle(false);
 
@@ -704,9 +738,9 @@ impl RetainedUiDemo {
 
         tree.add_spacing(4.0);
         tree.add_label("Radio Buttons");
-        self.radio_entities[0] = tree.add_radio("Option A", 1, 0);
-        self.radio_entities[1] = tree.add_radio("Option B", 1, 1);
-        self.radio_entities[2] = tree.add_radio("Option C", 1, 2);
+        tree.add_radio("Option A", 1, 0);
+        tree.add_radio("Option B", 1, 1);
+        tree.add_radio("Option C", 1, 2);
 
         tree.add_spacing(4.0);
         tree.add_label("Progress Bar");
@@ -716,18 +750,43 @@ impl RetainedUiDemo {
         tree.add_label("Text Input");
         self.text_input_entity = tree.add_text_input("Type here...");
 
+        tree.add_spacing(8.0);
+        tree.add_heading("New Features");
+        tree.add_separator();
+
+        tree.add_label("Submit Detection (Enter key)");
+        self.submit_input_entity = tree.add_text_input("Type and press Enter...");
+        tree.add_node()
+            .flow_child(
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 24.0)),
+            )
+            .with_text_slot(self.submit_log_text_slot, 12.0)
+            .with_color::<UiBase>(CYAN_DIM)
+            .without_pointer_events()
+            .done();
+
+        tree.add_spacing(4.0);
+        tree.add_label("Programmatic Focus");
+        self.focus_target_entity = tree.add_text_input("Focus target");
+        self.focus_button_entity = tree.add_button("Focus the input above");
+
+        tree.add_spacing(4.0);
+        tree.add_label("Disabled State");
+        self.disabled_button_entity = tree.add_button("I can be disabled");
+        self.disable_toggle_entity = tree.add_toggle(false);
+        tree.add_label("Toggle to disable button");
+
         tree.pop_parent();
         tree.pop_parent();
 
         let right_column = tree
             .add_node()
             .boundary(
-                Rl(nalgebra_glm::Vec2::new(50.0, 0.0))
-                    + Ab(nalgebra_glm::Vec2::new(5.0, 10.0)),
+                Rl(nalgebra_glm::Vec2::new(50.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(5.0, 10.0)),
                 Ab(nalgebra_glm::Vec2::new(-10.0, -10.0))
                     + Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
             )
-            .with_rect(6.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.4))
+            .with_rect(6.0, 1.0, CARD_BORDER)
             .with_color::<UiBase>(CARD_BG)
             .entity();
 
@@ -744,10 +803,10 @@ impl RetainedUiDemo {
         tree.add_label("Collapsing Header");
         self.collapsing_entity = tree.add_collapsing_header("Click to expand", true);
 
-        let content = tree
+        let collapsing_content = tree
             .world_mut()
             .ui_collapsing_header_content(self.collapsing_entity);
-        if let Some(content_entity) = content {
+        if let Some(content_entity) = collapsing_content {
             tree.push_parent(content_entity);
             tree.add_label("This content is inside the collapsing header.");
             tree.add_label("It can be toggled by clicking the header above.");
@@ -767,18 +826,53 @@ impl RetainedUiDemo {
         self.menu_entity = tree.add_menu("Actions", &["New", "Open", "Save", "Export"]);
 
         tree.add_spacing(4.0);
-        tree.add_label("Theme Dropdown");
-        self.theme_dropdown_entity = tree.add_theme_dropdown();
-
-        tree.add_spacing(4.0);
         tree.add_label("Color Picker");
         self.color_picker_entity =
             tree.add_color_picker(nalgebra_glm::Vec4::new(0.3, 0.5, 0.9, 1.0));
 
+        tree.add_spacing(8.0);
+        tree.add_heading("Editor Widgets");
+        tree.add_separator();
+
+        tree.add_label("Selectable Labels");
+        tree.add_selectable_label("Renderer: wgpu", Some(1));
+        tree.add_selectable_label("Audio: disabled", Some(1));
+        tree.add_selectable_label("Physics: rapier", Some(1));
+
+        tree.add_spacing(4.0);
+        tree.add_label("Property Grid");
+        let grid = tree.add_property_grid(60.0);
+        let section = tree.add_property_section(grid, "Transform");
+        let area = tree.add_property_row(grid, section, "X");
+        tree.push_parent(area);
+        self.prop_grid_x = tree.add_drag_value(1.0, -10.0, 10.0, 0.1, 2);
+        tree.pop_parent();
+        let area = tree.add_property_row(grid, section, "Y");
+        tree.push_parent(area);
+        self.prop_grid_y = tree.add_drag_value(2.0, -10.0, 10.0, 0.1, 2);
+        tree.pop_parent();
+
+        tree.add_spacing(4.0);
+        tree.add_label("Tree View");
+        self.tree_view_entity = tree.add_tree_view(false);
+        let tv_content = tree
+            .world_mut()
+            .ui_tree_view_content(self.tree_view_entity)
+            .unwrap();
+        let root_node = tree.add_tree_node(self.tree_view_entity, tv_content, "Project", 0, 0);
+        tree.world_mut().ui_tree_node_set_expanded(root_node, true);
+        let root_children = tree.world_mut().ui_tree_node_children(root_node).unwrap();
+        tree.add_tree_node(self.tree_view_entity, root_children, "Assets", 1, 1);
+        tree.add_tree_node(self.tree_view_entity, root_children, "Scripts", 1, 2);
+        tree.add_tree_node(self.tree_view_entity, root_children, "Scenes", 1, 3);
+
+        tree.add_spacing(4.0);
+        tree.add_label("Confirm Dialog");
+        self.confirm_trigger_button = tree.add_button("Show Confirm Dialog");
+
         tree.add_spacing(4.0);
         tree.add_label("Scroll Area");
-        self.scroll_area_entity =
-            tree.add_scroll_area(nalgebra_glm::Vec2::new(0.0, 120.0));
+        self.scroll_area_entity = tree.add_scroll_area(nalgebra_glm::Vec2::new(0.0, 120.0));
 
         let scroll_content = tree
             .world_mut()
@@ -822,10 +916,20 @@ impl RetainedUiDemo {
         if let Some(panel_content_entity) = panel_content {
             tree.push_parent(panel_content_entity);
             tree.add_label("Drag the header to move.");
-            tree.add_label("This is a floating panel.");
+            tree.add_label("Drag to dock indicators to dock.");
+            tree.add_label("Resize from edges and corners.");
             tree.add_button("Panel Button");
             tree.pop_parent();
         }
+
+        self.confirm_dialog_entity =
+            tree.add_confirm_dialog("Confirm Action", "Are you sure you want to proceed?");
+
+        self.context_menu_entity = tree.add_context_menu(&[
+            ("Cut", Some("Ctrl+X")),
+            ("Copy", Some("Ctrl+C")),
+            ("Paste", Some("Ctrl+V")),
+        ]);
 
         tree.pop_parent();
         screen
@@ -841,9 +945,10 @@ impl RetainedUiDemo {
 
         for (index, screen) in screens.iter().enumerate() {
             let is_active = *screen == self.active_screen;
-
-            if let Some(node) = world.get_ui_layout_node_mut(self.screen_roots[index]) {
-                node.visible = is_active;
+            if is_active {
+                world.ui_set_visible(self.screen_roots[index], true);
+            } else if let Some(node) = world.get_ui_layout_node_mut(self.screen_roots[index]) {
+                node.visible = false;
             }
 
             if let Some(color) = world.get_ui_node_color_mut(self.nav_indicators[index]) {
@@ -857,47 +962,19 @@ impl RetainedUiDemo {
     }
 
     fn handle_settings_interactions(&mut self, world: &mut World) {
-        if self.active_screen != Screen::Settings {
-            return;
+        if world.ui_slider_changed(self.brightness_slider) {
+            let brightness = world.ui_slider_value(self.brightness_slider) / 100.0;
+            let base = 0.02;
+            let value = base + brightness * 0.06;
+            world.resources.graphics.clear_color = [value, value, value + 0.02, 1.0];
+            world.resources.retained_ui.background_color =
+                Some(nalgebra_glm::Vec4::new(value, value, value + 0.02, 1.0));
         }
 
-        let pairs = [
-            (self.volume_bar, self.volume_fill, 0),
-            (self.brightness_bar, self.brightness_fill, 1),
-            (self.fov_bar, self.fov_fill, 2),
-        ];
-
-        for (bar_entity, fill_entity, setting_index) in pairs {
-            let pressed = world
-                .get_ui_node_interaction(bar_entity)
-                .is_some_and(|interaction| interaction.pressed);
-
-            if !pressed {
-                continue;
-            }
-
-            let bar_rect = match world.get_ui_layout_node(bar_entity) {
-                Some(node) => node.computed_rect,
-                None => continue,
-            };
-
-            let mouse_x = world.resources.input.mouse.position.x;
-            let clamped = ((mouse_x - bar_rect.min.x) / bar_rect.width()).clamp(0.0, 1.0);
-
-            match setting_index {
-                0 => self.volume = clamped,
-                1 => self.brightness = clamped,
-                2 => self.fov = clamped,
-                _ => {}
-            }
-
-            if let Some(fill_node) = world.get_ui_layout_node_mut(fill_entity) {
-                let base_id = std::any::TypeId::of::<UiBase>();
-                if let Some(UiLayoutType::Boundary(boundary)) = fill_node.layouts.get_mut(&base_id)
-                {
-                    boundary.position_2 =
-                        Rl(nalgebra_glm::Vec2::new(clamped * 100.0, 100.0)).into();
-                }
+        if world.ui_toggle_changed(self.show_fps_toggle) {
+            let show = world.ui_toggle_value(self.show_fps_toggle);
+            if let Some(node) = world.get_ui_layout_node_mut(self.fps_card) {
+                node.visible = show;
             }
         }
     }
@@ -907,22 +984,6 @@ impl RetainedUiDemo {
             return;
         }
 
-        let buttons = [
-            self.widget_button_primary,
-            self.widget_button_success,
-            self.widget_button_error,
-        ];
-
-        for button in buttons {
-            if world.ui_button_clicked(button) {
-                self.widget_click_count += 1;
-                world.resources.text_cache.set_text(
-                    self.widget_click_count_text_slot,
-                    format!("{}", self.widget_click_count),
-                );
-            }
-        }
-
         let delta = world.resources.window.timing.delta_time;
         self.progress_value += delta * 0.1;
         if self.progress_value > 1.0 {
@@ -930,9 +991,82 @@ impl RetainedUiDemo {
         }
         world.ui_progress_bar_set_value(self.progress_entity, self.progress_value);
 
-        if world.ui_dropdown_changed(self.theme_dropdown_entity) {
-            let selected = world.ui_dropdown_selected(self.theme_dropdown_entity);
-            world.resources.retained_ui.theme_state.select_theme(selected);
+        if world.ui_button_clicked(self.widget_button_primary) {
+            self.widget_click_count += 1;
+            world.resources.text_cache.set_text(
+                self.widget_click_count_text_slot,
+                format!("{}", self.widget_click_count),
+            );
+            world.ui_show_toast(
+                &format!("Button clicked ({})", self.widget_click_count),
+                ToastSeverity::Info,
+                3.0,
+            );
+        }
+        if world.ui_button_clicked(self.widget_button_success) {
+            self.widget_click_count += 1;
+            world.resources.text_cache.set_text(
+                self.widget_click_count_text_slot,
+                format!("{}", self.widget_click_count),
+            );
+            world.ui_show_toast("Action completed", ToastSeverity::Success, 3.0);
+        }
+        if world.ui_button_clicked(self.widget_button_error) {
+            self.widget_click_count += 1;
+            world.resources.text_cache.set_text(
+                self.widget_click_count_text_slot,
+                format!("{}", self.widget_click_count),
+            );
+            world.ui_show_toast("Something went wrong", ToastSeverity::Error, 3.0);
+        }
+
+        if let Some(submitted_text) = world.ui_text_input_submitted(self.submit_input_entity) {
+            world.resources.text_cache.set_text(
+                self.submit_log_text_slot,
+                format!("Submitted: \"{}\"", submitted_text),
+            );
+        }
+
+        if world.ui_button_clicked(self.focus_button_entity) {
+            world.ui_focus(self.focus_target_entity);
+        }
+
+        if world.ui_toggle_changed(self.disable_toggle_entity) {
+            let disabled = world.ui_toggle_value(self.disable_toggle_entity);
+            world.ui_set_disabled(self.disabled_button_entity, disabled);
+        }
+
+        if world.ui_button_clicked(self.disabled_button_entity) {
+            world.ui_show_toast("Disabled button was clicked!", ToastSeverity::Info, 3.0);
+        }
+
+        if world.ui_button_clicked(self.confirm_trigger_button) {
+            world.ui_show_modal(self.confirm_dialog_entity);
+        }
+        if let Some(confirmed) = world.ui_modal_result(self.confirm_dialog_entity) {
+            if confirmed {
+                world.ui_show_toast("Confirmed!", ToastSeverity::Success, 3.0);
+            } else {
+                world.ui_show_toast("Cancelled", ToastSeverity::Info, 3.0);
+            }
+        }
+
+        for event in world.ui_events().to_vec() {
+            if let UiEvent::TreeNodeContextMenu { tree, position, .. } = event
+                && tree == self.tree_view_entity
+            {
+                world.ui_show_context_menu(self.context_menu_entity, position);
+            }
+        }
+
+        if let Some(item_index) = world.ui_context_menu_clicked(self.context_menu_entity) {
+            let action = match item_index {
+                0 => "Cut",
+                1 => "Copy",
+                2 => "Paste",
+                _ => "Unknown",
+            };
+            world.ui_show_toast(&format!("Context menu: {action}"), ToastSeverity::Info, 2.0);
         }
 
         let slider_val = world.ui_slider_value(self.slider_entity);
@@ -941,151 +1075,72 @@ impl RetainedUiDemo {
         let radio_val = world.ui_radio_group_value(1);
         let tab_val = world.ui_tab_bar_selected(self.tab_bar_entity);
         let dropdown_val = world.ui_dropdown_selected(self.dropdown_entity);
-        let dropdown_opts = ["Low", "Medium", "High", "Ultra"];
-        let tab_opts = ["General", "Audio", "Display"];
         let text_val = world.ui_text_input_value(self.text_input_entity);
         let color_val = world.ui_color_picker_value(self.color_picker_entity);
-
         let menu_action = world.ui_menu_clicked(self.menu_entity);
 
+        let radio_label = radio_val.map_or("None", |v| ["A", "B", "C"][v]);
+        let tab_label = ["General", "Audio", "Display"][tab_val.min(2)];
+        let drop_label = ["Low", "Medium", "High", "Ultra"][dropdown_val.min(3)];
+        let input_display = if text_val.len() > 20 {
+            &text_val[..20]
+        } else {
+            &text_val
+        };
+        let drag_val = world.ui_drag_value(self.drag_value_entity);
+        let menu_suffix =
+            menu_action.map_or(String::new(), |index| format!("\nMenu: clicked #{}", index));
+
         let status = format!(
-            "Slider: {:.1} | Toggle: {} | Check: {} | Radio: {} | Tab: {} | Drop: {} | Input: \"{}\" | Color: ({:.2},{:.2},{:.2},{:.2}){}",
+            "Slider: {:.1} | Drag: {:.2} | Toggle: {} | Check: {}\nRadio: {} | Tab: {} | Drop: {}\nInput: \"{}\"\nColor: ({:.2}, {:.2}, {:.2}, {:.2}){}",
             slider_val,
+            drag_val,
             if toggle_val { "ON" } else { "OFF" },
             if checkbox_val { "ON" } else { "OFF" },
-            radio_val.map_or("None".to_string(), |v| ["A", "B", "C"][v].to_string()),
-            tab_opts.get(tab_val).unwrap_or(&"?"),
-            dropdown_opts.get(dropdown_val).unwrap_or(&"?"),
-            if text_val.len() > 20 { &text_val[..20] } else { &text_val },
+            radio_label,
+            tab_label,
+            drop_label,
+            input_display,
             color_val.x,
             color_val.y,
             color_val.z,
             color_val.w,
-            menu_action.map_or(String::new(), |index| format!(" | Menu: clicked #{}", index)),
+            menu_suffix,
         );
         world
             .resources
             .text_cache
             .set_text(self.status_text_slot, status);
     }
-}
 
-fn build_systems_screen(tree: &mut UiTreeBuilder) -> Entity {
-    let screen = tree
-        .add_node()
-        .boundary(
-            Rl(nalgebra_glm::Vec2::new(0.0, 0.0)),
-            Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
-        )
-        .with_visible(false)
-        .without_pointer_events()
-        .entity();
+    fn update_animated_elements(&mut self, world: &mut World) {
+        let time = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
+        let pulse_target = (time * 2.0).sin() * 0.5 + 0.5;
+        let pulse_alpha =
+            world
+                .resources
+                .retained_ui
+                .animate(self.pulse_entity, 0, pulse_target, 4.0);
+        let pulse_color = blend_color(
+            nalgebra_glm::Vec4::new(0.0, 1.0, 0.5, 0.3),
+            nalgebra_glm::Vec4::new(0.0, 1.0, 0.5, 1.0),
+            pulse_alpha,
+        );
+        if let Some(color_comp) = world.get_ui_node_color_mut(self.pulse_entity) {
+            color_comp.colors[0] = Some(pulse_color);
+        }
 
-    tree.push_parent(screen);
+        let delta = world.resources.window.timing.delta_time;
+        self.color_blend_time += delta * 0.3;
+        if self.color_blend_time > 1.0 {
+            self.color_blend_time -= 1.0;
+        }
+        let blended = blend_color(CYAN, MAGENTA, self.color_blend_time);
 
-    tree.add_node()
-        .window(
-            Ab(nalgebra_glm::Vec2::new(20.0, 20.0)),
-            Ab(nalgebra_glm::Vec2::new(300.0, 28.0)),
-            Anchor::TopLeft,
-        )
-        .with_text("ACTIVE SYSTEMS", 18.0)
-        .with_color::<UiBase>(CYAN)
-        .without_pointer_events();
-
-    let systems_container = tree
-        .add_node()
-        .boundary(
-            Ab(nalgebra_glm::Vec2::new(20.0, 60.0)),
-            Rl(nalgebra_glm::Vec2::new(98.0, 95.0)),
-        )
-        .with_rect(4.0, 1.0, nalgebra_glm::Vec4::new(0.1, 0.1, 0.18, 0.3))
-        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.03, 0.03, 0.06, 0.7))
-        .with_clip()
-        .without_pointer_events()
-        .entity();
-
-    tree.push_parent(systems_container);
-
-    let system_names = [
-        ("Transform Propagation", true),
-        ("Camera Update", true),
-        ("Sprite Rendering", true),
-        ("Text Sync", true),
-        ("Animation Player", true),
-        ("Particle Update", false),
-        ("Physics Step", false),
-        ("Collision Detection", false),
-        ("Audio Mixer", false),
-        ("NavMesh Agent", false),
-        ("UI Layout Compute", true),
-        ("UI Picking", true),
-        ("UI State Update", true),
-        ("UI Color Blend", true),
-        ("UI Render Sync", true),
-        ("Event Bus Dispatch", true),
-        ("Input Reset", true),
-        ("Deferred Commands", true),
-    ];
-
-    for (index, (name, active)) in system_names.iter().enumerate() {
-        let y_pos = 8.0 + index as f32 * 32.0;
-
-        tree.add_node()
-            .window(
-                Ab(nalgebra_glm::Vec2::new(12.0, y_pos)),
-                Rl(nalgebra_glm::Vec2::new(95.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 26.0)),
-                Anchor::TopLeft,
-            )
-            .with_rect(3.0, 0.0, TRANSPARENT)
-            .with_color::<UiBase>(if index % 2 == 0 {
-                nalgebra_glm::Vec4::new(0.05, 0.05, 0.09, 0.5)
-            } else {
-                nalgebra_glm::Vec4::new(0.04, 0.04, 0.07, 0.3)
-            })
-            .without_pointer_events()
-            .with_children(|tree| {
-                tree.add_node()
-                    .window(
-                        Ab(nalgebra_glm::Vec2::new(12.0, 13.0)),
-                        Ab(nalgebra_glm::Vec2::new(14.0, 14.0)),
-                        Anchor::CenterLeft,
-                    )
-                    .with_rect(2.0, 0.0, TRANSPARENT)
-                    .with_color::<UiBase>(if *active {
-                        nalgebra_glm::Vec4::new(0.2, 1.0, 0.4, 1.0)
-                    } else {
-                        nalgebra_glm::Vec4::new(0.4, 0.15, 0.15, 1.0)
-                    })
-                    .without_pointer_events();
-
-                tree.add_node()
-                    .window(
-                        Ab(nalgebra_glm::Vec2::new(36.0, 13.0)),
-                        Ab(nalgebra_glm::Vec2::new(250.0, 22.0)),
-                        Anchor::CenterLeft,
-                    )
-                    .with_text(name, 13.0)
-                    .with_color::<UiBase>(if *active { WHITE } else { LIGHT_GRAY })
-                    .without_pointer_events();
-
-                tree.add_node()
-                    .window(
-                        Rl(nalgebra_glm::Vec2::new(90.0, 50.0)),
-                        Ab(nalgebra_glm::Vec2::new(60.0, 18.0)),
-                        Anchor::CenterRight,
-                    )
-                    .with_text(if *active { "ON" } else { "OFF" }, 11.0)
-                    .with_color::<UiBase>(if *active {
-                        nalgebra_glm::Vec4::new(0.2, 1.0, 0.4, 1.0)
-                    } else {
-                        nalgebra_glm::Vec4::new(0.6, 0.3, 0.3, 1.0)
-                    })
-                    .without_pointer_events();
-            });
+        world.resources.retained_ui.draw_rect(
+            nalgebra_glm::Vec2::new(4.0, 52.0),
+            nalgebra_glm::Vec2::new(3.0, 30.0),
+            blended,
+        );
     }
-
-    tree.pop_parent();
-    tree.pop_parent();
-    screen
 }

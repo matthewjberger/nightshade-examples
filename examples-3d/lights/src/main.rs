@@ -66,7 +66,6 @@ impl State for ManyLights {
         sync_text_meshes_system(world);
         self.update_lights(world);
     }
-
 }
 
 impl ManyLights {

@@ -304,7 +304,6 @@ impl State for BloomDemo {
             }
         }
     }
-
 }
 
 fn create_pastel_material(base_color: Vec3) -> Material {

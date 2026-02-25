@@ -165,6 +165,13 @@ struct Gallery {
     disable_toggle: Entity,
     disable_active: bool,
 
+    region_disable_toggle: Entity,
+    region_disable_active: bool,
+    region_container: Entity,
+
+    rich_btn_save: Entity,
+    rich_btn_status: Entity,
+
     theme_dropdown: Entity,
 
     command_palette: Entity,
@@ -598,6 +605,10 @@ impl State for Gallery {
             world.ui_set_disabled(self.disabled_input, self.disable_active);
         }
 
+        if world.ui_bind_toggle(self.region_disable_toggle, &mut self.region_disable_active) {
+            world.ui_set_disabled_recursive(self.region_container, !self.region_disable_active);
+        }
+
         if world.ui_text_input_changed(self.tree_filter_input) {
             let text = world.ui_text_input_value(self.tree_filter_input);
             world.ui_tree_view_set_filter(self.tree_view, &text);
@@ -702,6 +713,32 @@ impl Gallery {
             ui.separator();
             self.btn_counter = ui.button("Click Me!");
             ui.label("").done_with_slot(self.click_label_slot, ui);
+
+            ui.separator();
+            ui.label("Rich text buttons:");
+            self.rich_btn_save = ui.button_rich(&[
+                TextSpan::colored("Save", nalgebra_glm::Vec4::new(0.3, 0.9, 0.4, 1.0)),
+                TextSpan::new(" Project"),
+            ]);
+            self.rich_btn_status = ui.button_rich(&[
+                TextSpan::new("Status: "),
+                TextSpan::colored("Online", nalgebra_glm::Vec4::new(0.2, 0.8, 0.3, 1.0)),
+            ]);
+
+            ui.separator();
+            ui.label("Disabled region:");
+            ui.row(|ui| {
+                let label = ui.label("Enable parameter group:");
+                self.region_disable_toggle = ui.toggle(true);
+                if let Some(node) = ui.world_mut().get_ui_layout_node_mut(label) {
+                    node.flex_grow = Some(1.0);
+                }
+            });
+            self.region_container = ui.enabled(true, |ui| {
+                ui.slider(0.0, 1.0, 0.5);
+                ui.toggle(false);
+                ui.button("Apply Settings");
+            });
         });
     }
 

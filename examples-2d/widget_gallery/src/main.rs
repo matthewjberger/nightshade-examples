@@ -23,6 +23,7 @@ const SECTION_NAMES: &[&str] = &[
     "Layout",
     "Themes",
     "Command Palette",
+    "Canvas",
 ];
 
 struct Vec3Editor {
@@ -177,6 +178,15 @@ struct Gallery {
     command_palette: Entity,
     command_palette_log_slot: usize,
     command_palette_trigger: Entity,
+
+    canvas_entity: Entity,
+    canvas_time: f32,
+
+    log_slider_entity: Entity,
+    log_slider_val: f32,
+    log_slider_label_slot: usize,
+
+    text_area_entity: Entity,
 }
 
 impl State for Gallery {
@@ -210,6 +220,8 @@ impl State for Gallery {
             .add_text("Press Ctrl+P or click button");
         self.slider_val = 0.5;
         self.range_val = 500.0;
+        self.log_slider_val = 0.01;
+        self.log_slider_label_slot = world.resources.text_cache.add_text("0.010");
         self.toggle_val = true;
         self.anim_visible = true;
 
@@ -373,6 +385,7 @@ impl State for Gallery {
                 15 => self.build_layout(&mut tree),
                 16 => self.build_themes(&mut tree),
                 17 => self.build_command_palette(&mut tree),
+                18 => self.build_canvas(&mut tree),
                 _ => {}
             }
 
@@ -599,10 +612,89 @@ impl State for Gallery {
         }
         world.ui_progress_bar_set_value(self.progress_bar, self.progress_value);
 
+        if world.ui_bind_slider(self.log_slider_entity, &mut self.log_slider_val) {
+            world.ui_set_text(
+                self.log_slider_label_slot,
+                &format!("{:.3}", self.log_slider_val),
+            );
+        }
+
+        self.canvas_time += delta;
+        world.ui_canvas_clear(self.canvas_entity);
+        world.ui_canvas_rect(
+            self.canvas_entity,
+            nalgebra_glm::Vec2::new(10.0, 10.0),
+            nalgebra_glm::Vec2::new(80.0, 60.0),
+            nalgebra_glm::Vec4::new(0.2, 0.4, 0.8, 1.0),
+            4.0,
+        );
+        world.ui_canvas_rect(
+            self.canvas_entity,
+            nalgebra_glm::Vec2::new(110.0, 10.0),
+            nalgebra_glm::Vec2::new(60.0, 60.0),
+            nalgebra_glm::Vec4::new(0.8, 0.3, 0.2, 1.0),
+            0.0,
+        );
+        world.ui_canvas_circle(
+            self.canvas_entity,
+            nalgebra_glm::Vec2::new(240.0, 40.0),
+            25.0,
+            nalgebra_glm::Vec4::new(0.3, 0.8, 0.4, 1.0),
+        );
+        world.ui_canvas_text(
+            self.canvas_entity,
+            "Canvas Demo",
+            nalgebra_glm::Vec2::new(300.0, 30.0),
+            14.0,
+            nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0),
+        );
+        let wave_y_offset = 160.0;
+        let wave_amplitude = 40.0;
+        let wave_steps = 40;
+        for step in 0..wave_steps {
+            let x0 = step as f32 * (450.0 / wave_steps as f32) + 10.0;
+            let x1 = (step + 1) as f32 * (450.0 / wave_steps as f32) + 10.0;
+            let t0 = step as f32 / wave_steps as f32 * std::f32::consts::TAU;
+            let t1 = (step + 1) as f32 / wave_steps as f32 * std::f32::consts::TAU;
+            let y0 = wave_y_offset + (t0 + self.canvas_time * 2.0).sin() * wave_amplitude;
+            let y1 = wave_y_offset + (t1 + self.canvas_time * 2.0).sin() * wave_amplitude;
+            world.ui_canvas_line(
+                self.canvas_entity,
+                nalgebra_glm::Vec2::new(x0, y0),
+                nalgebra_glm::Vec2::new(x1, y1),
+                2.0,
+                nalgebra_glm::Vec4::new(1.0, 0.8, 0.2, 1.0),
+            );
+        }
+
         if world.ui_bind_toggle(self.disable_toggle, &mut self.disable_active) {
             world.ui_set_disabled(self.disabled_button, self.disable_active);
             world.ui_set_disabled(self.disabled_slider, self.disable_active);
             world.ui_set_disabled(self.disabled_input, self.disable_active);
+            if self.disable_active {
+                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_button) {
+                    interaction.tooltip_text =
+                        Some("This button is disabled via the toggle above".to_string());
+                }
+                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_slider) {
+                    interaction.tooltip_text =
+                        Some("This slider is disabled via the toggle above".to_string());
+                }
+                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_input) {
+                    interaction.tooltip_text =
+                        Some("This input is disabled via the toggle above".to_string());
+                }
+            } else {
+                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_button) {
+                    interaction.tooltip_text = None;
+                }
+                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_slider) {
+                    interaction.tooltip_text = None;
+                }
+                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_input) {
+                    interaction.tooltip_text = None;
+                }
+            }
         }
 
         if world.ui_bind_toggle(self.region_disable_toggle, &mut self.region_disable_active) {
@@ -754,6 +846,9 @@ impl Gallery {
             ui.label("Press Enter to submit:");
             self.submit_input = ui.text_input("Press Enter to submit...");
             ui.label("").done_with_slot(self.submit_log_slot, ui);
+            ui.separator();
+            ui.label("Multi-line text area (4 rows):");
+            self.text_area_entity = ui.text_area("Type multiple lines here...", 4);
         });
     }
 
@@ -784,6 +879,18 @@ impl Gallery {
                 }
             });
             self.range_slider = ui.slider(0.0, 1000.0, 500.0);
+            ui.separator();
+            ui.row(|ui| {
+                let label = ui.label("Logarithmic (0.001-10.0):");
+                let value = ui.label("");
+                value.done_with_slot(self.log_slider_label_slot, ui);
+                for entity in [label, value] {
+                    if let Some(node) = ui.world_mut().get_ui_layout_node_mut(entity) {
+                        node.flex_grow = Some(1.0);
+                    }
+                }
+            });
+            self.log_slider_entity = ui.slider_logarithmic(0.001, 10.0, 0.01);
             ui.separator();
             ui.label("Drag values (X, Y, Z):");
             ui.row(|ui| {
@@ -1314,6 +1421,15 @@ impl Gallery {
             ui.label("Last executed:");
             ui.label("")
                 .done_with_slot(self.command_palette_log_slot, ui);
+        });
+    }
+
+    fn build_canvas(&mut self, tree: &mut UiTreeBuilder) {
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.heading("Canvas");
+            ui.separator();
+            ui.label("2D drawing surface with shapes and animated sine wave:");
+            self.canvas_entity = ui.canvas(nalgebra_glm::Vec2::new(470.0, 220.0));
         });
     }
 

@@ -2,10 +2,9 @@ use nightshade::ecs::camera::commands::spawn_pan_orbit_camera;
 use nightshade::ecs::camera::components::Smoothing;
 use nightshade::ecs::camera::systems::pan_orbit_camera_system;
 use nightshade::ecs::picking::queries::pick_closest_entity;
-use nightshade::ecs::ui::ImmediateUi;
 use nightshade::ecs::world::World;
 use nightshade::prelude::*;
-use nightshade::shell::{format_entity, shell_immediate_ui};
+use nightshade::shell::{format_entity, shell_retained_ui};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(ShellDemo::default())
@@ -43,6 +42,7 @@ impl State for ShellDemo {
 
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = true;
+        world.resources.retained_ui.enabled = true;
         world.resources.graphics.atmosphere = Atmosphere::Sky;
         world.resources.graphics.show_grid = true;
 
@@ -104,8 +104,18 @@ impl State for ShellDemo {
         self.update_hover_prompt(world);
         self.handle_picking(world);
 
+        if self.shell.visible {
+            for character in world.resources.input.keyboard.frame_chars.clone() {
+                if !character.is_control() {
+                    self.shell.input_buffer.push(character);
+                }
+            }
+        }
+
         let delta_time = world.resources.window.timing.delta_time;
         self.shell.update_animation(delta_time);
+
+        shell_retained_ui(&mut self.shell, world);
 
         sync_text_meshes_system(world);
     }
@@ -134,18 +144,6 @@ impl State for ShellDemo {
         if self.shell.visible {
             self.shell.handle_key(key_code, pressed);
         }
-    }
-
-    fn immediate_ui(&mut self, world: &mut World, ui: &mut ImmediateUi) {
-        if self.shell.visible {
-            for character in world.resources.input.keyboard.frame_chars.clone() {
-                if !character.is_control() {
-                    self.shell.input_buffer.push(character);
-                }
-            }
-        }
-
-        shell_immediate_ui(&mut self.shell, ui, world);
     }
 }
 

@@ -23,6 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 struct FarmingGame {
     game: GameWorld,
     phase: GamePhase,
+    ui: ui::FarmingUi,
 }
 
 impl FarmingGame {
@@ -134,6 +135,7 @@ impl State for FarmingGame {
     fn initialize(&mut self, world: &mut World) {
         load_hdr_skybox(world, SKY_HDR.to_vec());
         init::initialize(&mut self.game, world);
+        self.ui.build(world);
     }
 
     fn run_systems(&mut self, world: &mut World) {
@@ -143,6 +145,10 @@ impl State for FarmingGame {
         match self.phase {
             GamePhase::Playing => self.run_playing_systems(world),
             _ => camera::update(&self.game, world),
+        }
+
+        if let Some(new_phase) = self.ui.update(&self.game, self.phase, world) {
+            self.phase = new_phase;
         }
     }
 
@@ -185,24 +191,6 @@ impl State for FarmingGame {
                 toggle_camera_mode(&mut self.game);
             }
             _ => {}
-        }
-    }
-
-    fn immediate_ui(&mut self, _world: &mut World, immediate_ui: &mut ImmediateUi) {
-        match self.phase {
-            GamePhase::MainMenu => {
-                if ui::draw_main_menu(immediate_ui) {
-                    self.phase = GamePhase::Playing;
-                }
-            }
-            GamePhase::Paused => {
-                if ui::draw_pause_menu(immediate_ui) {
-                    self.phase = GamePhase::Playing;
-                }
-            }
-            GamePhase::Playing => {
-                ui::draw_playing(&self.game, immediate_ui);
-            }
         }
     }
 }

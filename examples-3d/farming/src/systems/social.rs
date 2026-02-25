@@ -5,7 +5,7 @@ use crate::ecs::{DialogueState, GameEntity, ShopMode, ShopState, World as GameWo
 use crate::systems::player::get_player_position;
 use crate::types::INTERACTION_RANGE;
 
-fn get_nearest_npc(game: &GameWorld) -> Option<GameEntity> {
+pub fn get_nearest_npc(game: &GameWorld) -> Option<GameEntity> {
     let player_pos = get_player_position(game);
 
     let mut nearest_entity = None;
@@ -132,118 +132,6 @@ pub fn try_shop_transaction(game: &mut GameWorld) {
             }
         }
     }
-}
-
-pub fn draw_dialogue(ui: &mut ImmediateUi, game: &GameWorld) {
-    let Some(dialogue) = &game.resources.dialogue else {
-        return;
-    };
-
-    let Some(npc) = game.get_npc(dialogue.npc) else {
-        return;
-    };
-
-    let Some(definition) = get_npc_definition(npc.npc_type) else {
-        return;
-    };
-
-    let screen_size = ui.screen_size;
-    let box_height = 120.0;
-    let box_width = screen_size.x * 0.8;
-    let box_x = (screen_size.x - box_width) / 2.0;
-    let box_y = screen_size.y - box_height - 80.0;
-
-    ui.draw_rect(
-        Vec2::new(box_x, box_y),
-        Vec2::new(box_width, box_height),
-        Vec4::new(0.0, 0.0, 0.0, 0.85),
-    );
-
-    ui.draw_rect(
-        Vec2::new(box_x, box_y),
-        Vec2::new(box_width, 30.0),
-        Vec4::new(
-            definition.color[0] * 0.5,
-            definition.color[1] * 0.5,
-            definition.color[2] * 0.5,
-            0.9,
-        ),
-    );
-
-    ui.begin_vertical(Vec2::new(box_x + 15.0, box_y + 5.0), box_width - 30.0);
-    ui.label_colored(
-        definition.name,
-        Vec4::new(
-            definition.color[0],
-            definition.color[1],
-            definition.color[2],
-            1.0,
-        ),
-    );
-    ui.end_vertical();
-
-    if dialogue.line_index < definition.dialogue.len() {
-        let dialogue_text = definition.dialogue[dialogue.line_index];
-        ui.begin_vertical(Vec2::new(box_x + 15.0, box_y + 40.0), box_width - 30.0);
-        ui.label(dialogue_text);
-        ui.spacing(10.0);
-        ui.label_colored("[Press E to continue]", Vec4::new(0.6, 0.6, 0.6, 1.0));
-        ui.end_vertical();
-    }
-}
-
-pub fn draw_shop_hint(ui: &mut ImmediateUi) {
-    let screen_size = ui.screen_size;
-    let hint_width = 200.0;
-    let hint_x = (screen_size.x - hint_width) / 2.0;
-    let hint_y = screen_size.y - 200.0;
-
-    ui.draw_rect(
-        Vec2::new(hint_x - 10.0, hint_y - 5.0),
-        Vec2::new(hint_width + 20.0, 30.0),
-        Vec4::new(0.0, 0.0, 0.0, 0.7),
-    );
-
-    ui.begin_vertical(Vec2::new(hint_x, hint_y), hint_width);
-    ui.set_alignment(LayoutAlignment::Center);
-    ui.label_colored("[E] Open Shop", Vec4::new(1.0, 1.0, 0.8, 1.0));
-    ui.end_vertical();
-}
-
-pub fn draw_npc_hint(ui: &mut ImmediateUi, game: &GameWorld) {
-    if game.resources.dialogue.is_some() {
-        return;
-    }
-
-    let Some(npc_entity) = get_nearest_npc(game) else {
-        return;
-    };
-
-    let Some(npc) = game.get_npc(npc_entity) else {
-        return;
-    };
-
-    let Some(definition) = get_npc_definition(npc.npc_type) else {
-        return;
-    };
-
-    let screen_size = ui.screen_size;
-    let hint_text = format!("[E] Talk to {}", definition.name);
-
-    let hint_width = 200.0;
-    let hint_x = (screen_size.x - hint_width) / 2.0;
-    let hint_y = screen_size.y - 200.0;
-
-    ui.draw_rect(
-        Vec2::new(hint_x - 10.0, hint_y - 5.0),
-        Vec2::new(hint_width + 20.0, 30.0),
-        Vec4::new(0.0, 0.0, 0.0, 0.7),
-    );
-
-    ui.begin_vertical(Vec2::new(hint_x, hint_y), hint_width);
-    ui.set_alignment(LayoutAlignment::Center);
-    ui.label_colored(&hint_text, Vec4::new(1.0, 1.0, 0.8, 1.0));
-    ui.end_vertical();
 }
 
 pub fn should_show_shop_hint(game: &GameWorld) -> bool {

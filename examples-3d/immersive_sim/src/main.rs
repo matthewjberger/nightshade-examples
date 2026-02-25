@@ -20,10 +20,9 @@ use nightshade::ecs::texture_loader::{
 };
 use nightshade::ecs::transform::queries::query_descendants;
 use nightshade::ecs::transform::systems::run_systems as run_transform_systems;
-use nightshade::ecs::ui::ImmediateUi;
 use nightshade::ecs::world::commands::WorldCommand;
 use nightshade::prelude::*;
-use nightshade::shell::shell_immediate_ui;
+use nightshade::shell::shell_retained_ui;
 use state::{GameScreen, ImmersiveSim};
 use systems::props::PropShape;
 
@@ -43,6 +42,7 @@ impl State for ImmersiveSim {
 
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = true;
+        world.resources.retained_ui.enabled = true;
         world.resources.graphics.atmosphere = Atmosphere::Space;
         world.resources.graphics.bloom_enabled = true;
         world.resources.graphics.bloom_intensity = 0.01;
@@ -86,6 +86,32 @@ impl State for ImmersiveSim {
                 }
             }
         }
+
+        if self.shell.visible {
+            let alt_pressed = world
+                .resources
+                .input
+                .keyboard
+                .is_key_pressed(KeyCode::AltLeft)
+                || world
+                    .resources
+                    .input
+                    .keyboard
+                    .is_key_pressed(KeyCode::AltRight);
+
+            if !alt_pressed {
+                for character in world.resources.input.keyboard.frame_chars.clone() {
+                    if !character.is_control() {
+                        self.shell.input_buffer.push(character);
+                    }
+                }
+            }
+        }
+
+        let delta_time = world.resources.window.timing.delta_time;
+        self.shell.update_animation(delta_time);
+
+        shell_retained_ui(&mut self.shell, world);
     }
 
     fn ui(&mut self, world: &mut World, ctx: &egui::Context) {
@@ -193,31 +219,6 @@ impl State for ImmersiveSim {
             .pass(Box::new(swapchain_blit_pass))
             .read("input", fxaa_output)
             .write("output", resources.swapchain);
-    }
-
-    fn immediate_ui(&mut self, world: &mut World, ui: &mut ImmediateUi) {
-        if self.shell.visible {
-            let alt_pressed = world
-                .resources
-                .input
-                .keyboard
-                .is_key_pressed(KeyCode::AltLeft)
-                || world
-                    .resources
-                    .input
-                    .keyboard
-                    .is_key_pressed(KeyCode::AltRight);
-
-            if !alt_pressed {
-                for character in world.resources.input.keyboard.frame_chars.clone() {
-                    if !character.is_control() {
-                        self.shell.input_buffer.push(character);
-                    }
-                }
-            }
-        }
-
-        shell_immediate_ui(&mut self.shell, ui, world);
     }
 }
 
@@ -584,7 +585,6 @@ fn spawn_player_hands_and_flashlight(game: &mut ImmersiveSim, world: &mut World)
 
 fn run_gameplay_systems(game: &mut ImmersiveSim, world: &mut World) {
     let delta_time = world.resources.window.timing.delta_time;
-    game.shell.update_animation(delta_time);
     game.game_time += delta_time;
 
     if let Some(result) = world.resources.gpu_picking.take_result() {

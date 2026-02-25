@@ -6,7 +6,10 @@ use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::particles::components::{
     ColorGradient, EmitterShape, EmitterType, ParticleEmitter,
 };
+use nightshade::ecs::text::TextProperties;
+use nightshade::ecs::ui_layout::state::UiStateTrait;
 use nightshade::prelude::*;
+use nightshade::render::wgpu::passes::geometry::UiRect;
 use rand::{Rng, SeedableRng};
 use std::collections::{HashMap, HashSet};
 
@@ -551,6 +554,7 @@ struct Survivors {
     treasure_zones: Vec<TreasureZone>,
     next_zone_distance: f32,
     active_buffs: Vec<ActiveBuff>,
+    ui: SurvivorsUi,
 }
 
 struct LineEffect {
@@ -583,6 +587,114 @@ struct EnemyMaterials {
     tank: Option<String>,
     exploder: Option<String>,
     boss: Option<String>,
+}
+
+struct SurvivorsUi {
+    main_menu_screen: Entity,
+    start_button: Entity,
+    menu_high_scores_container: Entity,
+    menu_high_scores_slot: usize,
+    menu_high_scores_time_slot: usize,
+
+    paused_screen: Entity,
+    resume_button: Entity,
+
+    hud_screen: Entity,
+    health_bar: Entity,
+    health_bar_fill: Entity,
+    xp_bar: Entity,
+    level_label_slot: usize,
+    wave_bar: Entity,
+    wave_label_slot: usize,
+    kills_time_slot: usize,
+    kills_time_entity: Entity,
+    combo_entity: Entity,
+    combo_slot: usize,
+    combo_best_entity: Entity,
+    combo_best_slot: usize,
+    bomb_entity: Entity,
+    bomb_slot: usize,
+    boss_entity: Entity,
+    speed_entity: Entity,
+    speed_slot: usize,
+    buffs_container: Entity,
+    buff_slots: Vec<(Entity, usize)>,
+
+    levelup_screen: Entity,
+    levelup_title_slot: usize,
+    upgrade_buttons: [Entity; 3],
+    upgrade_desc_entity: Entity,
+    upgrade_desc_slot: usize,
+
+    gameover_screen: Entity,
+    high_score_banner_entity: Entity,
+    stats_level_slot: usize,
+    stats_wave_entity: Entity,
+    stats_wave_slot: usize,
+    stats_kills_entity: Entity,
+    stats_kills_slot: usize,
+    stats_time_entity: Entity,
+    stats_time_slot: usize,
+    stats_combo_entity: Entity,
+    stats_combo_slot: usize,
+    best_scores_slot: usize,
+    best_scores_time_slot: usize,
+}
+
+impl Default for SurvivorsUi {
+    fn default() -> Self {
+        let placeholder = Entity {
+            id: 0,
+            generation: 0,
+        };
+        Self {
+            main_menu_screen: placeholder,
+            start_button: placeholder,
+            menu_high_scores_container: placeholder,
+            menu_high_scores_slot: 0,
+            menu_high_scores_time_slot: 0,
+            paused_screen: placeholder,
+            resume_button: placeholder,
+            hud_screen: placeholder,
+            health_bar: placeholder,
+            health_bar_fill: placeholder,
+            xp_bar: placeholder,
+            level_label_slot: 0,
+            wave_bar: placeholder,
+            wave_label_slot: 0,
+            kills_time_slot: 0,
+            kills_time_entity: placeholder,
+            combo_entity: placeholder,
+            combo_slot: 0,
+            combo_best_entity: placeholder,
+            combo_best_slot: 0,
+            bomb_entity: placeholder,
+            bomb_slot: 0,
+            boss_entity: placeholder,
+            speed_entity: placeholder,
+            speed_slot: 0,
+            buffs_container: placeholder,
+            buff_slots: Vec::new(),
+            levelup_screen: placeholder,
+            levelup_title_slot: 0,
+            upgrade_buttons: [placeholder; 3],
+            upgrade_desc_entity: placeholder,
+            upgrade_desc_slot: 0,
+            gameover_screen: placeholder,
+            high_score_banner_entity: placeholder,
+            stats_level_slot: 0,
+            stats_wave_entity: placeholder,
+            stats_wave_slot: 0,
+            stats_kills_entity: placeholder,
+            stats_kills_slot: 0,
+            stats_time_entity: placeholder,
+            stats_time_slot: 0,
+            stats_combo_entity: placeholder,
+            stats_combo_slot: 0,
+            best_scores_slot: 0,
+            best_scores_time_slot: 0,
+        }
+    }
 }
 
 impl Default for Survivors {
@@ -652,6 +764,7 @@ impl Default for Survivors {
             treasure_zones: Vec::new(),
             next_zone_distance: 50.0,
             active_buffs: Vec::new(),
+            ui: SurvivorsUi::default(),
         }
     }
 }
@@ -665,13 +778,14 @@ impl State for Survivors {
         world.resources.graphics.atmosphere = Atmosphere::Sky;
         world.resources.graphics.show_grid = false;
         world.resources.user_interface.enabled = false;
-        world.resources.immediate_ui.enabled = true;
+        world.resources.retained_ui.enabled = true;
 
         self.spawn_arena(world);
         self.spawn_player(world);
         self.spawn_camera(world);
         self.spawn_lighting(world);
         self.create_materials(world);
+        self.build_ui(world);
     }
 
     fn run_systems(&mut self, world: &mut World) {
@@ -737,6 +851,8 @@ impl State for Survivors {
             GameState::LevelUp => {}
             GameState::GameOver => {}
         }
+
+        self.draw_ui(world);
     }
 
     fn on_keyboard_input(&mut self, world: &mut World, key: KeyCode, state: KeyState) {
@@ -864,480 +980,6 @@ impl State for Survivors {
         }
     }
 
-    fn immediate_ui(&mut self, world: &mut World, ui: &mut ImmediateUi) {
-        let screen_size = ui.screen_size;
-
-        if self.game_state == GameState::MainMenu {
-            ui.draw_rect(
-                Vec2::new(0.0, 0.0),
-                screen_size,
-                Vec4::new(0.0, 0.0, 0.0, 0.7),
-            );
-
-            let panel_width = 400.0;
-            let panel_x = (screen_size.x - panel_width) / 2.0;
-            let panel_y = (screen_size.y - 400.0) / 2.0;
-            ui.begin_vertical(Vec2::new(panel_x, panel_y.max(60.0)), panel_width);
-            ui.set_alignment(LayoutAlignment::Center);
-
-            ui.label_colored("SURVIVORS", Vec4::new(0.39, 0.78, 1.0, 1.0));
-            ui.spacing(10.0);
-            ui.label_colored(
-                "A Vampire Survivors-style Arena Game",
-                Vec4::new(0.5, 0.5, 0.5, 1.0),
-            );
-            ui.spacing(40.0);
-
-            if ui
-                .button_with_color("START GAME", Vec4::new(0.24, 0.47, 0.31, 1.0))
-                .clicked
-            {
-                self.game_state = GameState::Playing;
-            }
-
-            ui.spacing(30.0);
-            ui.set_alignment(LayoutAlignment::Start);
-            ui.label("Controls:");
-            ui.label_colored(
-                "WASD / Arrow Keys / Left Stick - Move",
-                Vec4::new(0.5, 0.5, 0.5, 1.0),
-            );
-            ui.label_colored("Space / X Button - Use Bomb", Vec4::new(0.5, 0.5, 0.5, 1.0));
-            ui.label_colored("ESC / Start - Pause", Vec4::new(0.5, 0.5, 0.5, 1.0));
-            ui.label_colored(
-                "]/= or RB/LB - Speed Up/Down",
-                Vec4::new(0.5, 0.5, 0.5, 1.0),
-            );
-
-            if self.high_score_kills > 0 || self.high_score_wave > 0 {
-                ui.spacing(20.0);
-                ui.set_alignment(LayoutAlignment::Center);
-                ui.label_colored("--- HIGH SCORES ---", Vec4::new(1.0, 0.84, 0.0, 1.0));
-                ui.label_colored(
-                    &format!(
-                        "Wave: {} | Kills: {}",
-                        self.high_score_wave, self.high_score_kills
-                    ),
-                    Vec4::new(0.8, 0.8, 0.8, 1.0),
-                );
-                ui.label_colored(
-                    &format!(
-                        "Time: {:.0}s | Combo: {}x",
-                        self.high_score_time, self.high_score_combo
-                    ),
-                    Vec4::new(0.8, 0.8, 0.8, 1.0),
-                );
-            }
-
-            ui.spacing(15.0);
-            ui.set_alignment(LayoutAlignment::Center);
-            ui.label_colored(
-                "Press Enter, Space, A, or Start to begin",
-                Vec4::new(0.59, 0.59, 0.59, 1.0),
-            );
-
-            ui.end_vertical();
-            return;
-        }
-
-        if self.game_state == GameState::Paused {
-            ui.draw_rect(
-                Vec2::new(0.0, 0.0),
-                screen_size,
-                Vec4::new(0.0, 0.0, 0.0, 0.78),
-            );
-
-            let panel_width = 300.0;
-            let panel_x = (screen_size.x - panel_width) / 2.0;
-            let panel_y = (screen_size.y - 200.0) / 2.0;
-            ui.begin_vertical(Vec2::new(panel_x, panel_y.max(100.0)), panel_width);
-            ui.set_alignment(LayoutAlignment::Center);
-
-            ui.label_colored("PAUSED", Vec4::new(1.0, 1.0, 1.0, 1.0));
-            ui.spacing(40.0);
-
-            if ui
-                .button_with_color("Resume", Vec4::new(0.24, 0.39, 0.24, 1.0))
-                .clicked
-            {
-                self.game_state = GameState::Playing;
-            }
-
-            ui.spacing(20.0);
-            ui.label_colored(
-                "Press ESC, Start, or A to resume",
-                Vec4::new(0.5, 0.5, 0.5, 1.0),
-            );
-
-            ui.end_vertical();
-            return;
-        }
-
-        if self.game_state == GameState::Playing || self.game_state == GameState::LevelUp {
-            let hud_x = 10.0;
-            let hud_y = 10.0;
-            let hud_width = 280.0;
-            let bar_width = 150.0;
-
-            ui.draw_rect(
-                Vec2::new(hud_x, hud_y),
-                Vec2::new(hud_width, 220.0),
-                Vec4::new(0.0, 0.0, 0.0, 0.6),
-            );
-
-            ui.begin_vertical(Vec2::new(hud_x + 10.0, hud_y + 10.0), hud_width - 20.0);
-
-            let health_pct = self.player_health / self.stats.max_health;
-            let health_color = if health_pct > 0.5 {
-                Vec4::new(0.0, 0.78, 0.0, 1.0)
-            } else if health_pct > 0.25 {
-                Vec4::new(0.78, 0.78, 0.0, 1.0)
-            } else {
-                Vec4::new(0.78, 0.0, 0.0, 1.0)
-            };
-            ui.begin_horizontal_at_cursor();
-            ui.label("Health:");
-            ui.progress_bar_colored(health_pct, bar_width, health_color);
-            ui.end_horizontal();
-
-            let xp_for_next = XP_PER_LEVEL * self.player_level;
-            let xp_pct = self.player_xp as f32 / xp_for_next as f32;
-            ui.begin_horizontal_at_cursor();
-            ui.label(&format!("Lv.{}:", self.player_level));
-            ui.progress_bar_colored(xp_pct, bar_width, Vec4::new(0.39, 0.78, 1.0, 1.0));
-            ui.end_horizontal();
-
-            let wave = self.game_world.resources.current_wave;
-            let total_wave_enemies = WAVE_ENEMIES_BASE + wave * 5;
-            let remaining = self.game_world.resources.wave_enemies_remaining
-                + self.game_world.resources.enemy_list.len() as u32;
-            let killed = total_wave_enemies.saturating_sub(remaining);
-            let wave_pct = if total_wave_enemies > 0 {
-                killed as f32 / total_wave_enemies as f32
-            } else {
-                0.0
-            };
-            ui.begin_horizontal_at_cursor();
-            ui.label(&format!("Wave {}:", wave));
-            ui.progress_bar_colored(wave_pct, bar_width, Vec4::new(1.0, 0.71, 0.2, 1.0));
-            ui.end_horizontal();
-
-            let current_kills = self.game_world.resources.enemies_killed;
-            let is_kills_record =
-                current_kills > self.high_score_kills && self.high_score_kills > 0;
-            let is_time_record =
-                self.game_time > self.high_score_time && self.high_score_time > 0.0;
-
-            if is_kills_record || is_time_record {
-                let pulse = (self.game_time * 6.0).sin() * 0.3 + 0.7;
-                let record_color = Vec4::new(1.0, 0.84 * pulse + 0.16, 0.0, 1.0);
-                if is_kills_record && is_time_record {
-                    ui.label_colored(
-                        &format!("Kills: {} | Time: {:.0}s", current_kills, self.game_time),
-                        record_color,
-                    );
-                } else if is_kills_record {
-                    ui.label_colored(&format!("Kills: {}", current_kills), record_color);
-                    ui.label(&format!("Time: {:.0}s", self.game_time));
-                } else {
-                    ui.label(&format!("Kills: {}", current_kills));
-                    ui.label_colored(&format!("Time: {:.0}s", self.game_time), record_color);
-                }
-            } else {
-                ui.label(&format!(
-                    "Kills: {} | Time: {:.0}s",
-                    current_kills, self.game_time
-                ));
-            }
-
-            if self.combo_count > 1 {
-                let combo_color = if self.combo_count >= 50 {
-                    Vec4::new(1.0, 0.39, 1.0, 1.0)
-                } else if self.combo_count >= 25 {
-                    Vec4::new(1.0, 0.78, 0.2, 1.0)
-                } else if self.combo_count >= 10 {
-                    Vec4::new(1.0, 0.59, 0.2, 1.0)
-                } else {
-                    Vec4::new(1.0, 1.0, 0.39, 1.0)
-                };
-                ui.label_colored(&format!("{}x COMBO!", self.combo_count), combo_color);
-                if self.combo_count > self.combo_max {
-                    let best_pulse = (self.game_time * 10.0).sin() * 0.5 + 0.5;
-                    let best_color =
-                        Vec4::new(1.0, 0.84 + best_pulse * 0.16, best_pulse * 0.3, 1.0);
-                    ui.label_colored("NEW BEST COMBO!", best_color);
-                }
-            }
-
-            if self.stats.bomb_level > 0 {
-                let cooldown_percent =
-                    self.bomb_cooldown / (BOMB_COOLDOWN / self.stats.bomb_level as f32);
-                let ready = self.bomb_cooldown <= 0.0;
-                let bomb_text = if ready {
-                    "Bomb: READY".to_string()
-                } else {
-                    format!("Bomb: {:.1}s", self.bomb_cooldown)
-                };
-                let bomb_color = if ready {
-                    Vec4::new(0.39, 1.0, 0.39, 1.0)
-                } else {
-                    let r = 0.39 + 0.61 * cooldown_percent;
-                    Vec4::new(r, 0.39, 0.39, 1.0)
-                };
-                ui.label_colored(&bomb_text, bomb_color);
-            }
-
-            if self.game_world.resources.boss_alive {
-                ui.label_colored("BOSS!", Vec4::new(1.0, 0.0, 0.0, 1.0));
-            }
-
-            if (self.game_speed - 1.0).abs() > 0.01 {
-                let speed_text = if self.game_speed >= 1.0 {
-                    format!("{}x Speed", self.game_speed as i32)
-                } else {
-                    format!("{:.2}x Speed", self.game_speed)
-                };
-                let speed_color = if self.game_speed > 1.0 {
-                    Vec4::new(0.39, 0.78, 1.0, 1.0)
-                } else {
-                    Vec4::new(1.0, 0.78, 0.39, 1.0)
-                };
-                ui.label_colored(&speed_text, speed_color);
-            }
-
-            for buff in &self.active_buffs {
-                let (buff_name, buff_color) = match buff.buff_type {
-                    BuffType::Berserk => ("BERSERK", Vec4::new(0.8, 0.0, 0.0, 1.0)),
-                    BuffType::Haste => ("HASTE", Vec4::new(0.0, 0.8, 1.0, 1.0)),
-                    BuffType::Invincible => ("INVINCIBLE", Vec4::new(1.0, 1.0, 0.0, 1.0)),
-                };
-                let pulse = (self.game_time * 6.0).sin() * 0.2 + 0.8;
-                let pulsing_color = Vec4::new(
-                    buff_color.x * pulse,
-                    buff_color.y * pulse,
-                    buff_color.z * pulse,
-                    1.0,
-                );
-                ui.label_colored(
-                    &format!("{}: {:.1}s", buff_name, buff.remaining_time),
-                    pulsing_color,
-                );
-            }
-
-            ui.end_vertical();
-        }
-
-        if self.game_state == GameState::LevelUp {
-            ui.draw_rect(
-                Vec2::new(0.0, 0.0),
-                screen_size,
-                Vec4::new(0.0, 0.0, 0.0, 0.78),
-            );
-
-            let panel_width = 500.0;
-            let panel_x = (screen_size.x - panel_width) / 2.0;
-            let panel_y = (screen_size.y - 300.0) / 2.0;
-            ui.begin_vertical(Vec2::new(panel_x, panel_y.max(80.0)), panel_width);
-            ui.set_alignment(LayoutAlignment::Center);
-
-            ui.label_colored(
-                &format!("LEVEL UP! (Lv.{})", self.player_level),
-                Vec4::new(1.0, 0.84, 0.0, 1.0),
-            );
-            ui.spacing(20.0);
-            ui.label("Choose an upgrade:");
-            ui.spacing(20.0);
-
-            let mut selected_upgrade: Option<UpgradeType> = None;
-
-            ui.begin_horizontal_at_cursor();
-            for (index, upgrade) in self.upgrade_choices.iter().enumerate() {
-                let current_level = self.stats.get_upgrade_level(*upgrade);
-                let tier_color = upgrade.tier_color(current_level);
-                let is_selected = index == self.selected_upgrade_index;
-
-                let fill_color = if is_selected {
-                    Vec4::new(
-                        (tier_color.x * 0.6 + 0.4).min(1.0),
-                        (tier_color.y * 0.6 + 0.4).min(1.0),
-                        (tier_color.z * 0.6 + 0.4).min(1.0),
-                        1.0,
-                    )
-                } else {
-                    Vec4::new(
-                        tier_color.x * 0.4 + 0.1,
-                        tier_color.y * 0.4 + 0.1,
-                        tier_color.z * 0.4 + 0.1,
-                        1.0,
-                    )
-                };
-
-                let response = ui.button_with_color(&upgrade.tier_name(current_level), fill_color);
-                if response.clicked {
-                    selected_upgrade = Some(*upgrade);
-                }
-                if response.hovered {
-                    self.selected_upgrade_index = index;
-                }
-            }
-            ui.end_horizontal();
-
-            ui.spacing(15.0);
-            if let Some(upgrade) = self.upgrade_choices.get(self.selected_upgrade_index) {
-                let current_level = self.stats.get_upgrade_level(*upgrade);
-                ui.label_colored(
-                    &upgrade.description(current_level),
-                    Vec4::new(0.83, 0.83, 0.83, 1.0),
-                );
-            }
-
-            ui.spacing(15.0);
-            ui.label_colored(
-                "Left/Right: Select | A/Enter: Confirm",
-                Vec4::new(0.5, 0.5, 0.5, 1.0),
-            );
-
-            ui.end_vertical();
-
-            if let Some(upgrade) = selected_upgrade {
-                self.apply_upgrade(upgrade, world);
-                self.game_state = GameState::Playing;
-            }
-        }
-
-        if self.game_state == GameState::GameOver {
-            ui.draw_rect(
-                Vec2::new(0.0, 0.0),
-                screen_size,
-                Vec4::new(0.0, 0.0, 0.0, 0.78),
-            );
-
-            let panel_width = 400.0;
-            let panel_x = (screen_size.x - panel_width) / 2.0;
-            let panel_y = (screen_size.y - 350.0) / 2.0;
-            ui.begin_vertical(Vec2::new(panel_x, panel_y.max(60.0)), panel_width);
-            ui.set_alignment(LayoutAlignment::Center);
-
-            ui.label_colored("GAME OVER", Vec4::new(1.0, 0.0, 0.0, 1.0));
-
-            if self.new_high_score_timer > 0.0 {
-                ui.spacing(15.0);
-                let rainbow_phase = self.new_high_score_timer * 5.0;
-                let r = (rainbow_phase.sin() * 0.5 + 0.5).max(0.3);
-                let g = ((rainbow_phase + 2.094).sin() * 0.5 + 0.5).max(0.3);
-                let b = ((rainbow_phase + 4.189).sin() * 0.5 + 0.5).max(0.3);
-                let glow = (self.new_high_score_timer * 8.0).sin().abs() * 0.5 + 0.5;
-                let high_score_color = Vec4::new(
-                    (r + glow * 0.5).min(1.0),
-                    (g + glow * 0.5).min(1.0),
-                    (b + glow * 0.3).min(1.0),
-                    1.0,
-                );
-                ui.label_colored("NEW HIGH SCORE!", high_score_color);
-            }
-
-            ui.spacing(20.0);
-
-            let kills = self.game_world.resources.enemies_killed;
-            let wave = self.game_world.resources.current_wave;
-            let is_kills_record = kills == self.high_score_kills && kills > 0;
-            let is_wave_record = wave == self.high_score_wave && wave > 0;
-            let is_time_record =
-                (self.game_time - self.high_score_time).abs() < 0.1 && self.game_time > 0.0;
-            let is_combo_record = self.combo_max == self.high_score_combo && self.combo_max > 0;
-
-            let gold = Vec4::new(1.0, 0.84, 0.0, 1.0);
-            let normal = Vec4::new(1.0, 1.0, 1.0, 1.0);
-
-            ui.label(&format!("Level: {}", self.player_level));
-
-            if is_wave_record && self.new_high_score_timer > 0.0 {
-                ui.label_colored(&format!("Wave: {} - NEW BEST!", wave), gold);
-            } else {
-                ui.label(&format!("Wave: {}", wave));
-            }
-
-            if is_kills_record && self.new_high_score_timer > 0.0 {
-                ui.label_colored(&format!("Kills: {} - NEW BEST!", kills), gold);
-            } else {
-                ui.label(&format!("Kills: {}", kills));
-            }
-
-            if is_time_record && self.new_high_score_timer > 0.0 {
-                ui.label_colored(&format!("Time: {:.0}s - NEW BEST!", self.game_time), gold);
-            } else {
-                ui.label(&format!("Time: {:.0}s", self.game_time));
-            }
-
-            if self.combo_max > 1 {
-                if is_combo_record && self.new_high_score_timer > 0.0 {
-                    ui.label_colored(
-                        &format!("Best Combo: {}x - NEW BEST!", self.combo_max),
-                        gold,
-                    );
-                } else {
-                    ui.label(&format!("Best Combo: {}x", self.combo_max));
-                }
-            }
-
-            ui.spacing(20.0);
-            ui.label_colored("--- HIGH SCORES ---", Vec4::new(0.7, 0.7, 0.7, 1.0));
-            ui.label_colored(
-                &format!(
-                    "Best Wave: {} | Best Kills: {}",
-                    self.high_score_wave, self.high_score_kills
-                ),
-                normal,
-            );
-            ui.label_colored(
-                &format!(
-                    "Best Time: {:.0}s | Best Combo: {}x",
-                    self.high_score_time, self.high_score_combo
-                ),
-                normal,
-            );
-
-            ui.spacing(20.0);
-            ui.label_colored(
-                "Press R, Start, or A to restart",
-                Vec4::new(0.5, 0.5, 0.5, 1.0),
-            );
-
-            ui.end_vertical();
-        }
-
-        ui.set_layer(UiLayer::Tooltips);
-
-        let health_pct = self.player_health / self.stats.max_health;
-        if health_pct < 0.3 && self.game_state == GameState::Playing {
-            let pulse = ((self.game_time * 4.0).sin() * 0.5 + 0.5) * (0.3 - health_pct) / 0.3;
-            let alpha = pulse * 0.31;
-            ui.draw_rect(
-                Vec2::new(0.0, 0.0),
-                screen_size,
-                Vec4::new(1.0, 0.0, 0.0, alpha),
-            );
-        }
-
-        if self.boss_kill_flash > 0.0 {
-            let alpha = self.boss_kill_flash * 0.2;
-            ui.draw_rect(
-                Vec2::new(0.0, 0.0),
-                screen_size,
-                Vec4::new(1.0, 0.5, 0.2, alpha),
-            );
-        }
-
-        if self.level_up_flash > 0.0 {
-            let alpha = self.level_up_flash * 0.15;
-            ui.draw_rect(
-                Vec2::new(0.0, 0.0),
-                screen_size,
-                Vec4::new(1.0, 0.85, 0.3, alpha),
-            );
-        }
-    }
-
     fn configure_render_graph(
         &mut self,
         graph: &mut RenderGraph<World>,
@@ -1401,6 +1043,1213 @@ impl State for Survivors {
 }
 
 impl Survivors {
+    fn build_ui(&mut self, world: &mut World) {
+        let font_size = 14.0;
+        let small_font = 12.0;
+        let title_font = 24.0;
+        let bar_width = 150.0;
+        let bar_height = 12.0;
+        let dim_text = Vec4::new(0.5, 0.5, 0.5, 1.0);
+        let white = Vec4::new(1.0, 1.0, 1.0, 1.0);
+        let cyan = Vec4::new(0.39, 0.78, 1.0, 1.0);
+        let gold = Vec4::new(1.0, 0.84, 0.0, 1.0);
+
+        let tc = &mut world.resources.text_cache;
+        let title_slot = tc.add_text("SURVIVORS");
+        let subtitle_slot = tc.add_text("A Vampire Survivors-style Arena Game");
+        let hs_header_slot = tc.add_text("--- HIGH SCORES ---");
+        let menu_high_scores_slot = tc.add_text("");
+        let menu_high_scores_time_slot = tc.add_text("");
+        let begin_hint_slot = tc.add_text("Press Enter, Space, A, or Start to begin");
+        let paused_title_slot = tc.add_text("PAUSED");
+        let paused_hint_slot = tc.add_text("Press ESC, Start, or A to resume");
+        let health_label_slot = tc.add_text("Health:");
+        let level_label_slot = tc.add_text("Lv.1:");
+        let wave_label_slot = tc.add_text("Wave 1:");
+        let kills_time_slot = tc.add_text("Kills: 0 | Time: 0s");
+        let combo_slot = tc.add_text("");
+        let combo_best_slot = tc.add_text("");
+        let bomb_slot = tc.add_text("");
+        let boss_slot = tc.add_text("BOSS!");
+        let speed_slot = tc.add_text("");
+        let levelup_title_slot = tc.add_text("LEVEL UP! (Lv.1)");
+        let choose_upgrade_slot = tc.add_text("Choose an upgrade:");
+        let upgrade_desc_slot = tc.add_text("");
+        let levelup_hint_slot = tc.add_text("Left/Right: Select | A/Enter: Confirm");
+        let gameover_title_slot = tc.add_text("GAME OVER");
+        let new_hs_banner_slot = tc.add_text("NEW HIGH SCORE!");
+        let stats_level_slot = tc.add_text("Level: 1");
+        let stats_wave_slot = tc.add_text("Wave: 1");
+        let stats_kills_slot = tc.add_text("Kills: 0");
+        let stats_time_slot = tc.add_text("Time: 0s");
+        let stats_combo_slot = tc.add_text("");
+        let go_hs_header_slot = tc.add_text("--- HIGH SCORES ---");
+        let best_scores_slot = tc.add_text("");
+        let best_scores_time_slot = tc.add_text("");
+        let restart_hint_slot = tc.add_text("Press R, Start, or A to restart");
+        let buff_text_slots: Vec<usize> = (0..5).map(|_| tc.add_text("")).collect();
+
+        let mut tree = UiTreeBuilder::new(world);
+
+        let placeholder = Entity {
+            id: 0,
+            generation: 0,
+        };
+
+        let mut start_button = placeholder;
+        let mut menu_hs_container = placeholder;
+
+        self.ui.main_menu_screen = tree
+            .add_node()
+            .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+            .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+            .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.7))
+            .with_layer(UiLayer::FloatingPanels)
+            .without_pointer_events()
+            .with_children(|tree| {
+                tree.add_node()
+                    .window(
+                        Rl(Vec2::new(50.0, 50.0)),
+                        Ab(Vec2::new(400.0, 500.0)),
+                        Anchor::Center,
+                    )
+                    .flow(FlowDirection::Vertical, 0.0, 4.0)
+                    .with_children(|tree| {
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, title_font * 1.5)),
+                            )
+                            .with_text_slot(title_slot, title_font)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(cyan)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(6.0);
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(subtitle_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(dim_text)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(30.0);
+
+                        start_button =
+                            tree.add_button_colored("START GAME", Vec4::new(0.24, 0.47, 0.31, 1.0));
+
+                        tree.add_spacing(20.0);
+
+                        tree.add_label("Controls:");
+                        tree.add_label_colored("WASD / Arrow Keys / Left Stick - Move", dim_text);
+                        tree.add_label_colored("Space / X Button - Use Bomb", dim_text);
+                        tree.add_label_colored("ESC / Start - Pause", dim_text);
+                        tree.add_label_colored("]/= or RB/LB - Speed Up/Down", dim_text);
+
+                        menu_hs_container = tree
+                            .add_node()
+                            .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, 0.0)))
+                            .auto_size(AutoSizeMode::Height)
+                            .flow(FlowDirection::Vertical, 0.0, 4.0)
+                            .with_visible(false)
+                            .with_children(|tree| {
+                                tree.add_spacing(16.0);
+
+                                tree.add_node()
+                                    .flow_child(
+                                        Rl(Vec2::new(100.0, 0.0))
+                                            + Ab(Vec2::new(0.0, font_size * 1.5)),
+                                    )
+                                    .with_text_slot(hs_header_slot, font_size)
+                                    .with_text_alignment(
+                                        TextAlignment::Center,
+                                        VerticalAlignment::Middle,
+                                    )
+                                    .with_color::<UiBase>(gold)
+                                    .without_pointer_events()
+                                    .done();
+
+                                tree.add_node()
+                                    .flow_child(
+                                        Rl(Vec2::new(100.0, 0.0))
+                                            + Ab(Vec2::new(0.0, font_size * 1.5)),
+                                    )
+                                    .with_text_slot(menu_high_scores_slot, font_size)
+                                    .with_text_alignment(
+                                        TextAlignment::Center,
+                                        VerticalAlignment::Middle,
+                                    )
+                                    .with_color::<UiBase>(Vec4::new(0.8, 0.8, 0.8, 1.0))
+                                    .without_pointer_events()
+                                    .done();
+
+                                tree.add_node()
+                                    .flow_child(
+                                        Rl(Vec2::new(100.0, 0.0))
+                                            + Ab(Vec2::new(0.0, font_size * 1.5)),
+                                    )
+                                    .with_text_slot(menu_high_scores_time_slot, font_size)
+                                    .with_text_alignment(
+                                        TextAlignment::Center,
+                                        VerticalAlignment::Middle,
+                                    )
+                                    .with_color::<UiBase>(Vec4::new(0.8, 0.8, 0.8, 1.0))
+                                    .without_pointer_events()
+                                    .done();
+                            })
+                            .done();
+
+                        tree.add_spacing(10.0);
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(begin_hint_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(Vec4::new(0.59, 0.59, 0.59, 1.0))
+                            .without_pointer_events()
+                            .done();
+                    })
+                    .done();
+            })
+            .done();
+
+        self.ui.start_button = start_button;
+        self.ui.menu_high_scores_container = menu_hs_container;
+        self.ui.menu_high_scores_slot = menu_high_scores_slot;
+        self.ui.menu_high_scores_time_slot = menu_high_scores_time_slot;
+
+        // --- Paused Screen ---
+        let mut resume_button = placeholder;
+
+        self.ui.paused_screen = tree
+            .add_node()
+            .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+            .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+            .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.78))
+            .with_layer(UiLayer::FloatingPanels)
+            .with_visible(false)
+            .without_pointer_events()
+            .with_children(|tree| {
+                tree.add_node()
+                    .window(
+                        Rl(Vec2::new(50.0, 50.0)),
+                        Ab(Vec2::new(300.0, 200.0)),
+                        Anchor::Center,
+                    )
+                    .flow(FlowDirection::Vertical, 0.0, 4.0)
+                    .with_children(|tree| {
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, title_font * 1.5)),
+                            )
+                            .with_text_slot(paused_title_slot, title_font)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(30.0);
+
+                        resume_button =
+                            tree.add_button_colored("Resume", Vec4::new(0.24, 0.39, 0.24, 1.0));
+
+                        tree.add_spacing(16.0);
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(paused_hint_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(dim_text)
+                            .without_pointer_events()
+                            .done();
+                    })
+                    .done();
+            })
+            .done();
+
+        self.ui.resume_button = resume_button;
+
+        // --- Playing HUD ---
+        let mut health_bar = placeholder;
+        let mut xp_bar = placeholder;
+        let mut wave_bar = placeholder;
+        let mut kills_time_entity = placeholder;
+        let mut combo_entity = placeholder;
+        let mut combo_best_entity = placeholder;
+        let mut bomb_entity = placeholder;
+        let mut boss_entity = placeholder;
+        let mut speed_entity = placeholder;
+        let mut buffs_container = placeholder;
+
+        self.ui.hud_screen = tree
+            .add_node()
+            .window(
+                Ab(Vec2::new(10.0, 10.0)),
+                Ab(Vec2::new(280.0, 300.0)),
+                Anchor::TopLeft,
+            )
+            .with_rect(4.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+            .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.6))
+            .with_visible(false)
+            .without_pointer_events()
+            .auto_size(AutoSizeMode::Height)
+            .with_children(|tree| {
+                tree.add_node()
+                    .boundary(
+                        Ab(Vec2::new(10.0, 10.0)),
+                        Rl(Vec2::new(100.0, 100.0)) + Ab(Vec2::new(-10.0, -10.0)),
+                    )
+                    .flow(FlowDirection::Vertical, 0.0, 2.0)
+                    .auto_size(AutoSizeMode::Height)
+                    .with_children(|tree| {
+                        // Health bar row
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, bar_height + 6.0)),
+                            )
+                            .flow(FlowDirection::Horizontal, 0.0, 6.0)
+                            .with_children(|tree| {
+                                tree.add_node()
+                                    .flow_child(Ab(Vec2::new(55.0, bar_height + 6.0)))
+                                    .with_text_slot(health_label_slot, small_font)
+                                    .with_text_alignment(
+                                        TextAlignment::Left,
+                                        VerticalAlignment::Middle,
+                                    )
+                                    .with_color::<UiBase>(white)
+                                    .without_pointer_events()
+                                    .done();
+
+                                health_bar = tree.add_progress_bar(1.0);
+                                if let Some(node) =
+                                    tree.world_mut().get_ui_layout_node_mut(health_bar)
+                                {
+                                    node.flow_child_size =
+                                        Some(Ab(Vec2::new(bar_width, bar_height)).into());
+                                }
+                            })
+                            .done();
+
+                        // XP bar row
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, bar_height + 6.0)),
+                            )
+                            .flow(FlowDirection::Horizontal, 0.0, 6.0)
+                            .with_children(|tree| {
+                                tree.add_node()
+                                    .flow_child(Ab(Vec2::new(55.0, bar_height + 6.0)))
+                                    .with_text_slot(level_label_slot, small_font)
+                                    .with_text_alignment(
+                                        TextAlignment::Left,
+                                        VerticalAlignment::Middle,
+                                    )
+                                    .with_color::<UiBase>(white)
+                                    .without_pointer_events()
+                                    .done();
+
+                                xp_bar = tree.add_progress_bar(0.0);
+                                if let Some(node) = tree.world_mut().get_ui_layout_node_mut(xp_bar)
+                                {
+                                    node.flow_child_size =
+                                        Some(Ab(Vec2::new(bar_width, bar_height)).into());
+                                }
+                            })
+                            .done();
+
+                        // Wave bar row
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, bar_height + 6.0)),
+                            )
+                            .flow(FlowDirection::Horizontal, 0.0, 6.0)
+                            .with_children(|tree| {
+                                tree.add_node()
+                                    .flow_child(Ab(Vec2::new(55.0, bar_height + 6.0)))
+                                    .with_text_slot(wave_label_slot, small_font)
+                                    .with_text_alignment(
+                                        TextAlignment::Left,
+                                        VerticalAlignment::Middle,
+                                    )
+                                    .with_color::<UiBase>(white)
+                                    .without_pointer_events()
+                                    .done();
+
+                                wave_bar = tree.add_progress_bar(0.0);
+                                if let Some(node) =
+                                    tree.world_mut().get_ui_layout_node_mut(wave_bar)
+                                {
+                                    node.flow_child_size =
+                                        Some(Ab(Vec2::new(bar_width, bar_height)).into());
+                                }
+                            })
+                            .done();
+
+                        // Kills/time
+                        kills_time_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(kills_time_slot, small_font)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        // Combo
+                        combo_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(combo_slot, small_font)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(Vec4::new(1.0, 1.0, 0.39, 1.0))
+                            .with_visible(false)
+                            .without_pointer_events()
+                            .done();
+
+                        // Combo best
+                        combo_best_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(combo_best_slot, small_font)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(gold)
+                            .with_visible(false)
+                            .without_pointer_events()
+                            .done();
+
+                        // Bomb status
+                        bomb_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(bomb_slot, small_font)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(Vec4::new(0.39, 1.0, 0.39, 1.0))
+                            .with_visible(false)
+                            .without_pointer_events()
+                            .done();
+
+                        // Boss indicator
+                        boss_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(boss_slot, small_font)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(Vec4::new(1.0, 0.0, 0.0, 1.0))
+                            .with_visible(false)
+                            .without_pointer_events()
+                            .done();
+
+                        // Speed indicator
+                        speed_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(speed_slot, small_font)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(cyan)
+                            .with_visible(false)
+                            .without_pointer_events()
+                            .done();
+
+                        // Buffs container
+                        buffs_container = tree
+                            .add_node()
+                            .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, 0.0)))
+                            .auto_size(AutoSizeMode::Height)
+                            .flow(FlowDirection::Vertical, 0.0, 2.0)
+                            .without_pointer_events()
+                            .done();
+                    })
+                    .done();
+            })
+            .done();
+
+        self.ui.health_bar = health_bar;
+        self.ui.xp_bar = xp_bar;
+        self.ui.level_label_slot = level_label_slot;
+        self.ui.wave_bar = wave_bar;
+        self.ui.wave_label_slot = wave_label_slot;
+        self.ui.kills_time_slot = kills_time_slot;
+        self.ui.kills_time_entity = kills_time_entity;
+        self.ui.combo_entity = combo_entity;
+        self.ui.combo_slot = combo_slot;
+        self.ui.combo_best_entity = combo_best_entity;
+        self.ui.combo_best_slot = combo_best_slot;
+        self.ui.bomb_entity = bomb_entity;
+        self.ui.bomb_slot = bomb_slot;
+        self.ui.boss_entity = boss_entity;
+        self.ui.speed_entity = speed_entity;
+        self.ui.speed_slot = speed_slot;
+        self.ui.buffs_container = buffs_container;
+
+        if let Some(UiWidgetState::ProgressBar(data)) =
+            tree.world_mut().get_ui_widget_state(health_bar)
+        {
+            self.ui.health_bar_fill = data.fill_entity;
+        }
+
+        // Pre-allocate buff label slots
+        for _ in 0..5 {
+            let slot = buff_text_slots[self.ui.buff_slots.len()];
+            let entity = {
+                let parent = buffs_container;
+                tree.push_parent(parent);
+                let entity = tree
+                    .add_node()
+                    .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)))
+                    .with_text_slot(slot, small_font)
+                    .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                    .with_color::<UiBase>(white)
+                    .with_visible(false)
+                    .without_pointer_events()
+                    .done();
+                tree.pop_parent();
+                entity
+            };
+            self.ui.buff_slots.push((entity, slot));
+        }
+
+        // --- Level Up Screen ---
+        let mut upgrade_buttons = [placeholder; 3];
+        let mut upgrade_desc_entity = placeholder;
+
+        self.ui.levelup_screen = tree
+            .add_node()
+            .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+            .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+            .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.78))
+            .with_layer(UiLayer::FloatingPanels)
+            .with_visible(false)
+            .without_pointer_events()
+            .with_children(|tree| {
+                tree.add_node()
+                    .window(
+                        Rl(Vec2::new(50.0, 50.0)),
+                        Ab(Vec2::new(500.0, 300.0)),
+                        Anchor::Center,
+                    )
+                    .flow(FlowDirection::Vertical, 0.0, 4.0)
+                    .with_children(|tree| {
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, title_font * 1.5)),
+                            )
+                            .with_text_slot(levelup_title_slot, title_font)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(gold)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(12.0);
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(choose_upgrade_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(12.0);
+
+                        // Upgrade buttons row
+                        tree.add_node()
+                            .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, 40.0)))
+                            .flow(FlowDirection::Horizontal, 0.0, 8.0)
+                            .with_children(|tree| {
+                                for button in &mut upgrade_buttons {
+                                    *button = tree
+                                        .add_button_colored("---", Vec4::new(0.3, 0.3, 0.3, 1.0));
+                                    if let Some(node) =
+                                        tree.world_mut().get_ui_layout_node_mut(*button)
+                                    {
+                                        node.flex_grow = Some(1.0);
+                                    }
+                                }
+                            })
+                            .done();
+
+                        tree.add_spacing(10.0);
+
+                        upgrade_desc_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(upgrade_desc_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(Vec4::new(0.83, 0.83, 0.83, 1.0))
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(10.0);
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(levelup_hint_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(dim_text)
+                            .without_pointer_events()
+                            .done();
+                    })
+                    .done();
+            })
+            .done();
+
+        self.ui.levelup_title_slot = levelup_title_slot;
+        self.ui.upgrade_buttons = upgrade_buttons;
+        self.ui.upgrade_desc_entity = upgrade_desc_entity;
+        self.ui.upgrade_desc_slot = upgrade_desc_slot;
+
+        // --- Game Over Screen ---
+        let mut high_score_banner_entity = placeholder;
+        let mut stats_wave_entity = placeholder;
+        let mut stats_kills_entity = placeholder;
+        let mut stats_time_entity = placeholder;
+        let mut stats_combo_entity = placeholder;
+
+        self.ui.gameover_screen = tree
+            .add_node()
+            .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+            .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+            .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.78))
+            .with_layer(UiLayer::FloatingPanels)
+            .with_visible(false)
+            .without_pointer_events()
+            .with_children(|tree| {
+                tree.add_node()
+                    .window(
+                        Rl(Vec2::new(50.0, 50.0)),
+                        Ab(Vec2::new(400.0, 450.0)),
+                        Anchor::Center,
+                    )
+                    .flow(FlowDirection::Vertical, 0.0, 4.0)
+                    .with_children(|tree| {
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, title_font * 1.5)),
+                            )
+                            .with_text_slot(gameover_title_slot, title_font)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(Vec4::new(1.0, 0.0, 0.0, 1.0))
+                            .without_pointer_events()
+                            .done();
+
+                        high_score_banner_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(new_hs_banner_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(gold)
+                            .with_visible(false)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(12.0);
+
+                        // Stats labels
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(stats_level_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        stats_wave_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(stats_wave_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        stats_kills_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(stats_kills_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        stats_time_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(stats_time_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        stats_combo_entity = tree
+                            .add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(stats_combo_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .with_visible(false)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(12.0);
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(go_hs_header_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(Vec4::new(0.7, 0.7, 0.7, 1.0))
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(best_scores_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(best_scores_time_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(white)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.add_spacing(12.0);
+
+                        tree.add_node()
+                            .flow_child(
+                                Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
+                            )
+                            .with_text_slot(restart_hint_slot, font_size)
+                            .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(dim_text)
+                            .without_pointer_events()
+                            .done();
+                    })
+                    .done();
+            })
+            .done();
+
+        self.ui.high_score_banner_entity = high_score_banner_entity;
+        self.ui.stats_level_slot = stats_level_slot;
+        self.ui.stats_wave_entity = stats_wave_entity;
+        self.ui.stats_wave_slot = stats_wave_slot;
+        self.ui.stats_kills_entity = stats_kills_entity;
+        self.ui.stats_kills_slot = stats_kills_slot;
+        self.ui.stats_time_entity = stats_time_entity;
+        self.ui.stats_time_slot = stats_time_slot;
+        self.ui.stats_combo_entity = stats_combo_entity;
+        self.ui.stats_combo_slot = stats_combo_slot;
+        self.ui.best_scores_slot = best_scores_slot;
+        self.ui.best_scores_time_slot = best_scores_time_slot;
+
+        tree.finish();
+    }
+
+    fn draw_ui(&mut self, world: &mut World) {
+        let show_main_menu = self.game_state == GameState::MainMenu;
+        let show_paused = self.game_state == GameState::Paused;
+        let show_hud =
+            self.game_state == GameState::Playing || self.game_state == GameState::LevelUp;
+        let show_levelup = self.game_state == GameState::LevelUp;
+        let show_gameover = self.game_state == GameState::GameOver;
+
+        world.ui_set_visible(self.ui.main_menu_screen, show_main_menu);
+        world.ui_set_visible(self.ui.paused_screen, show_paused);
+        world.ui_set_visible(self.ui.hud_screen, show_hud);
+        world.ui_set_visible(self.ui.levelup_screen, show_levelup);
+        world.ui_set_visible(self.ui.gameover_screen, show_gameover);
+
+        if show_main_menu {
+            if world.ui_button_clicked(self.ui.start_button) {
+                self.start_game(world);
+                return;
+            }
+
+            let has_scores = self.high_score_kills > 0 || self.high_score_wave > 0;
+            world.ui_set_visible(self.ui.menu_high_scores_container, has_scores);
+            if has_scores {
+                world.resources.text_cache.set_text(
+                    self.ui.menu_high_scores_slot,
+                    format!(
+                        "Wave: {} | Kills: {}",
+                        self.high_score_wave, self.high_score_kills
+                    ),
+                );
+                world.resources.text_cache.set_text(
+                    self.ui.menu_high_scores_time_slot,
+                    format!(
+                        "Time: {:.0}s | Combo: {}x",
+                        self.high_score_time, self.high_score_combo
+                    ),
+                );
+            }
+        }
+
+        if show_paused && world.ui_button_clicked(self.ui.resume_button) {
+            self.game_state = GameState::Playing;
+            return;
+        }
+
+        if show_hud {
+            let health_pct = self.player_health / self.stats.max_health;
+            world.ui_progress_bar_set_value(self.ui.health_bar, health_pct);
+
+            let health_color = if health_pct > 0.5 {
+                Vec4::new(0.0, 0.78, 0.0, 1.0)
+            } else if health_pct > 0.25 {
+                Vec4::new(0.78, 0.78, 0.0, 1.0)
+            } else {
+                Vec4::new(0.78, 0.0, 0.0, 1.0)
+            };
+            if let Some(color) = world.get_ui_node_color_mut(self.ui.health_bar_fill) {
+                color.colors[UiBase::INDEX] = Some(health_color);
+            }
+
+            let xp_for_next = XP_PER_LEVEL * self.player_level;
+            let xp_pct = self.player_xp as f32 / xp_for_next as f32;
+            world.ui_progress_bar_set_value(self.ui.xp_bar, xp_pct);
+
+            world.resources.text_cache.set_text(
+                self.ui.level_label_slot,
+                format!("Lv.{}:", self.player_level),
+            );
+
+            let wave = self.game_world.resources.current_wave;
+            let total_wave_enemies = WAVE_ENEMIES_BASE + wave * 5;
+            let remaining = self.game_world.resources.wave_enemies_remaining
+                + self.game_world.resources.enemy_list.len() as u32;
+            let killed = total_wave_enemies.saturating_sub(remaining);
+            let wave_pct = if total_wave_enemies > 0 {
+                killed as f32 / total_wave_enemies as f32
+            } else {
+                0.0
+            };
+            world.ui_progress_bar_set_value(self.ui.wave_bar, wave_pct);
+            world
+                .resources
+                .text_cache
+                .set_text(self.ui.wave_label_slot, format!("Wave {}:", wave));
+
+            let current_kills = self.game_world.resources.enemies_killed;
+            let is_kills_record =
+                current_kills > self.high_score_kills && self.high_score_kills > 0;
+            let is_time_record =
+                self.game_time > self.high_score_time && self.high_score_time > 0.0;
+
+            if is_kills_record || is_time_record {
+                let pulse = (self.game_time * 6.0).sin() * 0.3 + 0.7;
+                let record_color = Vec4::new(1.0, 0.84 * pulse + 0.16, 0.0, 1.0);
+                world.resources.text_cache.set_text(
+                    self.ui.kills_time_slot,
+                    format!("Kills: {} | Time: {:.0}s", current_kills, self.game_time),
+                );
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.kills_time_entity) {
+                    color.colors[UiBase::INDEX] = Some(record_color);
+                }
+            } else {
+                world.resources.text_cache.set_text(
+                    self.ui.kills_time_slot,
+                    format!("Kills: {} | Time: {:.0}s", current_kills, self.game_time),
+                );
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.kills_time_entity) {
+                    color.colors[UiBase::INDEX] = Some(Vec4::new(1.0, 1.0, 1.0, 1.0));
+                }
+            }
+
+            let show_combo = self.combo_count > 1;
+            world.ui_set_visible(self.ui.combo_entity, show_combo);
+            if show_combo {
+                let combo_color = if self.combo_count >= 50 {
+                    Vec4::new(1.0, 0.39, 1.0, 1.0)
+                } else if self.combo_count >= 25 {
+                    Vec4::new(1.0, 0.78, 0.2, 1.0)
+                } else if self.combo_count >= 10 {
+                    Vec4::new(1.0, 0.59, 0.2, 1.0)
+                } else {
+                    Vec4::new(1.0, 1.0, 0.39, 1.0)
+                };
+                world
+                    .resources
+                    .text_cache
+                    .set_text(self.ui.combo_slot, format!("{}x COMBO!", self.combo_count));
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.combo_entity) {
+                    color.colors[UiBase::INDEX] = Some(combo_color);
+                }
+            }
+
+            let show_combo_best = show_combo && self.combo_count > self.combo_max;
+            world.ui_set_visible(self.ui.combo_best_entity, show_combo_best);
+            if show_combo_best {
+                let best_pulse = (self.game_time * 10.0).sin() * 0.5 + 0.5;
+                let best_color = Vec4::new(1.0, 0.84 + best_pulse * 0.16, best_pulse * 0.3, 1.0);
+                world
+                    .resources
+                    .text_cache
+                    .set_text(self.ui.combo_best_slot, "NEW BEST COMBO!");
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.combo_best_entity) {
+                    color.colors[UiBase::INDEX] = Some(best_color);
+                }
+            }
+
+            let show_bomb = self.stats.bomb_level > 0;
+            world.ui_set_visible(self.ui.bomb_entity, show_bomb);
+            if show_bomb {
+                let ready = self.bomb_cooldown <= 0.0;
+                let bomb_text = if ready {
+                    "Bomb: READY".to_string()
+                } else {
+                    format!("Bomb: {:.1}s", self.bomb_cooldown)
+                };
+                let cooldown_percent =
+                    self.bomb_cooldown / (BOMB_COOLDOWN / self.stats.bomb_level as f32);
+                let bomb_color = if ready {
+                    Vec4::new(0.39, 1.0, 0.39, 1.0)
+                } else {
+                    let r = 0.39 + 0.61 * cooldown_percent;
+                    Vec4::new(r, 0.39, 0.39, 1.0)
+                };
+                world
+                    .resources
+                    .text_cache
+                    .set_text(self.ui.bomb_slot, &bomb_text);
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.bomb_entity) {
+                    color.colors[UiBase::INDEX] = Some(bomb_color);
+                }
+            }
+
+            world.ui_set_visible(self.ui.boss_entity, self.game_world.resources.boss_alive);
+
+            let show_speed = (self.game_speed - 1.0).abs() > 0.01;
+            world.ui_set_visible(self.ui.speed_entity, show_speed);
+            if show_speed {
+                let speed_text = if self.game_speed >= 1.0 {
+                    format!("{}x Speed", self.game_speed as i32)
+                } else {
+                    format!("{:.2}x Speed", self.game_speed)
+                };
+                let speed_color = if self.game_speed > 1.0 {
+                    Vec4::new(0.39, 0.78, 1.0, 1.0)
+                } else {
+                    Vec4::new(1.0, 0.78, 0.39, 1.0)
+                };
+                world
+                    .resources
+                    .text_cache
+                    .set_text(self.ui.speed_slot, &speed_text);
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.speed_entity) {
+                    color.colors[UiBase::INDEX] = Some(speed_color);
+                }
+            }
+
+            for (buff_index, &(entity, slot)) in self.ui.buff_slots.iter().enumerate() {
+                if buff_index < self.active_buffs.len() {
+                    let buff = &self.active_buffs[buff_index];
+                    let (buff_name, buff_color) = match buff.buff_type {
+                        BuffType::Berserk => ("BERSERK", Vec4::new(0.8, 0.0, 0.0, 1.0)),
+                        BuffType::Haste => ("HASTE", Vec4::new(0.0, 0.8, 1.0, 1.0)),
+                        BuffType::Invincible => ("INVINCIBLE", Vec4::new(1.0, 1.0, 0.0, 1.0)),
+                    };
+                    let pulse = (self.game_time * 6.0).sin() * 0.2 + 0.8;
+                    let pulsing_color = Vec4::new(
+                        buff_color.x * pulse,
+                        buff_color.y * pulse,
+                        buff_color.z * pulse,
+                        1.0,
+                    );
+                    world
+                        .resources
+                        .text_cache
+                        .set_text(slot, format!("{}: {:.1}s", buff_name, buff.remaining_time));
+                    if let Some(color) = world.get_ui_node_color_mut(entity) {
+                        color.colors[UiBase::INDEX] = Some(pulsing_color);
+                    }
+                    world.ui_set_visible(entity, true);
+                } else {
+                    world.ui_set_visible(entity, false);
+                }
+            }
+        }
+
+        if show_levelup {
+            world.resources.text_cache.set_text(
+                self.ui.levelup_title_slot,
+                format!("LEVEL UP! (Lv.{})", self.player_level),
+            );
+
+            for (index, button) in self.ui.upgrade_buttons.iter().enumerate() {
+                if index < self.upgrade_choices.len() {
+                    let upgrade = self.upgrade_choices[index];
+                    let current_level = self.stats.get_upgrade_level(upgrade);
+                    let tier_color = upgrade.tier_color(current_level);
+                    let is_selected = index == self.selected_upgrade_index;
+
+                    let fill_color = if is_selected {
+                        Vec4::new(
+                            (tier_color.x * 0.6 + 0.4).min(1.0),
+                            (tier_color.y * 0.6 + 0.4).min(1.0),
+                            (tier_color.z * 0.6 + 0.4).min(1.0),
+                            1.0,
+                        )
+                    } else {
+                        Vec4::new(
+                            tier_color.x * 0.4 + 0.1,
+                            tier_color.y * 0.4 + 0.1,
+                            tier_color.z * 0.4 + 0.1,
+                            1.0,
+                        )
+                    };
+
+                    world.ui_button_set_text(*button, &upgrade.tier_name(current_level));
+                    if let Some(color) = world.get_ui_node_color_mut(*button) {
+                        color.colors[UiBase::INDEX] = Some(fill_color);
+                    }
+                    world.ui_set_visible(*button, true);
+
+                    if world.ui_button_clicked(*button) {
+                        self.apply_upgrade(upgrade, world);
+                        self.game_state = GameState::Playing;
+                        return;
+                    }
+                } else {
+                    world.ui_set_visible(*button, false);
+                }
+            }
+
+            if let Some(upgrade) = self.upgrade_choices.get(self.selected_upgrade_index) {
+                let current_level = self.stats.get_upgrade_level(*upgrade);
+                world.resources.text_cache.set_text(
+                    self.ui.upgrade_desc_slot,
+                    upgrade.description(current_level),
+                );
+            }
+        }
+
+        if show_gameover {
+            world.ui_set_visible(
+                self.ui.high_score_banner_entity,
+                self.new_high_score_timer > 0.0,
+            );
+
+            if self.new_high_score_timer > 0.0 {
+                let rainbow_phase = self.new_high_score_timer * 5.0;
+                let r = (rainbow_phase.sin() * 0.5 + 0.5).max(0.3);
+                let g = ((rainbow_phase + 2.094).sin() * 0.5 + 0.5).max(0.3);
+                let b = ((rainbow_phase + 4.189).sin() * 0.5 + 0.5).max(0.3);
+                let glow = (self.new_high_score_timer * 8.0).sin().abs() * 0.5 + 0.5;
+                let high_score_color = Vec4::new(
+                    (r + glow * 0.5).min(1.0),
+                    (g + glow * 0.5).min(1.0),
+                    (b + glow * 0.3).min(1.0),
+                    1.0,
+                );
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.high_score_banner_entity) {
+                    color.colors[UiBase::INDEX] = Some(high_score_color);
+                }
+            }
+
+            let kills = self.game_world.resources.enemies_killed;
+            let wave = self.game_world.resources.current_wave;
+            let is_kills_record = kills == self.high_score_kills && kills > 0;
+            let is_wave_record = wave == self.high_score_wave && wave > 0;
+            let is_time_record =
+                (self.game_time - self.high_score_time).abs() < 0.1 && self.game_time > 0.0;
+            let is_combo_record = self.combo_max == self.high_score_combo && self.combo_max > 0;
+
+            let gold_color = Vec4::new(1.0, 0.84, 0.0, 1.0);
+            let normal_color = Vec4::new(1.0, 1.0, 1.0, 1.0);
+
+            world.resources.text_cache.set_text(
+                self.ui.stats_level_slot,
+                format!("Level: {}", self.player_level),
+            );
+
+            if is_wave_record && self.new_high_score_timer > 0.0 {
+                world.resources.text_cache.set_text(
+                    self.ui.stats_wave_slot,
+                    format!("Wave: {} - NEW BEST!", wave),
+                );
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_wave_entity) {
+                    color.colors[UiBase::INDEX] = Some(gold_color);
+                }
+            } else {
+                world
+                    .resources
+                    .text_cache
+                    .set_text(self.ui.stats_wave_slot, format!("Wave: {}", wave));
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_wave_entity) {
+                    color.colors[UiBase::INDEX] = Some(normal_color);
+                }
+            }
+
+            if is_kills_record && self.new_high_score_timer > 0.0 {
+                world.resources.text_cache.set_text(
+                    self.ui.stats_kills_slot,
+                    format!("Kills: {} - NEW BEST!", kills),
+                );
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_kills_entity) {
+                    color.colors[UiBase::INDEX] = Some(gold_color);
+                }
+            } else {
+                world
+                    .resources
+                    .text_cache
+                    .set_text(self.ui.stats_kills_slot, format!("Kills: {}", kills));
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_kills_entity) {
+                    color.colors[UiBase::INDEX] = Some(normal_color);
+                }
+            }
+
+            if is_time_record && self.new_high_score_timer > 0.0 {
+                world.resources.text_cache.set_text(
+                    self.ui.stats_time_slot,
+                    format!("Time: {:.0}s - NEW BEST!", self.game_time),
+                );
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_time_entity) {
+                    color.colors[UiBase::INDEX] = Some(gold_color);
+                }
+            } else {
+                world.resources.text_cache.set_text(
+                    self.ui.stats_time_slot,
+                    format!("Time: {:.0}s", self.game_time),
+                );
+                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_time_entity) {
+                    color.colors[UiBase::INDEX] = Some(normal_color);
+                }
+            }
+
+            let show_combo_stat = self.combo_max > 1;
+            world.ui_set_visible(self.ui.stats_combo_entity, show_combo_stat);
+            if show_combo_stat {
+                if is_combo_record && self.new_high_score_timer > 0.0 {
+                    world.resources.text_cache.set_text(
+                        self.ui.stats_combo_slot,
+                        format!("Best Combo: {}x - NEW BEST!", self.combo_max),
+                    );
+                    if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_combo_entity) {
+                        color.colors[UiBase::INDEX] = Some(gold_color);
+                    }
+                } else {
+                    world.resources.text_cache.set_text(
+                        self.ui.stats_combo_slot,
+                        format!("Best Combo: {}x", self.combo_max),
+                    );
+                    if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_combo_entity) {
+                        color.colors[UiBase::INDEX] = Some(normal_color);
+                    }
+                }
+            }
+
+            world.resources.text_cache.set_text(
+                self.ui.best_scores_slot,
+                format!(
+                    "Best Wave: {} | Best Kills: {}",
+                    self.high_score_wave, self.high_score_kills
+                ),
+            );
+            world.resources.text_cache.set_text(
+                self.ui.best_scores_time_slot,
+                format!(
+                    "Best Time: {:.0}s | Best Combo: {}x",
+                    self.high_score_time, self.high_score_combo
+                ),
+            );
+        }
+
+        // Flash effects via overlay
+        let screen_size = world
+            .resources
+            .window
+            .handle
+            .as_ref()
+            .map(|handle| {
+                let size = handle.inner_size();
+                Vec2::new(size.width as f32, size.height as f32)
+            })
+            .unwrap_or(Vec2::new(1920.0, 1080.0));
+
+        let health_pct = self.player_health / self.stats.max_health;
+        if health_pct < 0.3 && self.game_state == GameState::Playing {
+            let pulse = ((self.game_time * 4.0).sin() * 0.5 + 0.5) * (0.3 - health_pct) / 0.3;
+            let alpha = pulse * 0.31;
+            world.resources.retained_ui.draw_overlay_rect(UiRect {
+                position: Vec2::new(0.0, 0.0),
+                size: screen_size,
+                color: Vec4::new(1.0, 0.0, 0.0, alpha),
+                layer: UiLayer::Tooltips,
+                ..Default::default()
+            });
+        }
+
+        if self.boss_kill_flash > 0.0 {
+            let alpha = self.boss_kill_flash * 0.2;
+            world.resources.retained_ui.draw_overlay_rect(UiRect {
+                position: Vec2::new(0.0, 0.0),
+                size: screen_size,
+                color: Vec4::new(1.0, 0.5, 0.2, alpha),
+                layer: UiLayer::Tooltips,
+                ..Default::default()
+            });
+        }
+
+        if self.level_up_flash > 0.0 {
+            let alpha = self.level_up_flash * 0.15;
+            world.resources.retained_ui.draw_overlay_rect(UiRect {
+                position: Vec2::new(0.0, 0.0),
+                size: screen_size,
+                color: Vec4::new(1.0, 0.85, 0.3, alpha),
+                layer: UiLayer::Tooltips,
+                ..Default::default()
+            });
+        }
+    }
+
     fn spawn_arena(&mut self, world: &mut World) {
         self.ground_entity = Some(spawn_mesh(
             world,

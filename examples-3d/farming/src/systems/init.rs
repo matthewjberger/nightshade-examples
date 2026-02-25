@@ -291,7 +291,7 @@ fn init_graphics(world: &mut World) {
     world.resources.graphics.atmosphere = Atmosphere::Hdr;
     world.resources.graphics.show_grid = false;
     world.resources.user_interface.enabled = false;
-    world.resources.immediate_ui.enabled = true;
+    world.resources.retained_ui.enabled = true;
     world.resources.graphics.selection_outline_enabled = true;
     world.resources.graphics.selection_outline_color = [1.0, 0.6, 0.0, 1.0];
     world.resources.graphics.fog = Some(Fog {

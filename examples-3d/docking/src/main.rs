@@ -117,6 +117,15 @@ struct DockingDemo {
     command_palette: Entity,
     tree_filter_input: Entity,
     grid_toggle_command_id: usize,
+    tile_container: Entity,
+    tile_console_text: usize,
+    tile_console_lines: Vec<String>,
+    tile_output_text: usize,
+    tile_output_lines: Vec<String>,
+    tile_scene_info_text: usize,
+    tile_scene_info_pane: TileId,
+    tile_add_pane_button: Entity,
+    tile_pane_counter: usize,
 }
 
 impl State for DockingDemo {
@@ -204,6 +213,7 @@ impl State for DockingDemo {
             tree.world_mut().get_ui_widget_state_mut(self.top_panel)
         {
             data.min_size = nalgebra_glm::Vec2::new(0.0, 26.0);
+            data.resizable = false;
         }
         if let Some(content) = tree.world_mut().ui_panel_content(self.top_panel) {
             if let Some(node) = tree.world_mut().get_ui_layout_node_mut(content) {
@@ -271,12 +281,13 @@ impl State for DockingDemo {
             .item("Explorer", "")
             .item("Inspector", "")
             .item("Console", "")
+            .item("Tile Tree", "T")
             .separator()
             .item("Toggle Grid", "G")
             .item("Toggle Wireframe", "Z")
             .separator()
             .widget_row("Show Grid");
-        self.grid_toggle_command_id = 5;
+        self.grid_toggle_command_id = 6;
         self.view_menu = tree.add_context_menu_from_builder(view_builder);
         if let Some(content) = tree
             .world_mut()
@@ -434,6 +445,103 @@ impl State for DockingDemo {
             tree.pop_parent();
         }
 
+        self.tile_container = tree.add_tile_container(nalgebra_glm::Vec2::new(800.0, 600.0));
+
+        let hint_color = nalgebra_glm::Vec4::new(0.5, 0.5, 0.6, 1.0);
+        self.tile_console_lines = vec![
+            "[INFO] Tile docking system initialized".into(),
+            "[INFO] 5 panes created".into(),
+            "[INFO] Drag tab headers to rearrange".into(),
+            "[INFO] Drop on edges to split, center to merge".into(),
+        ];
+        self.tile_output_lines = vec![
+            "[build] Compiling nightshade v0.7.0".into(),
+            "[build] Compiling docking v0.1.0".into(),
+            "[build] Finished dev [unoptimized] in 3.2s".into(),
+        ];
+        let console_initial = self.tile_console_lines.join("\n");
+        let output_initial = self.tile_output_lines.join("\n");
+
+        tree.build_tiles(self.tile_container, |tiles| {
+            let scene_info_text = tiles.add_text("Entities: 0");
+            self.tile_scene_info_text = scene_info_text;
+            let (scene_info_id, scene_info_content) = tiles.pane("Scene Info").unwrap();
+            self.tile_scene_info_pane = scene_info_id;
+            tiles.content(scene_info_content, |tree| {
+                tree.add_label("Scene Information");
+                tree.add_separator();
+                tree.add_node()
+                    .flow_child(
+                        Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
+                            + Ab(nalgebra_glm::Vec2::new(0.0, 120.0)),
+                    )
+                    .with_text_slot(scene_info_text, 12.0)
+                    .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
+                    .with_color::<UiBase>(hint_color)
+                    .without_pointer_events()
+                    .done();
+            });
+
+            let console_text = tiles.add_text(&console_initial);
+            self.tile_console_text = console_text;
+            let (console_id, console_content) = tiles
+                .split_from(scene_info_id, SplitDirection::Horizontal, 0.7, "Console")
+                .unwrap();
+            tiles.content(console_content, |tree| {
+                tree.add_node()
+                    .flow_child(
+                        Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
+                            + Ab(nalgebra_glm::Vec2::new(0.0, 400.0)),
+                    )
+                    .with_text_slot(console_text, 12.0)
+                    .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
+                    .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.6, 0.8, 0.6, 1.0))
+                    .without_pointer_events()
+                    .done();
+            });
+
+            let output_text = tiles.add_text(&output_initial);
+            self.tile_output_text = output_text;
+            let (_, output_content) = tiles.pane_sibling(console_id, "Output").unwrap();
+            tiles.content(output_content, |tree| {
+                tree.add_node()
+                    .flow_child(
+                        Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
+                            + Ab(nalgebra_glm::Vec2::new(0.0, 400.0)),
+                    )
+                    .with_text_slot(output_text, 12.0)
+                    .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
+                    .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.7, 0.7, 0.5, 1.0))
+                    .without_pointer_events()
+                    .done();
+            });
+
+            let (_, assets_content) = tiles
+                .split_from(console_id, SplitDirection::Vertical, 0.5, "Assets")
+                .unwrap();
+            tiles.content(assets_content, |tree| {
+                tree.add_label("Asset Browser");
+                tree.add_separator();
+                let asset_names = [
+                    "meshes/cube.obj",
+                    "meshes/sphere.obj",
+                    "meshes/cylinder.obj",
+                    "textures/floor.png",
+                    "textures/brick.png",
+                    "textures/normal_map.png",
+                    "materials/red.mat",
+                    "materials/green.mat",
+                    "materials/blue.mat",
+                    "materials/pbr_standard.mat",
+                    "shaders/pbr.wgsl",
+                    "shaders/unlit.wgsl",
+                ];
+                for name in &asset_names {
+                    tree.add_selectable_label(name, Some(100));
+                }
+            });
+        });
+
         self.floating_panel_a = tree.add_floating_panel(
             "Scene",
             Rect {
@@ -445,6 +553,9 @@ impl State for DockingDemo {
             tree.push_parent(content);
             tree.add_label("Spawn new entities into the scene:");
             self.add_entity_button = tree.add_button("Add Cube");
+            tree.add_separator();
+            tree.add_label("Dynamic tile panes:");
+            self.tile_add_pane_button = tree.add_button("Add Tile Pane");
             tree.pop_parent();
         }
 
@@ -477,6 +588,7 @@ impl State for DockingDemo {
         world.ui_command_palette_register(self.command_palette, "Toggle Explorer", "", "View");
         world.ui_command_palette_register(self.command_palette, "Toggle Inspector", "", "View");
         world.ui_command_palette_register(self.command_palette, "Toggle Console", "", "View");
+        world.ui_command_palette_register(self.command_palette, "Toggle Tile Tree", "T", "View");
         world.ui_command_palette_register(self.command_palette, "Toggle Grid", "G", "View");
         world.ui_command_palette_register(self.command_palette, "Add Cube", "", "Create");
         world.ui_command_palette_register(self.command_palette, "Add Sphere", "", "Create");
@@ -506,7 +618,10 @@ impl State for DockingDemo {
         self.handle_add_entity(world);
         self.handle_confirm_dialog(world);
         self.handle_command_palette(world);
+        self.handle_tile_pane_management(world);
+        self.handle_tile_events(world);
         self.check_panel_events(world);
+        self.update_scene_info(world);
 
         let fps = world.resources.window.timing.frames_per_second;
         world
@@ -591,6 +706,15 @@ impl DockingDemo {
                     self.push_log(world, &format!("[VIEW] {name} {state}"));
                 }
                 3 => {
+                    let currently_visible = world
+                        .get_ui_layout_node(self.tile_container)
+                        .map(|n| n.visible)
+                        .unwrap_or(true);
+                    world.ui_set_visible(self.tile_container, !currently_visible);
+                    let state = if currently_visible { "hidden" } else { "shown" };
+                    self.push_log(world, &format!("[VIEW] Tile Tree {state}"));
+                }
+                4 => {
                     world.resources.graphics.show_grid = !world.resources.graphics.show_grid;
                     let state = if world.resources.graphics.show_grid {
                         "on"
@@ -599,7 +723,7 @@ impl DockingDemo {
                     };
                     self.push_log(world, &format!("[VIEW] Grid {state}"));
                 }
-                4 => self.push_log(world, "[VIEW] Wireframe toggled"),
+                5 => self.push_log(world, "[VIEW] Wireframe toggled"),
                 _ => {}
             }
         }
@@ -862,6 +986,18 @@ impl DockingDemo {
             self.log_lines.remove(0);
         }
         self.update_log_text(world);
+        self.push_tile_console(world, message);
+    }
+
+    fn push_tile_console(&mut self, world: &mut World, message: &str) {
+        self.tile_console_lines.push(message.to_string());
+        if self.tile_console_lines.len() > 30 {
+            self.tile_console_lines.remove(0);
+        }
+        world
+            .resources
+            .text_cache
+            .set_text(self.tile_console_text, self.tile_console_lines.join("\n"));
     }
 
     fn update_log_text(&self, world: &mut World) {
@@ -960,13 +1096,21 @@ impl DockingDemo {
                     self.push_log(world, "[CMD] Toggle Console");
                 }
                 7 => {
+                    let visible = world
+                        .get_ui_layout_node(self.tile_container)
+                        .map(|n| n.visible)
+                        .unwrap_or(true);
+                    world.ui_set_visible(self.tile_container, !visible);
+                    self.push_log(world, "[CMD] Toggle Tile Tree");
+                }
+                8 => {
                     world.resources.graphics.show_grid = !world.resources.graphics.show_grid;
                     self.push_log(world, "[CMD] Toggle Grid");
                 }
-                8 => self.spawn_mesh_entity(world, "Cube"),
-                9 => self.spawn_mesh_entity(world, "Sphere"),
-                10 => self.spawn_mesh_entity(world, "Cylinder"),
-                11 => self.push_log(world, "[CMD] Delete All Cubes"),
+                9 => self.spawn_mesh_entity(world, "Cube"),
+                10 => self.spawn_mesh_entity(world, "Sphere"),
+                11 => self.spawn_mesh_entity(world, "Cylinder"),
+                12 => self.push_log(world, "[CMD] Delete All Cubes"),
                 _ => {}
             }
         }
@@ -996,5 +1140,92 @@ impl DockingDemo {
             name: name.clone(),
         });
         self.push_log(world, &format!("[CMD] Added {name}"));
+    }
+
+    fn handle_tile_pane_management(&mut self, world: &mut World) {
+        if world.ui_button_clicked(self.tile_add_pane_button) {
+            self.tile_pane_counter += 1;
+            let title = format!("Pane {}", self.tile_pane_counter);
+            let container = self.tile_container;
+            world.build_tiles(container, |tiles| {
+                let text_slot = tiles.add_text(format!(
+                    "Dynamic pane \"{title}\" created at runtime.\nDrag this tab to rearrange it.\nDrop on edges to split into new area."
+                ));
+                if let Some((_pane_id, content)) = tiles.pane(&title) {
+                    tiles.content(content, |tree| {
+                        tree.add_label(&title);
+                        tree.add_separator();
+                        tree.add_node()
+                            .flow_child(
+                                Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
+                                    + Ab(nalgebra_glm::Vec2::new(0.0, 100.0)),
+                            )
+                            .with_text_slot(text_slot, 12.0)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
+                            .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.5, 0.5, 0.6, 1.0))
+                            .without_pointer_events()
+                            .done();
+                    });
+                }
+            });
+            self.push_log(world, &format!("[TILE] Added {title}"));
+            self.push_tile_output(world, &format!("[new] Created tile pane: {title}"));
+        }
+    }
+
+    fn handle_tile_events(&mut self, world: &mut World) {
+        let container = self.tile_container;
+        if let Some(pane_id) = world.ui_tile_tab_activated(container) {
+            let title = world
+                .ui_tile_pane_title(container, pane_id)
+                .unwrap_or_default();
+            self.push_tile_output(world, &format!("[TILE] Tab activated: {title}"));
+        }
+        if let Some((_pane_id, title)) = world.ui_tile_tab_closed(container) {
+            self.push_tile_output(world, &format!("[TILE] Tab closed: {title}"));
+        }
+        if let Some((_split_id, ratio)) = world.ui_tile_splitter_moved(container) {
+            self.push_tile_output(world, &format!("[TILE] Splitter moved: {ratio:.2}"));
+        }
+    }
+
+    fn push_tile_output(&mut self, world: &mut World, message: &str) {
+        self.tile_output_lines.push(message.to_string());
+        if self.tile_output_lines.len() > 20 {
+            self.tile_output_lines.remove(0);
+        }
+        world
+            .resources
+            .text_cache
+            .set_text(self.tile_output_text, self.tile_output_lines.join("\n"));
+    }
+
+    fn update_scene_info(&self, world: &mut World) {
+        if !world.ui_tile_active_pane(self.tile_container, self.tile_scene_info_pane) {
+            return;
+        }
+        let entity_count = self.scene_entities.len();
+        let (tile_count, pane_count) = if let Some(UiWidgetState::TileContainer(data)) =
+            world.get_ui_widget_state(self.tile_container)
+        {
+            (
+                data.tiles.iter().filter(|tile| tile.is_some()).count(),
+                data.tiles
+                    .iter()
+                    .filter(|tile| matches!(tile, Some(TileNode::Pane { .. })))
+                    .count(),
+            )
+        } else {
+            (0, 0)
+        };
+        let fps = world.resources.window.timing.frames_per_second;
+        let info = format!(
+            "Scene Entities: {entity_count}\nTile Nodes: {tile_count}\nVisible Panes: {pane_count}\nFPS: {fps}\nTime: {:.1}s",
+            self.total_time
+        );
+        world
+            .resources
+            .text_cache
+            .set_text(self.tile_scene_info_text, info);
     }
 }

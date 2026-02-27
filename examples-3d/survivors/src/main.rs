@@ -7,7 +7,7 @@ use nightshade::ecs::particles::components::{
     ColorGradient, EmitterShape, EmitterType, ParticleEmitter,
 };
 use nightshade::ecs::text::TextProperties;
-use nightshade::ecs::ui_layout::state::UiStateTrait;
+use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 use nightshade::render::wgpu::passes::geometry::UiRect;
 use rand::{Rng, SeedableRng};

@@ -726,7 +726,8 @@ impl RetainedUiDemo {
 
         tree.add_spacing(4.0);
         tree.add_label("Drag Value");
-        self.drag_value_entity = tree.add_drag_value(0.5, 0.0, 10.0, 0.01, 2);
+        self.drag_value_entity =
+            tree.add_drag_value_configured(DragValueConfig::new(0.0, 10.0, 0.5).speed(0.01));
 
         tree.add_spacing(4.0);
         tree.add_label("Toggle");
@@ -845,11 +846,11 @@ impl RetainedUiDemo {
         let section = tree.add_property_section(grid, "Transform");
         let area = tree.add_property_row(grid, section, "X");
         tree.push_parent(area);
-        self.prop_grid_x = tree.add_drag_value(1.0, -10.0, 10.0, 0.1, 2);
+        self.prop_grid_x = tree.add_drag_value(-10.0, 10.0, 1.0);
         tree.pop_parent();
         let area = tree.add_property_row(grid, section, "Y");
         tree.push_parent(area);
-        self.prop_grid_y = tree.add_drag_value(2.0, -10.0, 10.0, 0.1, 2);
+        self.prop_grid_y = tree.add_drag_value(-10.0, 10.0, 2.0);
         tree.pop_parent();
 
         tree.add_spacing(4.0);

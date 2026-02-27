@@ -1,7 +1,12 @@
 use nightshade::prelude::*;
+use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(DockingDemo::default())
+}
+
+struct SecondaryWorldInstance {
+    world: World,
 }
 
 struct Vec3Editor {
@@ -46,7 +51,7 @@ impl CompositeWidget for Vec3Editor {
                 .with_color::<UiBase>(text_color)
                 .without_pointer_events()
                 .done();
-            entities[index] = tree.add_drag_value(0.0, -100.0, 100.0, 0.1, 2);
+            entities[index] = tree.add_drag_value(-100.0, 100.0, 0.0);
         }
 
         for &entity in &entities {
@@ -126,6 +131,10 @@ struct DockingDemo {
     tile_scene_info_pane: TileId,
     tile_add_pane_button: Entity,
     tile_pane_counter: usize,
+    secondary_worlds: HashMap<usize, SecondaryWorldInstance>,
+    next_viewport_index: usize,
+    next_world_id: u32,
+    saved_layout: Option<TileLayout>,
 }
 
 impl State for DockingDemo {
@@ -137,6 +146,7 @@ impl State for DockingDemo {
         world.resources.retained_ui.enabled = true;
         world.resources.graphics.clear_color = [0.02, 0.02, 0.04, 1.0];
         world.resources.graphics.show_grid = true;
+        self.next_viewport_index = 1;
 
         self.pos = UiProperty::new(nalgebra_glm::Vec3::zeros());
         self.rotation_y = UiProperty::new(0.0);
@@ -286,8 +296,10 @@ impl State for DockingDemo {
             .item("Toggle Grid", "G")
             .item("Toggle Wireframe", "Z")
             .separator()
+            .item("New Viewport", "")
+            .separator()
             .widget_row("Show Grid");
-        self.grid_toggle_command_id = 6;
+        self.grid_toggle_command_id = 7;
         self.view_menu = tree.add_context_menu_from_builder(view_builder);
         if let Some(content) = tree
             .world_mut()
@@ -405,12 +417,17 @@ impl State for DockingDemo {
 
             let area = tree.add_property_row(grid, transform_section, "Rot Y");
             tree.push_parent(area);
-            self.rot_y = tree.add_drag_value(0.0, 0.0, 360.0, 0.5, 1);
+            self.rot_y = tree.add_drag_value_configured(
+                DragValueConfig::new(0.0, 360.0, 0.0)
+                    .speed(0.5)
+                    .precision(1),
+            );
             tree.pop_parent();
 
             let area = tree.add_property_row(grid, transform_section, "Scale");
             tree.push_parent(area);
-            self.scale_x = tree.add_drag_value(1.0, 0.1, 10.0, 0.01, 2);
+            self.scale_x =
+                tree.add_drag_value_configured(DragValueConfig::new(0.1, 10.0, 1.0).speed(0.01));
             tree.pop_parent();
 
             let display_section = tree.add_property_section(grid, "Display");
@@ -622,12 +639,42 @@ impl State for DockingDemo {
         self.handle_tile_events(world);
         self.check_panel_events(world);
         self.update_scene_info(world);
+        self.forward_input_to_secondary_worlds(world);
 
         let fps = world.resources.window.timing.frames_per_second;
         world
             .resources
             .text_cache
             .set_text(self.fps_text_slot, format!("FPS: {fps}"));
+    }
+
+    fn pre_render(&mut self, renderer: &mut dyn Render, world: &mut World) {
+        let active_indices: Vec<usize> = world
+            .resources
+            .secondary_windows
+            .states
+            .iter()
+            .map(|s| s.index)
+            .collect();
+        self.secondary_worlds
+            .retain(|index, _| active_indices.contains(index));
+
+        let new_windows: Vec<(usize, String)> = world
+            .resources
+            .secondary_windows
+            .states
+            .iter()
+            .filter(|s| !self.secondary_worlds.contains_key(&s.index))
+            .map(|s| (s.index, s.title.clone()))
+            .collect();
+        for (window_index, title) in new_windows {
+            let instance = self.create_secondary_world(renderer, &title);
+            self.secondary_worlds.insert(window_index, instance);
+        }
+
+        for (&index, instance) in &mut self.secondary_worlds {
+            let _ = renderer.render_world_to_secondary_surface(index, &mut instance.world);
+        }
     }
 }
 
@@ -682,8 +729,23 @@ impl DockingDemo {
                     self.selected_scene_entity = None;
                     self.push_log(world, "[FILE] New scene");
                 }
-                2 => self.push_log(world, "[FILE] Save layout"),
-                3 => self.push_log(world, "[FILE] Load layout"),
+                2 => {
+                    if let Some(layout) = world.ui_tile_save_layout(self.tile_container) {
+                        self.saved_layout = Some(layout);
+                        self.push_log(world, "[FILE] Layout saved");
+                    }
+                }
+                3 => {
+                    if let Some(layout) = self.saved_layout.clone() {
+                        let pane_mappings = world.ui_tile_load_layout(self.tile_container, &layout);
+                        self.push_log(
+                            world,
+                            &format!("[FILE] Layout loaded ({} panes)", pane_mappings.len()),
+                        );
+                    } else {
+                        self.push_log(world, "[FILE] No saved layout");
+                    }
+                }
                 5 => self.push_log(world, "[FILE] Reset layout"),
                 _ => {}
             }
@@ -724,6 +786,21 @@ impl DockingDemo {
                     self.push_log(world, &format!("[VIEW] Grid {state}"));
                 }
                 5 => self.push_log(world, "[VIEW] Wireframe toggled"),
+                6 => {
+                    let title = format!("Viewport {}", self.next_viewport_index);
+                    self.next_viewport_index += 1;
+                    world
+                        .resources
+                        .secondary_windows
+                        .pending_spawns
+                        .push(WindowSpawnRequest {
+                            title,
+                            width: 800,
+                            height: 600,
+                            egui_enabled: false,
+                        });
+                    self.push_log(world, "[VIEW] New Viewport opened");
+                }
                 _ => {}
             }
         }
@@ -1198,6 +1275,170 @@ impl DockingDemo {
             .resources
             .text_cache
             .set_text(self.tile_output_text, self.tile_output_lines.join("\n"));
+    }
+
+    fn create_secondary_world(
+        &mut self,
+        renderer: &dyn Render,
+        title: &str,
+    ) -> SecondaryWorldInstance {
+        let world_id = self.next_world_id;
+        self.next_world_id += 1;
+
+        let mut new_world = World::default();
+        renderer.copy_fonts_to_world(&mut new_world);
+        new_world.resources.world_id = world_id as u64 + 1000;
+        new_world.resources.retained_ui.enabled = true;
+        new_world.resources.graphics.clear_color = [0.02, 0.02, 0.04, 1.0];
+        new_world.resources.graphics.show_grid = true;
+
+        let yaw = world_id as f32 * 0.8;
+        let camera = spawn_pan_orbit_camera(
+            &mut new_world,
+            Vec3::new(0.0, 1.0, 0.0),
+            12.0,
+            yaw,
+            0.4,
+            format!("{title} Camera"),
+        );
+        new_world.resources.active_camera = Some(camera);
+
+        let sun = spawn_sun(&mut new_world);
+        if let Some(light) = new_world.get_light_mut(sun) {
+            light.color = Vec3::new(0.9, 0.85, 0.8);
+            light.intensity = 1.0;
+            light.cast_shadows = true;
+        }
+
+        spawn_mesh(
+            &mut new_world,
+            "Cube",
+            Vec3::new(0.0, -0.25, 0.0),
+            Vec3::new(20.0, 0.5, 20.0),
+        );
+
+        let colors = ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta"];
+        for (index, color) in colors.iter().enumerate() {
+            let angle = (index as f32 / colors.len() as f32) * std::f32::consts::TAU;
+            let radius = 3.5;
+            let position = Vec3::new(angle.cos() * radius, 0.5, angle.sin() * radius);
+            let entity = spawn_mesh(&mut new_world, "Cube", position, Vec3::new(0.8, 0.8, 0.8));
+            new_world.set_material_ref(entity, MaterialRef::new(color.to_string()));
+        }
+
+        spawn_mesh(
+            &mut new_world,
+            "Sphere",
+            Vec3::new(0.0, 1.5, 0.0),
+            Vec3::new(1.2, 1.2, 1.2),
+        );
+
+        let mut tree = UiTreeBuilder::new(&mut new_world);
+
+        let theme = tree
+            .world_mut()
+            .resources
+            .retained_ui
+            .theme_state
+            .active_theme();
+        let panel_color = theme.panel_color;
+        let text_color = theme.text_color;
+        let font_size = theme.font_size;
+
+        tree.add_node()
+            .boundary(
+                Ab(nalgebra_glm::Vec2::new(0.0, 0.0)),
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 32.0)),
+            )
+            .with_rect(0.0, 0.0, nalgebra_glm::Vec4::zeros())
+            .with_color::<UiBase>(panel_color)
+            .flow(FlowDirection::Horizontal, 8.0, 8.0)
+            .with_children(|tree| {
+                tree.add_node()
+                    .flow_child(Ab(nalgebra_glm::Vec2::new(0.0, 20.0)))
+                    .flex_grow(1.0)
+                    .with_text(title, font_size)
+                    .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                    .with_color::<UiBase>(text_color)
+                    .without_pointer_events()
+                    .done();
+            })
+            .done();
+
+        let panel = tree.add_floating_panel(
+            "Controls",
+            Rect {
+                min: nalgebra_glm::Vec2::new(16.0, 48.0),
+                max: nalgebra_glm::Vec2::new(240.0, 280.0),
+            },
+        );
+        if let Some(content) = tree.world_mut().ui_panel_content(panel) {
+            tree.push_parent(content);
+            tree.add_label("Grid");
+            tree.add_toggle(true);
+            tree.add_separator();
+            tree.add_label("Orbit Speed");
+            tree.add_slider(0.5, 0.0, 2.0);
+            tree.add_separator();
+            tree.add_label("Light Intensity");
+            tree.add_slider(1.0, 0.0, 5.0);
+            tree.add_separator();
+            tree.add_button("Reset Camera");
+            tree.pop_parent();
+        }
+
+        tree.finish();
+
+        SecondaryWorldInstance { world: new_world }
+    }
+
+    fn forward_input_to_secondary_worlds(&mut self, world: &mut World) {
+        for secondary_window in &world.resources.secondary_windows.states {
+            if let Some(instance) = self.secondary_worlds.get_mut(&secondary_window.index) {
+                instance.world.resources.input.mouse.position =
+                    secondary_window.input.mouse_position;
+                instance.world.resources.input.mouse.state = secondary_window.input.mouse_state;
+                instance.world.resources.input.mouse.position_delta =
+                    secondary_window.input.mouse_position_delta;
+                instance.world.resources.input.mouse.raw_mouse_delta =
+                    secondary_window.input.raw_mouse_delta;
+                instance.world.resources.input.mouse.wheel_delta =
+                    secondary_window.input.mouse_wheel_delta;
+                instance.world.resources.input.keyboard.keystates = secondary_window
+                    .input
+                    .keyboard_keystates
+                    .iter()
+                    .map(|(k, v)| (*k, *v))
+                    .collect();
+                instance.world.resources.input.keyboard.frame_keys =
+                    secondary_window.input.frame_keys.clone();
+                instance.world.resources.input.keyboard.frame_chars =
+                    secondary_window.input.frame_chars.clone();
+                instance.world.resources.user_interface.hud_wants_pointer = false;
+                instance.world.resources.window.timing.delta_time =
+                    world.resources.window.timing.delta_time;
+                let (width, height) = secondary_window.size;
+                instance.world.resources.window.cached_viewport_size = Some((width, height));
+                pan_orbit_camera_system(&mut instance.world);
+                run_retained_ui_systems(&mut instance.world);
+            }
+        }
+
+        for secondary_window in &mut world.resources.secondary_windows.states {
+            secondary_window.input.mouse_state.remove(
+                MouseState::LEFT_JUST_PRESSED
+                    | MouseState::LEFT_JUST_RELEASED
+                    | MouseState::MIDDLE_JUST_PRESSED
+                    | MouseState::MIDDLE_JUST_RELEASED
+                    | MouseState::RIGHT_JUST_PRESSED
+                    | MouseState::RIGHT_JUST_RELEASED
+                    | MouseState::MOVED
+                    | MouseState::SCROLLED,
+            );
+            secondary_window.input.raw_mouse_delta = nalgebra_glm::Vec2::zeros();
+            secondary_window.input.mouse_wheel_delta = nalgebra_glm::Vec2::zeros();
+            secondary_window.input.mouse_position_delta = nalgebra_glm::Vec2::zeros();
+        }
     }
 
     fn update_scene_info(&self, world: &mut World) {

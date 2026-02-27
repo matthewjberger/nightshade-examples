@@ -1,4 +1,4 @@
-use nightshade::ecs::ui_layout::state::UiStateTrait;
+use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 
 use crate::data::{get_item_definition, get_npc_definition, get_shop_keeper_name};

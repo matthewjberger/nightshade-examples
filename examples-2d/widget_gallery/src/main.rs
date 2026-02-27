@@ -84,6 +84,46 @@ impl CompositeWidget for Vec3Editor {
     }
 }
 
+struct ClickCounter {
+    label: Entity,
+    button: Entity,
+    count: u32,
+}
+
+impl CompositeWidget for ClickCounter {
+    type Value = u32;
+
+    fn build(tree: &mut UiTreeBuilder) -> Self {
+        let label = tree.add_label("Pressed: 0 keys");
+        let button = tree.add_button("Click me");
+        Self {
+            label,
+            button,
+            count: 0,
+        }
+    }
+
+    fn interact(&mut self, world: &mut World, _entity: Entity, ctx: &UiInteractionContext) {
+        for &(_, pressed) in &ctx.frame_keys {
+            if pressed {
+                self.count += 1;
+                world.ui_set_label_text(self.label, &format!("Pressed: {} keys", self.count));
+            }
+        }
+    }
+
+    fn update(&mut self, world: &mut World) {
+        if world.ui_button_clicked(self.button) {
+            self.count = 0;
+            world.ui_set_label_text(self.label, "Pressed: 0 keys");
+        }
+    }
+
+    fn value(&self, _world: &World) -> u32 {
+        self.count
+    }
+}
+
 #[derive(Default)]
 struct Gallery {
     active_section: usize,
@@ -135,6 +175,8 @@ struct Gallery {
 
     grid_small: Entity,
     grid_large: Entity,
+    grid_filter_toggle: Entity,
+    grid_filter_active: bool,
 
     confirm_dialog: Entity,
     confirm_trigger: Entity,
@@ -202,6 +244,20 @@ struct Gallery {
     tile_container: Entity,
 
     floating_panel: Entity,
+
+    validation_input: Entity,
+    validation_toggle: Entity,
+
+    snap_scroll: Entity,
+
+    responsive_row: Entity,
+
+    introspection_target: Entity,
+    introspection_label: Entity,
+
+    counter_composite: Entity,
+
+    virtual_list: Entity,
 }
 
 impl State for Gallery {
@@ -569,6 +625,15 @@ impl State for Gallery {
             );
         }
 
+        if world.ui_bind_toggle(self.grid_filter_toggle, &mut self.grid_filter_active) {
+            if self.grid_filter_active {
+                let even_rows: Vec<usize> = (0..50).filter(|row| row % 2 == 0).collect();
+                world.ui_data_grid_set_filter(self.grid_small, &even_rows);
+            } else {
+                world.ui_data_grid_clear_filter(self.grid_small);
+            }
+        }
+
         self.update_data_grids(world);
 
         if world.ui_button_clicked(self.confirm_trigger) {
@@ -707,8 +772,36 @@ impl State for Gallery {
             14.0,
             nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0),
         );
-        let wave_y_offset = 160.0;
-        let wave_amplitude = 40.0;
+        world.ui_canvas_text(
+            self.canvas_entity,
+            "Bezier Curves",
+            nalgebra_glm::Vec2::new(10.0, 85.0),
+            11.0,
+            nalgebra_glm::Vec4::new(0.7, 0.7, 0.7, 1.0),
+        );
+        world.ui_canvas_quadratic_bezier(
+            self.canvas_entity,
+            nalgebra_glm::Vec2::new(10.0, 140.0),
+            nalgebra_glm::Vec2::new(120.0, 80.0),
+            nalgebra_glm::Vec2::new(230.0, 140.0),
+            2.0,
+            nalgebra_glm::Vec4::new(0.5, 0.9, 1.0, 1.0),
+        );
+        let animated_cy = 80.0 + (self.canvas_time * 1.5).sin() * 40.0;
+        world.ui_canvas_cubic_bezier(
+            self.canvas_entity,
+            nalgebra_glm::Vec2::new(240.0, 140.0),
+            (
+                nalgebra_glm::Vec2::new(300.0, animated_cy),
+                nalgebra_glm::Vec2::new(390.0, 200.0 - animated_cy + 80.0),
+            ),
+            nalgebra_glm::Vec2::new(450.0, 140.0),
+            2.0,
+            nalgebra_glm::Vec4::new(1.0, 0.5, 0.8, 1.0),
+        );
+
+        let wave_y_offset = 230.0;
+        let wave_amplitude = 30.0;
         let wave_steps = 40;
         for step in 0..wave_steps {
             let x0 = step as f32 * (450.0 / wave_steps as f32) + 10.0;
@@ -797,6 +890,49 @@ impl State for Gallery {
 
         if world.ui_button_clicked(self.command_palette_trigger) {
             world.ui_show_command_palette(self.command_palette);
+        }
+
+        let mut validation_error = false;
+        if world.ui_bind_toggle(self.validation_toggle, &mut validation_error) {
+            if validation_error {
+                world.ui_set_error(self.validation_input, Some("This field is required"));
+            } else {
+                world.ui_clear_error(self.validation_input);
+            }
+        }
+
+        if world.ui_button_clicked(self.introspection_target)
+            && let Some(rect) = world.ui_get_rect(self.introspection_target)
+        {
+            world.ui_set_label_text(
+                self.introspection_label,
+                &format!(
+                    "Rect: ({:.0}, {:.0}) - ({:.0}, {:.0}) = {:.0}x{:.0}",
+                    rect.min.x,
+                    rect.min.y,
+                    rect.max.x,
+                    rect.max.y,
+                    rect.width(),
+                    rect.height(),
+                ),
+            );
+        }
+
+        let range = world.ui_virtual_list_visible_range(self.virtual_list);
+        for pool_index in 0..range.len() {
+            let item_index = range.start + pool_index;
+            if let Some(container) =
+                world.ui_virtual_list_item_entity(self.virtual_list, pool_index)
+            {
+                let label = world
+                    .resources
+                    .children_cache
+                    .get(&container)
+                    .and_then(|v| v.first().copied());
+                if let Some(label) = label {
+                    world.ui_set_label_text(label, &format!("Item #{}", item_index));
+                }
+            }
         }
     }
 
@@ -904,6 +1040,10 @@ impl Gallery {
             ui.separator();
             ui.label("Multi-line text area (4 rows):");
             self.text_area_entity = ui.text_area("Type multiple lines here...", 4);
+            ui.separator();
+            ui.label("Form validation (toggle to set error):");
+            self.validation_input = ui.text_input("Required field...");
+            self.validation_toggle = ui.toggle(false);
         });
     }
 
@@ -1215,14 +1355,31 @@ impl Gallery {
                 ui.set_flex_grow(label, 1.0);
                 ui.set_flex_grow(value, 1.0);
             });
+            ui.separator();
+            ui.label("Virtual list (10,000 items):");
         });
+
+        self.virtual_list = tree.add_virtual_list(24.0, 30);
+        tree.world_mut()
+            .ui_virtual_list_set_count(self.virtual_list, 10_000);
+
+        for pool_index in 0..30 {
+            if let Some(container) = tree
+                .world_mut()
+                .ui_virtual_list_item_entity(self.virtual_list, pool_index)
+            {
+                tree.push_parent(container);
+                tree.add_label("");
+                tree.pop_parent();
+            }
+        }
     }
 
     fn build_data_grid(&mut self, tree: &mut UiTreeBuilder) {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Data Grid");
             ui.separator();
-            ui.label("5-column grid (50 rows):");
+            ui.label("5-column grid with column alignment (50 rows):");
         });
 
         let small_container = tree
@@ -1234,15 +1391,27 @@ impl Gallery {
         tree.push_parent(small_container);
         self.grid_small = tree.add_data_grid(
             &[
-                DataGridColumn::new("ID", 60.0).sortable(),
+                DataGridColumn::new("ID", 60.0)
+                    .sortable()
+                    .alignment(TextAlignment::Right),
                 DataGridColumn::new("Name", 120.0).sortable(),
-                DataGridColumn::new("Value", 80.0).sortable(),
-                DataGridColumn::new("Status", 80.0),
-                DataGridColumn::new("Score", 80.0).sortable(),
+                DataGridColumn::new("Value", 80.0)
+                    .sortable()
+                    .alignment(TextAlignment::Right),
+                DataGridColumn::new("Status", 80.0).alignment(TextAlignment::Center),
+                DataGridColumn::new("Score", 80.0)
+                    .sortable()
+                    .alignment(TextAlignment::Right),
             ],
             20,
         );
         tree.pop_parent();
+
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.separator();
+            ui.label("Filtering (toggle to show only even rows):");
+            self.grid_filter_toggle = ui.toggle(false);
+        });
 
         tree.add_label("100,000-row grid (virtual scrolling):");
 
@@ -1255,16 +1424,20 @@ impl Gallery {
         tree.push_parent(large_container);
         self.grid_large = tree.add_data_grid(
             &[
-                DataGridColumn::new("#", 80.0).sortable(),
+                DataGridColumn::new("#", 80.0)
+                    .sortable()
+                    .alignment(TextAlignment::Right),
                 DataGridColumn::new("Hash", 160.0),
-                DataGridColumn::new("Amount", 100.0).sortable(),
+                DataGridColumn::new("Amount", 100.0)
+                    .sortable()
+                    .alignment(TextAlignment::Right),
             ],
             30,
         );
         tree.pop_parent();
     }
 
-    fn build_scroll_areas(&self, tree: &mut UiTreeBuilder) {
+    fn build_scroll_areas(&mut self, tree: &mut UiTreeBuilder) {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Scroll Areas");
             ui.separator();
@@ -1286,6 +1459,15 @@ impl Gallery {
                     ui.label(&format!("More content {}", index + 1));
                 }
             });
+            ui.separator();
+            ui.label("Scroll snapping (30px intervals):");
+            self.snap_scroll = ui.scroll_area(nalgebra_glm::Vec2::new(300.0, 120.0), |ui| {
+                for index in 0..20 {
+                    ui.label(&format!("Snap item {}", index + 1));
+                }
+            });
+            ui.world_mut()
+                .ui_scroll_area_set_snap(self.snap_scroll, Some(30.0));
         });
     }
 
@@ -1393,6 +1575,9 @@ impl Gallery {
                 ui.set_flex_grow(label, 1.0);
                 ui.set_flex_grow(value, 1.0);
             });
+            ui.separator();
+            ui.label("ClickCounter (custom interact — press any key):");
+            self.counter_composite = ui.composite::<ClickCounter>();
         });
     }
 
@@ -1444,7 +1629,7 @@ impl Gallery {
         tree.pop_parent();
     }
 
-    fn build_layout(&self, tree: &mut UiTreeBuilder) {
+    fn build_layout(&mut self, tree: &mut UiTreeBuilder) {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Layout");
             ui.separator();
@@ -1493,6 +1678,83 @@ impl Gallery {
                 ui.label("Hidden content revealed on click.");
                 ui.toggle(false);
             });
+
+            ui.separator();
+            ui.label("Text wrapping (200px container):");
+            let wrap_label = ui.tree().add_node()
+                .flow_child(Ab(nalgebra_glm::Vec2::new(200.0, 0.0)))
+                .with_rect(0.0, 0.0, nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0))
+                .with_text(
+                    "This is a long sentence that should wrap within a 200-pixel-wide container, demonstrating word wrapping.",
+                    12.0,
+                )
+                .with_text_wrap()
+                .auto_size(AutoSizeMode::Height)
+                .done();
+            let _ = wrap_label;
+
+            ui.separator();
+            ui.label("Min/Max size constraints:");
+            ui.row(|ui| {
+                let min_box = ui.tree().add_node()
+                    .flow_child(Ab(nalgebra_glm::Vec2::new(50.0, 30.0)))
+                    .with_rect(4.0, 0.0, nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0))
+                    .with_theme_color::<UiBase>(ThemeColor::Accent)
+                    .with_text("min 80px", 10.0)
+                    .with_min_size(nalgebra_glm::Vec2::new(80.0, 0.0))
+                    .done();
+                let max_box = ui.tree().add_node()
+                    .flow_child(Ab(nalgebra_glm::Vec2::new(300.0, 30.0)))
+                    .with_rect(4.0, 0.0, nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0))
+                    .with_theme_color::<UiBase>(ThemeColor::Panel)
+                    .with_text("max 120px", 10.0)
+                    .with_max_size(nalgebra_glm::Vec2::new(120.0, 0.0))
+                    .done();
+                let _ = (min_box, max_box);
+            });
+
+            ui.separator();
+            ui.label("Flex shrink (items shrink when overflowing):");
+            ui.row(|ui| {
+                let items = ["Short", "Medium text", "Longer text content"];
+                for (index, text) in items.iter().enumerate() {
+                    let entity = ui.tree().add_node()
+                        .flow_child(Ab(nalgebra_glm::Vec2::new(200.0, 28.0)))
+                        .with_rect(4.0, 0.0, nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0))
+                        .with_theme_color::<UiBase>(ThemeColor::Panel)
+                        .with_text(text, 11.0)
+                        .done();
+                    if let Some(node) = ui.world_mut().get_ui_layout_node_mut(entity) {
+                        node.flex_shrink = Some(if index == 0 { 0.0 } else { 1.0 });
+                    }
+                }
+            });
+
+            ui.separator();
+            ui.label("Responsive layout (horizontal -> vertical below 400px):");
+            self.responsive_row = ui.tree().add_node()
+                .flow_child(Rl(nalgebra_glm::Vec2::new(100.0, 0.0)))
+                .flow(FlowDirection::Horizontal, 4.0, 4.0)
+                .with_responsive_flow(400.0, FlowDirection::Vertical)
+                .entity();
+            ui.tree().push_parent(self.responsive_row);
+            for label in &["Alpha", "Beta", "Gamma"] {
+                let item = ui.tree().add_node()
+                    .flow_child(Ab(nalgebra_glm::Vec2::new(0.0, 28.0)))
+                    .with_rect(4.0, 0.0, nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0))
+                    .with_theme_color::<UiBase>(ThemeColor::Accent)
+                    .with_text(label, 11.0)
+                    .done();
+                if let Some(node) = ui.world_mut().get_ui_layout_node_mut(item) {
+                    node.flex_grow = Some(1.0);
+                }
+            }
+            ui.tree().pop_parent();
+
+            ui.separator();
+            ui.label("Layout introspection:");
+            self.introspection_target = ui.button("Measure me");
+            self.introspection_label = ui.label("(click to measure)");
         });
     }
 
@@ -1527,8 +1789,8 @@ impl Gallery {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Canvas");
             ui.separator();
-            ui.label("2D drawing surface with shapes and animated sine wave:");
-            self.canvas_entity = ui.canvas(nalgebra_glm::Vec2::new(470.0, 220.0));
+            ui.label("2D drawing surface with shapes, bezier curves, and animated sine wave:");
+            self.canvas_entity = ui.canvas(nalgebra_glm::Vec2::new(470.0, 300.0));
         });
     }
 
@@ -1677,21 +1939,39 @@ impl Gallery {
             "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta",
         ];
         let statuses = ["Active", "Idle", "Error", "Pending"];
-        for row in range_small {
-            world.ui_data_grid_set_cell(self.grid_small, row, 0, &format!("{}", row + 1));
-            world.ui_data_grid_set_cell(self.grid_small, row, 1, names[row % names.len()]);
+        for visible_row in range_small {
+            let data_row = world
+                .ui_data_grid_filtered_row(self.grid_small, visible_row)
+                .unwrap_or(visible_row);
             world.ui_data_grid_set_cell(
                 self.grid_small,
-                row,
-                2,
-                &format!("{:.1}", (row as f32 * 3.7) % 100.0),
+                visible_row,
+                0,
+                &format!("{}", data_row + 1),
             );
-            world.ui_data_grid_set_cell(self.grid_small, row, 3, statuses[row % statuses.len()]);
             world.ui_data_grid_set_cell(
                 self.grid_small,
-                row,
+                visible_row,
+                1,
+                names[data_row % names.len()],
+            );
+            world.ui_data_grid_set_cell(
+                self.grid_small,
+                visible_row,
+                2,
+                &format!("{:.1}", (data_row as f32 * 3.7) % 100.0),
+            );
+            world.ui_data_grid_set_cell(
+                self.grid_small,
+                visible_row,
+                3,
+                statuses[data_row % statuses.len()],
+            );
+            world.ui_data_grid_set_cell(
+                self.grid_small,
+                visible_row,
                 4,
-                &format!("{}", (row * 17 + 3) % 100),
+                &format!("{}", (data_row * 17 + 3) % 100),
             );
         }
 

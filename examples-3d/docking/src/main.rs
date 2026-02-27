@@ -7,6 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 struct SecondaryWorldInstance {
     world: World,
+    toast_button: Entity,
 }
 
 struct Vec3Editor {
@@ -1372,6 +1373,7 @@ impl DockingDemo {
                 max: nalgebra_glm::Vec2::new(240.0, 280.0),
             },
         );
+        let mut toast_button = Entity::default();
         if let Some(content) = tree.world_mut().ui_panel_content(panel) {
             tree.push_parent(content);
             tree.add_label("Grid");
@@ -1384,12 +1386,17 @@ impl DockingDemo {
             tree.add_slider(1.0, 0.0, 5.0);
             tree.add_separator();
             tree.add_button("Reset Camera");
+            tree.add_separator();
+            toast_button = tree.add_button("Show Toast");
             tree.pop_parent();
         }
 
         tree.finish();
 
-        SecondaryWorldInstance { world: new_world }
+        SecondaryWorldInstance {
+            world: new_world,
+            toast_button,
+        }
     }
 
     fn forward_input_to_secondary_worlds(&mut self, world: &mut World) {
@@ -1421,6 +1428,14 @@ impl DockingDemo {
                 instance.world.resources.window.cached_viewport_size = Some((width, height));
                 pan_orbit_camera_system(&mut instance.world);
                 run_retained_ui_systems(&mut instance.world);
+
+                if instance.world.ui_button_clicked(instance.toast_button) {
+                    instance.world.ui_show_toast(
+                        "Hello from this viewport!",
+                        ToastSeverity::Info,
+                        3.0,
+                    );
+                }
             }
         }
 

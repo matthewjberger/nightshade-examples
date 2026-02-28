@@ -104,13 +104,14 @@ struct DockingDemo {
     rot_y: Entity,
     scale_x: Entity,
     visible_toggle: Entity,
+    visible_val: bool,
     shadow_checkbox: Entity,
     scene_entities: Vec<SceneEntity>,
     selected_scene_entity: Option<Entity>,
     next_cube_index: usize,
-    pos: UiProperty<nalgebra_glm::Vec3>,
-    rotation_y: UiProperty<f32>,
-    scale: UiProperty<f32>,
+    pos: nalgebra_glm::Vec3,
+    rotation_y: f32,
+    scale: f32,
     top_panel: Entity,
     file_button: Entity,
     view_button: Entity,
@@ -149,9 +150,9 @@ impl State for DockingDemo {
         world.resources.graphics.show_grid = true;
         self.next_viewport_index = 1;
 
-        self.pos = UiProperty::new(nalgebra_glm::Vec3::zeros());
-        self.rotation_y = UiProperty::new(0.0);
-        self.scale = UiProperty::new(1.0);
+        self.pos = nalgebra_glm::Vec3::zeros();
+        self.rotation_y = 0.0;
+        self.scale = 1.0;
 
         let camera = spawn_pan_orbit_camera(
             world,
@@ -436,6 +437,7 @@ impl State for DockingDemo {
             let area = tree.add_property_row(grid, display_section, "Visible");
             tree.push_parent(area);
             self.visible_toggle = tree.add_toggle(true);
+            self.visible_val = true;
             tree.pop_parent();
 
             let area = tree.add_property_row(grid, display_section, "Shadow");
@@ -878,23 +880,23 @@ impl DockingDemo {
         let rotation = transform.rotation;
         let scale_val = transform.scale.x;
 
-        self.pos.set(translation);
+        self.pos = translation;
         let editor_entities = world
             .ui_composite::<Vec3Editor>(self.position_editor)
             .map(|editor| (editor.x, editor.y, editor.z));
         if let Some((ex, ey, ez)) = editor_entities {
-            world.ui_set_drag_value(ex, translation.x);
-            world.ui_set_drag_value(ey, translation.y);
-            world.ui_set_drag_value(ez, translation.z);
+            world.ui_drag_value_set_value(ex, translation.x);
+            world.ui_drag_value_set_value(ey, translation.y);
+            world.ui_drag_value_set_value(ez, translation.z);
         }
 
         let euler = nalgebra_glm::quat_euler_angles(&rotation);
         let y_degrees = euler.y.to_degrees();
-        self.rotation_y.set(y_degrees);
-        world.ui_set_drag_value(self.rot_y, y_degrees);
+        self.rotation_y = y_degrees;
+        world.ui_drag_value_set_value(self.rot_y, y_degrees);
 
-        self.scale.set(scale_val);
-        world.ui_set_drag_value(self.scale_x, scale_val);
+        self.scale = scale_val;
+        world.ui_drag_value_set_value(self.scale_x, scale_val);
 
         self.inspector_just_loaded = true;
     }
@@ -906,8 +908,6 @@ impl DockingDemo {
 
         if self.inspector_just_loaded {
             self.inspector_just_loaded = false;
-            self.rotation_y.take_dirty();
-            self.scale.take_dirty();
             return;
         }
 
@@ -915,26 +915,24 @@ impl DockingDemo {
 
         if let Some(editor) = world.ui_composite::<Vec3Editor>(self.position_editor) {
             let new_pos = editor.value(world);
-            if new_pos != *self.pos.get() {
-                self.pos.set(new_pos);
+            if new_pos != self.pos {
+                self.pos = new_pos;
                 transform_changed = true;
             }
         }
 
-        world.ui_bind_reactive_drag_value(self.rot_y, &mut self.rotation_y);
-        if self.rotation_y.take_dirty() {
+        if world.ui_bind_drag_value(self.rot_y, &mut self.rotation_y) {
             transform_changed = true;
         }
 
-        world.ui_bind_reactive_drag_value(self.scale_x, &mut self.scale);
-        if self.scale.take_dirty() {
+        if world.ui_bind_drag_value(self.scale_x, &mut self.scale) {
             transform_changed = true;
         }
 
         if transform_changed {
-            let pos = *self.pos.get();
-            let rot_y = *self.rotation_y.get();
-            let scale_val = *self.scale.get();
+            let pos = self.pos;
+            let rot_y = self.rotation_y;
+            let scale_val = self.scale;
 
             if let Some(transform) = world.get_local_transform_mut(selected) {
                 transform.translation = pos;
@@ -944,9 +942,8 @@ impl DockingDemo {
             world.set_local_transform_dirty(selected, LocalTransformDirty);
         }
 
-        if world.ui_toggle_changed(self.visible_toggle) {
-            let visible = world.ui_toggle_value(self.visible_toggle);
-            self.push_log(world, &format!("[TOGGLE] Visible = {visible}"));
+        if world.ui_bind_toggle(self.visible_toggle, &mut self.visible_val) {
+            self.push_log(world, &format!("[TOGGLE] Visible = {}", self.visible_val));
         }
     }
 

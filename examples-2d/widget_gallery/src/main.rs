@@ -12,23 +12,29 @@ const SECTION_NAMES: &[&str] = &[
     "Command Palette",
     "Composites",
     "Data Grid",
+    "Date Picker",
     "Dropdowns",
     "Layout",
     "Lists & Trees",
     "Menus",
     "Modals & Dialogs",
+    "Multi-Select",
     "Panels & Tiles",
     "Property Grid",
     "Rich Text",
     "Scroll Areas",
     "Sliders",
     "Syntax Highlighting",
+    "Tables",
     "Tabs",
     "Text Inputs",
     "Themes",
     "Toasts",
     "Toggles",
     "Typography",
+    "Breadcrumbs",
+    "Range Sliders",
+    "Splitters",
 ];
 
 struct Vec3Editor {
@@ -137,6 +143,7 @@ struct Gallery {
 
     input_mirror_slot: usize,
     text_input: Entity,
+    text_input_val: String,
     submit_input: Entity,
     submit_log_slot: usize,
 
@@ -159,6 +166,9 @@ struct Gallery {
     checkbox_a: Entity,
     checkbox_b: Entity,
     checkbox_c: Entity,
+    checkbox_a_val: bool,
+    checkbox_b_val: bool,
+    checkbox_c_val: bool,
     checkbox_label_slot: usize,
     radio_label_slot: usize,
 
@@ -167,11 +177,13 @@ struct Gallery {
     dropdown_label_slot: usize,
 
     tab_bar: Entity,
+    tab_selected: usize,
     tab_contents: Vec<Entity>,
 
     tree_view: Entity,
     tree_selection_label_slot: usize,
     tree_filter_input: Entity,
+    tree_filter_val: String,
 
     grid_small: Entity,
     grid_large: Entity,
@@ -230,6 +242,7 @@ struct Gallery {
     text_area_entity: Entity,
 
     color_picker_entity: Entity,
+    color_picker_val: nalgebra_glm::Vec4,
     color_swatch_label_slot: usize,
 
     prop_grid_entity: Entity,
@@ -247,6 +260,7 @@ struct Gallery {
 
     validation_input: Entity,
     validation_toggle: Entity,
+    validation_active: bool,
 
     snap_scroll: Entity,
 
@@ -258,6 +272,46 @@ struct Gallery {
     counter_composite: Entity,
 
     virtual_list: Entity,
+
+    breadcrumb_entity: Entity,
+    breadcrumb_log_slot: usize,
+
+    range_slider_entity: Entity,
+    range_slider_label_slot: usize,
+
+    splitter_entity: Entity,
+    splitter_label_slot: usize,
+
+    hsv_picker_entity: Entity,
+    hsv_picker_val: nalgebra_glm::Vec4,
+    hsv_swatch_label_slot: usize,
+
+    masked_input: Entity,
+    validated_input: Entity,
+    prefilled_input: Entity,
+
+    prop_grid_conv: Entity,
+    prop_conv_slider: Entity,
+    prop_conv_toggle: Entity,
+    prop_conv_text: Entity,
+    prop_conv_dropdown: Entity,
+    prop_conv_checkbox: Entity,
+    prop_conv_drag: Entity,
+
+    editable_grid: Entity,
+
+    searchable_dropdown: Entity,
+    searchable_dropdown_label_slot: usize,
+
+    multi_select_entity: Entity,
+    multi_select_label_slot: usize,
+
+    date_picker_entity: Entity,
+    date_picker_label_slot: usize,
+
+    table_entity: Entity,
+
+    max_length_input: Entity,
 }
 
 impl State for Gallery {
@@ -302,6 +356,32 @@ impl State for Gallery {
         self.configured_slider_label_slot = world.resources.text_cache.add_text("50.0 Hz");
         self.toggle_val = true;
         self.anim_visible = true;
+        self.breadcrumb_log_slot = world
+            .resources
+            .text_cache
+            .add_text("Click a breadcrumb segment");
+        self.range_slider_label_slot = world
+            .resources
+            .text_cache
+            .add_text("Low: 20.0, High: 80.0");
+        self.splitter_label_slot = world.resources.text_cache.add_text("Ratio: 0.50");
+        self.hsv_swatch_label_slot = world
+            .resources
+            .text_cache
+            .add_text("(0.80, 0.40, 0.20, 1.00)");
+        self.hsv_picker_val = nalgebra_glm::Vec4::new(0.8, 0.4, 0.2, 1.0);
+        self.searchable_dropdown_label_slot = world
+            .resources
+            .text_cache
+            .add_text("Apple");
+        self.multi_select_label_slot = world
+            .resources
+            .text_cache
+            .add_text("None selected");
+        self.date_picker_label_slot = world
+            .resources
+            .text_cache
+            .add_text("2026-02-28");
 
         let mut tree = UiTreeBuilder::new(world);
 
@@ -453,23 +533,29 @@ impl State for Gallery {
                 4 => self.build_command_palette(&mut tree),
                 5 => self.build_composites(&mut tree),
                 6 => self.build_data_grid(&mut tree),
-                7 => self.build_dropdowns(&mut tree),
-                8 => self.build_layout(&mut tree),
-                9 => self.build_trees(&mut tree),
-                10 => self.build_menus(&mut tree),
-                11 => self.build_modals(&mut tree),
-                12 => self.build_panels_tiles(&mut tree),
-                13 => self.build_property_grid(&mut tree),
-                14 => self.build_rich_text(&mut tree),
-                15 => self.build_scroll_areas(&mut tree),
-                16 => self.build_sliders(&mut tree),
-                17 => self.build_syntax_highlighting(&mut tree),
-                18 => self.build_tabs(&mut tree),
-                19 => self.build_inputs(&mut tree),
-                20 => self.build_themes(&mut tree),
-                21 => self.build_toasts(&mut tree),
-                22 => self.build_toggles(&mut tree),
-                23 => self.build_typography(&mut tree),
+                7 => self.build_date_picker(&mut tree),
+                8 => self.build_dropdowns(&mut tree),
+                9 => self.build_layout(&mut tree),
+                10 => self.build_trees(&mut tree),
+                11 => self.build_menus(&mut tree),
+                12 => self.build_modals(&mut tree),
+                13 => self.build_multi_select(&mut tree),
+                14 => self.build_panels_tiles(&mut tree),
+                15 => self.build_property_grid(&mut tree),
+                16 => self.build_rich_text(&mut tree),
+                17 => self.build_scroll_areas(&mut tree),
+                18 => self.build_sliders(&mut tree),
+                19 => self.build_syntax_highlighting(&mut tree),
+                20 => self.build_tables(&mut tree),
+                21 => self.build_tabs(&mut tree),
+                22 => self.build_inputs(&mut tree),
+                23 => self.build_themes(&mut tree),
+                24 => self.build_toasts(&mut tree),
+                25 => self.build_toggles(&mut tree),
+                26 => self.build_typography(&mut tree),
+                27 => self.build_breadcrumbs(&mut tree),
+                28 => self.build_range_sliders(&mut tree),
+                29 => self.build_splitters(&mut tree),
                 _ => {}
             }
 
@@ -526,12 +612,12 @@ impl State for Gallery {
                 && index != self.active_section
             {
                 world.ui_set_visible(self.section_roots[self.active_section], false);
-                if self.active_section == 12 {
+                if self.active_section == 14 {
                     world.ui_set_visible(self.floating_panel, false);
                 }
                 self.active_section = index;
                 world.ui_set_visible(self.section_roots[index], true);
-                if index == 12 {
+                if index == 14 {
                     world.ui_set_visible(self.floating_panel, true);
                 }
             }
@@ -545,9 +631,8 @@ impl State for Gallery {
             );
         }
 
-        if world.ui_text_input_changed(self.text_input) {
-            let text = world.ui_text_input_value(self.text_input);
-            world.ui_set_text(self.input_mirror_slot, &text);
+        if world.ui_bind_text_input(self.text_input, &mut self.text_input_val) {
+            world.ui_set_text(self.input_mirror_slot, &self.text_input_val);
         }
 
         if let Some(text) = world.ui_text_input_submitted(self.submit_input) {
@@ -570,25 +655,13 @@ impl State for Gallery {
             world.ui_set_visible(self.hidden_section, self.toggle_val);
         }
 
-        if world.ui_checkbox_changed(self.checkbox_a)
-            || world.ui_checkbox_changed(self.checkbox_b)
-            || world.ui_checkbox_changed(self.checkbox_c)
+        if world.ui_bind_checkbox(self.checkbox_a, &mut self.checkbox_a_val)
+            || world.ui_bind_checkbox(self.checkbox_b, &mut self.checkbox_b_val)
+            || world.ui_bind_checkbox(self.checkbox_c, &mut self.checkbox_c_val)
         {
-            let val_a = if world.ui_checkbox_value(self.checkbox_a) {
-                "on"
-            } else {
-                "off"
-            };
-            let val_b = if world.ui_checkbox_value(self.checkbox_b) {
-                "on"
-            } else {
-                "off"
-            };
-            let val_c = if world.ui_checkbox_value(self.checkbox_c) {
-                "on"
-            } else {
-                "off"
-            };
+            let val_a = if self.checkbox_a_val { "on" } else { "off" };
+            let val_b = if self.checkbox_b_val { "on" } else { "off" };
+            let val_c = if self.checkbox_c_val { "on" } else { "off" };
             world.ui_set_text(
                 self.checkbox_label_slot,
                 &format!("A: {val_a}  B: {val_b}  C: {val_c}"),
@@ -608,10 +681,9 @@ impl State for Gallery {
             );
         }
 
-        if world.ui_tab_bar_changed(self.tab_bar) {
-            let selected = world.ui_tab_bar_selected(self.tab_bar);
+        if world.ui_bind_tab_bar(self.tab_bar, &mut self.tab_selected) {
             for (index, &content) in self.tab_contents.iter().enumerate() {
-                world.ui_set_visible(content, index == selected);
+                world.ui_set_visible(content, index == self.tab_selected);
             }
         }
 
@@ -718,13 +790,15 @@ impl State for Gallery {
             );
         }
 
-        if world.ui_color_picker_changed(self.color_picker_entity) {
-            let color = world.ui_color_picker_value(self.color_picker_entity);
+        if world.ui_bind_color_picker(self.color_picker_entity, &mut self.color_picker_val) {
             world.ui_set_text(
                 self.color_swatch_label_slot,
                 &format!(
                     "({:.2}, {:.2}, {:.2}, {:.2})",
-                    color.x, color.y, color.z, color.w
+                    self.color_picker_val.x,
+                    self.color_picker_val.y,
+                    self.color_picker_val.z,
+                    self.color_picker_val.w
                 ),
             );
         }
@@ -853,9 +927,8 @@ impl State for Gallery {
             world.ui_set_disabled_recursive(self.region_container, !self.region_disable_active);
         }
 
-        if world.ui_text_input_changed(self.tree_filter_input) {
-            let text = world.ui_text_input_value(self.tree_filter_input);
-            world.ui_tree_view_set_filter(self.tree_view, &text);
+        if world.ui_bind_text_input(self.tree_filter_input, &mut self.tree_filter_val) {
+            world.ui_tree_view_set_filter(self.tree_view, &self.tree_filter_val);
         }
 
         for &(key_code, pressed) in &world.resources.input.keyboard.frame_keys.clone() {
@@ -892,13 +965,16 @@ impl State for Gallery {
             world.ui_show_command_palette(self.command_palette);
         }
 
-        let mut validation_error = false;
-        if world.ui_bind_toggle(self.validation_toggle, &mut validation_error) {
-            if validation_error {
+        if world.ui_bind_toggle(self.validation_toggle, &mut self.validation_active) {
+            if self.validation_active {
                 world.ui_set_error(self.validation_input, Some("This field is required"));
             } else {
                 world.ui_clear_error(self.validation_input);
             }
+        }
+
+        if world.ui_text_input_changed(self.validated_input) {
+            world.ui_validate(self.validated_input);
         }
 
         if world.ui_button_clicked(self.introspection_target)
@@ -934,6 +1010,87 @@ impl State for Gallery {
                 }
             }
         }
+
+        if world.ui_breadcrumb_changed(self.breadcrumb_entity)
+            && let Some(clicked) = world.ui_breadcrumb_clicked(self.breadcrumb_entity)
+        {
+            let segments = ["Home", "Documents", "Projects", "Nightshade"];
+            if let Some(&name) = segments.get(clicked) {
+                world.ui_set_text(
+                    self.breadcrumb_log_slot,
+                    &format!("Navigated to: {name}"),
+                );
+            }
+        }
+
+        if world.ui_range_slider_changed(self.range_slider_entity) {
+            let (low, high) = world.ui_range_slider_values(self.range_slider_entity);
+            world.ui_set_text(
+                self.range_slider_label_slot,
+                &format!("Low: {low:.1}, High: {high:.1}"),
+            );
+        }
+
+        if world.ui_splitter_changed(self.splitter_entity) {
+            let ratio = world.ui_splitter_ratio(self.splitter_entity);
+            world.ui_set_text(
+                self.splitter_label_slot,
+                &format!("Ratio: {ratio:.2}"),
+            );
+        }
+
+        if world.ui_bind_color_picker(self.hsv_picker_entity, &mut self.hsv_picker_val) {
+            world.ui_set_text(
+                self.hsv_swatch_label_slot,
+                &format!(
+                    "({:.2}, {:.2}, {:.2}, {:.2})",
+                    self.hsv_picker_val.x,
+                    self.hsv_picker_val.y,
+                    self.hsv_picker_val.z,
+                    self.hsv_picker_val.w,
+                ),
+            );
+        }
+
+        if world.ui_dropdown_changed(self.searchable_dropdown) {
+            let options = [
+                "Afghanistan", "Argentina", "Australia", "Brazil", "Canada",
+                "China", "Denmark", "Egypt", "Finland", "France", "Germany",
+                "India", "Japan", "Mexico", "Norway", "Poland", "Russia",
+                "Spain", "Sweden", "United Kingdom", "United States",
+            ];
+            let index = world.ui_dropdown_value(self.searchable_dropdown);
+            world.ui_set_text(
+                self.searchable_dropdown_label_slot,
+                options.get(index).unwrap_or(&"?"),
+            );
+        }
+
+        if world.ui_multi_select_changed(self.multi_select_entity) {
+            let selected = world.ui_multi_select_selected(self.multi_select_entity);
+            let names = ["Rust", "Python", "TypeScript", "Go", "C++", "Zig", "Haskell"];
+            let display: Vec<&str> = selected
+                .iter()
+                .filter_map(|&index| names.get(index).copied())
+                .collect();
+            if display.is_empty() {
+                world.ui_set_text(self.multi_select_label_slot, "None selected");
+            } else {
+                world.ui_set_text(self.multi_select_label_slot, &display.join(", "));
+            }
+        }
+
+        if world.ui_date_picker_changed(self.date_picker_entity)
+            && let Some((year, month, day)) = world.ui_date_picker_value(self.date_picker_entity)
+        {
+            world.ui_set_text(
+                self.date_picker_label_slot,
+                &format!("{year:04}-{month:02}-{day:02}"),
+            );
+        }
+
+        self.update_table(world);
+        self.update_editable_grid(world);
     }
 
     fn on_mouse_input(
@@ -1011,6 +1168,13 @@ impl Gallery {
             ]);
 
             ui.separator();
+            ui.label("Button with text tooltip:");
+            let tooltip_btn = ui.button("Hover me");
+            if let Some(interaction) = ui.world_mut().get_ui_node_interaction_mut(tooltip_btn) {
+                interaction.tooltip_text = Some("This is a text tooltip".to_string());
+            }
+
+            ui.separator();
             ui.label("Disabled region:");
             ui.row(|ui| {
                 let label = ui.label("Enable parameter group:");
@@ -1044,6 +1208,30 @@ impl Gallery {
             ui.label("Form validation (toggle to set error):");
             self.validation_input = ui.text_input("Required field...");
             self.validation_toggle = ui.toggle(false);
+            ui.separator();
+            ui.label("Pre-filled input (add_text_input_with_value):");
+        });
+        self.prefilled_input = tree.add_text_input_with_value("Edit me...", "Hello, World!");
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.separator();
+            ui.label("Numeric input mask (digits only):");
+        });
+        self.masked_input = tree.add_text_input("Enter a number...");
+        tree.world_mut()
+            .ui_text_input_set_mask(self.masked_input, InputMask::Numeric);
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.separator();
+            ui.label("Validated input (min 3 chars, required):");
+        });
+        self.validated_input = tree.add_text_input("At least 3 characters...");
+        tree.world_mut().ui_set_validation_rules(
+            self.validated_input,
+            vec![ValidationRule::Required, ValidationRule::MinLength(3)],
+        );
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.separator();
+            ui.label("Max-length input (10 characters):");
+            self.max_length_input = ui.text_input_max_length("Max 10 chars...", 10);
         });
     }
 
@@ -1435,6 +1623,28 @@ impl Gallery {
             30,
         );
         tree.pop_parent();
+
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.separator();
+            ui.label("Editable grid (double-click Name to edit):");
+        });
+
+        let editable_container = tree
+            .add_node()
+            .flow_child(
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 200.0)),
+            )
+            .entity();
+        tree.push_parent(editable_container);
+        self.editable_grid = tree.add_data_grid(
+            &[
+                DataGridColumn::new("ID", 60.0).alignment(TextAlignment::Right),
+                DataGridColumn::new("Name", 150.0).editable(),
+                DataGridColumn::new("Value", 100.0).alignment(TextAlignment::Right),
+            ],
+            10,
+        );
+        tree.pop_parent();
     }
 
     fn build_scroll_areas(&mut self, tree: &mut UiTreeBuilder) {
@@ -1752,6 +1962,31 @@ impl Gallery {
             ui.tree().pop_parent();
 
             ui.separator();
+            ui.label("Wrapped label (add_label_wrapped):");
+        });
+        tree.add_label_wrapped(
+            "This label automatically wraps long text to fit its container width, using add_label_wrapped for convenience instead of manual builder calls.",
+        );
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.separator();
+            ui.label("Auto-grid layout (min 100px columns):");
+        });
+        let auto_grid_container = tree
+            .add_node()
+            .flow_child(
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
+                    + Ab(nalgebra_glm::Vec2::new(0.0, 200.0)),
+            )
+            .auto_grid(100.0, 40.0, 4.0)
+            .entity();
+        tree.push_parent(auto_grid_container);
+        for index in 0..12 {
+            tree.add_button(&format!("Item {}", index + 1));
+        }
+        tree.pop_parent();
+
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.separator();
             ui.label("Layout introspection:");
             self.introspection_target = ui.button("Measure me");
             self.introspection_label = ui.label("(click to measure)");
@@ -1799,10 +2034,20 @@ impl Gallery {
             ui.heading("Color Picker");
             ui.separator();
             ui.label("RGBA color picker:");
-            self.color_picker_entity = ui.color_picker(nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0));
+            self.color_picker_entity =
+                ui.color_picker(nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0));
             ui.row(|ui| {
                 let label = ui.label("Value:");
                 let value = ui.label_with_slot(self.color_swatch_label_slot);
+                ui.set_flex_grow(label, 1.0);
+                ui.set_flex_grow(value, 1.0);
+            });
+            ui.separator();
+            ui.label("HSV color picker:");
+            self.hsv_picker_entity = ui.color_picker_hsv(self.hsv_picker_val);
+            ui.row(|ui| {
+                let label = ui.label("Value:");
+                let value = ui.label_with_slot(self.hsv_swatch_label_slot);
                 ui.set_flex_grow(label, 1.0);
                 ui.set_flex_grow(value, 1.0);
             });
@@ -1860,6 +2105,32 @@ impl Gallery {
         tree.push_parent(rot);
         tree.add_slider(0.0, 360.0, 0.0);
         tree.pop_parent();
+
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.separator();
+            ui.label("Convenience methods (add_property_*):");
+        });
+
+        self.prop_grid_conv = tree.add_property_grid(130.0);
+        let conv_grid = self.prop_grid_conv;
+        let conv_parent = tree.current_parent();
+        self.prop_conv_slider =
+            tree.add_property_slider(conv_grid, conv_parent, "Opacity", 0.0, 1.0, 0.8);
+        self.prop_conv_toggle =
+            tree.add_property_toggle(conv_grid, conv_parent, "Enabled", true);
+        self.prop_conv_text =
+            tree.add_property_text_input(conv_grid, conv_parent, "Label", "Enter text...");
+        self.prop_conv_dropdown = tree.add_property_dropdown(
+            conv_grid,
+            conv_parent,
+            "Mode",
+            &["Auto", "Manual", "Custom"],
+            0,
+        );
+        self.prop_conv_checkbox =
+            tree.add_property_checkbox(conv_grid, conv_parent, "Visible", true);
+        self.prop_conv_drag =
+            tree.add_property_drag_value(conv_grid, conv_parent, "Offset", -100.0, 100.0, 0.0);
     }
 
     fn build_menus(&mut self, tree: &mut UiTreeBuilder) {
@@ -1930,6 +2201,191 @@ impl Gallery {
             }
         });
         tree.pop_parent();
+    }
+
+    fn build_breadcrumbs(&mut self, tree: &mut UiTreeBuilder) {
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.heading("Breadcrumbs");
+            ui.separator();
+            ui.label("Navigation breadcrumb (click segments to navigate):");
+        });
+
+        self.breadcrumb_entity =
+            tree.add_breadcrumb(&["Home", "Documents", "Projects", "Nightshade"]);
+
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.label_with_slot(self.breadcrumb_log_slot);
+        });
+    }
+
+    fn build_range_sliders(&mut self, tree: &mut UiTreeBuilder) {
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.heading("Range Sliders");
+            ui.separator();
+            ui.label("Dual-thumb range slider (0-100):");
+        });
+
+        self.range_slider_entity = tree.add_range_slider(0.0, 100.0, 20.0, 80.0);
+
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.label_with_slot(self.range_slider_label_slot);
+        });
+    }
+
+    fn build_splitters(&mut self, tree: &mut UiTreeBuilder) {
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.heading("Splitters");
+            ui.separator();
+            ui.label("Horizontal splitter (drag the divider):");
+        });
+
+        let splitter_holder = tree
+            .add_node()
+            .flow_child(
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 200.0)),
+            )
+            .entity();
+        tree.push_parent(splitter_holder);
+        self.splitter_entity = tree.add_splitter(SplitDirection::Horizontal, 0.5);
+        tree.pop_parent();
+
+        if let Some(first) = tree.world_mut().ui_splitter_first_pane(self.splitter_entity) {
+            tree.push_parent(first);
+            tree.add_label("Left pane");
+            tree.add_button("Button A");
+            tree.add_slider(0.0, 1.0, 0.5);
+            tree.pop_parent();
+        }
+        if let Some(second) = tree.world_mut().ui_splitter_second_pane(self.splitter_entity) {
+            tree.push_parent(second);
+            tree.add_label("Right pane");
+            tree.add_toggle(false);
+            tree.add_checkbox("Option", true);
+            tree.pop_parent();
+        }
+
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.label_with_slot(self.splitter_label_slot);
+        });
+    }
+
+    fn build_date_picker(&mut self, tree: &mut UiTreeBuilder) {
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.heading("Date Picker");
+            ui.separator();
+            ui.label("Select a date:");
+            self.date_picker_entity = ui.date_picker(2026, 2, 28);
+            ui.row(|ui| {
+                let label = ui.label("Selected:");
+                let value = ui.label_with_slot(self.date_picker_label_slot);
+                ui.set_flex_grow(label, 1.0);
+                ui.set_flex_grow(value, 1.0);
+            });
+        });
+    }
+
+    fn build_multi_select(&mut self, tree: &mut UiTreeBuilder) {
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.heading("Multi-Select Dropdown");
+            ui.separator();
+            ui.label("Pick your favorite languages:");
+            self.multi_select_entity =
+                ui.multi_select(&["Rust", "Python", "TypeScript", "Go", "C++", "Zig", "Haskell"]);
+            ui.row(|ui| {
+                let label = ui.label("Selection:");
+                let value = ui.label_with_slot(self.multi_select_label_slot);
+                ui.set_flex_grow(label, 1.0);
+                ui.set_flex_grow(value, 1.0);
+            });
+            ui.separator();
+            ui.label("Searchable dropdown:");
+            self.searchable_dropdown = ui.dropdown_searchable(
+                &[
+                    "Afghanistan", "Argentina", "Australia", "Brazil", "Canada",
+                    "China", "Denmark", "Egypt", "Finland", "France", "Germany",
+                    "India", "Japan", "Mexico", "Norway", "Poland", "Russia",
+                    "Spain", "Sweden", "United Kingdom", "United States",
+                ],
+                0,
+            );
+            ui.row(|ui| {
+                let label = ui.label("Country:");
+                let value = ui.label_with_slot(self.searchable_dropdown_label_slot);
+                ui.set_flex_grow(label, 1.0);
+                ui.set_flex_grow(value, 1.0);
+            });
+        });
+    }
+
+    fn build_tables(&mut self, tree: &mut UiTreeBuilder) {
+        tree.build_ui(tree.current_parent(), |ui| {
+            ui.heading("Tables");
+            ui.separator();
+            ui.label("Simple table (convenience wrapper):");
+            self.table_entity =
+                ui.table(&["Name", "Score", "Status"], &[200.0, 100.0, 120.0]);
+        });
+        tree.world_mut().ui_data_grid_set_row_count(self.table_entity, 5);
+        let items = [
+            ("Alice", "95", "Active"),
+            ("Bob", "82", "Idle"),
+            ("Charlie", "71", "Active"),
+            ("Diana", "90", "Away"),
+            ("Eve", "88", "Active"),
+        ];
+        for (row, (name, score, status)) in items.iter().enumerate() {
+            tree.world_mut().ui_data_grid_set_cell(self.table_entity, row, 0, name);
+            tree.world_mut().ui_data_grid_set_cell(self.table_entity, row, 1, score);
+            tree.world_mut().ui_data_grid_set_cell(self.table_entity, row, 2, status);
+        }
+    }
+
+    fn update_editable_grid(&self, world: &mut World) {
+        let items = ["Widget", "Engine", "Shader", "Texture", "Audio"];
+        world.ui_data_grid_set_row_count(self.editable_grid, 5);
+        let range = world.ui_data_grid_visible_range(self.editable_grid);
+        for visible_row in range {
+            let data_row = world
+                .ui_data_grid_filtered_row(self.editable_grid, visible_row)
+                .unwrap_or(visible_row);
+            world.ui_data_grid_set_cell(
+                self.editable_grid,
+                visible_row,
+                0,
+                &format!("{}", data_row + 1),
+            );
+            world.ui_data_grid_set_cell(
+                self.editable_grid,
+                visible_row,
+                1,
+                items.get(data_row).unwrap_or(&"?"),
+            );
+            world.ui_data_grid_set_cell(
+                self.editable_grid,
+                visible_row,
+                2,
+                &format!("{:.1}", (data_row as f32 + 1.0) * 10.0),
+            );
+        }
+    }
+
+    fn update_table(&self, world: &mut World) {
+        world.ui_data_grid_set_row_count(self.table_entity, 5);
+        let range = world.ui_data_grid_visible_range(self.table_entity);
+        let items = [
+            ("Alice", "95", "Active"),
+            ("Bob", "82", "Idle"),
+            ("Charlie", "71", "Active"),
+            ("Diana", "90", "Away"),
+            ("Eve", "88", "Active"),
+        ];
+        for visible_row in range {
+            if let Some(&(name, score, status)) = items.get(visible_row) {
+                world.ui_data_grid_set_cell(self.table_entity, visible_row, 0, name);
+                world.ui_data_grid_set_cell(self.table_entity, visible_row, 1, score);
+                world.ui_data_grid_set_cell(self.table_entity, visible_row, 2, status);
+            }
+        }
     }
 
     fn update_data_grids(&self, world: &mut World) {

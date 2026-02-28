@@ -1074,8 +1074,8 @@ impl RetainedUiDemo {
         let toggle_val = world.ui_toggle_value(self.toggle_entity);
         let checkbox_val = world.ui_checkbox_value(self.checkbox_entity);
         let radio_val = world.ui_radio_group_value(1);
-        let tab_val = world.ui_tab_bar_selected(self.tab_bar_entity);
-        let dropdown_val = world.ui_dropdown_selected(self.dropdown_entity);
+        let tab_val = world.ui_tab_bar_value(self.tab_bar_entity);
+        let dropdown_val = world.ui_dropdown_value(self.dropdown_entity);
         let text_val = world.ui_text_input_value(self.text_input_entity);
         let color_val = world.ui_color_picker_value(self.color_picker_entity);
         let menu_action = world.ui_menu_clicked(self.menu_entity);

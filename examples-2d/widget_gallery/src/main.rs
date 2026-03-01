@@ -83,9 +83,18 @@ impl CompositeWidget for Vec3Editor {
 
     fn value(&self, world: &World) -> nalgebra_glm::Vec3 {
         nalgebra_glm::Vec3::new(
-            world.ui_drag_value(self.x_drag),
-            world.ui_drag_value(self.y_drag),
-            world.ui_drag_value(self.z_drag),
+            world
+                .widget::<UiDragValueData>(self.x_drag)
+                .map(|d| d.value)
+                .unwrap_or(0.0),
+            world
+                .widget::<UiDragValueData>(self.y_drag)
+                .map(|d| d.value)
+                .unwrap_or(0.0),
+            world
+                .widget::<UiDragValueData>(self.z_drag)
+                .map(|d| d.value)
+                .unwrap_or(0.0),
         )
     }
 }
@@ -119,7 +128,7 @@ impl CompositeWidget for ClickCounter {
     }
 
     fn update(&mut self, world: &mut World) {
-        if world.ui_button_clicked(self.button) {
+        if world.ui_clicked(self.button) {
             self.count = 0;
             world.ui_set_label_text(self.label, "Pressed: 0 keys");
         }
@@ -132,186 +141,20 @@ impl CompositeWidget for ClickCounter {
 
 #[derive(Default)]
 struct Gallery {
-    active_section: usize,
-    nav_labels: Vec<Entity>,
-    section_roots: Vec<Entity>,
-    sidebar: Entity,
-
-    click_count: u32,
-    click_label_slot: usize,
-    btn_counter: Entity,
-
-    input_mirror_slot: usize,
-    text_input: Entity,
-    text_input_val: String,
-    submit_input: Entity,
-    submit_log_slot: usize,
-
-    slider_val: f32,
-    slider_entity: Entity,
-    slider_label_slot: usize,
-    range_slider: Entity,
-    range_val: f32,
-    range_label_slot: usize,
-    drag_x: Entity,
-    drag_y: Entity,
-    drag_z: Entity,
-    drag_x_val: f32,
-    drag_y_val: f32,
-    drag_z_val: f32,
-
-    toggle_entity: Entity,
-    toggle_val: bool,
-    hidden_section: Entity,
-    checkbox_a: Entity,
-    checkbox_b: Entity,
-    checkbox_c: Entity,
-    checkbox_a_val: bool,
-    checkbox_b_val: bool,
-    checkbox_c_val: bool,
-    checkbox_label_slot: usize,
-    radio_label_slot: usize,
-
-    dropdown_entity: Entity,
-    dropdown_val: usize,
-    dropdown_label_slot: usize,
-
-    tab_bar: Entity,
-    tab_selected: usize,
-    tab_contents: Vec<Entity>,
-
-    tree_view: Entity,
-    tree_selection_label_slot: usize,
-    tree_filter_input: Entity,
-    tree_filter_val: String,
-
     grid_small: Entity,
     grid_large: Entity,
-    grid_filter_toggle: Entity,
-    grid_filter_active: bool,
-
-    confirm_dialog: Entity,
-    confirm_trigger: Entity,
-    modal_dialog: Entity,
-    modal_trigger: Entity,
     context_menu: Entity,
-
-    toast_info_btn: Entity,
-    toast_success_btn: Entity,
-    toast_warning_btn: Entity,
-    toast_error_btn: Entity,
-
     vec3_editor: Entity,
-    vec3_label_slot: usize,
-
-    anim_fade: Entity,
-    anim_slide: Entity,
-    anim_scale: Entity,
-    anim_trigger: Entity,
-    anim_visible: bool,
-
+    vec3_label: Entity,
     progress_bar: Entity,
     progress_value: f32,
-
-    disabled_button: Entity,
-    disabled_slider: Entity,
-    disabled_input: Entity,
-    disable_toggle: Entity,
-    disable_active: bool,
-
-    region_disable_toggle: Entity,
-    region_disable_active: bool,
-    region_container: Entity,
-
-    rich_btn_save: Entity,
-    rich_btn_status: Entity,
-
-    theme_dropdown: Entity,
-
     command_palette: Entity,
-    command_palette_log_slot: usize,
-    command_palette_trigger: Entity,
-
     canvas_entity: Entity,
+    compass_canvas_entity: Entity,
     canvas_time: f32,
-
-    log_slider_entity: Entity,
-    log_slider_val: f32,
-    log_slider_label_slot: usize,
-
-    text_area_entity: Entity,
-
-    color_picker_entity: Entity,
-    color_picker_val: nalgebra_glm::Vec4,
-    color_swatch_label_slot: usize,
-
-    prop_grid_entity: Entity,
-
-    menu_entity: Entity,
-    menu_log_slot: usize,
-
-    configured_slider: Entity,
-    configured_slider_val: f32,
-    configured_slider_label_slot: usize,
-
-    tile_container: Entity,
-
-    floating_panel: Entity,
-
-    validation_input: Entity,
-    validation_toggle: Entity,
-    validation_active: bool,
-
-    snap_scroll: Entity,
-
-    responsive_row: Entity,
-
-    introspection_target: Entity,
-    introspection_label: Entity,
-
-    counter_composite: Entity,
-
     virtual_list: Entity,
-
-    breadcrumb_entity: Entity,
-    breadcrumb_log_slot: usize,
-
-    range_slider_entity: Entity,
-    range_slider_label_slot: usize,
-
-    splitter_entity: Entity,
-    splitter_label_slot: usize,
-
-    hsv_picker_entity: Entity,
-    hsv_picker_val: nalgebra_glm::Vec4,
-    hsv_swatch_label_slot: usize,
-
-    masked_input: Entity,
-    validated_input: Entity,
-    prefilled_input: Entity,
-
-    prop_grid_conv: Entity,
-    prop_conv_slider: Entity,
-    prop_conv_toggle: Entity,
-    prop_conv_text: Entity,
-    prop_conv_dropdown: Entity,
-    prop_conv_checkbox: Entity,
-    prop_conv_drag: Entity,
-
     editable_grid: Entity,
-
-    searchable_dropdown: Entity,
-    searchable_dropdown_label_slot: usize,
-
-    multi_select_entity: Entity,
-    multi_select_label_slot: usize,
-
-    date_picker_entity: Entity,
-    date_picker_label_slot: usize,
-
     table_entity: Entity,
-
-    max_length_input: Entity,
 }
 
 impl State for Gallery {
@@ -328,60 +171,6 @@ impl State for Gallery {
             .active_theme()
             .background_color;
         world.resources.graphics.clear_color = [bg.x, bg.y, bg.z, bg.w];
-
-        self.click_label_slot = world.resources.text_cache.add_text("Clicked 0 times");
-        self.input_mirror_slot = world.resources.text_cache.add_text("");
-        self.submit_log_slot = world.resources.text_cache.add_text("Submit a value...");
-        self.slider_label_slot = world.resources.text_cache.add_text("0.50");
-        self.range_label_slot = world.resources.text_cache.add_text("500");
-        self.dropdown_label_slot = world.resources.text_cache.add_text("Apple");
-        self.vec3_label_slot = world.resources.text_cache.add_text("(0.00, 0.00, 0.00)");
-        self.checkbox_label_slot = world.resources.text_cache.add_text("A: off  B: on  C: off");
-        self.radio_label_slot = world.resources.text_cache.add_text("Small");
-        self.tree_selection_label_slot = world.resources.text_cache.add_text("(none)");
-        self.command_palette_log_slot = world
-            .resources
-            .text_cache
-            .add_text("Press Ctrl+P or click button");
-        self.slider_val = 0.5;
-        self.range_val = 500.0;
-        self.log_slider_val = 0.01;
-        self.log_slider_label_slot = world.resources.text_cache.add_text("0.010");
-        self.color_swatch_label_slot = world
-            .resources
-            .text_cache
-            .add_text("(1.00, 1.00, 1.00, 1.00)");
-        self.menu_log_slot = world.resources.text_cache.add_text("(none)");
-        self.configured_slider_val = 50.0;
-        self.configured_slider_label_slot = world.resources.text_cache.add_text("50.0 Hz");
-        self.toggle_val = true;
-        self.anim_visible = true;
-        self.breadcrumb_log_slot = world
-            .resources
-            .text_cache
-            .add_text("Click a breadcrumb segment");
-        self.range_slider_label_slot = world
-            .resources
-            .text_cache
-            .add_text("Low: 20.0, High: 80.0");
-        self.splitter_label_slot = world.resources.text_cache.add_text("Ratio: 0.50");
-        self.hsv_swatch_label_slot = world
-            .resources
-            .text_cache
-            .add_text("(0.80, 0.40, 0.20, 1.00)");
-        self.hsv_picker_val = nalgebra_glm::Vec4::new(0.8, 0.4, 0.2, 1.0);
-        self.searchable_dropdown_label_slot = world
-            .resources
-            .text_cache
-            .add_text("Apple");
-        self.multi_select_label_slot = world
-            .resources
-            .text_cache
-            .add_text("None selected");
-        self.date_picker_label_slot = world
-            .resources
-            .text_cache
-            .add_text("2026-02-28");
 
         let mut tree = UiTreeBuilder::new(world);
 
@@ -453,11 +242,11 @@ impl State for Gallery {
             .without_pointer_events()
             .done();
 
-        self.theme_dropdown = tree.add_theme_dropdown();
+        tree.add_theme_dropdown();
 
         tree.pop_parent();
 
-        self.sidebar = tree
+        let sidebar = tree
             .add_node()
             .boundary(
                 Ab(nalgebra_glm::Vec2::new(0.0, topbar_height)),
@@ -467,22 +256,24 @@ impl State for Gallery {
             .with_theme_color::<UiBase>(ThemeColor::Panel)
             .without_pointer_events()
             .entity();
-        tree.push_parent(self.sidebar);
+        tree.push_parent(sidebar);
 
         let sidebar_scroll = tree.add_scroll_area_fill(8.0, 4.0);
         let sidebar_scroll_content = tree
             .world_mut()
-            .ui_scroll_area_content(sidebar_scroll)
+            .widget::<UiScrollAreaData>(sidebar_scroll)
+            .map(|d| d.content_entity)
             .unwrap_or(sidebar_scroll);
         tree.push_parent(sidebar_scroll_content);
 
+        let mut nav_labels = Vec::new();
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Sections");
             ui.separator();
             for (index, name) in SECTION_NAMES.iter().enumerate() {
-                self.nav_labels.push(ui.selectable_label(name, Some(0)));
+                let entity = ui.selectable_label("", name, Some(0));
+                nav_labels.push(entity);
                 if index == 0 {
-                    let entity = *self.nav_labels.last().unwrap();
                     ui.world_mut().ui_set_selected(entity, true);
                 }
             }
@@ -502,6 +293,12 @@ impl State for Gallery {
             .entity();
         tree.push_parent(content_area);
 
+        let mut section_roots = Vec::new();
+        let mut floating_panel = Entity::default();
+        let mut confirm_trigger = Entity::default();
+        let mut modal_trigger = Entity::default();
+        let mut cp_trigger = Entity::default();
+        let mut cp_log_label = Entity::default();
         for section_index in 0..SECTION_NAMES.len() {
             let section = tree
                 .add_node()
@@ -521,7 +318,8 @@ impl State for Gallery {
             let scroll = tree.add_scroll_area_fill(12.0, 6.0);
             let scroll_content = tree
                 .world_mut()
-                .ui_scroll_area_content(scroll)
+                .widget::<UiScrollAreaData>(scroll)
+                .map(|d| d.content_entity)
                 .unwrap_or(scroll);
             tree.push_parent(scroll_content);
 
@@ -530,7 +328,9 @@ impl State for Gallery {
                 1 => self.build_buttons(&mut tree),
                 2 => self.build_canvas(&mut tree),
                 3 => self.build_color_picker(&mut tree),
-                4 => self.build_command_palette(&mut tree),
+                4 => {
+                    (cp_trigger, cp_log_label) = self.build_command_palette(&mut tree);
+                }
                 5 => self.build_composites(&mut tree),
                 6 => self.build_data_grid(&mut tree),
                 7 => self.build_date_picker(&mut tree),
@@ -538,9 +338,13 @@ impl State for Gallery {
                 9 => self.build_layout(&mut tree),
                 10 => self.build_trees(&mut tree),
                 11 => self.build_menus(&mut tree),
-                12 => self.build_modals(&mut tree),
+                12 => {
+                    (confirm_trigger, modal_trigger) = self.build_modals(&mut tree);
+                }
                 13 => self.build_multi_select(&mut tree),
-                14 => self.build_panels_tiles(&mut tree),
+                14 => {
+                    floating_panel = self.build_panels_tiles(&mut tree);
+                }
                 15 => self.build_property_grid(&mut tree),
                 16 => self.build_rich_text(&mut tree),
                 17 => self.build_scroll_areas(&mut tree),
@@ -562,16 +366,16 @@ impl State for Gallery {
             tree.pop_parent();
             tree.pop_parent();
 
-            self.section_roots.push(section);
+            section_roots.push(section);
         }
 
         tree.pop_parent();
         tree.pop_parent();
 
-        self.confirm_dialog =
+        let confirm_dialog =
             tree.add_confirm_dialog("Confirm Action", "Are you sure you want to proceed?");
 
-        self.modal_dialog =
+        let modal_dialog =
             tree.add_confirm_dialog("Custom Modal", "A modal with embedded widgets:");
 
         self.command_palette = tree.add_command_palette(10);
@@ -591,146 +395,50 @@ impl State for Gallery {
 
         tree.finish();
 
-        world.ui_command_palette_register(self.command_palette, "New File", "Ctrl+N", "File");
-        world.ui_command_palette_register(self.command_palette, "Open File", "Ctrl+O", "File");
-        world.ui_command_palette_register(self.command_palette, "Save", "Ctrl+S", "File");
-        world.ui_command_palette_register(self.command_palette, "Undo", "Ctrl+Z", "Edit");
-        world.ui_command_palette_register(self.command_palette, "Redo", "Ctrl+Y", "Edit");
-        world.ui_command_palette_register(self.command_palette, "Find", "Ctrl+F", "Edit");
-        world.ui_command_palette_register(self.command_palette, "Replace", "Ctrl+H", "Edit");
-        world.ui_command_palette_register(self.command_palette, "Toggle Theme", "", "View");
-    }
-
-    fn run_systems(&mut self, world: &mut World) {
-        if world.resources.retained_ui.active_modal.is_none() {
-            escape_key_exit_system(world);
-        }
-
-        for (index, &nav) in self.nav_labels.iter().enumerate() {
-            if world.ui_selectable_label_changed(nav)
-                && world.ui_selectable_label_selected(nav)
-                && index != self.active_section
-            {
-                world.ui_set_visible(self.section_roots[self.active_section], false);
-                if self.active_section == 14 {
-                    world.ui_set_visible(self.floating_panel, false);
+        let active_section = std::rc::Rc::new(std::cell::Cell::new(0usize));
+        for (index, &nav) in nav_labels.iter().enumerate() {
+            let section_roots = section_roots.clone();
+            let active_section = active_section.clone();
+            world.ui_react_clicked(nav, move |world: &mut World| {
+                let prev = active_section.get();
+                if index != prev {
+                    world.ui_set_visible(section_roots[prev], false);
+                    if prev == 14 {
+                        world.ui_set_visible(floating_panel, false);
+                    }
+                    active_section.set(index);
+                    world.ui_set_visible(section_roots[index], true);
+                    if index == 14 {
+                        world.ui_set_visible(floating_panel, true);
+                    }
                 }
-                self.active_section = index;
-                world.ui_set_visible(self.section_roots[index], true);
-                if index == 14 {
-                    world.ui_set_visible(self.floating_panel, true);
-                }
-            }
+            });
         }
 
-        if world.ui_button_clicked(self.btn_counter) {
-            self.click_count += 1;
-            world.ui_set_text(
-                self.click_label_slot,
-                &format!("Clicked {} times", self.click_count),
-            );
-        }
+        world.ui_react_clicked(confirm_trigger, move |world: &mut World| {
+            world.ui_show_modal(confirm_dialog);
+        });
+        world.ui_react_clicked(modal_trigger, move |world: &mut World| {
+            world.ui_show_modal(modal_dialog);
+        });
 
-        if world.ui_bind_text_input(self.text_input, &mut self.text_input_val) {
-            world.ui_set_text(self.input_mirror_slot, &self.text_input_val);
-        }
-
-        if let Some(text) = world.ui_text_input_submitted(self.submit_input) {
-            world.ui_set_text(self.submit_log_slot, &format!("Submitted: {text}"));
-            world.ui_text_input_set_value(self.submit_input, "");
-        }
-
-        if world.ui_bind_slider(self.slider_entity, &mut self.slider_val) {
-            world.ui_set_text(self.slider_label_slot, &format!("{:.2}", self.slider_val));
-        }
-        if world.ui_bind_slider(self.range_slider, &mut self.range_val) {
-            world.ui_set_text(self.range_label_slot, &format!("{:.0}", self.range_val));
-        }
-
-        world.ui_bind_drag_value(self.drag_x, &mut self.drag_x_val);
-        world.ui_bind_drag_value(self.drag_y, &mut self.drag_y_val);
-        world.ui_bind_drag_value(self.drag_z, &mut self.drag_z_val);
-
-        if world.ui_bind_toggle(self.toggle_entity, &mut self.toggle_val) {
-            world.ui_set_visible(self.hidden_section, self.toggle_val);
-        }
-
-        if world.ui_bind_checkbox(self.checkbox_a, &mut self.checkbox_a_val)
-            || world.ui_bind_checkbox(self.checkbox_b, &mut self.checkbox_b_val)
-            || world.ui_bind_checkbox(self.checkbox_c, &mut self.checkbox_c_val)
-        {
-            let val_a = if self.checkbox_a_val { "on" } else { "off" };
-            let val_b = if self.checkbox_b_val { "on" } else { "off" };
-            let val_c = if self.checkbox_c_val { "on" } else { "off" };
-            world.ui_set_text(
-                self.checkbox_label_slot,
-                &format!("A: {val_a}  B: {val_b}  C: {val_c}"),
-            );
-        }
-
-        if let Some(selected) = world.ui_radio_group_value(0) {
-            let names = ["Small", "Medium", "Large"];
-            world.ui_set_text(self.radio_label_slot, names.get(selected).unwrap_or(&"?"));
-        }
-
-        if world.ui_bind_dropdown(self.dropdown_entity, &mut self.dropdown_val) {
-            let names = ["Apple", "Banana", "Cherry", "Date", "Elderberry"];
-            world.ui_set_text(
-                self.dropdown_label_slot,
-                names.get(self.dropdown_val).unwrap_or(&"?"),
-            );
-        }
-
-        if world.ui_bind_tab_bar(self.tab_bar, &mut self.tab_selected) {
-            for (index, &content) in self.tab_contents.iter().enumerate() {
-                world.ui_set_visible(content, index == self.tab_selected);
-            }
-        }
-
-        let selected_count = world.ui_tree_view_selected(self.tree_view).len();
-        if selected_count == 0 {
-            world.ui_set_text(self.tree_selection_label_slot, "(none)");
-        } else {
-            world.ui_set_text(
-                self.tree_selection_label_slot,
-                &format!("{selected_count} node(s) selected"),
-            );
-        }
-
-        if world.ui_bind_toggle(self.grid_filter_toggle, &mut self.grid_filter_active) {
-            if self.grid_filter_active {
-                let even_rows: Vec<usize> = (0..50).filter(|row| row % 2 == 0).collect();
-                world.ui_data_grid_set_filter(self.grid_small, &even_rows);
-            } else {
-                world.ui_data_grid_clear_filter(self.grid_small);
-            }
-        }
-
-        self.update_data_grids(world);
-
-        if world.ui_button_clicked(self.confirm_trigger) {
-            world.ui_show_modal(self.confirm_dialog);
-        }
-        if world.ui_button_clicked(self.modal_trigger) {
-            world.ui_show_modal(self.modal_dialog);
-        }
-
-        if let Some(result) = world.ui_modal_result(self.confirm_dialog) {
-            if result {
+        world.ui_react_confirmed(confirm_dialog, |confirmed: bool, world: &mut World| {
+            if confirmed {
                 world.ui_show_toast("Confirmed!", ToastSeverity::Success, 3.0);
             } else {
                 world.ui_show_toast("Cancelled.", ToastSeverity::Info, 3.0);
             }
-        }
-        if let Some(result) = world.ui_modal_result(self.modal_dialog) {
-            if result {
+        });
+
+        world.ui_react_confirmed(modal_dialog, |confirmed: bool, world: &mut World| {
+            if confirmed {
                 world.ui_show_toast("Modal accepted", ToastSeverity::Success, 3.0);
             } else {
                 world.ui_show_toast("Modal dismissed", ToastSeverity::Info, 3.0);
             }
-        }
+        });
 
-        if let Some(clicked) = world.ui_context_menu_clicked(self.context_menu) {
+        world.ui_react_menu_selected(self.context_menu, |index: usize, world: &mut World| {
             let items = [
                 "Cut",
                 "Copy",
@@ -740,40 +448,58 @@ impl State for Gallery {
                 "Link",
                 "Select All",
             ];
-            if let Some(&name) = items.get(clicked) {
+            if let Some(&name) = items.get(index) {
                 world.ui_show_toast(&format!("Context menu: {name}"), ToastSeverity::Info, 2.0);
             }
+        });
+
+        let command_palette = self.command_palette;
+        world.ui_react_clicked(cp_trigger, move |world: &mut World| {
+            world.ui_show_command_palette(command_palette);
+        });
+
+        world.ui_command_palette_register(self.command_palette, "New File", "Ctrl+N", "File");
+        world.ui_command_palette_register(self.command_palette, "Open File", "Ctrl+O", "File");
+        world.ui_command_palette_register(self.command_palette, "Save", "Ctrl+S", "File");
+        world.ui_command_palette_register(self.command_palette, "Undo", "Ctrl+Z", "Edit");
+        world.ui_command_palette_register(self.command_palette, "Redo", "Ctrl+Y", "Edit");
+        world.ui_command_palette_register(self.command_palette, "Find", "Ctrl+F", "Edit");
+        world.ui_command_palette_register(self.command_palette, "Replace", "Ctrl+H", "Edit");
+        world.ui_command_palette_register(self.command_palette, "Toggle Theme", "", "View");
+
+        world.ui_react_command(
+            self.command_palette,
+            move |index: usize, world: &mut World| {
+                let names = [
+                    "New File",
+                    "Open File",
+                    "Save",
+                    "Undo",
+                    "Redo",
+                    "Find",
+                    "Replace",
+                    "Toggle Theme",
+                ];
+                if let Some(&name) = names.get(index) {
+                    world.ui_set_text(cp_log_label, &format!("Executed: {name}"));
+                    world.ui_show_toast(&format!("Command: {name}"), ToastSeverity::Info, 2.0);
+                }
+            },
+        );
+    }
+
+    fn run_systems(&mut self, world: &mut World) {
+        if world.resources.retained_ui.active_modal.is_none() {
+            escape_key_exit_system(world);
         }
 
-        if world.ui_button_clicked(self.toast_info_btn) {
-            world.ui_show_toast(
-                "This is an informational message.",
-                ToastSeverity::Info,
-                3.0,
-            );
-        }
-        if world.ui_button_clicked(self.toast_success_btn) {
-            world.ui_show_toast("Operation completed!", ToastSeverity::Success, 3.0);
-        }
-        if world.ui_button_clicked(self.toast_warning_btn) {
-            world.ui_show_toast("Warning: check your settings.", ToastSeverity::Warning, 3.0);
-        }
-        if world.ui_button_clicked(self.toast_error_btn) {
-            world.ui_show_toast("Error: something went wrong.", ToastSeverity::Error, 3.0);
-        }
+        self.update_data_grids(world);
 
         if let Some(value) = world.ui_composite_value::<Vec3Editor>(self.vec3_editor) {
             world.ui_set_text(
-                self.vec3_label_slot,
+                self.vec3_label,
                 &format!("({:.2}, {:.2}, {:.2})", value.x, value.y, value.z),
             );
-        }
-
-        if world.ui_button_clicked(self.anim_trigger) {
-            self.anim_visible = !self.anim_visible;
-            world.ui_set_visible(self.anim_fade, self.anim_visible);
-            world.ui_set_visible(self.anim_slide, self.anim_visible);
-            world.ui_set_visible(self.anim_scale, self.anim_visible);
         }
 
         let delta = world.resources.window.timing.delta_time;
@@ -783,152 +509,182 @@ impl State for Gallery {
         }
         world.ui_progress_bar_set_value(self.progress_bar, self.progress_value);
 
-        if world.ui_bind_slider(self.log_slider_entity, &mut self.log_slider_val) {
-            world.ui_set_text(
-                self.log_slider_label_slot,
-                &format!("{:.3}", self.log_slider_val),
-            );
-        }
-
-        if world.ui_bind_color_picker(self.color_picker_entity, &mut self.color_picker_val) {
-            world.ui_set_text(
-                self.color_swatch_label_slot,
-                &format!(
-                    "({:.2}, {:.2}, {:.2}, {:.2})",
-                    self.color_picker_val.x,
-                    self.color_picker_val.y,
-                    self.color_picker_val.z,
-                    self.color_picker_val.w
-                ),
-            );
-        }
-
-        if let Some(clicked) = world.ui_menu_clicked(self.menu_entity) {
-            let items = ["New", "Open", "Save", "Close"];
-            if let Some(&name) = items.get(clicked) {
-                world.ui_set_text(self.menu_log_slot, &format!("Clicked: {name}"));
-            }
-        }
-
-        if world.ui_bind_slider(self.configured_slider, &mut self.configured_slider_val) {
-            world.ui_set_text(
-                self.configured_slider_label_slot,
-                &format!("{:.1} Hz", self.configured_slider_val),
-            );
-        }
-
-        self.canvas_time += delta;
-        world.ui_canvas_clear(self.canvas_entity);
-        world.ui_canvas_rect(
-            self.canvas_entity,
-            nalgebra_glm::Vec2::new(10.0, 10.0),
-            nalgebra_glm::Vec2::new(80.0, 60.0),
-            nalgebra_glm::Vec4::new(0.2, 0.4, 0.8, 1.0),
-            4.0,
-        );
-        world.ui_canvas_rect(
-            self.canvas_entity,
-            nalgebra_glm::Vec2::new(110.0, 10.0),
-            nalgebra_glm::Vec2::new(60.0, 60.0),
-            nalgebra_glm::Vec4::new(0.8, 0.3, 0.2, 1.0),
-            0.0,
-        );
-        world.ui_canvas_circle(
-            self.canvas_entity,
-            nalgebra_glm::Vec2::new(240.0, 40.0),
-            25.0,
-            nalgebra_glm::Vec4::new(0.3, 0.8, 0.4, 1.0),
-        );
-        world.ui_canvas_text(
-            self.canvas_entity,
-            "Canvas Demo",
-            nalgebra_glm::Vec2::new(300.0, 30.0),
-            14.0,
-            nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0),
-        );
-        world.ui_canvas_text(
-            self.canvas_entity,
-            "Bezier Curves",
-            nalgebra_glm::Vec2::new(10.0, 85.0),
-            11.0,
-            nalgebra_glm::Vec4::new(0.7, 0.7, 0.7, 1.0),
-        );
-        world.ui_canvas_quadratic_bezier(
-            self.canvas_entity,
-            nalgebra_glm::Vec2::new(10.0, 140.0),
-            nalgebra_glm::Vec2::new(120.0, 80.0),
-            nalgebra_glm::Vec2::new(230.0, 140.0),
-            2.0,
-            nalgebra_glm::Vec4::new(0.5, 0.9, 1.0, 1.0),
-        );
-        let animated_cy = 80.0 + (self.canvas_time * 1.5).sin() * 40.0;
-        world.ui_canvas_cubic_bezier(
-            self.canvas_entity,
-            nalgebra_glm::Vec2::new(240.0, 140.0),
-            (
-                nalgebra_glm::Vec2::new(300.0, animated_cy),
-                nalgebra_glm::Vec2::new(390.0, 200.0 - animated_cy + 80.0),
-            ),
-            nalgebra_glm::Vec2::new(450.0, 140.0),
-            2.0,
-            nalgebra_glm::Vec4::new(1.0, 0.5, 0.8, 1.0),
-        );
-
-        let wave_y_offset = 230.0;
-        let wave_amplitude = 30.0;
-        let wave_steps = 40;
-        for step in 0..wave_steps {
-            let x0 = step as f32 * (450.0 / wave_steps as f32) + 10.0;
-            let x1 = (step + 1) as f32 * (450.0 / wave_steps as f32) + 10.0;
-            let t0 = step as f32 / wave_steps as f32 * std::f32::consts::TAU;
-            let t1 = (step + 1) as f32 / wave_steps as f32 * std::f32::consts::TAU;
-            let y0 = wave_y_offset + (t0 + self.canvas_time * 2.0).sin() * wave_amplitude;
-            let y1 = wave_y_offset + (t1 + self.canvas_time * 2.0).sin() * wave_amplitude;
-            world.ui_canvas_line(
+        if world.ui_node_effectively_visible(self.canvas_entity) {
+            self.canvas_time += delta;
+            world.ui_canvas_clear(self.canvas_entity);
+            world.ui_canvas_rect(
                 self.canvas_entity,
-                nalgebra_glm::Vec2::new(x0, y0),
-                nalgebra_glm::Vec2::new(x1, y1),
-                2.0,
-                nalgebra_glm::Vec4::new(1.0, 0.8, 0.2, 1.0),
+                nalgebra_glm::Vec2::new(10.0, 10.0),
+                nalgebra_glm::Vec2::new(80.0, 60.0),
+                nalgebra_glm::Vec4::new(0.2, 0.4, 0.8, 1.0),
+                4.0,
             );
-        }
+            world.ui_canvas_rect(
+                self.canvas_entity,
+                nalgebra_glm::Vec2::new(110.0, 10.0),
+                nalgebra_glm::Vec2::new(60.0, 60.0),
+                nalgebra_glm::Vec4::new(0.8, 0.3, 0.2, 1.0),
+                0.0,
+            );
+            world.ui_canvas_circle(
+                self.canvas_entity,
+                nalgebra_glm::Vec2::new(240.0, 40.0),
+                25.0,
+                nalgebra_glm::Vec4::new(0.3, 0.8, 0.4, 1.0),
+            );
+            world.ui_canvas_text(
+                self.canvas_entity,
+                "Canvas Demo",
+                nalgebra_glm::Vec2::new(300.0, 30.0),
+                14.0,
+                nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0),
+            );
+            world.ui_canvas_text(
+                self.canvas_entity,
+                "Bezier Curves",
+                nalgebra_glm::Vec2::new(10.0, 85.0),
+                11.0,
+                nalgebra_glm::Vec4::new(0.7, 0.7, 0.7, 1.0),
+            );
+            world.ui_canvas_quadratic_bezier(
+                self.canvas_entity,
+                nalgebra_glm::Vec2::new(10.0, 140.0),
+                nalgebra_glm::Vec2::new(120.0, 80.0),
+                nalgebra_glm::Vec2::new(230.0, 140.0),
+                2.0,
+                nalgebra_glm::Vec4::new(0.5, 0.9, 1.0, 1.0),
+            );
+            let animated_cy = 80.0 + (self.canvas_time * 1.5).sin() * 40.0;
+            world.ui_canvas_cubic_bezier(
+                self.canvas_entity,
+                nalgebra_glm::Vec2::new(240.0, 140.0),
+                (
+                    nalgebra_glm::Vec2::new(300.0, animated_cy),
+                    nalgebra_glm::Vec2::new(390.0, 200.0 - animated_cy + 80.0),
+                ),
+                nalgebra_glm::Vec2::new(450.0, 140.0),
+                2.0,
+                nalgebra_glm::Vec4::new(1.0, 0.5, 0.8, 1.0),
+            );
 
-        if world.ui_bind_toggle(self.disable_toggle, &mut self.disable_active) {
-            world.ui_set_disabled(self.disabled_button, self.disable_active);
-            world.ui_set_disabled(self.disabled_slider, self.disable_active);
-            world.ui_set_disabled(self.disabled_input, self.disable_active);
-            if self.disable_active {
-                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_button) {
-                    interaction.tooltip_text =
-                        Some("This button is disabled via the toggle above".to_string());
-                }
-                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_slider) {
-                    interaction.tooltip_text =
-                        Some("This slider is disabled via the toggle above".to_string());
-                }
-                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_input) {
-                    interaction.tooltip_text =
-                        Some("This input is disabled via the toggle above".to_string());
-                }
-            } else {
-                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_button) {
-                    interaction.tooltip_text = None;
-                }
-                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_slider) {
-                    interaction.tooltip_text = None;
-                }
-                if let Some(interaction) = world.get_ui_node_interaction_mut(self.disabled_input) {
-                    interaction.tooltip_text = None;
-                }
+            let wave_y_offset = 230.0;
+            let wave_amplitude = 30.0;
+            let wave_steps = 40;
+            for step in 0..wave_steps {
+                let x0 = step as f32 * (450.0 / wave_steps as f32) + 10.0;
+                let x1 = (step + 1) as f32 * (450.0 / wave_steps as f32) + 10.0;
+                let t0 = step as f32 / wave_steps as f32 * std::f32::consts::TAU;
+                let t1 = (step + 1) as f32 / wave_steps as f32 * std::f32::consts::TAU;
+                let y0 = wave_y_offset + (t0 + self.canvas_time * 2.0).sin() * wave_amplitude;
+                let y1 = wave_y_offset + (t1 + self.canvas_time * 2.0).sin() * wave_amplitude;
+                world.ui_canvas_line(
+                    self.canvas_entity,
+                    nalgebra_glm::Vec2::new(x0, y0),
+                    nalgebra_glm::Vec2::new(x1, y1),
+                    2.0,
+                    nalgebra_glm::Vec4::new(1.0, 0.8, 0.2, 1.0),
+                );
             }
         }
 
-        if world.ui_bind_toggle(self.region_disable_toggle, &mut self.region_disable_active) {
-            world.ui_set_disabled_recursive(self.region_container, !self.region_disable_active);
-        }
+        if world.ui_node_effectively_visible(self.compass_canvas_entity) {
+            let auto_spin = world.ui_prop::<bool>("canvas.compass_auto_spin");
+            let angle_degrees = if auto_spin {
+                let new_angle = (self.canvas_time * 45.0) % 360.0;
+                world.ui_set_prop("canvas.compass_angle", new_angle);
+                new_angle
+            } else {
+                world.ui_prop::<f32>("canvas.compass_angle")
+            };
+            let angle = angle_degrees.to_radians();
 
-        if world.ui_bind_text_input(self.tree_filter_input, &mut self.tree_filter_val) {
-            world.ui_tree_view_set_filter(self.tree_view, &self.tree_filter_val);
+            let center = nalgebra_glm::Vec2::new(100.0, 100.0);
+            let outer_radius = 90.0;
+            let tick_outer = 85.0;
+            let tick_inner_cardinal = 70.0;
+            let tick_inner_ordinal = 76.0;
+            let label_radius = 62.0;
+            let needle_length = 75.0;
+            let needle_back_length = 50.0;
+
+            world.ui_canvas_clear(self.compass_canvas_entity);
+
+            world.ui_canvas_circle_stroke(
+                self.compass_canvas_entity,
+                center,
+                outer_radius,
+                nalgebra_glm::Vec4::new(0.7, 0.7, 0.7, 1.0),
+                2.0,
+            );
+
+            let cardinal_labels = ["N", "E", "S", "W"];
+            for index in 0..8 {
+                let tick_angle = angle + index as f32 * std::f32::consts::FRAC_PI_4;
+                let cos_val = tick_angle.cos();
+                let sin_val = tick_angle.sin();
+                let inner = if index % 2 == 0 {
+                    tick_inner_cardinal
+                } else {
+                    tick_inner_ordinal
+                };
+                let start = center + nalgebra_glm::Vec2::new(cos_val * inner, sin_val * inner);
+                let end =
+                    center + nalgebra_glm::Vec2::new(cos_val * tick_outer, sin_val * tick_outer);
+                let thickness = if index % 2 == 0 { 2.0 } else { 1.0 };
+                world.ui_canvas_line(
+                    self.compass_canvas_entity,
+                    start,
+                    end,
+                    thickness,
+                    nalgebra_glm::Vec4::new(0.8, 0.8, 0.8, 1.0),
+                );
+
+                if index % 2 == 0 {
+                    let label_pos = center
+                        + nalgebra_glm::Vec2::new(
+                            cos_val * label_radius - 4.0,
+                            sin_val * label_radius - 6.0,
+                        );
+                    world.ui_canvas_text(
+                        self.compass_canvas_entity,
+                        cardinal_labels[index / 2],
+                        label_pos,
+                        12.0,
+                        nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0),
+                    );
+                }
+            }
+
+            let north_end = center
+                + nalgebra_glm::Vec2::new(angle.cos() * needle_length, angle.sin() * needle_length);
+            world.ui_canvas_line(
+                self.compass_canvas_entity,
+                center,
+                north_end,
+                3.5,
+                nalgebra_glm::Vec4::new(0.9, 0.2, 0.2, 1.0),
+            );
+
+            let south_angle = angle + std::f32::consts::PI;
+            let south_end = center
+                + nalgebra_glm::Vec2::new(
+                    south_angle.cos() * needle_back_length,
+                    south_angle.sin() * needle_back_length,
+                );
+            world.ui_canvas_line(
+                self.compass_canvas_entity,
+                center,
+                south_end,
+                3.5,
+                nalgebra_glm::Vec4::new(0.7, 0.7, 0.7, 1.0),
+            );
+
+            world.ui_canvas_circle(
+                self.compass_canvas_entity,
+                center,
+                4.0,
+                nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0),
+            );
         }
 
         for &(key_code, pressed) in &world.resources.input.keyboard.frame_keys.clone() {
@@ -944,61 +700,19 @@ impl State for Gallery {
             }
         }
 
-        if let Some(command_index) = world.ui_command_palette_executed(self.command_palette) {
-            let names = [
-                "New File",
-                "Open File",
-                "Save",
-                "Undo",
-                "Redo",
-                "Find",
-                "Replace",
-                "Toggle Theme",
-            ];
-            if let Some(&name) = names.get(command_index) {
-                world.ui_set_text(self.command_palette_log_slot, &format!("Executed: {name}"));
-                world.ui_show_toast(&format!("Command: {name}"), ToastSeverity::Info, 2.0);
-            }
-        }
-
-        if world.ui_button_clicked(self.command_palette_trigger) {
-            world.ui_show_command_palette(self.command_palette);
-        }
-
-        if world.ui_bind_toggle(self.validation_toggle, &mut self.validation_active) {
-            if self.validation_active {
-                world.ui_set_error(self.validation_input, Some("This field is required"));
-            } else {
-                world.ui_clear_error(self.validation_input);
-            }
-        }
-
-        if world.ui_text_input_changed(self.validated_input) {
-            world.ui_validate(self.validated_input);
-        }
-
-        if world.ui_button_clicked(self.introspection_target)
-            && let Some(rect) = world.ui_get_rect(self.introspection_target)
-        {
-            world.ui_set_label_text(
-                self.introspection_label,
-                &format!(
-                    "Rect: ({:.0}, {:.0}) - ({:.0}, {:.0}) = {:.0}x{:.0}",
-                    rect.min.x,
-                    rect.min.y,
-                    rect.max.x,
-                    rect.max.y,
-                    rect.width(),
-                    rect.height(),
-                ),
-            );
-        }
-
-        let range = world.ui_virtual_list_visible_range(self.virtual_list);
+        let range = world
+            .widget::<UiVirtualListData>(self.virtual_list)
+            .map(|d| d.visible_start..d.total_items.min(d.visible_start + d.pool_size))
+            .unwrap_or(0..0);
         for pool_index in 0..range.len() {
             let item_index = range.start + pool_index;
-            if let Some(container) =
-                world.ui_virtual_list_item_entity(self.virtual_list, pool_index)
+            if let Some(container) = world
+                .widget::<UiVirtualListData>(self.virtual_list)
+                .and_then(|d| {
+                    d.pool_items
+                        .get(pool_index)
+                        .map(|item| item.container_entity)
+                })
             {
                 let label = world
                     .resources
@@ -1009,84 +723,6 @@ impl State for Gallery {
                     world.ui_set_label_text(label, &format!("Item #{}", item_index));
                 }
             }
-        }
-
-        if world.ui_breadcrumb_changed(self.breadcrumb_entity)
-            && let Some(clicked) = world.ui_breadcrumb_clicked(self.breadcrumb_entity)
-        {
-            let segments = ["Home", "Documents", "Projects", "Nightshade"];
-            if let Some(&name) = segments.get(clicked) {
-                world.ui_set_text(
-                    self.breadcrumb_log_slot,
-                    &format!("Navigated to: {name}"),
-                );
-            }
-        }
-
-        if world.ui_range_slider_changed(self.range_slider_entity) {
-            let (low, high) = world.ui_range_slider_values(self.range_slider_entity);
-            world.ui_set_text(
-                self.range_slider_label_slot,
-                &format!("Low: {low:.1}, High: {high:.1}"),
-            );
-        }
-
-        if world.ui_splitter_changed(self.splitter_entity) {
-            let ratio = world.ui_splitter_ratio(self.splitter_entity);
-            world.ui_set_text(
-                self.splitter_label_slot,
-                &format!("Ratio: {ratio:.2}"),
-            );
-        }
-
-        if world.ui_bind_color_picker(self.hsv_picker_entity, &mut self.hsv_picker_val) {
-            world.ui_set_text(
-                self.hsv_swatch_label_slot,
-                &format!(
-                    "({:.2}, {:.2}, {:.2}, {:.2})",
-                    self.hsv_picker_val.x,
-                    self.hsv_picker_val.y,
-                    self.hsv_picker_val.z,
-                    self.hsv_picker_val.w,
-                ),
-            );
-        }
-
-        if world.ui_dropdown_changed(self.searchable_dropdown) {
-            let options = [
-                "Afghanistan", "Argentina", "Australia", "Brazil", "Canada",
-                "China", "Denmark", "Egypt", "Finland", "France", "Germany",
-                "India", "Japan", "Mexico", "Norway", "Poland", "Russia",
-                "Spain", "Sweden", "United Kingdom", "United States",
-            ];
-            let index = world.ui_dropdown_value(self.searchable_dropdown);
-            world.ui_set_text(
-                self.searchable_dropdown_label_slot,
-                options.get(index).unwrap_or(&"?"),
-            );
-        }
-
-        if world.ui_multi_select_changed(self.multi_select_entity) {
-            let selected = world.ui_multi_select_selected(self.multi_select_entity);
-            let names = ["Rust", "Python", "TypeScript", "Go", "C++", "Zig", "Haskell"];
-            let display: Vec<&str> = selected
-                .iter()
-                .filter_map(|&index| names.get(index).copied())
-                .collect();
-            if display.is_empty() {
-                world.ui_set_text(self.multi_select_label_slot, "None selected");
-            } else {
-                world.ui_set_text(self.multi_select_label_slot, &display.join(", "));
-            }
-        }
-
-        if world.ui_date_picker_changed(self.date_picker_entity)
-            && let Some((year, month, day)) = world.ui_date_picker_value(self.date_picker_entity)
-        {
-            world.ui_set_text(
-                self.date_picker_label_slot,
-                &format!("{year:04}-{month:02}-{day:02}"),
-            );
         }
 
         self.update_table(world);
@@ -1153,16 +789,23 @@ impl Gallery {
                 }
             });
             ui.separator();
-            self.btn_counter = ui.button("Click Me!");
-            ui.label_with_slot(self.click_label_slot);
+            let btn_counter = ui.button("Click Me!");
+            let click_label = ui.label("Clicked 0 times");
+            let click_count = std::rc::Rc::new(std::cell::Cell::new(0u32));
+            let click_count_clone = click_count.clone();
+            ui.react_clicked(btn_counter, move |world: &mut World| {
+                let count = click_count_clone.get() + 1;
+                click_count_clone.set(count);
+                world.ui_set_text(click_label, &format!("Clicked {count} times"));
+            });
 
             ui.separator();
             ui.label("Rich text buttons:");
-            self.rich_btn_save = ui.button_rich(&[
+            ui.button_rich(&[
                 TextSpan::colored("Save", nalgebra_glm::Vec4::new(0.3, 0.9, 0.4, 1.0)),
                 TextSpan::new(" Project"),
             ]);
-            self.rich_btn_status = ui.button_rich(&[
+            ui.button_rich(&[
                 TextSpan::new("Status: "),
                 TextSpan::colored("Online", nalgebra_glm::Vec4::new(0.2, 0.8, 0.3, 1.0)),
             ]);
@@ -1178,60 +821,83 @@ impl Gallery {
             ui.label("Disabled region:");
             ui.row(|ui| {
                 let label = ui.label("Enable parameter group:");
-                self.region_disable_toggle = ui.toggle(true);
+                ui.toggle("region_disable", true);
                 ui.set_flex_grow(label, 1.0);
             });
-            self.region_container = ui.enabled(true, |ui| {
-                ui.slider(0.0, 1.0, 0.5);
-                ui.toggle(false);
+            let region_container = ui.enabled(true, |ui| {
+                ui.slider("", 0.0, 1.0, 0.5);
+                ui.toggle("", false);
                 ui.button("Apply Settings");
+            });
+            ui.react("region_disable", move |enabled: bool, world: &mut World| {
+                world.ui_set_disabled_recursive(region_container, !enabled);
             });
         });
     }
 
-    fn build_inputs(&mut self, tree: &mut UiTreeBuilder) {
+    fn build_inputs(&self, tree: &mut UiTreeBuilder) {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Text Inputs");
             ui.separator();
             ui.label("Single-line input:");
-            self.text_input = ui.text_input("Type here...");
+            ui.text_input("text_input_mirror", "Type here...");
             ui.label("Mirror:");
-            ui.label_with_slot(self.input_mirror_slot);
+            let input_mirror_label = ui.label("");
+            ui.react(
+                "text_input_mirror",
+                move |val: String, world: &mut World| {
+                    world.ui_set_text(input_mirror_label, &val);
+                },
+            );
             ui.separator();
             ui.label("Press Enter to submit:");
-            self.submit_input = ui.text_input("Press Enter to submit...");
-            ui.label_with_slot(self.submit_log_slot);
+            let submit_input = ui.text_input("", "Press Enter to submit...");
+            let submit_log_label = ui.label("Submit a value...");
+            ui.react_submitted(submit_input, move |text: String, world: &mut World| {
+                world.ui_set_text(submit_log_label, &format!("Submitted: {text}"));
+                world.ui_text_input_set_value(submit_input, "");
+            });
             ui.separator();
             ui.label("Multi-line text area (4 rows):");
-            self.text_area_entity = ui.text_area("Type multiple lines here...", 4);
+            ui.text_area("", "Type multiple lines here...", 4);
             ui.separator();
             ui.label("Form validation (toggle to set error):");
-            self.validation_input = ui.text_input("Required field...");
-            self.validation_toggle = ui.toggle(false);
+            let validation_input = ui.text_input("", "Required field...");
+            ui.toggle("validation_toggle", false);
+            ui.react("validation_toggle", move |val: bool, world: &mut World| {
+                if val {
+                    world.ui_set_error(validation_input, Some("This field is required"));
+                } else {
+                    world.ui_clear_error(validation_input);
+                }
+            });
             ui.separator();
             ui.label("Pre-filled input (add_text_input_with_value):");
         });
-        self.prefilled_input = tree.add_text_input_with_value("Edit me...", "Hello, World!");
+        tree.add_text_input_with_value("Edit me...", "Hello, World!");
         tree.build_ui(tree.current_parent(), |ui| {
             ui.separator();
             ui.label("Numeric input mask (digits only):");
         });
-        self.masked_input = tree.add_text_input("Enter a number...");
+        let masked_input = tree.add_text_input("Enter a number...");
         tree.world_mut()
-            .ui_text_input_set_mask(self.masked_input, InputMask::Numeric);
+            .ui_text_input_set_mask(masked_input, InputMask::Numeric);
         tree.build_ui(tree.current_parent(), |ui| {
             ui.separator();
             ui.label("Validated input (min 3 chars, required):");
+            let validated_input = ui.text_input("validated_input", "At least 3 characters...");
+            ui.world_mut().ui_set_validation_rules(
+                validated_input,
+                vec![ValidationRule::Required, ValidationRule::MinLength(3)],
+            );
+            ui.react("validated_input", move |_val: String, world: &mut World| {
+                world.ui_validate(validated_input);
+            });
         });
-        self.validated_input = tree.add_text_input("At least 3 characters...");
-        tree.world_mut().ui_set_validation_rules(
-            self.validated_input,
-            vec![ValidationRule::Required, ValidationRule::MinLength(3)],
-        );
         tree.build_ui(tree.current_parent(), |ui| {
             ui.separator();
             ui.label("Max-length input (10 characters):");
-            self.max_length_input = ui.text_input_max_length("Max 10 chars...", 10);
+            ui.text_input_max_length("", "Max 10 chars...", 10);
         });
     }
 
@@ -1239,51 +905,68 @@ impl Gallery {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Sliders");
             ui.separator();
+            let mut slider_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Value:");
-                let value = ui.label_with_slot(self.slider_label_slot);
+                slider_label = ui.label("0.50");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(slider_label, 1.0);
             });
-            self.slider_entity = ui.slider(0.0, 1.0, 0.5);
+            ui.slider("slider_value", 0.0, 1.0, 0.5);
+            ui.react("slider_value", move |val: f32, world: &mut World| {
+                world.ui_set_text(slider_label, &format!("{val:.2}"));
+            });
             ui.separator();
+            let mut range_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Range 0-1000:");
-                let value = ui.label_with_slot(self.range_label_slot);
+                range_label = ui.label("500");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(range_label, 1.0);
             });
-            self.range_slider = ui.slider(0.0, 1000.0, 500.0);
+            ui.slider("range_slider_value", 0.0, 1000.0, 500.0);
+            ui.react("range_slider_value", move |val: f32, world: &mut World| {
+                world.ui_set_text(range_label, &format!("{val:.0}"));
+            });
             ui.separator();
+            let mut log_slider_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Logarithmic (0.001-10.0):");
-                let value = ui.label_with_slot(self.log_slider_label_slot);
+                log_slider_label = ui.label("0.010");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(log_slider_label, 1.0);
             });
-            self.log_slider_entity = ui.slider_logarithmic(0.001, 10.0, 0.01);
+            ui.slider_logarithmic("log_slider", 0.001, 10.0, 0.01);
+            ui.react("log_slider", move |val: f32, world: &mut World| {
+                world.ui_set_text(log_slider_label, &format!("{val:.3}"));
+            });
             ui.separator();
+            let mut configured_slider_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Configured (prefix+suffix):");
-                let value = ui.label_with_slot(self.configured_slider_label_slot);
+                configured_slider_label = ui.label("50.0 Hz");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(configured_slider_label, 1.0);
             });
-            self.configured_slider = ui.slider_configured(
+            ui.slider_configured(
+                "configured_slider",
                 SliderConfig::new(0.0, 1000.0, 50.0)
                     .precision(1)
                     .prefix("Freq: ")
                     .suffix(" Hz"),
             );
+            ui.react("configured_slider", move |val: f32, world: &mut World| {
+                world.ui_set_text(configured_slider_label, &format!("{val:.1} Hz"));
+            });
             ui.separator();
             ui.label("Drag values (X, Y, Z):");
             ui.row(|ui| {
                 let lx = ui.label("X");
-                self.drag_x = ui.drag_value(-100.0, 100.0, 0.0);
+                let drag_x = ui.drag_value("", -100.0, 100.0, 0.0);
                 let ly = ui.label("Y");
-                self.drag_y = ui.drag_value(-100.0, 100.0, 0.0);
+                let drag_y = ui.drag_value("", -100.0, 100.0, 0.0);
                 let lz = ui.label("Z");
-                self.drag_z = ui.drag_value(-100.0, 100.0, 0.0);
+                let drag_z = ui.drag_value("", -100.0, 100.0, 0.0);
                 let label_height = ui.theme().font_size * 1.5;
                 for label in [lx, ly, lz] {
                     if let Some(node) = ui.world_mut().get_ui_layout_node_mut(label) {
@@ -1291,23 +974,41 @@ impl Gallery {
                             Some(Ab(nalgebra_glm::Vec2::new(16.0, label_height)).into());
                     }
                 }
-                for drag in [self.drag_x, self.drag_y, self.drag_z] {
+                for drag in [drag_x, drag_y, drag_z] {
                     ui.set_flex_grow(drag, 1.0);
                 }
             });
             ui.separator();
             ui.label("Animated progress bar:");
-            self.progress_bar = ui.progress_bar(0.0);
+            self.progress_bar = ui.progress_bar("", 0.0);
             ui.separator();
             ui.label("Disabled widgets:");
             ui.row(|ui| {
                 let label = ui.label("Disable below:");
-                self.disable_toggle = ui.toggle(false);
+                ui.toggle("disable_widgets", false);
                 ui.set_flex_grow(label, 1.0);
             });
-            self.disabled_button = ui.button("Disabled Button");
-            self.disabled_slider = ui.slider(0.0, 1.0, 0.5);
-            self.disabled_input = ui.text_input("Disabled input...");
+            let disabled_button = ui.button("Disabled Button");
+            let disabled_slider = ui.slider("", 0.0, 1.0, 0.5);
+            let disabled_input = ui.text_input("", "Disabled input...");
+            ui.react(
+                "disable_widgets",
+                move |disabled: bool, world: &mut World| {
+                    world.ui_set_disabled(disabled_button, disabled);
+                    world.ui_set_disabled(disabled_slider, disabled);
+                    world.ui_set_disabled(disabled_input, disabled);
+                    let tip = if disabled {
+                        Some("This widget is disabled via the toggle above".to_string())
+                    } else {
+                        None
+                    };
+                    for entity in [disabled_button, disabled_slider, disabled_input] {
+                        if let Some(interaction) = world.get_ui_node_interaction_mut(entity) {
+                            interaction.tooltip_text = tip.clone();
+                        }
+                    }
+                },
+            );
         });
     }
 
@@ -1317,39 +1018,63 @@ impl Gallery {
             ui.separator();
             ui.row(|ui| {
                 let label = ui.label("Show section below:");
-                self.toggle_entity = ui.toggle(true);
+                ui.toggle("toggle_visibility", true);
                 ui.set_flex_grow(label, 1.0);
             });
         });
 
-        self.hidden_section = tree
+        let hidden_section = tree
             .add_node()
             .flow_child(Rl(nalgebra_glm::Vec2::new(100.0, 0.0)))
             .flow(FlowDirection::Vertical, 0.0, 4.0)
             .without_pointer_events()
             .entity();
-        tree.push_parent(self.hidden_section);
+        tree.push_parent(hidden_section);
         tree.add_label("This section is controlled by the toggle above.");
         tree.add_button("I appear and disappear!");
         tree.pop_parent();
+        tree.world_mut().ui_react::<bool, _>(
+            "toggle_visibility",
+            move |val: bool, world: &mut World| {
+                world.ui_set_visible(hidden_section, val);
+            },
+        );
 
         tree.build_ui(tree.current_parent(), |ui| {
             ui.separator();
             ui.label("Checkboxes:");
-            self.checkbox_a = ui.checkbox("Option A", false);
-            self.checkbox_b = ui.checkbox("Option B", true);
-            self.checkbox_c = ui.checkbox("Option C", false);
-            ui.label_with_slot(self.checkbox_label_slot);
+            ui.checkbox("checkbox_a", "Option A", false);
+            ui.checkbox("checkbox_b", "Option B", true);
+            ui.checkbox("checkbox_c", "Option C", false);
+            let checkbox_label = ui.label("A: off  B: on  C: off");
+            for name in ["checkbox_a", "checkbox_b", "checkbox_c"] {
+                ui.react(name, move |_val: bool, world: &mut World| {
+                    let a: bool = world.ui_prop("checkbox_a");
+                    let b: bool = world.ui_prop("checkbox_b");
+                    let c: bool = world.ui_prop("checkbox_c");
+                    let f = |v| if v { "on" } else { "off" };
+                    world.ui_set_text(
+                        checkbox_label,
+                        &format!("A: {}  B: {}  C: {}", f(a), f(b), f(c)),
+                    );
+                });
+            }
             ui.separator();
             ui.label("Radio buttons (group):");
             ui.radio("Small", 0, 0);
             ui.radio("Medium", 0, 1);
             ui.radio("Large", 0, 2);
+            ui.radio_group("size", 0);
+            let mut radio_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Selected:");
-                let value = ui.label_with_slot(self.radio_label_slot);
+                radio_label = ui.label("Small");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(radio_label, 1.0);
+            });
+            ui.react("size", move |val: usize, world: &mut World| {
+                let names = ["Small", "Medium", "Large"];
+                world.ui_set_text(radio_label, names.get(val).unwrap_or(&"?"));
             });
         });
     }
@@ -1359,13 +1084,21 @@ impl Gallery {
             ui.heading("Dropdowns");
             ui.separator();
             ui.label("Fruit selector:");
-            self.dropdown_entity =
-                ui.dropdown(&["Apple", "Banana", "Cherry", "Date", "Elderberry"], 0);
+            ui.dropdown(
+                "dropdown_fruit",
+                &["Apple", "Banana", "Cherry", "Date", "Elderberry"],
+                0,
+            );
+            let mut dropdown_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Selected:");
-                let value = ui.label_with_slot(self.dropdown_label_slot);
+                dropdown_label = ui.label("Apple");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(dropdown_label, 1.0);
+            });
+            ui.react("dropdown_fruit", move |val: usize, world: &mut World| {
+                let names = ["Apple", "Banana", "Cherry", "Date", "Elderberry"];
+                world.ui_set_text(dropdown_label, names.get(val).unwrap_or(&"?"));
             });
         });
     }
@@ -1378,6 +1111,7 @@ impl Gallery {
             {
                 ui.label("Rust:");
                 ui.text_area_with_syntax_and_value(
+                    "",
                     "",
                     8,
                     "rs",
@@ -1399,6 +1133,7 @@ impl Gallery {
                 ui.label("Python:");
                 ui.text_area_with_syntax_and_value(
                     "",
+                    "",
                     8,
                     "py",
                     concat!(
@@ -1417,6 +1152,7 @@ impl Gallery {
                 ui.separator();
                 ui.label("JavaScript:");
                 ui.text_area_with_syntax_and_value(
+                    "",
                     "",
                     8,
                     "js",
@@ -1453,7 +1189,7 @@ impl Gallery {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Tabs");
             ui.separator();
-            self.tab_bar = ui.tab_bar(&["General", "Settings", "Advanced"], 0);
+            ui.tab_bar("tab_bar_main", &["General", "Settings", "Advanced"], 0);
         });
 
         let tab_labels = [
@@ -1461,6 +1197,7 @@ impl Gallery {
             "Adjust settings here.",
             "Advanced configuration options.",
         ];
+        let mut tab_contents = Vec::new();
         for (index, label_text) in tab_labels.iter().enumerate() {
             let container = tree
                 .add_node()
@@ -1487,8 +1224,16 @@ impl Gallery {
                 _ => {}
             }
             tree.pop_parent();
-            self.tab_contents.push(container);
+            tab_contents.push(container);
         }
+        tree.world_mut().ui_react::<usize, _>(
+            "tab_bar_main",
+            move |selected: usize, world: &mut World| {
+                for (index, &content) in tab_contents.iter().enumerate() {
+                    world.ui_set_visible(content, index == selected);
+                }
+            },
+        );
     }
 
     fn build_trees(&mut self, tree: &mut UiTreeBuilder) {
@@ -1497,12 +1242,12 @@ impl Gallery {
             ui.separator();
             ui.label("Selectable list:");
             for index in 0..10 {
-                ui.selectable_label(&format!("Item {}", index + 1), Some(1));
+                ui.selectable_label("", &format!("Item {}", index + 1), Some(1));
             }
             ui.separator();
             ui.label("Tree view (Ctrl+click for multi-select):");
             ui.label("Filter:");
-            self.tree_filter_input = ui.text_input("Search nodes...");
+            ui.text_input("tree_filter", "Search nodes...");
         });
 
         let tree_container = tree
@@ -1513,39 +1258,78 @@ impl Gallery {
             .entity();
         tree.push_parent(tree_container);
 
-        self.tree_view = tree.add_tree_view(true);
+        let tree_view = tree.add_tree_view(true);
         let tv_content = tree
             .world_mut()
-            .ui_tree_view_content(self.tree_view)
+            .widget::<UiTreeViewData>(tree_view)
+            .map(|d| d.content_entity)
             .unwrap();
-        let root_a = tree.add_tree_node(self.tree_view, tv_content, "Root A", 0, 0);
-        if let Some(container_a) = tree.world_mut().ui_tree_node_children(root_a) {
-            let child_1 = tree.add_tree_node(self.tree_view, container_a, "Child A.1", 1, 1);
-            if let Some(sub) = tree.world_mut().ui_tree_node_children(child_1) {
-                tree.add_tree_node(self.tree_view, sub, "Leaf A.1.1", 2, 2);
-                tree.add_tree_node(self.tree_view, sub, "Leaf A.1.2", 2, 3);
+        let root_a = tree.add_tree_node(tree_view, tv_content, "Root A", 0, 0);
+        if let Some(container_a) = tree
+            .world_mut()
+            .widget::<UiTreeNodeData>(root_a)
+            .map(|d| d.children_container)
+        {
+            let child_1 = tree.add_tree_node(tree_view, container_a, "Child A.1", 1, 1);
+            if let Some(sub) = tree
+                .world_mut()
+                .widget::<UiTreeNodeData>(child_1)
+                .map(|d| d.children_container)
+            {
+                tree.add_tree_node(tree_view, sub, "Leaf A.1.1", 2, 2);
+                tree.add_tree_node(tree_view, sub, "Leaf A.1.2", 2, 3);
             }
-            tree.add_tree_node(self.tree_view, container_a, "Child A.2", 1, 4);
+            tree.add_tree_node(tree_view, container_a, "Child A.2", 1, 4);
         }
-        let root_b = tree.add_tree_node(self.tree_view, tv_content, "Root B", 0, 5);
-        if let Some(container_b) = tree.world_mut().ui_tree_node_children(root_b) {
-            tree.add_tree_node(self.tree_view, container_b, "Child B.1", 1, 6);
-            tree.add_tree_node(self.tree_view, container_b, "Child B.2", 1, 7);
+        let root_b = tree.add_tree_node(tree_view, tv_content, "Root B", 0, 5);
+        if let Some(container_b) = tree
+            .world_mut()
+            .widget::<UiTreeNodeData>(root_b)
+            .map(|d| d.children_container)
+        {
+            tree.add_tree_node(tree_view, container_b, "Child B.1", 1, 6);
+            tree.add_tree_node(tree_view, container_b, "Child B.2", 1, 7);
         }
-        tree.add_tree_node(self.tree_view, tv_content, "Root C", 0, 8);
+        tree.add_tree_node(tree_view, tv_content, "Root C", 0, 8);
 
         tree.pop_parent();
 
+        tree.world_mut().ui_react::<String, _>(
+            "tree_filter",
+            move |val: String, world: &mut World| {
+                world.ui_tree_view_set_filter(tree_view, &val);
+            },
+        );
+
+        let mut tree_selection_label = Entity::default();
         tree.build_ui(tree.current_parent(), |ui| {
             ui.row(|ui| {
                 let label = ui.label("Selection:");
-                let value = ui.label_with_slot(self.tree_selection_label_slot);
+                tree_selection_label = ui.label("(none)");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(tree_selection_label, 1.0);
             });
             ui.separator();
             ui.label("Virtual list (10,000 items):");
         });
+
+        tree.world_mut().ui_react_tree_selected(
+            tree_view,
+            move |_node: Entity, world: &mut World| {
+                let selected_count = world
+                    .widget::<UiTreeViewData>(tree_view)
+                    .map(|d| d.selected_nodes.len())
+                    .unwrap_or(0);
+                if selected_count == 0 {
+                    world.ui_set_text(tree_selection_label, "(none)");
+                } else {
+                    world.ui_set_text(
+                        tree_selection_label,
+                        &format!("{selected_count} node(s) selected"),
+                    );
+                }
+            },
+        );
 
         self.virtual_list = tree.add_virtual_list(24.0, 30);
         tree.world_mut()
@@ -1554,7 +1338,12 @@ impl Gallery {
         for pool_index in 0..30 {
             if let Some(container) = tree
                 .world_mut()
-                .ui_virtual_list_item_entity(self.virtual_list, pool_index)
+                .widget::<UiVirtualListData>(self.virtual_list)
+                .and_then(|d| {
+                    d.pool_items
+                        .get(pool_index)
+                        .map(|item| item.container_entity)
+                })
             {
                 tree.push_parent(container);
                 tree.add_label("");
@@ -1595,10 +1384,19 @@ impl Gallery {
         );
         tree.pop_parent();
 
+        let grid_small = self.grid_small;
         tree.build_ui(tree.current_parent(), |ui| {
             ui.separator();
             ui.label("Filtering (toggle to show only even rows):");
-            self.grid_filter_toggle = ui.toggle(false);
+            ui.toggle("grid_filter", false);
+            ui.react("grid_filter", move |val: bool, world: &mut World| {
+                if val {
+                    let even_rows: Vec<usize> = (0..50).filter(|row| row % 2 == 0).collect();
+                    world.ui_data_grid_set_filter(grid_small, &even_rows);
+                } else {
+                    world.ui_data_grid_clear_filter(grid_small);
+                }
+            });
         });
 
         tree.add_label("100,000-row grid (virtual scrolling):");
@@ -1662,38 +1460,41 @@ impl Gallery {
             ui.scroll_area(nalgebra_glm::Vec2::new(300.0, 200.0), |ui| {
                 ui.heading("Inside scroll");
                 ui.button("A button");
-                ui.slider(0.0, 100.0, 50.0);
-                ui.toggle(false);
-                ui.checkbox("Check me", false);
+                ui.slider("", 0.0, 100.0, 50.0);
+                ui.toggle("", false);
+                ui.checkbox("", "Check me", false);
                 for index in 0..10 {
                     ui.label(&format!("More content {}", index + 1));
                 }
             });
             ui.separator();
             ui.label("Scroll snapping (30px intervals):");
-            self.snap_scroll = ui.scroll_area(nalgebra_glm::Vec2::new(300.0, 120.0), |ui| {
+            let snap_scroll = ui.scroll_area(nalgebra_glm::Vec2::new(300.0, 120.0), |ui| {
                 for index in 0..20 {
                     ui.label(&format!("Snap item {}", index + 1));
                 }
             });
             ui.world_mut()
-                .ui_scroll_area_set_snap(self.snap_scroll, Some(30.0));
+                .ui_scroll_area_set_snap(snap_scroll, Some(30.0));
         });
     }
 
-    fn build_modals(&mut self, tree: &mut UiTreeBuilder) {
+    fn build_modals(&self, tree: &mut UiTreeBuilder) -> (Entity, Entity) {
+        let mut confirm_trigger = Entity::default();
+        let mut modal_trigger = Entity::default();
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Modals & Dialogs");
             ui.separator();
-            self.confirm_trigger = ui.button("Open Confirm Dialog");
+            confirm_trigger = ui.button("Open Confirm Dialog");
             ui.label("Shows a toast on confirm or cancel.");
             ui.separator();
-            self.modal_trigger = ui.button("Open Custom Modal");
+            modal_trigger = ui.button("Open Custom Modal");
             ui.label("A modal with embedded slider and text input.");
             ui.separator();
             ui.label("Right-click anywhere for context menu with nested submenus.");
             ui.label("Context menu actions show a toast.");
         });
+        (confirm_trigger, modal_trigger)
     }
 
     fn build_toasts(&mut self, tree: &mut UiTreeBuilder) {
@@ -1701,14 +1502,30 @@ impl Gallery {
             ui.heading("Toasts");
             ui.separator();
             ui.label("Click to trigger toast notifications:");
-            self.toast_info_btn =
+            let info_btn =
                 ui.button_colored("Info Toast", nalgebra_glm::Vec4::new(0.3, 0.6, 1.0, 1.0));
-            self.toast_success_btn =
+            ui.react_clicked(info_btn, |world: &mut World| {
+                world.ui_show_toast(
+                    "This is an informational message.",
+                    ToastSeverity::Info,
+                    3.0,
+                );
+            });
+            let success_btn =
                 ui.button_colored("Success Toast", nalgebra_glm::Vec4::new(0.2, 0.8, 0.3, 1.0));
-            self.toast_warning_btn =
+            ui.react_clicked(success_btn, |world: &mut World| {
+                world.ui_show_toast("Operation completed!", ToastSeverity::Success, 3.0);
+            });
+            let warning_btn =
                 ui.button_colored("Warning Toast", nalgebra_glm::Vec4::new(1.0, 0.7, 0.1, 1.0));
-            self.toast_error_btn =
+            ui.react_clicked(warning_btn, |world: &mut World| {
+                world.ui_show_toast("Warning: check your settings.", ToastSeverity::Warning, 3.0);
+            });
+            let error_btn =
                 ui.button_colored("Error Toast", nalgebra_glm::Vec4::new(1.0, 0.25, 0.25, 1.0));
+            ui.react_clicked(error_btn, |world: &mut World| {
+                world.ui_show_toast("Something went wrong.", ToastSeverity::Error, 3.0);
+            });
             ui.separator();
             ui.label("Toasts also appear from modals and context menus.");
         });
@@ -1781,25 +1598,44 @@ impl Gallery {
             self.vec3_editor = ui.composite::<Vec3Editor>();
             ui.row(|ui| {
                 let label = ui.label("Value:");
-                let value = ui.label_with_slot(self.vec3_label_slot);
+                self.vec3_label = ui.label("(0.00, 0.00, 0.00)");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(self.vec3_label, 1.0);
             });
             ui.separator();
             ui.label("ClickCounter (custom interact — press any key):");
-            self.counter_composite = ui.composite::<ClickCounter>();
+            ui.composite::<ClickCounter>();
         });
     }
 
     fn build_animations(&mut self, tree: &mut UiTreeBuilder) {
-        tree.build_ui(tree.current_parent(), |ui| {
-            ui.heading("Animations");
-            ui.separator();
-            self.anim_trigger = ui.button("Toggle Animated Widgets");
-            ui.spacing(8.0);
-        });
+        let anim_visible = std::rc::Rc::new(std::cell::Cell::new(true));
+        let fade_ref = std::rc::Rc::new(std::cell::Cell::new(Entity::default()));
+        let slide_ref = std::rc::Rc::new(std::cell::Cell::new(Entity::default()));
+        let scale_ref = std::rc::Rc::new(std::cell::Cell::new(Entity::default()));
 
-        self.anim_fade = tree
+        {
+            let anim_visible = anim_visible.clone();
+            let fade_ref = fade_ref.clone();
+            let slide_ref = slide_ref.clone();
+            let scale_ref = scale_ref.clone();
+            tree.build_ui(tree.current_parent(), |ui| {
+                ui.heading("Animations");
+                ui.separator();
+                let anim_trigger = ui.button("Toggle Animated Widgets");
+                ui.spacing(8.0);
+
+                ui.react_clicked(anim_trigger, move |world: &mut World| {
+                    let visible = !anim_visible.get();
+                    anim_visible.set(visible);
+                    world.ui_set_visible(fade_ref.get(), visible);
+                    world.ui_set_visible(slide_ref.get(), visible);
+                    world.ui_set_visible(scale_ref.get(), visible);
+                });
+            });
+        }
+
+        let anim_fade = tree
             .add_node()
             .flow_child(Rl(nalgebra_glm::Vec2::new(100.0, 0.0)))
             .flow(FlowDirection::Vertical, 0.0, 4.0)
@@ -1807,12 +1643,13 @@ impl Gallery {
             .with_intro(UiAnimationType::Fade, 0.4)
             .with_outro(UiAnimationType::Fade, 0.3)
             .entity();
-        tree.push_parent(self.anim_fade);
+        tree.push_parent(anim_fade);
         tree.add_label("Fade animation");
         tree.add_button("Fades in and out");
         tree.pop_parent();
+        fade_ref.set(anim_fade);
 
-        self.anim_slide = tree
+        let anim_slide = tree
             .add_node()
             .flow_child(Rl(nalgebra_glm::Vec2::new(100.0, 0.0)))
             .flow(FlowDirection::Vertical, 0.0, 4.0)
@@ -1820,12 +1657,13 @@ impl Gallery {
             .with_intro(UiAnimationType::SlideLeft, 0.5)
             .with_outro(UiAnimationType::SlideRight, 0.3)
             .entity();
-        tree.push_parent(self.anim_slide);
+        tree.push_parent(anim_slide);
         tree.add_label("Slide animation");
         tree.add_button("Slides in from the left");
         tree.pop_parent();
+        slide_ref.set(anim_slide);
 
-        self.anim_scale = tree
+        let anim_scale = tree
             .add_node()
             .flow_child(Rl(nalgebra_glm::Vec2::new(100.0, 0.0)))
             .flow(FlowDirection::Vertical, 0.0, 4.0)
@@ -1833,10 +1671,11 @@ impl Gallery {
             .with_intro(UiAnimationType::Scale, 0.4)
             .with_outro(UiAnimationType::Scale, 0.3)
             .entity();
-        tree.push_parent(self.anim_scale);
+        tree.push_parent(anim_scale);
         tree.add_label("Scale animation");
         tree.add_button("Scales in and out");
         tree.pop_parent();
+        scale_ref.set(anim_scale);
     }
 
     fn build_layout(&mut self, tree: &mut UiTreeBuilder) {
@@ -1880,13 +1719,13 @@ impl Gallery {
             });
             ui.separator();
             ui.label("Collapsing sections:");
-            ui.collapsing_header("Open by default", true, |ui| {
+            ui.collapsing_header("", "Open by default", true, |ui| {
                 ui.label("Content inside collapsing header.");
-                ui.slider(0.0, 100.0, 50.0);
+                ui.slider("", 0.0, 100.0, 50.0);
             });
-            ui.collapsing_header("Closed by default", false, |ui| {
+            ui.collapsing_header("", "Closed by default", false, |ui| {
                 ui.label("Hidden content revealed on click.");
-                ui.toggle(false);
+                ui.toggle("", false);
             });
 
             ui.separator();
@@ -1942,12 +1781,12 @@ impl Gallery {
 
             ui.separator();
             ui.label("Responsive layout (horizontal -> vertical below 400px):");
-            self.responsive_row = ui.tree().add_node()
+            let responsive_row = ui.tree().add_node()
                 .flow_child(Rl(nalgebra_glm::Vec2::new(100.0, 0.0)))
                 .flow(FlowDirection::Horizontal, 4.0, 4.0)
                 .with_responsive_flow(400.0, FlowDirection::Vertical)
                 .entity();
-            ui.tree().push_parent(self.responsive_row);
+            ui.tree().push_parent(responsive_row);
             for label in &["Alpha", "Beta", "Gamma"] {
                 let item = ui.tree().add_node()
                     .flow_child(Ab(nalgebra_glm::Vec2::new(0.0, 28.0)))
@@ -1974,8 +1813,7 @@ impl Gallery {
         let auto_grid_container = tree
             .add_node()
             .flow_child(
-                Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
-                    + Ab(nalgebra_glm::Vec2::new(0.0, 200.0)),
+                Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(0.0, 200.0)),
             )
             .auto_grid(100.0, 40.0, 4.0)
             .entity();
@@ -1988,8 +1826,24 @@ impl Gallery {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.separator();
             ui.label("Layout introspection:");
-            self.introspection_target = ui.button("Measure me");
-            self.introspection_label = ui.label("(click to measure)");
+            let introspection_target = ui.button("Measure me");
+            let introspection_label = ui.label("(click to measure)");
+            ui.react_clicked(introspection_target, move |world: &mut World| {
+                if let Some(rect) = world.ui_rect(introspection_target) {
+                    world.ui_set_label_text(
+                        introspection_label,
+                        &format!(
+                            "Rect: ({:.0}, {:.0}) - ({:.0}, {:.0}) = {:.0}x{:.0}",
+                            rect.min.x,
+                            rect.min.y,
+                            rect.max.x,
+                            rect.max.y,
+                            rect.width(),
+                            rect.height(),
+                        ),
+                    );
+                }
+            });
         });
     }
 
@@ -2001,23 +1855,26 @@ impl Gallery {
             ui.separator();
             ui.label("Preview widgets:");
             ui.button("Sample Button");
-            ui.slider(0.0, 1.0, 0.5);
-            ui.toggle(true);
-            ui.checkbox("Sample Checkbox", true);
-            ui.text_input("Sample input...");
-            ui.progress_bar(0.65);
+            ui.slider("", 0.0, 1.0, 0.5);
+            ui.toggle("", true);
+            ui.checkbox("", "Sample Checkbox", true);
+            ui.text_input("", "Sample input...");
+            ui.progress_bar("", 0.65);
         });
     }
 
-    fn build_command_palette(&mut self, tree: &mut UiTreeBuilder) {
+    fn build_command_palette(&self, tree: &mut UiTreeBuilder) -> (Entity, Entity) {
+        let mut trigger = Entity::default();
+        let mut log_label = Entity::default();
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Command Palette");
             ui.separator();
             ui.label("Press Ctrl+P or click below to open:");
-            self.command_palette_trigger = ui.button("Open Command Palette");
+            trigger = ui.button("Open Command Palette");
             ui.label("Last executed:");
-            ui.label_with_slot(self.command_palette_log_slot);
+            log_label = ui.label("Press Ctrl+P or click button");
         });
+        (trigger, log_label)
     }
 
     fn build_canvas(&mut self, tree: &mut UiTreeBuilder) {
@@ -2026,6 +1883,20 @@ impl Gallery {
             ui.separator();
             ui.label("2D drawing surface with shapes, bezier curves, and animated sine wave:");
             self.canvas_entity = ui.canvas(nalgebra_glm::Vec2::new(470.0, 300.0));
+            ui.separator();
+            ui.label("Interactive compass with auto-spin and manual angle control:");
+            ui.scope("canvas", |ui| {
+                ui.checkbox("compass_auto_spin", "Auto-spin", true);
+                let slider_entity = ui.slider("compass_angle", 0.0, 360.0, 0.0);
+                ui.world_mut().ui_set_disabled(slider_entity, true);
+                ui.react(
+                    "compass_auto_spin",
+                    move |auto_spin: bool, world: &mut World| {
+                        world.ui_set_disabled(slider_entity, auto_spin);
+                    },
+                );
+                self.compass_canvas_entity = ui.canvas(nalgebra_glm::Vec2::new(200.0, 200.0));
+            });
         });
     }
 
@@ -2034,23 +1905,46 @@ impl Gallery {
             ui.heading("Color Picker");
             ui.separator();
             ui.label("RGBA color picker:");
-            self.color_picker_entity =
-                ui.color_picker(nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0));
+            ui.color_picker(
+                "color_picker_rgba",
+                nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0),
+            );
+            let mut color_swatch_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Value:");
-                let value = ui.label_with_slot(self.color_swatch_label_slot);
+                color_swatch_label = ui.label("(1.00, 1.00, 1.00, 1.00)");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(color_swatch_label, 1.0);
             });
+            ui.react(
+                "color_picker_rgba",
+                move |val: nalgebra_glm::Vec4, world: &mut World| {
+                    world.ui_set_text(
+                        color_swatch_label,
+                        &format!("({:.2}, {:.2}, {:.2}, {:.2})", val.x, val.y, val.z, val.w),
+                    );
+                },
+            );
             ui.separator();
             ui.label("HSV color picker:");
-            self.hsv_picker_entity = ui.color_picker_hsv(self.hsv_picker_val);
+            let hsv_initial = nalgebra_glm::Vec4::new(0.8, 0.4, 0.2, 1.0);
+            ui.color_picker_hsv("color_picker_hsv", hsv_initial);
+            let mut hsv_swatch_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Value:");
-                let value = ui.label_with_slot(self.hsv_swatch_label_slot);
+                hsv_swatch_label = ui.label("(0.80, 0.40, 0.20, 1.00)");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(hsv_swatch_label, 1.0);
             });
+            ui.react(
+                "color_picker_hsv",
+                move |val: nalgebra_glm::Vec4, world: &mut World| {
+                    world.ui_set_text(
+                        hsv_swatch_label,
+                        &format!("({:.2}, {:.2}, {:.2}, {:.2})", val.x, val.y, val.z, val.w),
+                    );
+                },
+            );
         });
     }
 
@@ -2061,8 +1955,8 @@ impl Gallery {
             ui.label("A labeled two-column property grid:");
         });
 
-        self.prop_grid_entity = tree.add_property_grid(120.0);
-        let grid = self.prop_grid_entity;
+        let prop_grid_entity = tree.add_property_grid(120.0);
+        let grid = prop_grid_entity;
         let parent = tree.current_parent();
 
         let name_area = tree.add_property_row(grid, parent, "Name");
@@ -2111,59 +2005,61 @@ impl Gallery {
             ui.label("Convenience methods (add_property_*):");
         });
 
-        self.prop_grid_conv = tree.add_property_grid(130.0);
-        let conv_grid = self.prop_grid_conv;
+        let conv_grid = tree.add_property_grid(130.0);
         let conv_parent = tree.current_parent();
-        self.prop_conv_slider =
-            tree.add_property_slider(conv_grid, conv_parent, "Opacity", 0.0, 1.0, 0.8);
-        self.prop_conv_toggle =
-            tree.add_property_toggle(conv_grid, conv_parent, "Enabled", true);
-        self.prop_conv_text =
-            tree.add_property_text_input(conv_grid, conv_parent, "Label", "Enter text...");
-        self.prop_conv_dropdown = tree.add_property_dropdown(
+        tree.add_property_slider(conv_grid, conv_parent, "Opacity", 0.0, 1.0, 0.8);
+        tree.add_property_toggle(conv_grid, conv_parent, "Enabled", true);
+        tree.add_property_text_input(conv_grid, conv_parent, "Label", "Enter text...");
+        tree.add_property_dropdown(
             conv_grid,
             conv_parent,
             "Mode",
             &["Auto", "Manual", "Custom"],
             0,
         );
-        self.prop_conv_checkbox =
-            tree.add_property_checkbox(conv_grid, conv_parent, "Visible", true);
-        self.prop_conv_drag =
-            tree.add_property_drag_value(conv_grid, conv_parent, "Offset", -100.0, 100.0, 0.0);
+        tree.add_property_checkbox(conv_grid, conv_parent, "Visible", true);
+        tree.add_property_drag_value(conv_grid, conv_parent, "Offset", -100.0, 100.0, 0.0);
     }
 
-    fn build_menus(&mut self, tree: &mut UiTreeBuilder) {
+    fn build_menus(&self, tree: &mut UiTreeBuilder) {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Menus");
             ui.separator();
             ui.label("Standalone menu (dropdown from a label):");
-            self.menu_entity = ui.menu("File", &["New", "Open", "Save", "Close"]);
+            let menu_entity = ui.menu("File", &["New", "Open", "Save", "Close"]);
+            let mut menu_log_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Last clicked:");
-                let value = ui.label_with_slot(self.menu_log_slot);
+                menu_log_label = ui.label("(none)");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(menu_log_label, 1.0);
+            });
+            ui.react_menu_selected(menu_entity, move |index: usize, world: &mut World| {
+                let items = ["New", "Open", "Save", "Close"];
+                if let Some(&name) = items.get(index) {
+                    world.ui_set_text(menu_log_label, &format!("Clicked: {name}"));
+                }
             });
             ui.separator();
             ui.label("Context menus are shown under 'Modals & Dialogs'.");
         });
     }
 
-    fn build_panels_tiles(&mut self, tree: &mut UiTreeBuilder) {
+    fn build_panels_tiles(&self, tree: &mut UiTreeBuilder) -> Entity {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Panels & Tiles");
             ui.separator();
             ui.label("Floating panel:");
         });
 
-        self.floating_panel =
+        let floating_panel =
             tree.add_floating_panel("Floating Panel", Rect::new(20.0, 40.0, 250.0, 150.0));
-        tree.world_mut().ui_set_visible(self.floating_panel, false);
+        tree.world_mut().ui_set_visible(floating_panel, false);
         let fp_content = tree
             .world_mut()
-            .ui_panel_content(self.floating_panel)
-            .unwrap_or(self.floating_panel);
+            .widget::<UiPanelData>(floating_panel)
+            .map(|d| d.content_entity)
+            .unwrap_or(floating_panel);
         tree.push_parent(fp_content);
         tree.add_label("This panel can be dragged and resized.");
         tree.add_button("A button inside");
@@ -2182,8 +2078,8 @@ impl Gallery {
             )
             .entity();
         tree.push_parent(tile_holder);
-        self.tile_container = tree.add_tile_container(nalgebra_glm::Vec2::new(500.0, 300.0));
-        tree.build_tiles(self.tile_container, |tiles| {
+        let tile_container = tree.add_tile_container(nalgebra_glm::Vec2::new(500.0, 300.0));
+        tree.build_tiles(tile_container, |tiles| {
             if let Some((left_id, left_entity)) = tiles.pane("Left Pane") {
                 tiles.content(left_entity, |tree| {
                     tree.add_label("Left pane content");
@@ -2201,21 +2097,34 @@ impl Gallery {
             }
         });
         tree.pop_parent();
+
+        floating_panel
     }
 
-    fn build_breadcrumbs(&mut self, tree: &mut UiTreeBuilder) {
+    fn build_breadcrumbs(&self, tree: &mut UiTreeBuilder) {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Breadcrumbs");
             ui.separator();
             ui.label("Navigation breadcrumb (click segments to navigate):");
         });
 
-        self.breadcrumb_entity =
+        let breadcrumb_entity =
             tree.add_breadcrumb(&["Home", "Documents", "Projects", "Nightshade"]);
 
+        let mut breadcrumb_log_label = Entity::default();
         tree.build_ui(tree.current_parent(), |ui| {
-            ui.label_with_slot(self.breadcrumb_log_slot);
+            breadcrumb_log_label = ui.label("Click a breadcrumb segment");
         });
+
+        tree.world_mut().ui_react_menu_selected(
+            breadcrumb_entity,
+            move |index: usize, world: &mut World| {
+                let segments = ["Home", "Documents", "Projects", "Nightshade"];
+                if let Some(&name) = segments.get(index) {
+                    world.ui_set_text(breadcrumb_log_label, &format!("Navigated to: {name}"));
+                }
+            },
+        );
     }
 
     fn build_range_sliders(&mut self, tree: &mut UiTreeBuilder) {
@@ -2223,12 +2132,17 @@ impl Gallery {
             ui.heading("Range Sliders");
             ui.separator();
             ui.label("Dual-thumb range slider (0-100):");
-        });
-
-        self.range_slider_entity = tree.add_range_slider(0.0, 100.0, 20.0, 80.0);
-
-        tree.build_ui(tree.current_parent(), |ui| {
-            ui.label_with_slot(self.range_slider_label_slot);
+            ui.range_slider("range_slider", 0.0, 100.0, 20.0, 80.0);
+            let range_slider_label = ui.label("Low: 20.0, High: 80.0");
+            ui.react(
+                "range_slider",
+                move |val: nalgebra_glm::Vec4, world: &mut World| {
+                    world.ui_set_text(
+                        range_slider_label,
+                        &format!("Low: {:.1}, High: {:.1}", val.x, val.y),
+                    );
+                },
+            );
         });
     }
 
@@ -2246,17 +2160,28 @@ impl Gallery {
             )
             .entity();
         tree.push_parent(splitter_holder);
-        self.splitter_entity = tree.add_splitter(SplitDirection::Horizontal, 0.5);
+        let splitter_entity = tree.add_splitter(SplitDirection::Horizontal, 0.5);
         tree.pop_parent();
 
-        if let Some(first) = tree.world_mut().ui_splitter_first_pane(self.splitter_entity) {
+        tree.world_mut()
+            .ui_register_named("splitter", splitter_entity, 0.5f32);
+
+        if let Some(first) = tree
+            .world_mut()
+            .widget::<UiSplitterData>(splitter_entity)
+            .map(|d| d.first_pane)
+        {
             tree.push_parent(first);
             tree.add_label("Left pane");
             tree.add_button("Button A");
             tree.add_slider(0.0, 1.0, 0.5);
             tree.pop_parent();
         }
-        if let Some(second) = tree.world_mut().ui_splitter_second_pane(self.splitter_entity) {
+        if let Some(second) = tree
+            .world_mut()
+            .widget::<UiSplitterData>(splitter_entity)
+            .map(|d| d.second_pane)
+        {
             tree.push_parent(second);
             tree.add_label("Right pane");
             tree.add_toggle(false);
@@ -2265,55 +2190,144 @@ impl Gallery {
         }
 
         tree.build_ui(tree.current_parent(), |ui| {
-            ui.label_with_slot(self.splitter_label_slot);
+            let splitter_label = ui.label("Ratio: 0.50");
+            ui.react("splitter", move |val: f32, world: &mut World| {
+                world.ui_set_text(splitter_label, &format!("Ratio: {val:.2}"));
+            });
         });
     }
 
-    fn build_date_picker(&mut self, tree: &mut UiTreeBuilder) {
+    fn build_date_picker(&self, tree: &mut UiTreeBuilder) {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Date Picker");
             ui.separator();
             ui.label("Select a date:");
-            self.date_picker_entity = ui.date_picker(2026, 2, 28);
+            let date_picker_entity = ui.date_picker(2026, 2, 28);
+            let mut date_picker_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Selected:");
-                let value = ui.label_with_slot(self.date_picker_label_slot);
+                date_picker_label = ui.label("2026-02-28");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(date_picker_label, 1.0);
             });
+            ui.world_mut().ui_react_date_changed(
+                date_picker_entity,
+                move |year: i32, month: u32, day: u32, world: &mut World| {
+                    world.ui_set_text(date_picker_label, &format!("{year:04}-{month:02}-{day:02}"));
+                },
+            );
         });
     }
 
-    fn build_multi_select(&mut self, tree: &mut UiTreeBuilder) {
+    fn build_multi_select(&self, tree: &mut UiTreeBuilder) {
         tree.build_ui(tree.current_parent(), |ui| {
             ui.heading("Multi-Select Dropdown");
             ui.separator();
             ui.label("Pick your favorite languages:");
-            self.multi_select_entity =
-                ui.multi_select(&["Rust", "Python", "TypeScript", "Go", "C++", "Zig", "Haskell"]);
+            let multi_select_entity = ui.multi_select(&[
+                "Rust",
+                "Python",
+                "TypeScript",
+                "Go",
+                "C++",
+                "Zig",
+                "Haskell",
+            ]);
+            let mut multi_select_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Selection:");
-                let value = ui.label_with_slot(self.multi_select_label_slot);
+                multi_select_label = ui.label("None selected");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(multi_select_label, 1.0);
             });
+            ui.world_mut().ui_react_multi_select_changed(
+                multi_select_entity,
+                move |indices: Vec<usize>, world: &mut World| {
+                    let names = [
+                        "Rust",
+                        "Python",
+                        "TypeScript",
+                        "Go",
+                        "C++",
+                        "Zig",
+                        "Haskell",
+                    ];
+                    let display: Vec<&str> = indices
+                        .iter()
+                        .filter_map(|&index| names.get(index).copied())
+                        .collect();
+                    if display.is_empty() {
+                        world.ui_set_text(multi_select_label, "None selected");
+                    } else {
+                        world.ui_set_text(multi_select_label, &display.join(", "));
+                    }
+                },
+            );
             ui.separator();
             ui.label("Searchable dropdown:");
-            self.searchable_dropdown = ui.dropdown_searchable(
-                &[
-                    "Afghanistan", "Argentina", "Australia", "Brazil", "Canada",
-                    "China", "Denmark", "Egypt", "Finland", "France", "Germany",
-                    "India", "Japan", "Mexico", "Norway", "Poland", "Russia",
-                    "Spain", "Sweden", "United Kingdom", "United States",
-                ],
-                0,
-            );
+            let country_options: &[&str] = &[
+                "Afghanistan",
+                "Argentina",
+                "Australia",
+                "Brazil",
+                "Canada",
+                "China",
+                "Denmark",
+                "Egypt",
+                "Finland",
+                "France",
+                "Germany",
+                "India",
+                "Japan",
+                "Mexico",
+                "Norway",
+                "Poland",
+                "Russia",
+                "Spain",
+                "Sweden",
+                "United Kingdom",
+                "United States",
+            ];
+            ui.dropdown_searchable("searchable_country", country_options, 0);
+            let mut searchable_dropdown_label = Entity::default();
             ui.row(|ui| {
                 let label = ui.label("Country:");
-                let value = ui.label_with_slot(self.searchable_dropdown_label_slot);
+                searchable_dropdown_label = ui.label("Afghanistan");
                 ui.set_flex_grow(label, 1.0);
-                ui.set_flex_grow(value, 1.0);
+                ui.set_flex_grow(searchable_dropdown_label, 1.0);
             });
+            ui.react(
+                "searchable_country",
+                move |val: usize, world: &mut World| {
+                    const COUNTRIES: &[&str] = &[
+                        "Afghanistan",
+                        "Argentina",
+                        "Australia",
+                        "Brazil",
+                        "Canada",
+                        "China",
+                        "Denmark",
+                        "Egypt",
+                        "Finland",
+                        "France",
+                        "Germany",
+                        "India",
+                        "Japan",
+                        "Mexico",
+                        "Norway",
+                        "Poland",
+                        "Russia",
+                        "Spain",
+                        "Sweden",
+                        "United Kingdom",
+                        "United States",
+                    ];
+                    world.ui_set_text(
+                        searchable_dropdown_label,
+                        COUNTRIES.get(val).unwrap_or(&"?"),
+                    );
+                },
+            );
         });
     }
 
@@ -2322,10 +2336,10 @@ impl Gallery {
             ui.heading("Tables");
             ui.separator();
             ui.label("Simple table (convenience wrapper):");
-            self.table_entity =
-                ui.table(&["Name", "Score", "Status"], &[200.0, 100.0, 120.0]);
+            self.table_entity = ui.table(&["Name", "Score", "Status"], &[200.0, 100.0, 120.0]);
         });
-        tree.world_mut().ui_data_grid_set_row_count(self.table_entity, 5);
+        tree.world_mut()
+            .ui_data_grid_set_row_count(self.table_entity, 5);
         let items = [
             ("Alice", "95", "Active"),
             ("Bob", "82", "Idle"),
@@ -2334,19 +2348,35 @@ impl Gallery {
             ("Eve", "88", "Active"),
         ];
         for (row, (name, score, status)) in items.iter().enumerate() {
-            tree.world_mut().ui_data_grid_set_cell(self.table_entity, row, 0, name);
-            tree.world_mut().ui_data_grid_set_cell(self.table_entity, row, 1, score);
-            tree.world_mut().ui_data_grid_set_cell(self.table_entity, row, 2, status);
+            tree.world_mut()
+                .ui_data_grid_set_cell(self.table_entity, row, 0, name);
+            tree.world_mut()
+                .ui_data_grid_set_cell(self.table_entity, row, 1, score);
+            tree.world_mut()
+                .ui_data_grid_set_cell(self.table_entity, row, 2, status);
         }
     }
 
     fn update_editable_grid(&self, world: &mut World) {
         let items = ["Widget", "Engine", "Shader", "Texture", "Audio"];
         world.ui_data_grid_set_row_count(self.editable_grid, 5);
-        let range = world.ui_data_grid_visible_range(self.editable_grid);
+        let range = world
+            .widget::<UiDataGridData>(self.editable_grid)
+            .map(|d| {
+                let end = (d.visible_start + d.pool_size).min(d.total_rows);
+                d.visible_start..end
+            })
+            .unwrap_or(0..0);
         for visible_row in range {
             let data_row = world
-                .ui_data_grid_filtered_row(self.editable_grid, visible_row)
+                .widget::<UiDataGridData>(self.editable_grid)
+                .and_then(|d| {
+                    if let Some(indices) = &d.filtered_indices {
+                        indices.get(visible_row).copied()
+                    } else {
+                        Some(visible_row)
+                    }
+                })
                 .unwrap_or(visible_row);
             world.ui_data_grid_set_cell(
                 self.editable_grid,
@@ -2371,7 +2401,13 @@ impl Gallery {
 
     fn update_table(&self, world: &mut World) {
         world.ui_data_grid_set_row_count(self.table_entity, 5);
-        let range = world.ui_data_grid_visible_range(self.table_entity);
+        let range = world
+            .widget::<UiDataGridData>(self.table_entity)
+            .map(|d| {
+                let end = (d.visible_start + d.pool_size).min(d.total_rows);
+                d.visible_start..end
+            })
+            .unwrap_or(0..0);
         let items = [
             ("Alice", "95", "Active"),
             ("Bob", "82", "Idle"),
@@ -2390,14 +2426,27 @@ impl Gallery {
 
     fn update_data_grids(&self, world: &mut World) {
         world.ui_data_grid_set_row_count(self.grid_small, 50);
-        let range_small = world.ui_data_grid_visible_range(self.grid_small);
+        let range_small = world
+            .widget::<UiDataGridData>(self.grid_small)
+            .map(|d| {
+                let end = (d.visible_start + d.pool_size).min(d.total_rows);
+                d.visible_start..end
+            })
+            .unwrap_or(0..0);
         let names = [
             "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta",
         ];
         let statuses = ["Active", "Idle", "Error", "Pending"];
         for visible_row in range_small {
             let data_row = world
-                .ui_data_grid_filtered_row(self.grid_small, visible_row)
+                .widget::<UiDataGridData>(self.grid_small)
+                .and_then(|d| {
+                    if let Some(indices) = &d.filtered_indices {
+                        indices.get(visible_row).copied()
+                    } else {
+                        Some(visible_row)
+                    }
+                })
                 .unwrap_or(visible_row);
             world.ui_data_grid_set_cell(
                 self.grid_small,
@@ -2432,7 +2481,13 @@ impl Gallery {
         }
 
         world.ui_data_grid_set_row_count(self.grid_large, 100_000);
-        let range_large = world.ui_data_grid_visible_range(self.grid_large);
+        let range_large = world
+            .widget::<UiDataGridData>(self.grid_large)
+            .map(|d| {
+                let end = (d.visible_start + d.pool_size).min(d.total_rows);
+                d.visible_start..end
+            })
+            .unwrap_or(0..0);
         for row in range_large {
             world.ui_data_grid_set_cell(self.grid_large, row, 0, &format!("{}", row + 1));
             world.ui_data_grid_set_cell(

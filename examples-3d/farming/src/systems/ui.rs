@@ -38,40 +38,39 @@ pub struct FarmingUi {
     resume_button: Entity,
 
     hud_screen: Entity,
-    day_time_slot: usize,
-    weather_slot: usize,
+    day_time_text: Entity,
+    weather_text: Entity,
     stamina_bar: Entity,
     stamina_bar_fill: Entity,
-    gold_slot: usize,
-    tool_slot: usize,
+    gold_text: Entity,
+    tool_text: Entity,
 
     hotbar_slots: [Entity; HOTBAR_SLOT_COUNT],
-    hotbar_name_slots: [usize; HOTBAR_SLOT_COUNT],
-    hotbar_qty_slots: [usize; HOTBAR_SLOT_COUNT],
+    hotbar_name_texts: [Entity; HOTBAR_SLOT_COUNT],
+    hotbar_qty_texts: [Entity; HOTBAR_SLOT_COUNT],
 
     tree_health_container: Entity,
     tree_health_bar: Entity,
     tree_health_bar_fill: Entity,
 
     shop_screen: Entity,
-    shop_title_slot: usize,
     buy_tab: Entity,
     sell_tab: Entity,
     shop_item_rows: [Entity; SHOP_ITEM_COUNT],
-    shop_item_name_slots: [usize; SHOP_ITEM_COUNT],
-    shop_item_owned_slots: [usize; SHOP_ITEM_COUNT],
-    shop_item_price_slots: [usize; SHOP_ITEM_COUNT],
-    shop_gold_slot: usize,
-    shop_controls_slot: usize,
+    shop_item_name_texts: [Entity; SHOP_ITEM_COUNT],
+    shop_item_owned_texts: [Entity; SHOP_ITEM_COUNT],
+    shop_item_price_texts: [Entity; SHOP_ITEM_COUNT],
+    shop_gold_text: Entity,
+    shop_controls_text: Entity,
 
     dialogue_container: Entity,
     dialogue_header: Entity,
     dialogue_name_entity: Entity,
-    dialogue_name_slot: usize,
-    dialogue_text_slot: usize,
+    dialogue_name_text: Entity,
+    dialogue_text_text: Entity,
 
     hint_container: Entity,
-    hint_slot: usize,
+    hint_text: Entity,
 }
 
 impl Default for FarmingUi {
@@ -86,35 +85,34 @@ impl Default for FarmingUi {
             pause_screen: placeholder,
             resume_button: placeholder,
             hud_screen: placeholder,
-            day_time_slot: 0,
-            weather_slot: 0,
+            day_time_text: placeholder,
+            weather_text: placeholder,
             stamina_bar: placeholder,
             stamina_bar_fill: placeholder,
-            gold_slot: 0,
-            tool_slot: 0,
+            gold_text: placeholder,
+            tool_text: placeholder,
             hotbar_slots: [placeholder; HOTBAR_SLOT_COUNT],
-            hotbar_name_slots: [0; HOTBAR_SLOT_COUNT],
-            hotbar_qty_slots: [0; HOTBAR_SLOT_COUNT],
+            hotbar_name_texts: [placeholder; HOTBAR_SLOT_COUNT],
+            hotbar_qty_texts: [placeholder; HOTBAR_SLOT_COUNT],
             tree_health_container: placeholder,
             tree_health_bar: placeholder,
             tree_health_bar_fill: placeholder,
             shop_screen: placeholder,
-            shop_title_slot: 0,
             buy_tab: placeholder,
             sell_tab: placeholder,
             shop_item_rows: [placeholder; SHOP_ITEM_COUNT],
-            shop_item_name_slots: [0; SHOP_ITEM_COUNT],
-            shop_item_owned_slots: [0; SHOP_ITEM_COUNT],
-            shop_item_price_slots: [0; SHOP_ITEM_COUNT],
-            shop_gold_slot: 0,
-            shop_controls_slot: 0,
+            shop_item_name_texts: [placeholder; SHOP_ITEM_COUNT],
+            shop_item_owned_texts: [placeholder; SHOP_ITEM_COUNT],
+            shop_item_price_texts: [placeholder; SHOP_ITEM_COUNT],
+            shop_gold_text: placeholder,
+            shop_controls_text: placeholder,
             dialogue_container: placeholder,
             dialogue_header: placeholder,
             dialogue_name_entity: placeholder,
-            dialogue_name_slot: 0,
-            dialogue_text_slot: 0,
+            dialogue_name_text: placeholder,
+            dialogue_text_text: placeholder,
             hint_container: placeholder,
-            hint_slot: 0,
+            hint_text: placeholder,
         }
     }
 }
@@ -128,62 +126,6 @@ impl FarmingUi {
         let white = Vec4::new(1.0, 1.0, 1.0, 1.0);
         let green_title = Vec4::new(0.4, 0.8, 0.4, 1.0);
         let gold = Vec4::new(1.0, 0.84, 0.0, 1.0);
-
-        let tc = &mut world.resources.text_cache;
-
-        let menu_title_slot = tc.add_text("MEADOW FIELDS");
-        let menu_subtitle_slot = tc.add_text("A Farming Simulation Game");
-        let menu_hint_slot = tc.add_text("Press Enter or click START to begin");
-        let pause_title_slot = tc.add_text("PAUSED");
-        let pause_hint_slot = tc.add_text("Press ESC to resume");
-
-        let day_time_slot = tc.add_text("Day 1 - Spring - 6:00 AM");
-        let weather_slot = tc.add_text("Weather: Sunny");
-        let stamina_label_slot = tc.add_text("Stamina:");
-        let gold_slot = tc.add_text("Gold: 500 G");
-        let tool_slot = tc.add_text("Tool: Hand");
-
-        let mut hotbar_name_slots = [0usize; HOTBAR_SLOT_COUNT];
-        let mut hotbar_qty_slots = [0usize; HOTBAR_SLOT_COUNT];
-        let hotbar_key_slots: [usize; HOTBAR_SLOT_COUNT] = std::array::from_fn(|index| {
-            let label = if index < 9 {
-                format!("{}", index + 1)
-            } else {
-                "0".to_string()
-            };
-            tc.add_text(label)
-        });
-        for slot in &mut hotbar_name_slots {
-            *slot = tc.add_text("");
-        }
-        for slot in &mut hotbar_qty_slots {
-            *slot = tc.add_text("");
-        }
-
-        let shop_title_slot = tc.add_text(format!("{}'s Shop", get_shop_keeper_name()));
-        let buy_tab_slot = tc.add_text("BUY");
-        let sell_tab_slot = tc.add_text("SELL");
-        let mut shop_item_name_slots = [0usize; SHOP_ITEM_COUNT];
-        let mut shop_item_owned_slots = [0usize; SHOP_ITEM_COUNT];
-        let mut shop_item_price_slots = [0usize; SHOP_ITEM_COUNT];
-        for slot in &mut shop_item_name_slots {
-            *slot = tc.add_text("");
-        }
-        for slot in &mut shop_item_owned_slots {
-            *slot = tc.add_text("");
-        }
-        for slot in &mut shop_item_price_slots {
-            *slot = tc.add_text("");
-        }
-        let shop_gold_slot = tc.add_text("Your Gold: 0 G");
-        let shop_controls_slot = tc.add_text("[W/S] Select  [E] Buy  [Q] Switch Tab  [ESC] Close");
-
-        let dialogue_name_slot = tc.add_text("");
-        let dialogue_text_slot = tc.add_text("");
-        let dialogue_continue_slot = tc.add_text("[Press E to continue]");
-
-        let hint_slot = tc.add_text("");
-        let tree_label_slot = tc.add_text("Tree");
 
         let mut tree = UiTreeBuilder::new(world);
         let placeholder = Entity {
@@ -212,7 +154,7 @@ impl FarmingUi {
                             .flow_child(
                                 Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, title_font * 1.5)),
                             )
-                            .with_text_slot(menu_title_slot, title_font)
+                            .with_text("MEADOW FIELDS", title_font)
                             .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                             .with_color::<UiBase>(green_title)
                             .without_pointer_events()
@@ -224,7 +166,7 @@ impl FarmingUi {
                             .flow_child(
                                 Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
                             )
-                            .with_text_slot(menu_subtitle_slot, font_size)
+                            .with_text("A Farming Simulation Game", font_size)
                             .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                             .with_color::<UiBase>(dim_text)
                             .without_pointer_events()
@@ -252,7 +194,7 @@ impl FarmingUi {
                             .flow_child(
                                 Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
                             )
-                            .with_text_slot(menu_hint_slot, font_size)
+                            .with_text("Press Enter or click START to begin", font_size)
                             .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                             .with_color::<UiBase>(Vec4::new(0.59, 0.59, 0.59, 1.0))
                             .without_pointer_events()
@@ -285,7 +227,7 @@ impl FarmingUi {
                             .flow_child(
                                 Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, title_font * 1.5)),
                             )
-                            .with_text_slot(pause_title_slot, title_font)
+                            .with_text("PAUSED", title_font)
                             .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                             .with_color::<UiBase>(white)
                             .without_pointer_events()
@@ -302,7 +244,7 @@ impl FarmingUi {
                             .flow_child(
                                 Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)),
                             )
-                            .with_text_slot(pause_hint_slot, font_size)
+                            .with_text("Press ESC to resume", font_size)
                             .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                             .with_color::<UiBase>(dim_text)
                             .without_pointer_events()
@@ -323,6 +265,10 @@ impl FarmingUi {
                 let bar_width = 150.0;
 
                 let mut stamina_bar = placeholder;
+                let mut day_time_text = placeholder;
+                let mut weather_text = placeholder;
+                let mut gold_text = placeholder;
+                let mut tool_text = placeholder;
                 tree.add_node()
                     .window(
                         Ab(Vec2::new(10.0, 10.0)),
@@ -341,12 +287,13 @@ impl FarmingUi {
                             .flow(FlowDirection::Vertical, 0.0, 5.0)
                             .auto_size(AutoSizeMode::Height)
                             .with_children(|tree| {
-                                tree.add_node()
+                                day_time_text = tree
+                                    .add_node()
                                     .flow_child(
                                         Rl(Vec2::new(100.0, 0.0))
                                             + Ab(Vec2::new(0.0, font_size * 1.5)),
                                     )
-                                    .with_text_slot(day_time_slot, font_size)
+                                    .with_text("Day 1 - Spring - 6:00 AM", font_size)
                                     .with_text_alignment(
                                         TextAlignment::Left,
                                         VerticalAlignment::Middle,
@@ -355,12 +302,13 @@ impl FarmingUi {
                                     .without_pointer_events()
                                     .done();
 
-                                tree.add_node()
+                                weather_text = tree
+                                    .add_node()
                                     .flow_child(
                                         Rl(Vec2::new(100.0, 0.0))
                                             + Ab(Vec2::new(0.0, font_size * 1.5)),
                                     )
-                                    .with_text_slot(weather_slot, font_size)
+                                    .with_text("Weather: Sunny", font_size)
                                     .with_text_alignment(
                                         TextAlignment::Left,
                                         VerticalAlignment::Middle,
@@ -378,7 +326,7 @@ impl FarmingUi {
                                     .with_children(|tree| {
                                         tree.add_node()
                                             .flow_child(Ab(Vec2::new(60.0, bar_height + 6.0)))
-                                            .with_text_slot(stamina_label_slot, small_font)
+                                            .with_text("Stamina:", small_font)
                                             .with_text_alignment(
                                                 TextAlignment::Left,
                                                 VerticalAlignment::Middle,
@@ -397,12 +345,13 @@ impl FarmingUi {
                                     })
                                     .done();
 
-                                tree.add_node()
+                                gold_text = tree
+                                    .add_node()
                                     .flow_child(
                                         Rl(Vec2::new(100.0, 0.0))
                                             + Ab(Vec2::new(0.0, font_size * 1.5)),
                                     )
-                                    .with_text_slot(gold_slot, font_size)
+                                    .with_text("Gold: 500 G", font_size)
                                     .with_text_alignment(
                                         TextAlignment::Left,
                                         VerticalAlignment::Middle,
@@ -411,12 +360,13 @@ impl FarmingUi {
                                     .without_pointer_events()
                                     .done();
 
-                                tree.add_node()
+                                tool_text = tree
+                                    .add_node()
                                     .flow_child(
                                         Rl(Vec2::new(100.0, 0.0))
                                             + Ab(Vec2::new(0.0, font_size * 1.5)),
                                     )
-                                    .with_text_slot(tool_slot, font_size)
+                                    .with_text("Tool: Hand", font_size)
                                     .with_text_alignment(
                                         TextAlignment::Left,
                                         VerticalAlignment::Middle,
@@ -430,6 +380,10 @@ impl FarmingUi {
                     .done();
 
                 self.stamina_bar = stamina_bar;
+                self.day_time_text = day_time_text;
+                self.weather_text = weather_text;
+                self.gold_text = gold_text;
+                self.tool_text = tool_text;
                 if let Some(UiWidgetState::ProgressBar(data)) =
                     tree.world_mut().get_ui_widget_state(stamina_bar)
                 {
@@ -442,6 +396,8 @@ impl FarmingUi {
                     HOTBAR_SLOT_COUNT as f32 * (slot_size + slot_spacing) - slot_spacing;
 
                 let mut hotbar_slots = [placeholder; HOTBAR_SLOT_COUNT];
+                let mut hotbar_name_texts = [placeholder; HOTBAR_SLOT_COUNT];
+                let mut hotbar_qty_texts = [placeholder; HOTBAR_SLOT_COUNT];
                 tree.add_node()
                     .window(
                         Rl(Vec2::new(50.0, 100.0)) + Ab(Vec2::new(0.0, -20.0 - slot_size)),
@@ -460,6 +416,11 @@ impl FarmingUi {
                             .flow(FlowDirection::Horizontal, 0.0, slot_spacing)
                             .with_children(|tree| {
                                 for index in 0..HOTBAR_SLOT_COUNT {
+                                    let key_label = if index < 9 {
+                                        format!("{}", index + 1)
+                                    } else {
+                                        "0".to_string()
+                                    };
                                     hotbar_slots[index] = tree
                                         .add_node()
                                         .flow_child(Ab(Vec2::new(slot_size, slot_size)))
@@ -475,7 +436,7 @@ impl FarmingUi {
                                                         small_font * 1.2,
                                                     )),
                                                 )
-                                                .with_text_slot(hotbar_key_slots[index], small_font)
+                                                .with_text(&key_label, small_font)
                                                 .with_text_alignment(
                                                     TextAlignment::Left,
                                                     VerticalAlignment::Top,
@@ -484,7 +445,8 @@ impl FarmingUi {
                                                 .without_pointer_events()
                                                 .done();
 
-                                            tree.add_node()
+                                            hotbar_name_texts[index] = tree
+                                                .add_node()
                                                 .boundary(
                                                     Ab(Vec2::new(3.0, 16.0)),
                                                     Ab(Vec2::new(
@@ -492,10 +454,7 @@ impl FarmingUi {
                                                         small_font * 1.2,
                                                     )),
                                                 )
-                                                .with_text_slot(
-                                                    hotbar_name_slots[index],
-                                                    small_font,
-                                                )
+                                                .with_text("", small_font)
                                                 .with_text_alignment(
                                                     TextAlignment::Left,
                                                     VerticalAlignment::Top,
@@ -504,7 +463,8 @@ impl FarmingUi {
                                                 .without_pointer_events()
                                                 .done();
 
-                                            tree.add_node()
+                                            hotbar_qty_texts[index] = tree
+                                                .add_node()
                                                 .boundary(
                                                     Ab(Vec2::new(3.0, 32.0)),
                                                     Ab(Vec2::new(
@@ -512,7 +472,7 @@ impl FarmingUi {
                                                         small_font * 1.2,
                                                     )),
                                                 )
-                                                .with_text_slot(hotbar_qty_slots[index], small_font)
+                                                .with_text("", small_font)
                                                 .with_text_alignment(
                                                     TextAlignment::Left,
                                                     VerticalAlignment::Top,
@@ -529,6 +489,8 @@ impl FarmingUi {
                     .done();
 
                 self.hotbar_slots = hotbar_slots;
+                self.hotbar_name_texts = hotbar_name_texts;
+                self.hotbar_qty_texts = hotbar_qty_texts;
             })
             .done();
 
@@ -561,7 +523,7 @@ impl FarmingUi {
 
                 tree.add_node()
                     .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)))
-                    .with_text_slot(tree_label_slot, font_size)
+                    .with_text("Tree", font_size)
                     .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                     .with_color::<UiBase>(Vec4::new(0.8, 0.6, 0.4, 1.0))
                     .without_pointer_events()
@@ -581,6 +543,11 @@ impl FarmingUi {
         let mut buy_tab = placeholder;
         let mut sell_tab = placeholder;
         let mut shop_item_rows = [placeholder; SHOP_ITEM_COUNT];
+        let mut shop_item_name_texts = [placeholder; SHOP_ITEM_COUNT];
+        let mut shop_item_owned_texts = [placeholder; SHOP_ITEM_COUNT];
+        let mut shop_item_price_texts = [placeholder; SHOP_ITEM_COUNT];
+        let mut shop_gold_text = placeholder;
+        let mut shop_controls_text = placeholder;
 
         self.shop_screen = tree
             .add_node()
@@ -605,7 +572,7 @@ impl FarmingUi {
                                 Ab(Vec2::new(15.0, 10.0)),
                                 Ab(Vec2::new(panel_width - 30.0, 20.0)),
                             )
-                            .with_text_slot(shop_title_slot, font_size)
+                            .with_text(&format!("{}'s Shop", get_shop_keeper_name()), font_size)
                             .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
                             .with_color::<UiBase>(white)
                             .without_pointer_events()
@@ -623,7 +590,7 @@ impl FarmingUi {
                     .with_children(|tree| {
                         tree.add_node()
                             .boundary(Ab(Vec2::new(0.0, 5.0)), Ab(Vec2::new(tab_width, 20.0)))
-                            .with_text_slot(buy_tab_slot, font_size)
+                            .with_text("BUY", font_size)
                             .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                             .with_color::<UiBase>(white)
                             .without_pointer_events()
@@ -643,7 +610,7 @@ impl FarmingUi {
                     .with_children(|tree| {
                         tree.add_node()
                             .boundary(Ab(Vec2::new(0.0, 5.0)), Ab(Vec2::new(tab_width, 20.0)))
-                            .with_text_slot(sell_tab_slot, font_size)
+                            .with_text("SELL", font_size)
                             .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                             .with_color::<UiBase>(Vec4::new(0.6, 0.6, 0.6, 1.0))
                             .without_pointer_events()
@@ -675,12 +642,13 @@ impl FarmingUi {
                                 .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.0))
                                 .without_pointer_events()
                                 .with_children(|tree| {
-                                    tree.add_node()
+                                    shop_item_name_texts[index] = tree
+                                        .add_node()
                                         .boundary(
                                             Ab(Vec2::new(8.0, 8.0)),
                                             Ab(Vec2::new(item_width - 140.0, 20.0)),
                                         )
-                                        .with_text_slot(shop_item_name_slots[index], font_size)
+                                        .with_text("", font_size)
                                         .with_text_alignment(
                                             TextAlignment::Left,
                                             VerticalAlignment::Middle,
@@ -689,12 +657,13 @@ impl FarmingUi {
                                         .without_pointer_events()
                                         .done();
 
-                                    tree.add_node()
+                                    shop_item_owned_texts[index] = tree
+                                        .add_node()
                                         .boundary(
                                             Ab(Vec2::new(item_width - 120.0, 8.0)),
                                             Ab(Vec2::new(50.0, 20.0)),
                                         )
-                                        .with_text_slot(shop_item_owned_slots[index], font_size)
+                                        .with_text("", font_size)
                                         .with_text_alignment(
                                             TextAlignment::Right,
                                             VerticalAlignment::Middle,
@@ -703,12 +672,13 @@ impl FarmingUi {
                                         .without_pointer_events()
                                         .done();
 
-                                    tree.add_node()
+                                    shop_item_price_texts[index] = tree
+                                        .add_node()
                                         .boundary(
                                             Ab(Vec2::new(item_width - 60.0, 8.0)),
                                             Ab(Vec2::new(52.0, 20.0)),
                                         )
-                                        .with_text_slot(shop_item_price_slots[index], font_size)
+                                        .with_text("", font_size)
                                         .with_text_alignment(
                                             TextAlignment::Right,
                                             VerticalAlignment::Middle,
@@ -731,23 +701,28 @@ impl FarmingUi {
                     .with_color::<UiBase>(Vec4::new(0.15, 0.15, 0.15, 1.0))
                     .without_pointer_events()
                     .with_children(|tree| {
-                        tree.add_node()
+                        shop_gold_text = tree
+                            .add_node()
                             .boundary(
                                 Ab(Vec2::new(15.0, 8.0)),
                                 Ab(Vec2::new(panel_width - 30.0, 16.0)),
                             )
-                            .with_text_slot(shop_gold_slot, font_size)
+                            .with_text("Your Gold: 0 G", font_size)
                             .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
                             .with_color::<UiBase>(gold)
                             .without_pointer_events()
                             .done();
 
-                        tree.add_node()
+                        shop_controls_text = tree
+                            .add_node()
                             .boundary(
                                 Ab(Vec2::new(15.0, 28.0)),
                                 Ab(Vec2::new(panel_width - 30.0, 16.0)),
                             )
-                            .with_text_slot(shop_controls_slot, small_font)
+                            .with_text(
+                                "[W/S] Select  [E] Buy  [Q] Switch Tab  [ESC] Close",
+                                small_font,
+                            )
                             .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
                             .with_color::<UiBase>(Vec4::new(0.6, 0.6, 0.6, 1.0))
                             .without_pointer_events()
@@ -760,10 +735,16 @@ impl FarmingUi {
         self.buy_tab = buy_tab;
         self.sell_tab = sell_tab;
         self.shop_item_rows = shop_item_rows;
+        self.shop_item_name_texts = shop_item_name_texts;
+        self.shop_item_owned_texts = shop_item_owned_texts;
+        self.shop_item_price_texts = shop_item_price_texts;
+        self.shop_gold_text = shop_gold_text;
+        self.shop_controls_text = shop_controls_text;
 
         let box_height = 120.0;
         let mut dialogue_header = placeholder;
         let mut dialogue_name_entity = placeholder;
+        let mut dialogue_text_text = placeholder;
         self.dialogue_container = tree
             .add_node()
             .window(
@@ -793,7 +774,7 @@ impl FarmingUi {
                                 Ab(Vec2::new(15.0, 5.0)),
                                 Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(-30.0, 20.0)),
                             )
-                            .with_text_slot(dialogue_name_slot, font_size)
+                            .with_text("", font_size)
                             .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
                             .with_color::<UiBase>(Vec4::new(0.7, 0.4, 0.3, 1.0))
                             .without_pointer_events()
@@ -801,12 +782,13 @@ impl FarmingUi {
                     })
                     .done();
 
-                tree.add_node()
+                dialogue_text_text = tree
+                    .add_node()
                     .boundary(
                         Ab(Vec2::new(15.0, 40.0)),
                         Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(-30.0, 40.0)),
                     )
-                    .with_text_slot(dialogue_text_slot, font_size)
+                    .with_text("", font_size)
                     .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
                     .with_color::<UiBase>(white)
                     .without_pointer_events()
@@ -817,7 +799,7 @@ impl FarmingUi {
                         Ab(Vec2::new(15.0, 85.0)),
                         Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(-30.0, 20.0)),
                     )
-                    .with_text_slot(dialogue_continue_slot, font_size)
+                    .with_text("[Press E to continue]", font_size)
                     .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
                     .with_color::<UiBase>(dim_text)
                     .without_pointer_events()
@@ -826,7 +808,10 @@ impl FarmingUi {
             .done();
         self.dialogue_header = dialogue_header;
         self.dialogue_name_entity = dialogue_name_entity;
+        self.dialogue_name_text = dialogue_name_entity;
+        self.dialogue_text_text = dialogue_text_text;
 
+        let mut hint_text = placeholder;
         self.hint_container = tree
             .add_node()
             .window(
@@ -839,33 +824,19 @@ impl FarmingUi {
             .with_visible(false)
             .without_pointer_events()
             .with_children(|tree| {
-                tree.add_node()
+                hint_text = tree
+                    .add_node()
                     .boundary(Ab(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
-                    .with_text_slot(hint_slot, font_size)
+                    .with_text("", font_size)
                     .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                     .with_color::<UiBase>(Vec4::new(1.0, 1.0, 0.8, 1.0))
                     .without_pointer_events()
                     .done();
             })
             .done();
+        self.hint_text = hint_text;
 
         tree.finish();
-
-        self.day_time_slot = day_time_slot;
-        self.weather_slot = weather_slot;
-        self.gold_slot = gold_slot;
-        self.tool_slot = tool_slot;
-        self.hotbar_name_slots = hotbar_name_slots;
-        self.hotbar_qty_slots = hotbar_qty_slots;
-        self.shop_title_slot = shop_title_slot;
-        self.shop_item_name_slots = shop_item_name_slots;
-        self.shop_item_owned_slots = shop_item_owned_slots;
-        self.shop_item_price_slots = shop_item_price_slots;
-        self.shop_gold_slot = shop_gold_slot;
-        self.shop_controls_slot = shop_controls_slot;
-        self.dialogue_name_slot = dialogue_name_slot;
-        self.dialogue_text_slot = dialogue_text_slot;
-        self.hint_slot = hint_slot;
     }
 
     pub fn update(
@@ -884,12 +855,20 @@ impl FarmingUi {
         world.ui_set_visible(self.pause_screen, show_paused);
         world.ui_set_visible(self.hud_screen, show_playing);
 
-        if show_main_menu && world.ui_button_clicked(self.start_button) {
+        if show_main_menu
+            && world
+                .widget::<UiButtonData>(self.start_button)
+                .is_some_and(|d| d.clicked)
+        {
             new_phase = Some(GamePhase::Playing);
             return new_phase;
         }
 
-        if show_paused && world.ui_button_clicked(self.resume_button) {
+        if show_paused
+            && world
+                .widget::<UiButtonData>(self.resume_button)
+                .is_some_and(|d| d.clicked)
+        {
             new_phase = Some(GamePhase::Playing);
             return new_phase;
         }
@@ -913,9 +892,9 @@ impl FarmingUi {
 
     fn update_hud(&self, game: &GameWorld, world: &mut World) {
         let time_str = format_time(game.resources.hour);
-        world.resources.text_cache.set_text(
-            self.day_time_slot,
-            format!(
+        world.ui_set_text(
+            self.day_time_text,
+            &format!(
                 "Day {} - {} - {}",
                 game.resources.day,
                 game.resources.season.name(),
@@ -923,9 +902,9 @@ impl FarmingUi {
             ),
         );
 
-        world.resources.text_cache.set_text(
-            self.weather_slot,
-            format!("Weather: {}", game.resources.weather.name()),
+        world.ui_set_text(
+            self.weather_text,
+            &format!("Weather: {}", game.resources.weather.name()),
         );
 
         let (stamina, max_stamina, equipped_tool) = game
@@ -949,15 +928,9 @@ impl FarmingUi {
             color.colors[UiBase::INDEX] = Some(stamina_color);
         }
 
-        world
-            .resources
-            .text_cache
-            .set_text(self.gold_slot, format!("Gold: {} G", game.resources.money));
+        world.ui_set_text(self.gold_text, &format!("Gold: {} G", game.resources.money));
 
-        world
-            .resources
-            .text_cache
-            .set_text(self.tool_slot, format!("Tool: {}", equipped_tool.name()));
+        world.ui_set_text(self.tool_text, &format!("Tool: {}", equipped_tool.name()));
     }
 
     fn update_hotbar(&self, game: &GameWorld, world: &mut World) {
@@ -996,44 +969,26 @@ impl FarmingUi {
                     ToolType::Scythe => "Syth",
                     ToolType::Sword => "Swrd",
                 };
-                world
-                    .resources
-                    .text_cache
-                    .set_text(self.hotbar_name_slots[index], tool_name);
-                world
-                    .resources
-                    .text_cache
-                    .set_text(self.hotbar_qty_slots[index], "");
+                world.ui_set_text(self.hotbar_name_texts[index], tool_name);
+                world.ui_set_text(self.hotbar_qty_texts[index], "");
             } else {
                 let slot = &game.resources.inventory.hotbar[index];
                 if let Some(item_id) = slot.item_id
                     && let Some(definition) = get_item_definition(item_id)
                 {
                     let short_name = get_short_item_name(definition.name);
-                    world
-                        .resources
-                        .text_cache
-                        .set_text(self.hotbar_name_slots[index], short_name);
+                    world.ui_set_text(self.hotbar_name_texts[index], short_name);
                     if slot.quantity > 1 {
-                        world
-                            .resources
-                            .text_cache
-                            .set_text(self.hotbar_qty_slots[index], format!("x{}", slot.quantity));
+                        world.ui_set_text(
+                            self.hotbar_qty_texts[index],
+                            &format!("x{}", slot.quantity),
+                        );
                     } else {
-                        world
-                            .resources
-                            .text_cache
-                            .set_text(self.hotbar_qty_slots[index], "");
+                        world.ui_set_text(self.hotbar_qty_texts[index], "");
                     }
                 } else {
-                    world
-                        .resources
-                        .text_cache
-                        .set_text(self.hotbar_name_slots[index], "");
-                    world
-                        .resources
-                        .text_cache
-                        .set_text(self.hotbar_qty_slots[index], "");
+                    world.ui_set_text(self.hotbar_name_texts[index], "");
+                    world.ui_set_text(self.hotbar_qty_texts[index], "");
                 }
             }
         }
@@ -1121,23 +1076,14 @@ impl FarmingUi {
 
                 let owned = game.resources.inventory.count_item(shop_item.item_id);
 
-                world
-                    .resources
-                    .text_cache
-                    .set_text(self.shop_item_name_slots[index], name);
-                world
-                    .resources
-                    .text_cache
-                    .set_text(self.shop_item_owned_slots[index], format!("x{}", owned));
-                world
-                    .resources
-                    .text_cache
-                    .set_text(self.shop_item_price_slots[index], format!("{} G", price));
+                world.ui_set_text(self.shop_item_name_texts[index], name);
+                world.ui_set_text(self.shop_item_owned_texts[index], &format!("x{}", owned));
+                world.ui_set_text(self.shop_item_price_texts[index], &format!("{} G", price));
             }
 
-            world.resources.text_cache.set_text(
-                self.shop_gold_slot,
-                format!("Your Gold: {} G", game.resources.money),
+            world.ui_set_text(
+                self.shop_gold_text,
+                &format!("Your Gold: {} G", game.resources.money),
             );
 
             let action_str = if shop.mode == ShopMode::Buy {
@@ -1145,9 +1091,9 @@ impl FarmingUi {
             } else {
                 "[E] Sell"
             };
-            world.resources.text_cache.set_text(
-                self.shop_controls_slot,
-                format!("[W/S] Select  {}  [Q] Switch Tab  [ESC] Close", action_str),
+            world.ui_set_text(
+                self.shop_controls_text,
+                &format!("[W/S] Select  {}  [Q] Switch Tab  [ESC] Close", action_str),
             );
         }
     }
@@ -1160,10 +1106,7 @@ impl FarmingUi {
             && let Some(npc) = game.get_npc(dialogue.npc)
             && let Some(definition) = get_npc_definition(npc.npc_type)
         {
-            world
-                .resources
-                .text_cache
-                .set_text(self.dialogue_name_slot, definition.name);
+            world.ui_set_text(self.dialogue_name_text, definition.name);
 
             if let Some(color) = world.get_ui_node_color_mut(self.dialogue_header) {
                 color.colors[UiBase::INDEX] = Some(Vec4::new(
@@ -1184,8 +1127,8 @@ impl FarmingUi {
             }
 
             if dialogue.line_index < definition.dialogue.len() {
-                world.resources.text_cache.set_text(
-                    self.dialogue_text_slot,
+                world.ui_set_text(
+                    self.dialogue_text_text,
                     definition.dialogue[dialogue.line_index],
                 );
             }
@@ -1200,10 +1143,7 @@ impl FarmingUi {
 
         if social::should_show_shop_hint(game) {
             world.ui_set_visible(self.hint_container, true);
-            world
-                .resources
-                .text_cache
-                .set_text(self.hint_slot, "[E] Open Shop");
+            world.ui_set_text(self.hint_text, "[E] Open Shop");
             return;
         }
 
@@ -1212,10 +1152,7 @@ impl FarmingUi {
             && let Some(definition) = get_npc_definition(npc.npc_type)
         {
             world.ui_set_visible(self.hint_container, true);
-            world
-                .resources
-                .text_cache
-                .set_text(self.hint_slot, format!("[E] Talk to {}", definition.name));
+            world.ui_set_text(self.hint_text, &format!("[E] Talk to {}", definition.name));
             return;
         }
 

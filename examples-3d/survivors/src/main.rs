@@ -1807,7 +1807,10 @@ impl Survivors {
         world.ui_set_visible(self.ui.gameover_screen, show_gameover);
 
         if show_main_menu {
-            if world.ui_button_clicked(self.ui.start_button) {
+            if world
+                .widget::<UiButtonData>(self.ui.start_button)
+                .is_some_and(|d| d.clicked)
+            {
                 self.start_game(world);
                 return;
             }
@@ -1832,7 +1835,11 @@ impl Survivors {
             }
         }
 
-        if show_paused && world.ui_button_clicked(self.ui.resume_button) {
+        if show_paused
+            && world
+                .widget::<UiButtonData>(self.ui.resume_button)
+                .is_some_and(|d| d.clicked)
+        {
             self.game_state = GameState::Playing;
             return;
         }
@@ -2052,7 +2059,10 @@ impl Survivors {
                     }
                     world.ui_set_visible(*button, true);
 
-                    if world.ui_button_clicked(*button) {
+                    if world
+                        .widget::<UiButtonData>(*button)
+                        .is_some_and(|d| d.clicked)
+                    {
                         self.apply_upgrade(upgrade, world);
                         self.game_state = GameState::Playing;
                         return;

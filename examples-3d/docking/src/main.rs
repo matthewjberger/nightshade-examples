@@ -1,5 +1,7 @@
 use nightshade::prelude::*;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(DockingDemo::default())
@@ -7,7 +9,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 struct SecondaryWorldInstance {
     world: World,
-    toast_button: Entity,
 }
 
 struct Vec3Editor {
@@ -44,10 +45,9 @@ impl CompositeWidget for Vec3Editor {
         let labels = ["X", "Y", "Z"];
         let mut entities = [Entity::default(); 3];
         for (index, label_text) in labels.iter().enumerate() {
-            let slot = tree.world_mut().resources.text_cache.add_text(*label_text);
             tree.add_node()
                 .flow_child(Ab(nalgebra_glm::Vec2::new(14.0, input_height)))
-                .with_text_slot(slot, font_size * 0.85)
+                .with_text(label_text, font_size * 0.85)
                 .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                 .with_color::<UiBase>(text_color)
                 .without_pointer_events()
@@ -71,9 +71,18 @@ impl CompositeWidget for Vec3Editor {
 
     fn value(&self, world: &World) -> nalgebra_glm::Vec3 {
         nalgebra_glm::Vec3::new(
-            world.ui_drag_value(self.x),
-            world.ui_drag_value(self.y),
-            world.ui_drag_value(self.z),
+            world
+                .widget::<UiDragValueData>(self.x)
+                .map(|d| d.value)
+                .unwrap_or(0.0),
+            world
+                .widget::<UiDragValueData>(self.y)
+                .map(|d| d.value)
+                .unwrap_or(0.0),
+            world
+                .widget::<UiDragValueData>(self.z)
+                .map(|d| d.value)
+                .unwrap_or(0.0),
         )
     }
 }
@@ -85,58 +94,119 @@ struct SceneEntity {
 }
 
 #[derive(Default)]
-struct DockingDemo {
-    left_panel: Entity,
-    right_panel: Entity,
-    bottom_panel: Entity,
-    floating_panel_a: Entity,
-    floating_panel_b: Entity,
-    log_text_slot: usize,
-    log_lines: Vec<String>,
-    total_time: f32,
-    tree_view: Entity,
-    cubes_tree_children: Entity,
-    context_menu: Entity,
-    confirm_dialog: Entity,
-    delete_button: Entity,
-    add_entity_button: Entity,
-    position_editor: Entity,
-    rot_y: Entity,
-    scale_x: Entity,
-    visible_toggle: Entity,
-    visible_val: bool,
-    shadow_checkbox: Entity,
+struct SharedState {
     scene_entities: Vec<SceneEntity>,
     selected_scene_entity: Option<Entity>,
     next_cube_index: usize,
-    pos: nalgebra_glm::Vec3,
-    rotation_y: f32,
-    scale: f32,
-    top_panel: Entity,
-    file_button: Entity,
-    view_button: Entity,
-    add_button: Entity,
-    file_menu: Entity,
-    view_menu: Entity,
-    add_menu: Entity,
-    fps_text_slot: usize,
-    inspector_just_loaded: bool,
-    command_palette: Entity,
-    tree_filter_input: Entity,
-    grid_toggle_command_id: usize,
-    tile_container: Entity,
-    tile_console_text: usize,
+    log_lines: Vec<String>,
+    log_text_entity: Entity,
     tile_console_lines: Vec<String>,
-    tile_output_text: usize,
+    tile_console_text: Entity,
     tile_output_lines: Vec<String>,
-    tile_scene_info_text: usize,
-    tile_scene_info_pane: TileId,
-    tile_add_pane_button: Entity,
+    tile_output_text: Entity,
+    tree_view: Entity,
+    cubes_tree_children: Entity,
+    total_time: f32,
+    tile_container: Entity,
     tile_pane_counter: usize,
-    secondary_worlds: HashMap<usize, SecondaryWorldInstance>,
-    next_viewport_index: usize,
-    next_world_id: u32,
+    panels: [(Entity, &'static str); 6],
     saved_layout: Option<TileLayout>,
+    next_viewport_index: usize,
+    command_palette: Entity,
+}
+
+impl SharedState {
+    fn push_log(&mut self, world: &mut World, message: &str) {
+        self.log_lines.push(message.to_string());
+        if self.log_lines.len() > 12 {
+            self.log_lines.remove(0);
+        }
+        let log_text = self.log_lines.join("\n");
+        world.ui_set_text(self.log_text_entity, &log_text);
+        self.push_tile_console(world, message);
+    }
+
+    fn push_tile_console(&mut self, world: &mut World, message: &str) {
+        self.tile_console_lines.push(message.to_string());
+        if self.tile_console_lines.len() > 30 {
+            self.tile_console_lines.remove(0);
+        }
+        world.ui_set_text(self.tile_console_text, &self.tile_console_lines.join("\n"));
+    }
+
+    fn push_tile_output(&mut self, world: &mut World, message: &str) {
+        self.tile_output_lines.push(message.to_string());
+        if self.tile_output_lines.len() > 20 {
+            self.tile_output_lines.remove(0);
+        }
+        world.ui_set_text(self.tile_output_text, &self.tile_output_lines.join("\n"));
+    }
+
+    fn spawn_mesh_entity(&mut self, world: &mut World, mesh_name: &str) -> String {
+        let name = format!("{}_{}", mesh_name, self.next_cube_index);
+        self.next_cube_index += 1;
+        let angle = self.total_time;
+        let position = Vec3::new(angle.cos() * 2.0, 0.5, angle.sin() * 2.0);
+        let entity = spawn_mesh(world, mesh_name, position, Vec3::new(0.8, 0.8, 0.8));
+        world.set_name(entity, Name(name.clone()));
+
+        let mut tree = UiTreeBuilder::new(world);
+        let node = tree.add_tree_node(
+            self.tree_view,
+            self.cubes_tree_children,
+            &name,
+            2,
+            entity.id as u64,
+        );
+        tree.finish();
+
+        self.scene_entities.push(SceneEntity {
+            entity,
+            tree_node: node,
+            name: name.clone(),
+        });
+        name
+    }
+}
+
+fn load_entity_to_inspector(world: &mut World, entity: Entity) {
+    let Some(transform) = world.get_local_transform(entity) else {
+        return;
+    };
+    let translation = transform.translation;
+    let rotation = transform.rotation;
+    let scale_val = transform.scale.x;
+
+    world.ui_set_prop("inspector.pos_x", translation.x);
+    world.ui_set_prop("inspector.pos_y", translation.y);
+    world.ui_set_prop("inspector.pos_z", translation.z);
+
+    let euler = nalgebra_glm::quat_euler_angles(&rotation);
+    let y_degrees = euler.y.to_degrees();
+    world.ui_set_prop("inspector.rot_y", y_degrees);
+    world.ui_set_prop("inspector.scale", scale_val);
+}
+
+struct DockingDemo {
+    shared: Rc<RefCell<SharedState>>,
+    fps_text_entity: Entity,
+    tile_scene_info_text: Entity,
+    tile_scene_info_pane: TileId,
+    secondary_worlds: HashMap<usize, SecondaryWorldInstance>,
+    next_world_id: u32,
+}
+
+impl Default for DockingDemo {
+    fn default() -> Self {
+        Self {
+            shared: Rc::new(RefCell::new(SharedState::default())),
+            fps_text_entity: Entity::default(),
+            tile_scene_info_text: Entity::default(),
+            tile_scene_info_pane: TileId::default(),
+            secondary_worlds: HashMap::new(),
+            next_world_id: 0,
+        }
+    }
 }
 
 impl State for DockingDemo {
@@ -148,11 +218,6 @@ impl State for DockingDemo {
         world.resources.retained_ui.enabled = true;
         world.resources.graphics.clear_color = [0.02, 0.02, 0.04, 1.0];
         world.resources.graphics.show_grid = true;
-        self.next_viewport_index = 1;
-
-        self.pos = nalgebra_glm::Vec3::zeros();
-        self.rotation_y = 0.0;
-        self.scale = 1.0;
 
         let camera = spawn_pan_orbit_camera(
             world,
@@ -199,13 +264,10 @@ impl State for DockingDemo {
             world.set_material_ref(entity, MaterialRef::new(color.to_string()));
             cube_entities.push((entity, name));
         }
-        self.next_cube_index = colors.len();
 
-        self.log_text_slot = world
-            .resources
-            .text_cache
-            .add_text("Drag panel headers to undock.\nDrop on indicators to dock.\nResize docked panels from edges.");
-        self.fps_text_slot = world.resources.text_cache.add_text("FPS: 0");
+        let mut state = self.shared.borrow_mut();
+        state.next_viewport_index = 1;
+        state.next_cube_index = colors.len();
 
         let mut tree = UiTreeBuilder::new(world);
 
@@ -218,16 +280,23 @@ impl State for DockingDemo {
         let menu_font = theme.font_size;
         let menu_text_color = theme.text_color;
 
-        self.top_panel = tree.add_docked_panel_top("", 26.0);
+        let top_panel = tree.add_docked_panel_top("", 26.0);
         tree.world_mut()
-            .ui_panel_set_header_visible(self.top_panel, false);
+            .ui_panel_set_header_visible(top_panel, false);
         if let Some(UiWidgetState::Panel(data)) =
-            tree.world_mut().get_ui_widget_state_mut(self.top_panel)
+            tree.world_mut().get_ui_widget_state_mut(top_panel)
         {
             data.min_size = nalgebra_glm::Vec2::new(0.0, 26.0);
             data.resizable = false;
         }
-        if let Some(content) = tree.world_mut().ui_panel_content(self.top_panel) {
+        let mut file_button = Entity::default();
+        let mut view_button = Entity::default();
+        let mut add_button = Entity::default();
+        if let Some(content) = tree
+            .world_mut()
+            .widget::<UiPanelData>(top_panel)
+            .map(|d| d.content_entity)
+        {
             if let Some(node) = tree.world_mut().get_ui_layout_node_mut(content) {
                 node.flow_layout = Some(FlowLayout {
                     direction: FlowDirection::Horizontal,
@@ -244,10 +313,9 @@ impl State for DockingDemo {
 
             let menu_hover_color = nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 1.0);
             let make_menu_item = |tree: &mut UiTreeBuilder, label: &str| -> Entity {
-                let slot = tree.world_mut().resources.text_cache.add_text(label);
                 tree.add_node()
                     .flow_child(Ab(nalgebra_glm::Vec2::new(44.0, item_height)))
-                    .with_text_slot(slot, menu_font * 0.85)
+                    .with_text(label, menu_font * 0.85)
                     .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                     .with_color::<UiBase>(menu_text_color)
                     .with_color::<UiHover>(menu_hover_color)
@@ -256,9 +324,9 @@ impl State for DockingDemo {
                     .entity()
             };
 
-            self.file_button = make_menu_item(&mut tree, "File");
-            self.view_button = make_menu_item(&mut tree, "View");
-            self.add_button = make_menu_item(&mut tree, "Add");
+            file_button = make_menu_item(&mut tree, "File");
+            view_button = make_menu_item(&mut tree, "View");
+            add_button = make_menu_item(&mut tree, "Add");
 
             let spacer = tree
                 .add_node()
@@ -269,9 +337,10 @@ impl State for DockingDemo {
                 node.flex_grow = Some(1.0);
             }
 
-            tree.add_node()
+            self.fps_text_entity = tree
+                .add_node()
                 .flow_child(Ab(nalgebra_glm::Vec2::new(80.0, item_height)))
-                .with_text_slot(self.fps_text_slot, menu_font * 0.85)
+                .with_text("FPS: 0", menu_font * 0.85)
                 .with_text_alignment(TextAlignment::Right, VerticalAlignment::Middle)
                 .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.5, 0.5, 0.6, 1.0))
                 .without_pointer_events()
@@ -280,7 +349,7 @@ impl State for DockingDemo {
             tree.pop_parent();
         }
 
-        self.file_menu = tree.add_context_menu(&[
+        let file_menu = tree.add_context_menu(&[
             ("New Scene", Some("Ctrl+N")),
             ("", None),
             ("Save Layout", Some("Ctrl+S")),
@@ -301,11 +370,11 @@ impl State for DockingDemo {
             .item("New Viewport", "")
             .separator()
             .widget_row("Show Grid");
-        self.grid_toggle_command_id = 7;
-        self.view_menu = tree.add_context_menu_from_builder(view_builder);
+        let grid_toggle_command_id = 7;
+        let view_menu = tree.add_context_menu_from_builder(view_builder);
         if let Some(content) = tree
             .world_mut()
-            .ui_context_menu_widget_content(self.view_menu, self.grid_toggle_command_id)
+            .ui_context_menu_widget_content(view_menu, grid_toggle_command_id)
         {
             tree.push_parent(content);
             tree.add_toggle(true);
@@ -322,13 +391,19 @@ impl State for DockingDemo {
             .submenu("Lights", |builder| {
                 builder.item("Point Light", "").item("Spot Light", "")
             });
-        self.add_menu = tree.add_context_menu_from_builder(add_builder);
+        let add_menu = tree.add_context_menu_from_builder(add_builder);
 
-        self.left_panel = tree.add_docked_panel_left("Explorer", 220.0);
-        if let Some(content) = tree.world_mut().ui_panel_content(self.left_panel) {
+        let left_panel = tree.add_docked_panel_left("Explorer", 220.0);
+        if let Some(content) = tree
+            .world_mut()
+            .widget::<UiPanelData>(left_panel)
+            .map(|d| d.content_entity)
+        {
             tree.push_parent(content);
 
-            self.tree_filter_input = tree.add_text_input("Filter nodes...");
+            tree.build_ui(tree.current_parent(), |ui| {
+                ui.text_input("tree_filter", "Filter nodes...");
+            });
 
             let tree_wrapper = tree
                 .add_node()
@@ -337,75 +412,96 @@ impl State for DockingDemo {
                 .without_pointer_events()
                 .entity();
             tree.push_parent(tree_wrapper);
-            self.tree_view = tree.add_tree_view(false);
+            state.tree_view = tree.add_tree_view(false);
             tree.pop_parent();
             let tv_content = tree
                 .world_mut()
-                .ui_tree_view_content(self.tree_view)
+                .widget::<UiTreeViewData>(state.tree_view)
+                .map(|d| d.content_entity)
                 .unwrap();
 
-            let scene_node = tree.add_tree_node(self.tree_view, tv_content, "Scene", 0, 0);
+            let scene_node = tree.add_tree_node(state.tree_view, tv_content, "Scene", 0, 0);
             tree.world_mut().ui_tree_node_set_expanded(scene_node, true);
-            let children = tree.world_mut().ui_tree_node_children(scene_node).unwrap();
+            let children = tree
+                .world_mut()
+                .widget::<UiTreeNodeData>(scene_node)
+                .map(|d| d.children_container)
+                .unwrap();
 
-            let camera_node = tree.add_tree_node(self.tree_view, children, "Main Camera", 1, 1);
-            self.scene_entities.push(SceneEntity {
+            let camera_node = tree.add_tree_node(state.tree_view, children, "Main Camera", 1, 1);
+            state.scene_entities.push(SceneEntity {
                 entity: camera,
                 tree_node: camera_node,
                 name: "Main Camera".to_string(),
             });
 
-            let sun_node = tree.add_tree_node(self.tree_view, children, "Sun Light", 1, 2);
-            self.scene_entities.push(SceneEntity {
+            let sun_node = tree.add_tree_node(state.tree_view, children, "Sun Light", 1, 2);
+            state.scene_entities.push(SceneEntity {
                 entity: sun,
                 tree_node: sun_node,
                 name: "Sun Light".to_string(),
             });
 
-            let floor_node = tree.add_tree_node(self.tree_view, children, "Floor", 1, 3);
-            self.scene_entities.push(SceneEntity {
+            let floor_node = tree.add_tree_node(state.tree_view, children, "Floor", 1, 3);
+            state.scene_entities.push(SceneEntity {
                 entity: floor,
                 tree_node: floor_node,
                 name: "Floor".to_string(),
             });
 
-            let cubes_node = tree.add_tree_node(self.tree_view, children, "Cubes", 1, 4);
+            let cubes_node = tree.add_tree_node(state.tree_view, children, "Cubes", 1, 4);
             tree.world_mut().ui_tree_node_set_expanded(cubes_node, true);
-            self.cubes_tree_children = tree.world_mut().ui_tree_node_children(cubes_node).unwrap();
+            state.cubes_tree_children = tree
+                .world_mut()
+                .widget::<UiTreeNodeData>(cubes_node)
+                .map(|d| d.children_container)
+                .unwrap();
             for (entity, name) in &cube_entities {
                 let node = tree.add_tree_node(
-                    self.tree_view,
-                    self.cubes_tree_children,
+                    state.tree_view,
+                    state.cubes_tree_children,
                     name,
                     2,
                     entity.id as u64,
                 );
-                self.scene_entities.push(SceneEntity {
+                state.scene_entities.push(SceneEntity {
                     entity: *entity,
                     tree_node: node,
                     name: name.clone(),
                 });
             }
 
-            let sphere_node = tree.add_tree_node(self.tree_view, children, "Center Sphere", 1, 5);
-            self.scene_entities.push(SceneEntity {
+            let sphere_node = tree.add_tree_node(state.tree_view, children, "Center Sphere", 1, 5);
+            state.scene_entities.push(SceneEntity {
                 entity: sphere,
                 tree_node: sphere_node,
                 name: "Center Sphere".to_string(),
             });
 
+            let tree_filter_target = state.tree_view;
+            tree.world_mut().ui_react::<String, _>(
+                "tree_filter",
+                move |val: String, world: &mut World| {
+                    world.ui_tree_view_set_filter(tree_filter_target, &val);
+                },
+            );
+
             tree.pop_parent();
         }
 
-        self.context_menu = tree.add_context_menu(&[
+        let context_menu = tree.add_context_menu(&[
             ("Rename", Some("F2")),
             ("Duplicate", Some("Ctrl+D")),
             ("", None),
             ("Delete", Some("Del")),
         ]);
 
-        self.right_panel = tree.add_docked_panel_right("Inspector", 300.0);
-        if let Some(content) = tree.world_mut().ui_panel_content(self.right_panel) {
+        let right_panel = tree.add_docked_panel_right("Inspector", 300.0);
+        if let Some(content) = tree
+            .world_mut()
+            .widget::<UiPanelData>(right_panel)
+            .map(|d| d.content_entity)
+        {
             tree.push_parent(content);
 
             let grid = tree.add_property_grid(55.0);
@@ -414,50 +510,71 @@ impl State for DockingDemo {
 
             let area = tree.add_property_row(grid, transform_section, "Pos");
             tree.push_parent(area);
-            self.position_editor = tree.add_composite::<Vec3Editor>();
+            let pos_editor = tree.add_composite::<Vec3Editor>();
+            let (pos_x, pos_y, pos_z) = tree
+                .world_mut()
+                .ui_composite::<Vec3Editor>(pos_editor)
+                .map(|e| (e.x, e.y, e.z))
+                .unwrap();
+            tree.world_mut()
+                .ui_register_named("inspector.pos_x", pos_x, 0.0_f32);
+            tree.world_mut()
+                .ui_register_named("inspector.pos_y", pos_y, 0.0_f32);
+            tree.world_mut()
+                .ui_register_named("inspector.pos_z", pos_z, 0.0_f32);
             tree.pop_parent();
 
             let area = tree.add_property_row(grid, transform_section, "Rot Y");
             tree.push_parent(area);
-            self.rot_y = tree.add_drag_value_configured(
+            let rot_y_entity = tree.add_drag_value_configured(
                 DragValueConfig::new(0.0, 360.0, 0.0)
                     .speed(0.5)
                     .precision(1),
             );
+            tree.world_mut()
+                .ui_register_named("inspector.rot_y", rot_y_entity, 0.0_f32);
             tree.pop_parent();
 
             let area = tree.add_property_row(grid, transform_section, "Scale");
             tree.push_parent(area);
-            self.scale_x =
+            let scale_entity =
                 tree.add_drag_value_configured(DragValueConfig::new(0.1, 10.0, 1.0).speed(0.01));
+            tree.world_mut()
+                .ui_register_named("inspector.scale", scale_entity, 1.0_f32);
             tree.pop_parent();
 
             let display_section = tree.add_property_section(grid, "Display");
 
             let area = tree.add_property_row(grid, display_section, "Visible");
             tree.push_parent(area);
-            self.visible_toggle = tree.add_toggle(true);
-            self.visible_val = true;
+            let visible_toggle = tree.add_toggle(true);
+            tree.world_mut()
+                .ui_register_named("inspector.visible", visible_toggle, true);
             tree.pop_parent();
 
             let area = tree.add_property_row(grid, display_section, "Shadow");
             tree.push_parent(area);
-            self.shadow_checkbox = tree.add_checkbox("Cast", true);
+            tree.add_checkbox("Cast", true);
             tree.pop_parent();
 
             tree.pop_parent();
         }
 
-        self.bottom_panel = tree.add_docked_panel_bottom("Console", 150.0);
-        if let Some(content) = tree.world_mut().ui_panel_content(self.bottom_panel) {
+        let bottom_panel = tree.add_docked_panel_bottom("Console", 150.0);
+        if let Some(content) = tree
+            .world_mut()
+            .widget::<UiPanelData>(bottom_panel)
+            .map(|d| d.content_entity)
+        {
             tree.push_parent(content);
 
-            tree.add_node()
+            state.log_text_entity = tree
+                .add_node()
                 .flow_child(
                     Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
                         + Ab(nalgebra_glm::Vec2::new(0.0, 200.0)),
                 )
-                .with_text_slot(self.log_text_slot, 12.0)
+                .with_text("", 12.0)
                 .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
                 .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.6, 0.6, 0.7, 1.0))
                 .without_pointer_events()
@@ -465,71 +582,68 @@ impl State for DockingDemo {
             tree.pop_parent();
         }
 
-        self.tile_container = tree.add_tile_container(nalgebra_glm::Vec2::new(800.0, 600.0));
+        state.tile_container = tree.add_tile_container(nalgebra_glm::Vec2::new(800.0, 600.0));
 
         let hint_color = nalgebra_glm::Vec4::new(0.5, 0.5, 0.6, 1.0);
-        self.tile_console_lines = vec![
+        state.tile_console_lines = vec![
             "[INFO] Tile docking system initialized".into(),
             "[INFO] 5 panes created".into(),
             "[INFO] Drag tab headers to rearrange".into(),
             "[INFO] Drop on edges to split, center to merge".into(),
         ];
-        self.tile_output_lines = vec![
+        state.tile_output_lines = vec![
             "[build] Compiling nightshade v0.7.0".into(),
             "[build] Compiling docking v0.1.0".into(),
             "[build] Finished dev [unoptimized] in 3.2s".into(),
         ];
-        let console_initial = self.tile_console_lines.join("\n");
-        let output_initial = self.tile_output_lines.join("\n");
+        let console_initial = state.tile_console_lines.join("\n");
+        let output_initial = state.tile_output_lines.join("\n");
 
-        tree.build_tiles(self.tile_container, |tiles| {
-            let scene_info_text = tiles.add_text("Entities: 0");
-            self.tile_scene_info_text = scene_info_text;
+        tree.build_tiles(state.tile_container, |tiles| {
             let (scene_info_id, scene_info_content) = tiles.pane("Scene Info").unwrap();
             self.tile_scene_info_pane = scene_info_id;
             tiles.content(scene_info_content, |tree| {
                 tree.add_label("Scene Information");
                 tree.add_separator();
-                tree.add_node()
+                self.tile_scene_info_text = tree
+                    .add_node()
                     .flow_child(
                         Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
                             + Ab(nalgebra_glm::Vec2::new(0.0, 120.0)),
                     )
-                    .with_text_slot(scene_info_text, 12.0)
+                    .with_text("Entities: 0", 12.0)
                     .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
                     .with_color::<UiBase>(hint_color)
                     .without_pointer_events()
                     .done();
             });
 
-            let console_text = tiles.add_text(&console_initial);
-            self.tile_console_text = console_text;
             let (console_id, console_content) = tiles
                 .split_from(scene_info_id, SplitDirection::Horizontal, 0.7, "Console")
                 .unwrap();
             tiles.content(console_content, |tree| {
-                tree.add_node()
+                state.tile_console_text = tree
+                    .add_node()
                     .flow_child(
                         Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
                             + Ab(nalgebra_glm::Vec2::new(0.0, 400.0)),
                     )
-                    .with_text_slot(console_text, 12.0)
+                    .with_text(&console_initial, 12.0)
                     .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
                     .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.6, 0.8, 0.6, 1.0))
                     .without_pointer_events()
                     .done();
             });
 
-            let output_text = tiles.add_text(&output_initial);
-            self.tile_output_text = output_text;
             let (_, output_content) = tiles.pane_sibling(console_id, "Output").unwrap();
             tiles.content(output_content, |tree| {
-                tree.add_node()
+                state.tile_output_text = tree
+                    .add_node()
                     .flow_child(
                         Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
                             + Ab(nalgebra_glm::Vec2::new(0.0, 400.0)),
                     )
-                    .with_text_slot(output_text, 12.0)
+                    .with_text(&output_initial, 12.0)
                     .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
                     .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.7, 0.7, 0.5, 1.0))
                     .without_pointer_events()
@@ -562,65 +676,456 @@ impl State for DockingDemo {
             });
         });
 
-        self.floating_panel_a = tree.add_floating_panel(
+        let floating_panel_a = tree.add_floating_panel(
             "Scene",
             Rect {
                 min: nalgebra_glm::Vec2::new(270.0, 80.0),
                 max: nalgebra_glm::Vec2::new(520.0, 280.0),
             },
         );
-        if let Some(content) = tree.world_mut().ui_panel_content(self.floating_panel_a) {
+        let mut add_entity_button = Entity::default();
+        let mut tile_add_pane_button = Entity::default();
+        if let Some(content) = tree
+            .world_mut()
+            .widget::<UiPanelData>(floating_panel_a)
+            .map(|d| d.content_entity)
+        {
             tree.push_parent(content);
             tree.add_label("Spawn new entities into the scene:");
-            self.add_entity_button = tree.add_button("Add Cube");
+            add_entity_button = tree.add_button("Add Cube");
             tree.add_separator();
             tree.add_label("Dynamic tile panes:");
-            self.tile_add_pane_button = tree.add_button("Add Tile Pane");
+            tile_add_pane_button = tree.add_button("Add Tile Pane");
             tree.pop_parent();
         }
 
-        self.floating_panel_b = tree.add_floating_panel(
+        let floating_panel_b = tree.add_floating_panel(
             "Actions",
             Rect {
                 min: nalgebra_glm::Vec2::new(340.0, 150.0),
                 max: nalgebra_glm::Vec2::new(600.0, 320.0),
             },
         );
-        if let Some(content) = tree.world_mut().ui_panel_content(self.floating_panel_b) {
+        let mut delete_button = Entity::default();
+        if let Some(content) = tree
+            .world_mut()
+            .widget::<UiPanelData>(floating_panel_b)
+            .map(|d| d.content_entity)
+        {
             tree.push_parent(content);
             tree.add_label("Click to open confirm dialog:");
-            self.delete_button = tree.add_button("Delete All Cubes");
+            delete_button = tree.add_button("Delete All Cubes");
             tree.pop_parent();
         }
 
-        self.confirm_dialog = tree.add_confirm_dialog(
+        let confirm_dialog = tree.add_confirm_dialog(
             "Confirm Delete",
             "Are you sure you want to delete all cubes?",
         );
 
-        self.command_palette = tree.add_command_palette(10);
+        state.panels = [
+            (top_panel, "Menu"),
+            (left_panel, "Explorer"),
+            (right_panel, "Inspector"),
+            (bottom_panel, "Console"),
+            (floating_panel_a, "Scene"),
+            (floating_panel_b, "Actions"),
+        ];
+
+        state.command_palette = tree.add_command_palette(10);
         tree.finish();
 
-        world.ui_command_palette_register(self.command_palette, "New Scene", "Ctrl+N", "File");
-        world.ui_command_palette_register(self.command_palette, "Save Layout", "Ctrl+S", "File");
-        world.ui_command_palette_register(self.command_palette, "Load Layout", "Ctrl+O", "File");
-        world.ui_command_palette_register(self.command_palette, "Reset Layout", "", "File");
-        world.ui_command_palette_register(self.command_palette, "Toggle Explorer", "", "View");
-        world.ui_command_palette_register(self.command_palette, "Toggle Inspector", "", "View");
-        world.ui_command_palette_register(self.command_palette, "Toggle Console", "", "View");
-        world.ui_command_palette_register(self.command_palette, "Toggle Tile Tree", "T", "View");
-        world.ui_command_palette_register(self.command_palette, "Toggle Grid", "G", "View");
-        world.ui_command_palette_register(self.command_palette, "Add Cube", "", "Create");
-        world.ui_command_palette_register(self.command_palette, "Add Sphere", "", "Create");
-        world.ui_command_palette_register(self.command_palette, "Add Cylinder", "", "Create");
-        world.ui_command_palette_register(self.command_palette, "Delete All Cubes", "", "Action");
+        let command_palette = state.command_palette;
+        world.ui_command_palette_register(command_palette, "New Scene", "Ctrl+N", "File");
+        world.ui_command_palette_register(command_palette, "Save Layout", "Ctrl+S", "File");
+        world.ui_command_palette_register(command_palette, "Load Layout", "Ctrl+O", "File");
+        world.ui_command_palette_register(command_palette, "Reset Layout", "", "File");
+        world.ui_command_palette_register(command_palette, "Toggle Explorer", "", "View");
+        world.ui_command_palette_register(command_palette, "Toggle Inspector", "", "View");
+        world.ui_command_palette_register(command_palette, "Toggle Console", "", "View");
+        world.ui_command_palette_register(command_palette, "Toggle Tile Tree", "T", "View");
+        world.ui_command_palette_register(command_palette, "Toggle Grid", "G", "View");
+        world.ui_command_palette_register(command_palette, "Add Cube", "", "Create");
+        world.ui_command_palette_register(command_palette, "Add Sphere", "", "Create");
+        world.ui_command_palette_register(command_palette, "Add Cylinder", "", "Create");
+        world.ui_command_palette_register(command_palette, "Delete All Cubes", "", "Action");
 
-        self.log_lines = vec![
+        for (button, menu) in [
+            (file_button, file_menu),
+            (view_button, view_menu),
+            (add_button, add_menu),
+        ] {
+            world.ui_react_clicked(button, move |world: &mut World| {
+                let pos = world
+                    .get_ui_layout_node(button)
+                    .map(|n| nalgebra_glm::Vec2::new(n.computed_rect.min.x, n.computed_rect.max.y))
+                    .unwrap_or_default();
+                world.ui_show_context_menu(menu, pos);
+            });
+        }
+
+        world.ui_react_clicked(delete_button, move |world: &mut World| {
+            world.ui_show_modal(confirm_dialog);
+        });
+
+        state.log_lines = vec![
             "[INFO] Application started".into(),
             "[INFO] Drag panel headers to undock".into(),
             "[INFO] Select tree nodes to inspect entities".into(),
         ];
-        self.update_log_text(world);
+        let log_text = state.log_lines.join("\n");
+        world.ui_set_text(state.log_text_entity, &log_text);
+
+        drop(state);
+
+        let tree_view = self.shared.borrow().tree_view;
+
+        let shared = self.shared.clone();
+        world.ui_react_menu_selected(file_menu, move |clicked, world: &mut World| {
+            let mut state = shared.borrow_mut();
+            match clicked {
+                0 => {
+                    let spawned: Vec<Entity> = state
+                        .scene_entities
+                        .iter()
+                        .filter(|s| {
+                            s.name.starts_with("Cube_")
+                                || s.name.starts_with("Sphere_")
+                                || s.name.starts_with("Cylinder_")
+                        })
+                        .map(|s| s.entity)
+                        .collect();
+                    despawn_entities_with_cache_cleanup(world, &spawned);
+                    state.scene_entities.retain(|s| {
+                        !s.name.starts_with("Cube_")
+                            && !s.name.starts_with("Sphere_")
+                            && !s.name.starts_with("Cylinder_")
+                    });
+                    state.selected_scene_entity = None;
+                    state.push_log(world, "[FILE] New scene");
+                }
+                2 => {
+                    let container = state.tile_container;
+                    if let Some(layout) = world.ui_tile_save_layout(container) {
+                        state.saved_layout = Some(layout);
+                        state.push_log(world, "[FILE] Layout saved");
+                    }
+                }
+                3 => {
+                    if let Some(layout) = state.saved_layout.clone() {
+                        let container = state.tile_container;
+                        let pane_mappings = world.ui_tile_load_layout(container, &layout);
+                        state.push_log(
+                            world,
+                            &format!("[FILE] Layout loaded ({} panes)", pane_mappings.len()),
+                        );
+                    } else {
+                        state.push_log(world, "[FILE] No saved layout");
+                    }
+                }
+                5 => state.push_log(world, "[FILE] Reset layout"),
+                _ => {}
+            }
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_menu_selected(view_menu, move |clicked, world: &mut World| {
+            let mut state = shared.borrow_mut();
+            match clicked {
+                index @ 0..=2 => {
+                    let panel_index = index + 1;
+                    let (panel, name) = state.panels[panel_index];
+                    let currently_visible = world
+                        .get_ui_layout_node(panel)
+                        .map(|n| n.visible)
+                        .unwrap_or(true);
+                    world.ui_set_visible(panel, !currently_visible);
+                    let status = if currently_visible { "hidden" } else { "shown" };
+                    state.push_log(world, &format!("[VIEW] {name} {status}"));
+                }
+                3 => {
+                    let container = state.tile_container;
+                    let currently_visible = world
+                        .get_ui_layout_node(container)
+                        .map(|n| n.visible)
+                        .unwrap_or(true);
+                    world.ui_set_visible(container, !currently_visible);
+                    let status = if currently_visible { "hidden" } else { "shown" };
+                    state.push_log(world, &format!("[VIEW] Tile Tree {status}"));
+                }
+                4 => {
+                    world.resources.graphics.show_grid = !world.resources.graphics.show_grid;
+                    let status = if world.resources.graphics.show_grid {
+                        "on"
+                    } else {
+                        "off"
+                    };
+                    state.push_log(world, &format!("[VIEW] Grid {status}"));
+                }
+                5 => state.push_log(world, "[VIEW] Wireframe toggled"),
+                6 => {
+                    let title = format!("Viewport {}", state.next_viewport_index);
+                    state.next_viewport_index += 1;
+                    world
+                        .resources
+                        .secondary_windows
+                        .pending_spawns
+                        .push(WindowSpawnRequest {
+                            title,
+                            width: 800,
+                            height: 600,
+                            egui_enabled: false,
+                        });
+                    state.push_log(world, "[VIEW] New Viewport opened");
+                }
+                _ => {}
+            }
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_menu_selected(add_menu, move |clicked, world: &mut World| {
+            let mut state = shared.borrow_mut();
+            let mesh_name = match clicked {
+                0 => "Cube",
+                1 => "Sphere",
+                2 => "Cylinder",
+                3 => {
+                    state.push_log(world, "[ADD] Point Light (not implemented)");
+                    return;
+                }
+                4 => {
+                    state.push_log(world, "[ADD] Spot Light (not implemented)");
+                    return;
+                }
+                _ => return,
+            };
+            let name = state.spawn_mesh_entity(world, mesh_name);
+            state.push_log(world, &format!("[ADD] {name}"));
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_tree_selected(tree_view, move |node, world: &mut World| {
+            let is_selected = world
+                .widget::<UiTreeViewData>(tree_view)
+                .map(|d| d.selected_nodes.contains(&node))
+                .unwrap_or(false);
+            if !is_selected {
+                return;
+            }
+            let mut state = shared.borrow_mut();
+            if let Some(scene) = state.scene_entities.iter().find(|s| s.tree_node == node) {
+                let entity = scene.entity;
+                let name = scene.name.clone();
+                state.selected_scene_entity = Some(entity);
+                state.push_log(world, &format!("[SELECT] {name}"));
+                load_entity_to_inspector(world, entity);
+            }
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_tree_context_menu(tree_view, move |_node, position, world: &mut World| {
+            world.ui_show_context_menu(context_menu, position);
+            let _ = shared; // ensure shared is captured for lifetime
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_menu_selected(context_menu, move |item_index, world: &mut World| {
+            let mut state = shared.borrow_mut();
+            let selected_nodes = world
+                .widget::<UiTreeViewData>(tree_view)
+                .map(|d| d.selected_nodes.clone())
+                .unwrap_or_default();
+            let selected_name = selected_nodes.first().and_then(|node| {
+                state
+                    .scene_entities
+                    .iter()
+                    .find(|s| s.tree_node == *node)
+                    .map(|s| s.name.clone())
+            });
+
+            let action = match item_index {
+                0 => "Rename",
+                1 => "Duplicate",
+                3 => "Delete",
+                _ => "Unknown",
+            };
+
+            if let Some(name) = &selected_name {
+                state.push_log(world, &format!("[ACTION] {action}: {name}"));
+            } else {
+                state.push_log(world, &format!("[ACTION] {action}"));
+            }
+
+            if item_index == 3
+                && let Some(node) = selected_nodes.first()
+                && let Some(index) = state
+                    .scene_entities
+                    .iter()
+                    .position(|s| s.tree_node == *node)
+            {
+                let scene = state.scene_entities.remove(index);
+                despawn_entities_with_cache_cleanup(world, &[scene.entity]);
+                if state.selected_scene_entity == Some(scene.entity) {
+                    state.selected_scene_entity = None;
+                }
+            }
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_any(
+            &[
+                "inspector.pos_x",
+                "inspector.pos_y",
+                "inspector.pos_z",
+                "inspector.rot_y",
+                "inspector.scale",
+            ],
+            move |world: &mut World| {
+                let state = shared.borrow();
+                let Some(selected) = state.selected_scene_entity else {
+                    return;
+                };
+                drop(state);
+
+                let pos = nalgebra_glm::Vec3::new(
+                    world.ui_prop::<f32>("inspector.pos_x"),
+                    world.ui_prop::<f32>("inspector.pos_y"),
+                    world.ui_prop::<f32>("inspector.pos_z"),
+                );
+                let rot_y: f32 = world.ui_prop("inspector.rot_y");
+                let scale_val: f32 = world.ui_prop("inspector.scale");
+
+                if let Some(transform) = world.get_local_transform_mut(selected) {
+                    transform.translation = pos;
+                    transform.rotation =
+                        nalgebra_glm::quat_angle_axis(rot_y.to_radians(), &Vec3::y());
+                    transform.scale = Vec3::new(scale_val, scale_val, scale_val);
+                }
+                world.set_local_transform_dirty(selected, LocalTransformDirty);
+            },
+        );
+
+        let shared = self.shared.clone();
+        world.ui_react::<bool, _>("inspector.visible", move |val: bool, world: &mut World| {
+            shared
+                .borrow_mut()
+                .push_log(world, &format!("[TOGGLE] Visible = {val}"));
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_clicked(add_entity_button, move |world: &mut World| {
+            let mut state = shared.borrow_mut();
+            let name = state.spawn_mesh_entity(world, "Cube");
+            state.push_log(world, &format!("[SPAWN] {name}"));
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_confirmed(confirm_dialog, move |confirmed, world: &mut World| {
+            let mut state = shared.borrow_mut();
+            if confirmed {
+                let cube_entities: Vec<Entity> = state
+                    .scene_entities
+                    .iter()
+                    .filter(|s| s.name.starts_with("Cube_"))
+                    .map(|s| s.entity)
+                    .collect();
+
+                let count = cube_entities.len();
+                despawn_entities_with_cache_cleanup(world, &cube_entities);
+
+                state
+                    .scene_entities
+                    .retain(|s| !s.name.starts_with("Cube_"));
+                if let Some(selected) = state.selected_scene_entity
+                    && cube_entities.contains(&selected)
+                {
+                    state.selected_scene_entity = None;
+                }
+
+                state.push_log(world, &format!("[DELETE] Removed {count} cubes"));
+            } else {
+                state.push_log(world, "[ACTION] Cancelled delete");
+            }
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_command(command_palette, move |command_index, world: &mut World| {
+            let mut state = shared.borrow_mut();
+            match command_index {
+                0 => state.push_log(world, "[CMD] New Scene"),
+                1 => state.push_log(world, "[CMD] Save Layout"),
+                2 => state.push_log(world, "[CMD] Load Layout"),
+                3 => state.push_log(world, "[CMD] Reset Layout"),
+                index @ 4..=6 => {
+                    let panel_index = index - 3;
+                    let (panel, name) = state.panels[panel_index];
+                    let visible = world
+                        .get_ui_layout_node(panel)
+                        .map(|n| n.visible)
+                        .unwrap_or(true);
+                    world.ui_set_visible(panel, !visible);
+                    state.push_log(world, &format!("[CMD] Toggle {name}"));
+                }
+                7 => {
+                    let container = state.tile_container;
+                    let visible = world
+                        .get_ui_layout_node(container)
+                        .map(|n| n.visible)
+                        .unwrap_or(true);
+                    world.ui_set_visible(container, !visible);
+                    state.push_log(world, "[CMD] Toggle Tile Tree");
+                }
+                8 => {
+                    world.resources.graphics.show_grid = !world.resources.graphics.show_grid;
+                    state.push_log(world, "[CMD] Toggle Grid");
+                }
+                9 => {
+                    let name = state.spawn_mesh_entity(world, "Cube");
+                    state.push_log(world, &format!("[CMD] Added {name}"));
+                }
+                10 => {
+                    let name = state.spawn_mesh_entity(world, "Sphere");
+                    state.push_log(world, &format!("[CMD] Added {name}"));
+                }
+                11 => {
+                    let name = state.spawn_mesh_entity(world, "Cylinder");
+                    state.push_log(world, &format!("[CMD] Added {name}"));
+                }
+                12 => state.push_log(world, "[CMD] Delete All Cubes"),
+                _ => {}
+            }
+        });
+
+        let shared = self.shared.clone();
+        world.ui_react_clicked(tile_add_pane_button, move |world: &mut World| {
+            let mut state = shared.borrow_mut();
+            state.tile_pane_counter += 1;
+            let title = format!("Pane {}", state.tile_pane_counter);
+            let container = state.tile_container;
+            let pane_text = format!(
+                "Dynamic pane \"{title}\" created at runtime.\nDrag this tab to rearrange it.\nDrop on edges to split into new area."
+            );
+            world.build_tiles(container, |tiles| {
+                if let Some((_pane_id, content)) = tiles.pane(&title) {
+                    tiles.content(content, |tree| {
+                        tree.add_label(&title);
+                        tree.add_separator();
+                        tree.add_node()
+                            .flow_child(
+                                Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
+                                    + Ab(nalgebra_glm::Vec2::new(0.0, 100.0)),
+                            )
+                            .with_text(&pane_text, 12.0)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
+                            .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.5, 0.5, 0.6, 1.0))
+                            .without_pointer_events()
+                            .done();
+                    });
+                }
+            });
+            state.push_log(world, &format!("[TILE] Added {title}"));
+            state.push_tile_output(world, &format!("[new] Created tile pane: {title}"));
+        });
     }
 
     fn run_systems(&mut self, world: &mut World) {
@@ -628,27 +1133,29 @@ impl State for DockingDemo {
         pan_orbit_camera_system(world);
 
         let delta_time = world.resources.window.timing.delta_time;
-        self.total_time += delta_time;
+        self.shared.borrow_mut().total_time += delta_time;
 
-        self.handle_menu_bar(world);
-        self.handle_tree_filter(world);
-        self.handle_tree_selection(world);
-        self.handle_tree_context_menu(world);
-        self.handle_inspector(world);
-        self.handle_add_entity(world);
-        self.handle_confirm_dialog(world);
-        self.handle_command_palette(world);
-        self.handle_tile_pane_management(world);
+        let command_palette = self.shared.borrow().command_palette;
+        for &(key_code, pressed) in &world.resources.input.keyboard.frame_keys.clone() {
+            if pressed
+                && key_code == KeyCode::KeyP
+                && world
+                    .resources
+                    .input
+                    .keyboard
+                    .is_key_pressed(KeyCode::ControlLeft)
+            {
+                world.ui_show_command_palette(command_palette);
+            }
+        }
+
         self.handle_tile_events(world);
         self.check_panel_events(world);
         self.update_scene_info(world);
         self.forward_input_to_secondary_worlds(world);
 
         let fps = world.resources.window.timing.frames_per_second;
-        world
-            .resources
-            .text_cache
-            .set_text(self.fps_text_slot, format!("FPS: {fps}"));
+        world.ui_set_text(self.fps_text_entity, &format!("FPS: {fps}"));
     }
 
     fn pre_render(&mut self, renderer: &mut dyn Render, world: &mut World) {
@@ -682,417 +1189,26 @@ impl State for DockingDemo {
 }
 
 impl DockingDemo {
-    fn menu_item_clicked(world: &World, entity: Entity) -> bool {
-        world
-            .get_ui_node_interaction(entity)
-            .map(|i| i.clicked)
-            .unwrap_or(false)
-    }
-
-    fn menu_button_bottom(world: &World, entity: Entity) -> nalgebra_glm::Vec2 {
-        world
-            .get_ui_layout_node(entity)
-            .map(|n| nalgebra_glm::Vec2::new(n.computed_rect.min.x, n.computed_rect.max.y))
-            .unwrap_or_default()
-    }
-
-    fn handle_menu_bar(&mut self, world: &mut World) {
-        if Self::menu_item_clicked(world, self.file_button) {
-            let pos = Self::menu_button_bottom(world, self.file_button);
-            world.ui_show_context_menu(self.file_menu, pos);
+    fn handle_tile_events(&self, world: &mut World) {
+        let mut state = self.shared.borrow_mut();
+        let container = state.tile_container;
+        if let Some(pane_id) = world.ui_tile_tab_activated(container) {
+            let title = world
+                .ui_tile_pane_title(container, pane_id)
+                .unwrap_or_default();
+            state.push_tile_output(world, &format!("[TILE] Tab activated: {title}"));
         }
-        if Self::menu_item_clicked(world, self.view_button) {
-            let pos = Self::menu_button_bottom(world, self.view_button);
-            world.ui_show_context_menu(self.view_menu, pos);
+        if let Some((_pane_id, title)) = world.ui_tile_tab_closed(container) {
+            state.push_tile_output(world, &format!("[TILE] Tab closed: {title}"));
         }
-        if Self::menu_item_clicked(world, self.add_button) {
-            let pos = Self::menu_button_bottom(world, self.add_button);
-            world.ui_show_context_menu(self.add_menu, pos);
-        }
-
-        if let Some(clicked) = world.ui_context_menu_clicked(self.file_menu) {
-            match clicked {
-                0 => {
-                    let cube_entities: Vec<Entity> = self
-                        .scene_entities
-                        .iter()
-                        .filter(|s| {
-                            s.name.starts_with("Cube_")
-                                || s.name.starts_with("Sphere_")
-                                || s.name.starts_with("Cylinder_")
-                        })
-                        .map(|s| s.entity)
-                        .collect();
-                    despawn_entities_with_cache_cleanup(world, &cube_entities);
-                    self.scene_entities.retain(|s| {
-                        !s.name.starts_with("Cube_")
-                            && !s.name.starts_with("Sphere_")
-                            && !s.name.starts_with("Cylinder_")
-                    });
-                    self.selected_scene_entity = None;
-                    self.push_log(world, "[FILE] New scene");
-                }
-                2 => {
-                    if let Some(layout) = world.ui_tile_save_layout(self.tile_container) {
-                        self.saved_layout = Some(layout);
-                        self.push_log(world, "[FILE] Layout saved");
-                    }
-                }
-                3 => {
-                    if let Some(layout) = self.saved_layout.clone() {
-                        let pane_mappings = world.ui_tile_load_layout(self.tile_container, &layout);
-                        self.push_log(
-                            world,
-                            &format!("[FILE] Layout loaded ({} panes)", pane_mappings.len()),
-                        );
-                    } else {
-                        self.push_log(world, "[FILE] No saved layout");
-                    }
-                }
-                5 => self.push_log(world, "[FILE] Reset layout"),
-                _ => {}
-            }
-        }
-
-        if let Some(clicked) = world.ui_context_menu_clicked(self.view_menu) {
-            match clicked {
-                index @ 0..=2 => {
-                    let (panel, name) = match index {
-                        0 => (self.left_panel, "Explorer"),
-                        1 => (self.right_panel, "Inspector"),
-                        _ => (self.bottom_panel, "Console"),
-                    };
-                    let currently_visible = world
-                        .get_ui_layout_node(panel)
-                        .map(|n| n.visible)
-                        .unwrap_or(true);
-                    world.ui_set_visible(panel, !currently_visible);
-                    let state = if currently_visible { "hidden" } else { "shown" };
-                    self.push_log(world, &format!("[VIEW] {name} {state}"));
-                }
-                3 => {
-                    let currently_visible = world
-                        .get_ui_layout_node(self.tile_container)
-                        .map(|n| n.visible)
-                        .unwrap_or(true);
-                    world.ui_set_visible(self.tile_container, !currently_visible);
-                    let state = if currently_visible { "hidden" } else { "shown" };
-                    self.push_log(world, &format!("[VIEW] Tile Tree {state}"));
-                }
-                4 => {
-                    world.resources.graphics.show_grid = !world.resources.graphics.show_grid;
-                    let state = if world.resources.graphics.show_grid {
-                        "on"
-                    } else {
-                        "off"
-                    };
-                    self.push_log(world, &format!("[VIEW] Grid {state}"));
-                }
-                5 => self.push_log(world, "[VIEW] Wireframe toggled"),
-                6 => {
-                    let title = format!("Viewport {}", self.next_viewport_index);
-                    self.next_viewport_index += 1;
-                    world
-                        .resources
-                        .secondary_windows
-                        .pending_spawns
-                        .push(WindowSpawnRequest {
-                            title,
-                            width: 800,
-                            height: 600,
-                            egui_enabled: false,
-                        });
-                    self.push_log(world, "[VIEW] New Viewport opened");
-                }
-                _ => {}
-            }
-        }
-
-        if let Some(clicked) = world.ui_context_menu_clicked(self.add_menu) {
-            let (mesh_name, display_name) = match clicked {
-                0 => ("Cube", "Cube"),
-                1 => ("Sphere", "Sphere"),
-                2 => ("Cylinder", "Cylinder"),
-                3 => {
-                    self.push_log(world, "[ADD] Point Light (not implemented)");
-                    return;
-                }
-                4 => {
-                    self.push_log(world, "[ADD] Spot Light (not implemented)");
-                    return;
-                }
-                _ => return,
-            };
-            let name = format!("{}_{}", display_name, self.next_cube_index);
-            self.next_cube_index += 1;
-            let angle = self.total_time;
-            let position = Vec3::new(angle.cos() * 2.0, 0.5, angle.sin() * 2.0);
-            let entity = spawn_mesh(world, mesh_name, position, Vec3::new(0.8, 0.8, 0.8));
-            world.set_name(entity, Name(name.clone()));
-
-            let mut tree = UiTreeBuilder::new(world);
-            let node = tree.add_tree_node(
-                self.tree_view,
-                self.cubes_tree_children,
-                &name,
-                2,
-                entity.id as u64,
-            );
-            tree.finish();
-
-            self.scene_entities.push(SceneEntity {
-                entity,
-                tree_node: node,
-                name: name.clone(),
-            });
-            self.push_log(world, &format!("[ADD] {name}"));
+        if let Some((_split_id, ratio)) = world.ui_tile_splitter_moved(container) {
+            state.push_tile_output(world, &format!("[TILE] Splitter moved: {ratio:.2}"));
         }
     }
 
-    fn handle_tree_selection(&mut self, world: &mut World) {
-        let mut newly_selected: Option<(Entity, String)> = None;
-        for event in world.ui_events().to_vec() {
-            if let UiEvent::TreeNodeSelected {
-                tree,
-                node,
-                selected,
-            } = event
-                && tree == self.tree_view
-                && selected
-                && let Some(scene) = self.scene_entities.iter().find(|s| s.tree_node == node)
-            {
-                newly_selected = Some((scene.entity, scene.name.clone()));
-            }
-        }
-
-        if let Some((entity, name)) = newly_selected {
-            self.selected_scene_entity = Some(entity);
-            self.push_log(world, &format!("[SELECT] {name}"));
-            self.load_entity_to_inspector(world, entity);
-        }
-    }
-
-    fn load_entity_to_inspector(&mut self, world: &mut World, entity: Entity) {
-        let Some(transform) = world.get_local_transform(entity) else {
-            return;
-        };
-        let translation = transform.translation;
-        let rotation = transform.rotation;
-        let scale_val = transform.scale.x;
-
-        self.pos = translation;
-        let editor_entities = world
-            .ui_composite::<Vec3Editor>(self.position_editor)
-            .map(|editor| (editor.x, editor.y, editor.z));
-        if let Some((ex, ey, ez)) = editor_entities {
-            world.ui_drag_value_set_value(ex, translation.x);
-            world.ui_drag_value_set_value(ey, translation.y);
-            world.ui_drag_value_set_value(ez, translation.z);
-        }
-
-        let euler = nalgebra_glm::quat_euler_angles(&rotation);
-        let y_degrees = euler.y.to_degrees();
-        self.rotation_y = y_degrees;
-        world.ui_drag_value_set_value(self.rot_y, y_degrees);
-
-        self.scale = scale_val;
-        world.ui_drag_value_set_value(self.scale_x, scale_val);
-
-        self.inspector_just_loaded = true;
-    }
-
-    fn handle_inspector(&mut self, world: &mut World) {
-        let Some(selected) = self.selected_scene_entity else {
-            return;
-        };
-
-        if self.inspector_just_loaded {
-            self.inspector_just_loaded = false;
-            return;
-        }
-
-        let mut transform_changed = false;
-
-        if let Some(editor) = world.ui_composite::<Vec3Editor>(self.position_editor) {
-            let new_pos = editor.value(world);
-            if new_pos != self.pos {
-                self.pos = new_pos;
-                transform_changed = true;
-            }
-        }
-
-        if world.ui_bind_drag_value(self.rot_y, &mut self.rotation_y) {
-            transform_changed = true;
-        }
-
-        if world.ui_bind_drag_value(self.scale_x, &mut self.scale) {
-            transform_changed = true;
-        }
-
-        if transform_changed {
-            let pos = self.pos;
-            let rot_y = self.rotation_y;
-            let scale_val = self.scale;
-
-            if let Some(transform) = world.get_local_transform_mut(selected) {
-                transform.translation = pos;
-                transform.rotation = nalgebra_glm::quat_angle_axis(rot_y.to_radians(), &Vec3::y());
-                transform.scale = Vec3::new(scale_val, scale_val, scale_val);
-            }
-            world.set_local_transform_dirty(selected, LocalTransformDirty);
-        }
-
-        if world.ui_bind_toggle(self.visible_toggle, &mut self.visible_val) {
-            self.push_log(world, &format!("[TOGGLE] Visible = {}", self.visible_val));
-        }
-    }
-
-    fn handle_add_entity(&mut self, world: &mut World) {
-        if world.ui_button_clicked(self.add_entity_button) {
-            let name = format!("Cube_{}", self.next_cube_index);
-            self.next_cube_index += 1;
-
-            let angle = self.total_time;
-            let position = Vec3::new(angle.cos() * 2.0, 0.5, angle.sin() * 2.0);
-            let entity = spawn_mesh(world, "Cube", position, Vec3::new(0.8, 0.8, 0.8));
-            world.set_name(entity, Name(name.clone()));
-
-            let mut tree = UiTreeBuilder::new(world);
-            let node = tree.add_tree_node(
-                self.tree_view,
-                self.cubes_tree_children,
-                &name,
-                2,
-                entity.id as u64,
-            );
-            tree.finish();
-
-            self.scene_entities.push(SceneEntity {
-                entity,
-                tree_node: node,
-                name: name.clone(),
-            });
-
-            self.push_log(world, &format!("[SPAWN] {name}"));
-        }
-    }
-
-    fn handle_tree_context_menu(&mut self, world: &mut World) {
-        for event in world.ui_events().to_vec() {
-            if let UiEvent::TreeNodeContextMenu { tree, position, .. } = event
-                && tree == self.tree_view
-            {
-                world.ui_show_context_menu(self.context_menu, position);
-            }
-        }
-
-        if let Some(item_index) = world.ui_context_menu_clicked(self.context_menu) {
-            let selected_nodes = world.ui_tree_view_selected(self.tree_view);
-            let selected_name = selected_nodes.first().and_then(|node| {
-                self.scene_entities
-                    .iter()
-                    .find(|s| s.tree_node == *node)
-                    .map(|s| s.name.clone())
-            });
-
-            let action = match item_index {
-                0 => "Rename",
-                1 => "Duplicate",
-                3 => "Delete",
-                _ => "Unknown",
-            };
-
-            if let Some(name) = &selected_name {
-                self.push_log(world, &format!("[ACTION] {action}: {name}"));
-            } else {
-                self.push_log(world, &format!("[ACTION] {action}"));
-            }
-
-            if item_index == 3
-                && let Some(node) = selected_nodes.first()
-                && let Some(index) = self
-                    .scene_entities
-                    .iter()
-                    .position(|s| s.tree_node == *node)
-            {
-                let scene = self.scene_entities.remove(index);
-                despawn_entities_with_cache_cleanup(world, &[scene.entity]);
-                if self.selected_scene_entity == Some(scene.entity) {
-                    self.selected_scene_entity = None;
-                }
-            }
-        }
-    }
-
-    fn handle_confirm_dialog(&mut self, world: &mut World) {
-        if world.ui_button_clicked(self.delete_button) {
-            world.ui_show_modal(self.confirm_dialog);
-        }
-
-        if let Some(confirmed) = world.ui_modal_result(self.confirm_dialog) {
-            if confirmed {
-                let cube_entities: Vec<Entity> = self
-                    .scene_entities
-                    .iter()
-                    .filter(|s| s.name.starts_with("Cube_"))
-                    .map(|s| s.entity)
-                    .collect();
-
-                let count = cube_entities.len();
-                despawn_entities_with_cache_cleanup(world, &cube_entities);
-
-                self.scene_entities.retain(|s| !s.name.starts_with("Cube_"));
-                if let Some(selected) = self.selected_scene_entity
-                    && cube_entities.contains(&selected)
-                {
-                    self.selected_scene_entity = None;
-                }
-
-                self.push_log(world, &format!("[DELETE] Removed {count} cubes"));
-            } else {
-                self.push_log(world, "[ACTION] Cancelled delete");
-            }
-        }
-    }
-
-    fn push_log(&mut self, world: &mut World, message: &str) {
-        self.log_lines.push(message.to_string());
-        if self.log_lines.len() > 12 {
-            self.log_lines.remove(0);
-        }
-        self.update_log_text(world);
-        self.push_tile_console(world, message);
-    }
-
-    fn push_tile_console(&mut self, world: &mut World, message: &str) {
-        self.tile_console_lines.push(message.to_string());
-        if self.tile_console_lines.len() > 30 {
-            self.tile_console_lines.remove(0);
-        }
-        world
-            .resources
-            .text_cache
-            .set_text(self.tile_console_text, self.tile_console_lines.join("\n"));
-    }
-
-    fn update_log_text(&self, world: &mut World) {
-        let log_text = self.log_lines.join("\n");
-        world
-            .resources
-            .text_cache
-            .set_text(self.log_text_slot, log_text);
-    }
-
-    fn check_panel_events(&mut self, world: &mut World) {
-        let panels = [
-            (self.top_panel, "Menu"),
-            (self.left_panel, "Explorer"),
-            (self.right_panel, "Inspector"),
-            (self.bottom_panel, "Console"),
-            (self.floating_panel_a, "Scene"),
-            (self.floating_panel_b, "Actions"),
-        ];
-
+    fn check_panel_events(&self, world: &mut World) {
+        let mut state = self.shared.borrow_mut();
+        let panels = state.panels;
         for (entity, name) in &panels {
             if let Some(UiWidgetState::Panel(data)) = world.get_ui_widget_state(*entity) {
                 let kind_str = match data.panel_kind {
@@ -1111,168 +1227,39 @@ impl DockingDemo {
                 };
                 if kind_str != expected {
                     let msg = format!("[{name}] {expected} -> {kind_str}");
-                    if self.log_lines.last().map(|s| s.as_str()) != Some(msg.as_str()) {
-                        self.push_log(world, &msg);
+                    if state.log_lines.last().map(|s| s.as_str()) != Some(msg.as_str()) {
+                        state.push_log(world, &msg);
                     }
                 }
             }
         }
     }
 
-    fn handle_tree_filter(&mut self, world: &mut World) {
-        if world.ui_text_input_changed(self.tree_filter_input) {
-            let text = world.ui_text_input_value(self.tree_filter_input);
-            world.ui_tree_view_set_filter(self.tree_view, &text);
+    fn update_scene_info(&self, world: &mut World) {
+        let state = self.shared.borrow();
+        if !world.ui_tile_active_pane(state.tile_container, self.tile_scene_info_pane) {
+            return;
         }
-    }
-
-    fn handle_command_palette(&mut self, world: &mut World) {
-        for &(key_code, pressed) in &world.resources.input.keyboard.frame_keys.clone() {
-            if pressed
-                && key_code == KeyCode::KeyP
-                && world
-                    .resources
-                    .input
-                    .keyboard
-                    .is_key_pressed(KeyCode::ControlLeft)
-            {
-                world.ui_show_command_palette(self.command_palette);
-            }
-        }
-
-        if let Some(command_index) = world.ui_command_palette_executed(self.command_palette) {
-            match command_index {
-                0 => self.push_log(world, "[CMD] New Scene"),
-                1 => self.push_log(world, "[CMD] Save Layout"),
-                2 => self.push_log(world, "[CMD] Load Layout"),
-                3 => self.push_log(world, "[CMD] Reset Layout"),
-                4 => {
-                    let visible = world
-                        .get_ui_layout_node(self.left_panel)
-                        .map(|n| n.visible)
-                        .unwrap_or(true);
-                    world.ui_set_visible(self.left_panel, !visible);
-                    self.push_log(world, "[CMD] Toggle Explorer");
-                }
-                5 => {
-                    let visible = world
-                        .get_ui_layout_node(self.right_panel)
-                        .map(|n| n.visible)
-                        .unwrap_or(true);
-                    world.ui_set_visible(self.right_panel, !visible);
-                    self.push_log(world, "[CMD] Toggle Inspector");
-                }
-                6 => {
-                    let visible = world
-                        .get_ui_layout_node(self.bottom_panel)
-                        .map(|n| n.visible)
-                        .unwrap_or(true);
-                    world.ui_set_visible(self.bottom_panel, !visible);
-                    self.push_log(world, "[CMD] Toggle Console");
-                }
-                7 => {
-                    let visible = world
-                        .get_ui_layout_node(self.tile_container)
-                        .map(|n| n.visible)
-                        .unwrap_or(true);
-                    world.ui_set_visible(self.tile_container, !visible);
-                    self.push_log(world, "[CMD] Toggle Tile Tree");
-                }
-                8 => {
-                    world.resources.graphics.show_grid = !world.resources.graphics.show_grid;
-                    self.push_log(world, "[CMD] Toggle Grid");
-                }
-                9 => self.spawn_mesh_entity(world, "Cube"),
-                10 => self.spawn_mesh_entity(world, "Sphere"),
-                11 => self.spawn_mesh_entity(world, "Cylinder"),
-                12 => self.push_log(world, "[CMD] Delete All Cubes"),
-                _ => {}
-            }
-        }
-    }
-
-    fn spawn_mesh_entity(&mut self, world: &mut World, mesh_name: &str) {
-        let name = format!("{}_{}", mesh_name, self.next_cube_index);
-        self.next_cube_index += 1;
-        let angle = self.total_time;
-        let position = Vec3::new(angle.cos() * 2.0, 0.5, angle.sin() * 2.0);
-        let entity = spawn_mesh(world, mesh_name, position, Vec3::new(0.8, 0.8, 0.8));
-        world.set_name(entity, Name(name.clone()));
-
-        let mut tree = UiTreeBuilder::new(world);
-        let node = tree.add_tree_node(
-            self.tree_view,
-            self.cubes_tree_children,
-            &name,
-            2,
-            entity.id as u64,
+        let entity_count = state.scene_entities.len();
+        let (tile_count, pane_count) = if let Some(UiWidgetState::TileContainer(data)) =
+            world.get_ui_widget_state(state.tile_container)
+        {
+            (
+                data.tiles.iter().filter(|tile| tile.is_some()).count(),
+                data.tiles
+                    .iter()
+                    .filter(|tile| matches!(tile, Some(TileNode::Pane { .. })))
+                    .count(),
+            )
+        } else {
+            (0, 0)
+        };
+        let fps = world.resources.window.timing.frames_per_second;
+        let info = format!(
+            "Scene Entities: {entity_count}\nTile Nodes: {tile_count}\nVisible Panes: {pane_count}\nFPS: {fps}\nTime: {:.1}s",
+            state.total_time
         );
-        tree.finish();
-
-        self.scene_entities.push(SceneEntity {
-            entity,
-            tree_node: node,
-            name: name.clone(),
-        });
-        self.push_log(world, &format!("[CMD] Added {name}"));
-    }
-
-    fn handle_tile_pane_management(&mut self, world: &mut World) {
-        if world.ui_button_clicked(self.tile_add_pane_button) {
-            self.tile_pane_counter += 1;
-            let title = format!("Pane {}", self.tile_pane_counter);
-            let container = self.tile_container;
-            world.build_tiles(container, |tiles| {
-                let text_slot = tiles.add_text(format!(
-                    "Dynamic pane \"{title}\" created at runtime.\nDrag this tab to rearrange it.\nDrop on edges to split into new area."
-                ));
-                if let Some((_pane_id, content)) = tiles.pane(&title) {
-                    tiles.content(content, |tree| {
-                        tree.add_label(&title);
-                        tree.add_separator();
-                        tree.add_node()
-                            .flow_child(
-                                Rl(nalgebra_glm::Vec2::new(100.0, 0.0))
-                                    + Ab(nalgebra_glm::Vec2::new(0.0, 100.0)),
-                            )
-                            .with_text_slot(text_slot, 12.0)
-                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
-                            .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.5, 0.5, 0.6, 1.0))
-                            .without_pointer_events()
-                            .done();
-                    });
-                }
-            });
-            self.push_log(world, &format!("[TILE] Added {title}"));
-            self.push_tile_output(world, &format!("[new] Created tile pane: {title}"));
-        }
-    }
-
-    fn handle_tile_events(&mut self, world: &mut World) {
-        let container = self.tile_container;
-        if let Some(pane_id) = world.ui_tile_tab_activated(container) {
-            let title = world
-                .ui_tile_pane_title(container, pane_id)
-                .unwrap_or_default();
-            self.push_tile_output(world, &format!("[TILE] Tab activated: {title}"));
-        }
-        if let Some((_pane_id, title)) = world.ui_tile_tab_closed(container) {
-            self.push_tile_output(world, &format!("[TILE] Tab closed: {title}"));
-        }
-        if let Some((_split_id, ratio)) = world.ui_tile_splitter_moved(container) {
-            self.push_tile_output(world, &format!("[TILE] Splitter moved: {ratio:.2}"));
-        }
-    }
-
-    fn push_tile_output(&mut self, world: &mut World, message: &str) {
-        self.tile_output_lines.push(message.to_string());
-        if self.tile_output_lines.len() > 20 {
-            self.tile_output_lines.remove(0);
-        }
-        world
-            .resources
-            .text_cache
-            .set_text(self.tile_output_text, self.tile_output_lines.join("\n"));
+        world.ui_set_text(self.tile_scene_info_text, &info);
     }
 
     fn create_secondary_world(
@@ -1371,7 +1358,11 @@ impl DockingDemo {
             },
         );
         let mut toast_button = Entity::default();
-        if let Some(content) = tree.world_mut().ui_panel_content(panel) {
+        if let Some(content) = tree
+            .world_mut()
+            .widget::<UiPanelData>(panel)
+            .map(|d| d.content_entity)
+        {
             tree.push_parent(content);
             tree.add_label("Grid");
             tree.add_toggle(true);
@@ -1390,10 +1381,11 @@ impl DockingDemo {
 
         tree.finish();
 
-        SecondaryWorldInstance {
-            world: new_world,
-            toast_button,
-        }
+        new_world.ui_react_clicked(toast_button, |world: &mut World| {
+            world.ui_show_toast("Hello from this viewport!", ToastSeverity::Info, 3.0);
+        });
+
+        SecondaryWorldInstance { world: new_world }
     }
 
     fn forward_input_to_secondary_worlds(&mut self, world: &mut World) {
@@ -1425,14 +1417,6 @@ impl DockingDemo {
                 instance.world.resources.window.cached_viewport_size = Some((width, height));
                 pan_orbit_camera_system(&mut instance.world);
                 run_retained_ui_systems(&mut instance.world);
-
-                if instance.world.ui_button_clicked(instance.toast_button) {
-                    instance.world.ui_show_toast(
-                        "Hello from this viewport!",
-                        ToastSeverity::Info,
-                        3.0,
-                    );
-                }
             }
         }
 
@@ -1451,34 +1435,5 @@ impl DockingDemo {
             secondary_window.input.mouse_wheel_delta = nalgebra_glm::Vec2::zeros();
             secondary_window.input.mouse_position_delta = nalgebra_glm::Vec2::zeros();
         }
-    }
-
-    fn update_scene_info(&self, world: &mut World) {
-        if !world.ui_tile_active_pane(self.tile_container, self.tile_scene_info_pane) {
-            return;
-        }
-        let entity_count = self.scene_entities.len();
-        let (tile_count, pane_count) = if let Some(UiWidgetState::TileContainer(data)) =
-            world.get_ui_widget_state(self.tile_container)
-        {
-            (
-                data.tiles.iter().filter(|tile| tile.is_some()).count(),
-                data.tiles
-                    .iter()
-                    .filter(|tile| matches!(tile, Some(TileNode::Pane { .. })))
-                    .count(),
-            )
-        } else {
-            (0, 0)
-        };
-        let fps = world.resources.window.timing.frames_per_second;
-        let info = format!(
-            "Scene Entities: {entity_count}\nTile Nodes: {tile_count}\nVisible Panes: {pane_count}\nFPS: {fps}\nTime: {:.1}s",
-            self.total_time
-        );
-        world
-            .resources
-            .text_cache
-            .set_text(self.tile_scene_info_text, info);
     }
 }

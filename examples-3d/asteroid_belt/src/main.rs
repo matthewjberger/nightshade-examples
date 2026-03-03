@@ -26,7 +26,25 @@ impl State for AsteroidBeltWorld {
         world.resources.graphics.ui_scale = Some(1.0);
         world.resources.graphics.atmosphere = Atmosphere::None;
         world.resources.graphics.show_grid = false;
+        world.resources.graphics.min_screen_pixel_size = 2.0;
         world.resources.graphics.clear_color = [0.0, 0.0, 0.0, 1.0];
+        world.resources.graphics.mesh_lod_chains = vec![MeshLodChain {
+            base_mesh: "Sphere".to_string(),
+            levels: vec![
+                MeshLodLevel {
+                    mesh_name: "Sphere".to_string(),
+                    min_screen_pixels: 20.0,
+                },
+                MeshLodLevel {
+                    mesh_name: "Sphere_LOD1".to_string(),
+                    min_screen_pixels: 6.0,
+                },
+                MeshLodLevel {
+                    mesh_name: "Sphere_LOD2".to_string(),
+                    min_screen_pixels: 0.0,
+                },
+            ],
+        }];
         world.resources.user_interface.enabled = true;
 
         spawn_sun_without_shadows(world);

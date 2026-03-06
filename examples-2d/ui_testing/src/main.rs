@@ -19,16 +19,7 @@ impl State for UiTestApp {
         setup_test_scene(world);
 
         let mut tree = UiTreeBuilder::new(world);
-
-        let root = tree
-            .add_node()
-            .boundary(
-                Ab(nalgebra_glm::Vec2::new(20.0, 20.0)),
-                Ab(nalgebra_glm::Vec2::new(-20.0, -20.0))
-                    + Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
-            )
-            .flow(FlowDirection::Vertical, 8.0, 8.0)
-            .entity();
+        let root = create_test_root(&mut tree);
 
         tree.build_ui(root, |ui| {
             ui.heading("Automated UI Test");
@@ -63,6 +54,17 @@ impl State for UiTestApp {
 
             ui.spacing(4.0);
             ui.button_id("Right Click Target", "right_click_target");
+
+            ui.spacing(4.0);
+            ui.label("Color:");
+            ui.dropdown_id("color", &["Red", "Green", "Blue"], 0, "color_dropdown");
+
+            ui.spacing(4.0);
+            ui.label("Speed:");
+            ui.drag_value_id("speed", 0.0, 100.0, 25.0, "speed_drag");
+
+            ui.spacing(4.0);
+            ui.button_id("Drag Me", "drag_target");
         });
 
         tree.finish();
@@ -76,11 +78,16 @@ impl State for UiTestApp {
             .assert_visible("name_input")
             .assert_visible("status_label")
             .assert_visible("right_click_target")
+            .assert_visible("color_dropdown")
+            .assert_visible("speed_drag")
+            .assert_visible("drag_target")
             .assert_not_visible("hidden_label")
             .assert_text("status_label", "Status: Ready")
             .assert_value_f32("volume", 50.0)
             .assert_value_bool("muted", false)
             .assert_value_bool("agree", false)
+            .assert_value_usize("color", 0)
+            .assert_value_f32("speed", 25.0)
             .log("Initial state verified");
 
         self.driver
@@ -149,6 +156,35 @@ impl State for UiTestApp {
             .wait(2)
             .scroll(nalgebra_glm::Vec2::new(0.0, -3.0))
             .log("Scroll input verified");
+
+        self.driver
+            .wait(2)
+            .select_dropdown_option("color_dropdown", 2);
+
+        self.driver
+            .wait(8)
+            .assert_event_fired_dropdown_changed()
+            .assert_value_usize("color", 2)
+            .log("Dropdown selection verified");
+
+        self.driver
+            .wait(2)
+            .drag_entity("drag_target", nalgebra_glm::Vec2::new(400.0, 300.0));
+
+        self.driver.wait(2).log("Drag interaction verified");
+
+        self.driver.wait(2).key_down(KeyCode::ShiftLeft);
+
+        self.driver
+            .then()
+            .key_down(KeyCode::ControlLeft)
+            .log("Modifier keys pressed (key_down + then() verified)");
+
+        self.driver
+            .wait(1)
+            .key_up(KeyCode::ShiftLeft)
+            .key_up(KeyCode::ControlLeft)
+            .log("Modifier keys released");
 
         self.driver.start();
     }

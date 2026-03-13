@@ -154,7 +154,7 @@ fn spawn_textured_sprite(
 ) -> Entity {
     let entity = spawn_sprite(world, position, size);
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
-    if let Some(sprite) = world.core.get_sprite_mut(entity) {
+    if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
         sprite.depth = depth;
         sprite.texture_index = texture_slot;
         sprite.texture_index2 = texture_slot;
@@ -166,7 +166,7 @@ fn spawn_textured_sprite(
 
 fn set_sprite_texture(world: &mut World, entity: Entity, slot: u32, uv_max_table: &[Vec2]) {
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, slot);
-    if let Some(sprite) = world.core.get_sprite_mut(entity) {
+    if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
         sprite.texture_index = slot;
         sprite.texture_index2 = slot;
         sprite.uv_min = uv_min;
@@ -517,7 +517,7 @@ impl Sokoban {
 
         let floor_entity =
             spawn_tilemap(world, tilemap_position, tile_size, grid_width, grid_height);
-        if let Some(tilemap) = world.core.get_tilemap_mut(floor_entity) {
+        if let Some(tilemap) = world.sprite2d.get_tilemap_mut(floor_entity) {
             tilemap.texture_index = SLOT_TILE_SHEET;
             tilemap.sheet_columns = SHEET_COLUMNS;
             tilemap.sheet_rows = SHEET_ROWS;
@@ -556,7 +556,7 @@ impl Sokoban {
 
         let target_entity =
             spawn_tilemap(world, tilemap_position, tile_size, grid_width, grid_height);
-        if let Some(tilemap) = world.core.get_tilemap_mut(target_entity) {
+        if let Some(tilemap) = world.sprite2d.get_tilemap_mut(target_entity) {
             tilemap.texture_index = SLOT_TILE_SHEET;
             tilemap.sheet_columns = SHEET_COLUMNS;
             tilemap.sheet_rows = SHEET_ROWS;
@@ -638,7 +638,7 @@ impl Sokoban {
 
         if let Some(player_entity) = self.player_entity {
             let world_pos = self.grid_to_world_with_level(level, self.player_pos);
-            if let Some(sprite) = world.core.get_sprite_mut(player_entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(player_entity) {
                 sprite.position = world_pos;
             }
             set_sprite_texture(
@@ -653,7 +653,7 @@ impl Sokoban {
             if index < self.crate_entities.len() {
                 let entity = self.crate_entities[index];
                 let world_pos = self.grid_to_world_with_level(level, *crate_pos);
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.position = world_pos;
                 }
 

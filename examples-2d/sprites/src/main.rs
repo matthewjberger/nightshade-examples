@@ -168,7 +168,7 @@ fn spawn_textured_sprite(
 ) -> Entity {
     let entity = spawn_sprite(world, position, size);
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
-    if let Some(sprite) = world.core.get_sprite_mut(entity) {
+    if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
         sprite.depth = depth;
         sprite.texture_index = texture_slot;
         sprite.texture_index2 = texture_slot;
@@ -223,12 +223,12 @@ impl SpriteShowcase {
             let hue = index as f32 / EASING_NAMES.len() as f32;
             let (red, green, blue) = hue_to_rgb(hue);
 
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.color = [red, green, blue, 1.0];
             }
 
             let label = spawn_sprite_text(world, name, Vec2::new(label_x, position_y - 5.0), 14.0);
-            if let Some(text) = world.core.get_sprite_text_mut(label) {
+            if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
                 text.color = [red, green, blue, 1.0];
                 text.depth = 10.0;
             }
@@ -366,8 +366,8 @@ impl SpriteShowcase {
         ];
 
         for emitter_config in emitter_configs {
-            let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-            world.core.set_sprite_particle_emitter(entity, emitter_config);
+            let entity = world.spawn();
+            world.sprite2d.set_sprite_particle_emitter(entity, emitter_config);
             self.emitter_entities.push(entity);
         }
     }
@@ -381,28 +381,28 @@ impl SpriteShowcase {
 
             if let Some(track) = tween.track_by_tag(TAG_POSITION) {
                 let position = track.value_vec2();
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.position = position;
                 }
             }
 
             if let Some(track) = tween.track_by_tag(TAG_SCALE) {
                 let scale = track.value_f32();
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.scale = Vec2::new(scale, scale);
                 }
             }
 
             if let Some(track) = tween.track_by_tag(TAG_ALPHA) {
                 let alpha = track.value_f32();
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.color[3] = alpha;
                 }
             }
 
             if let Some(track) = tween.track_by_tag(TAG_COLOR) {
                 let color = track.value_vec4();
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.color = [color.x, color.y, color.z, color.w];
                 }
             }
@@ -539,8 +539,8 @@ impl SpriteShowcase {
         final_emitter.one_shot = false;
         final_emitter.burst_count = 0;
 
-        let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-        world.core.set_sprite_particle_emitter(entity, final_emitter);
+        let entity = world.spawn();
+        world.sprite2d.set_sprite_particle_emitter(entity, final_emitter);
         entity
     }
 
@@ -558,12 +558,12 @@ impl SpriteShowcase {
         } else if mouse_state.contains(MouseState::LEFT_CLICKED) {
             if let Some(entity) = self.held_emitter {
                 let world_position = self.screen_to_world(world, screen_position);
-                if let Some(emitter) = world.core.get_sprite_particle_emitter_mut(entity) {
+                if let Some(emitter) = world.sprite2d.get_sprite_particle_emitter_mut(entity) {
                     emitter.anchor = world_position;
                 }
             }
         } else if let Some(entity) = self.held_emitter.take()
-            && let Some(emitter) = world.core.get_sprite_particle_emitter_mut(entity)
+            && let Some(emitter) = world.sprite2d.get_sprite_particle_emitter_mut(entity)
         {
             emitter.enabled = false;
         }

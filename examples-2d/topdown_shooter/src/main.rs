@@ -156,7 +156,7 @@ fn spawn_textured_sprite(
 ) -> Entity {
     let entity = spawn_sprite(world, position, size);
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
-    if let Some(sprite) = world.core.get_sprite_mut(entity) {
+    if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
         sprite.depth = depth;
         sprite.texture_index = texture_slot;
         sprite.texture_index2 = texture_slot;
@@ -655,21 +655,21 @@ impl TopdownShooter {
 
     fn render_sync(&mut self, world: &mut World) {
         if let Some(player_entity) = self.player_entity
-            && let Some(sprite) = world.core.get_sprite_mut(player_entity)
+            && let Some(sprite) = world.sprite2d.get_sprite_mut(player_entity)
         {
             sprite.position = Vec2::new(self.player_x, self.player_y);
             sprite.rotation = self.player_angle;
         }
 
         for bullet in &self.bullets {
-            if let Some(sprite) = world.core.get_sprite_mut(bullet.entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(bullet.entity) {
                 sprite.position = Vec2::new(bullet.x, bullet.y);
             }
         }
 
         for zombie in &self.zombies {
             let angle = (self.player_y - zombie.y).atan2(self.player_x - zombie.x);
-            if let Some(sprite) = world.core.get_sprite_mut(zombie.entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(zombie.entity) {
                 sprite.position = Vec2::new(zombie.x, zombie.y);
                 sprite.rotation = angle;
             }

@@ -88,7 +88,7 @@ fn configure_preview_for_shape(world: &mut World, entity: Entity, shape: SpriteS
         SpriteShape::SoftCircle => Vec2::new(60.0, 60.0),
     };
 
-    if let Some(sprite) = world.core.get_sprite_mut(entity) {
+    if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
         sprite.texture_index = texture_index;
         sprite.texture_index2 = texture_index;
         sprite.uv_min = uv_min;
@@ -160,7 +160,7 @@ impl GfxDemo {
 
     fn build_preview(&mut self, world: &mut World) {
         let entity = spawn_circle(world, Vec2::new(0.0, 0.0), 20.0, [1.0, 1.0, 1.0, 0.3]);
-        if let Some(sprite) = world.core.get_sprite_mut(entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
             sprite.depth = 20.0;
         }
         configure_preview_for_shape(world, entity, current_shape(self));
@@ -193,7 +193,7 @@ impl GfxDemo {
                     Vec2::new(cell_size, cell_size),
                     [red, green, blue, 1.0],
                 );
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.depth = 5.0;
                 }
 
@@ -233,7 +233,7 @@ impl GfxDemo {
                 radius,
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0 - index as f32 * 0.1;
             }
 
@@ -271,7 +271,7 @@ impl GfxDemo {
                 radius_y,
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0 - index as f32 * 0.1;
                 sprite.rotation = rotation;
             }
@@ -303,7 +303,7 @@ impl GfxDemo {
 
         for (index, &(radius, color)) in ring_configs.iter().enumerate() {
             let entity = spawn_ring(world, Vec2::new(center_x, center_y), radius, color);
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 3.0;
             }
 
@@ -351,7 +351,7 @@ impl GfxDemo {
                 Vec2::new(width, height),
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0 - index as f32 * 0.1;
             }
 
@@ -400,7 +400,7 @@ impl GfxDemo {
                 Vec2::new(sizes[index].0, sizes[index].1),
                 colors[index],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
                 sprite.rotation = rotations[index];
             }
@@ -484,7 +484,7 @@ impl GfxDemo {
                 slot,
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0 - index as f32 * 0.1;
             }
             self.demo_entities.push(entity);
@@ -509,7 +509,7 @@ impl GfxDemo {
                 Vec2::new(width, height),
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0 - index as f32 * 0.1;
             }
 
@@ -538,10 +538,10 @@ impl GfxDemo {
             [0.3, 0.6, 1.0, 0.8],
             [1.0, 1.0, 1.0, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(fill_circle) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(fill_circle) {
             sprite.depth = 4.1;
         }
-        if let Some(sprite) = world.core.get_sprite_mut(stroke_circle) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(stroke_circle) {
             sprite.depth = 4.0;
         }
         self.demo_entities.push(fill_circle);
@@ -554,10 +554,10 @@ impl GfxDemo {
             [1.0, 0.4, 0.3, 0.8],
             [1.0, 1.0, 1.0, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(fill_rect) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(fill_rect) {
             sprite.depth = 4.1;
         }
-        if let Some(sprite) = world.core.get_sprite_mut(stroke_rect) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(stroke_rect) {
             sprite.depth = 4.0;
         }
         self.demo_entities.push(fill_rect);
@@ -570,10 +570,10 @@ impl GfxDemo {
             [0.4, 0.9, 0.4, 0.8],
             [0.9, 0.9, 0.3, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(fill_circle_b) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(fill_circle_b) {
             sprite.depth = 4.1;
         }
-        if let Some(sprite) = world.core.get_sprite_mut(stroke_circle_b) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(stroke_circle_b) {
             sprite.depth = 4.0;
         }
         self.demo_entities.push(fill_circle_b);
@@ -598,7 +598,7 @@ impl GfxDemo {
                 Vec2::new(70.0, 70.0),
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 2.0;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -644,7 +644,7 @@ impl GfxDemo {
             Vec2::new(80.0, 60.0),
             [0.15, 0.15, 0.2, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(background) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(background) {
             sprite.depth = 3.0;
         }
         self.demo_entities.push(background);
@@ -662,7 +662,7 @@ impl GfxDemo {
                 radius,
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
                 sprite.blend_mode = SpriteBlendMode::Screen;
             }
@@ -732,7 +732,7 @@ impl GfxDemo {
             Vec2::new(45.0, 30.0),
             [1.0, 1.0, 1.0, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(linear_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(linear_entity) {
             sprite.texture_index = 1;
             sprite.texture_index2 = 1;
             sprite.uv_min = uv_min;
@@ -746,7 +746,7 @@ impl GfxDemo {
             Vec2::new(40.0, 40.0),
             [1.0, 1.0, 1.0, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(radial_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(radial_entity) {
             sprite.texture_index = 2;
             sprite.texture_index2 = 2;
             sprite.uv_min = uv_min;
@@ -760,7 +760,7 @@ impl GfxDemo {
             Vec2::new(80.0, 18.0),
             [1.0, 1.0, 1.0, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(rainbow_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(rainbow_entity) {
             sprite.texture_index = 3;
             sprite.texture_index2 = 3;
             sprite.uv_min = uv_min;
@@ -803,7 +803,7 @@ impl GfxDemo {
                 line_thicknesses[index],
                 line_colors[index],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
             }
             self.demo_entities.push(entity);
@@ -817,10 +817,10 @@ impl GfxDemo {
             10.0,
             [0.8, 0.3, 0.8, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(line_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(line_entity) {
             sprite.depth = 4.0;
         }
-        if let Some(sprite) = world.core.get_sprite_mut(head_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(head_entity) {
             sprite.depth = 4.0;
         }
         self.demo_entities.push(line_entity);
@@ -857,7 +857,7 @@ impl GfxDemo {
                 color,
             );
             for &entity in &entities {
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.depth = 4.0;
                 }
             }
@@ -888,7 +888,7 @@ impl GfxDemo {
         let entities =
             spawn_variable_width_path(world, &brush_points, &pressures, 5.0, [0.9, 0.5, 0.2, 1.0]);
         for &entity in &entities {
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
             }
         }
@@ -918,7 +918,7 @@ impl GfxDemo {
             [0.4, 0.6, 1.0, 1.0],
         );
         for &entity in &ribbon_entities {
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 3.9;
             }
         }
@@ -939,7 +939,7 @@ impl GfxDemo {
             [1.0, 0.4, 0.3, 1.0],
         );
         for &entity in &quadratic_entities {
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
             }
         }
@@ -958,7 +958,7 @@ impl GfxDemo {
             [0.3, 0.6, 1.0, 1.0],
         );
         for &entity in &cubic_entities {
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
             }
         }
@@ -977,7 +977,7 @@ impl GfxDemo {
             [0.5, 1.0, 0.4, 0.8],
         );
         for &entity in &wave_entities {
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
             }
         }
@@ -1001,7 +1001,7 @@ impl GfxDemo {
             .collect();
         let star_entities = spawn_path(world, &star_points, 2.0, [1.0, 0.8, 0.2, 1.0], true);
         for &entity in &star_entities {
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
             }
         }
@@ -1018,7 +1018,7 @@ impl GfxDemo {
             .collect();
         let hex_entities = spawn_path(world, &hex_points, 1.5, [0.4, 0.8, 1.0, 0.8], true);
         for &entity in &hex_entities {
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 3.5;
             }
         }
@@ -1067,7 +1067,7 @@ impl GfxDemo {
             POLYGON_STAR_SLOT,
             [1.0, 0.8, 0.2, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(star_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(star_entity) {
             sprite.depth = 4.0;
         }
         self.demo_entities.push(star_entity);
@@ -1079,7 +1079,7 @@ impl GfxDemo {
             POLYGON_HEX_SLOT,
             [0.4, 0.7, 1.0, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(hex_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(hex_entity) {
             sprite.depth = 4.0;
         }
         self.demo_entities.push(hex_entity);
@@ -1118,7 +1118,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offsets[index], center_y),
                 Vec2::new(40.0, 40.0),
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.texture_index = slots[index];
                 sprite.texture_index2 = slots[index];
                 sprite.uv_min = uv_min;
@@ -1168,7 +1168,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offsets[index], center_y),
                 Vec2::new(35.0, 35.0),
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.texture_index = slots[index];
                 sprite.texture_index2 = slots[index];
                 sprite.uv_min = uv_min;
@@ -1232,10 +1232,10 @@ impl GfxDemo {
                 stroke_color,
                 ELLIPSE_RING_SLOT,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(fill_entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(fill_entity) {
                 sprite.depth = 4.1 - index as f32 * 0.01;
             }
-            if let Some(sprite) = world.core.get_sprite_mut(stroke_entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(stroke_entity) {
                 sprite.depth = 4.0 - index as f32 * 0.01;
             }
             self.demo_entities.push(fill_entity);
@@ -1260,7 +1260,7 @@ impl GfxDemo {
             Vec2::new(60.0, 50.0),
             [0.5, 0.5, 0.5, 0.4],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(border_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(border_entity) {
             sprite.depth = 3.5;
         }
         self.demo_entities.push(border_entity);
@@ -1279,7 +1279,7 @@ impl GfxDemo {
                 radius,
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
             }
             self.demo_entities.push(entity);
@@ -1334,7 +1334,7 @@ impl GfxDemo {
                 radius,
                 [color[0], color[1], color[2], 0.6],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 5.0;
                 sprite.clip_rect = Some(screen_clip);
             }
@@ -1364,7 +1364,7 @@ impl GfxDemo {
                 world_thickness,
                 color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
             }
             self.zoom_line_entities.push(entity);
@@ -1433,7 +1433,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offset_x, center_y + offset_y),
                 Vec2::new(35.0, 35.0),
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.texture_index = slot;
                 sprite.texture_index2 = slot;
                 sprite.uv_min = uv_min;
@@ -1491,7 +1491,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offset_x, center_y),
                 Vec2::new(40.0, 40.0),
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.texture_index = slot;
                 sprite.texture_index2 = slot;
                 sprite.uv_min = uv_min;
@@ -1539,7 +1539,7 @@ impl GfxDemo {
 
         let circle_entity =
             spawn_sprite(world, Vec2::new(center_x, center_y), Vec2::new(50.0, 50.0));
-        if let Some(sprite) = world.core.get_sprite_mut(circle_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(circle_entity) {
             sprite.texture_index = SHADOW_SOURCE_SLOT;
             sprite.texture_index2 = SHADOW_SOURCE_SLOT;
             sprite.uv_min = uv_min;
@@ -1578,7 +1578,7 @@ impl GfxDemo {
             18.0,
             [0.3, 0.9, 1.0, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(shape_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(shape_entity) {
             sprite.depth = 5.0;
         }
         self.demo_entities.push(shape_entity);
@@ -1594,7 +1594,7 @@ impl GfxDemo {
             25.0,
             [1.0, 1.0, 1.0, 1.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(mask_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(mask_entity) {
             sprite.depth = 3.0;
             sprite.stencil_mode = SpriteStencilMode::Write;
         }
@@ -1615,7 +1615,7 @@ impl GfxDemo {
                 Vec2::new(18.0, 60.0),
                 *color,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
                 sprite.stencil_mode = SpriteStencilMode::Test;
             }
@@ -1628,7 +1628,7 @@ impl GfxDemo {
             25.0,
             [0.8, 0.8, 0.8, 0.5],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(border_entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(border_entity) {
             sprite.depth = 5.0;
         }
         self.demo_entities.push(border_entity);
@@ -1682,7 +1682,7 @@ impl GfxDemo {
             Vec2::new(-130.0, 300.0),
             22.0,
         );
-        if let Some(text) = world.core.get_sprite_text_mut(title) {
+        if let Some(text) = world.sprite2d.get_sprite_text_mut(title) {
             text.color = [1.0, 1.0, 1.0, 1.0];
             text.depth = 1.0;
         }
@@ -1705,7 +1705,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offset_x, row_1_label_y),
                 11.0,
             );
-            if let Some(text) = world.core.get_sprite_text_mut(entity) {
+            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
                 text.color = [0.6, 0.6, 0.6, 1.0];
                 text.depth = 1.0;
             }
@@ -1729,7 +1729,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offset_x, row_2_label_y),
                 11.0,
             );
-            if let Some(text) = world.core.get_sprite_text_mut(entity) {
+            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
                 text.color = [0.6, 0.6, 0.6, 1.0];
                 text.depth = 1.0;
             }
@@ -1753,7 +1753,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offset_x, row_3_label_y),
                 11.0,
             );
-            if let Some(text) = world.core.get_sprite_text_mut(entity) {
+            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
                 text.color = [0.6, 0.6, 0.6, 1.0];
                 text.depth = 1.0;
             }
@@ -1776,7 +1776,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offset_x, row_4_label_y),
                 11.0,
             );
-            if let Some(text) = world.core.get_sprite_text_mut(entity) {
+            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
                 text.color = [0.6, 0.6, 0.6, 1.0];
                 text.depth = 1.0;
             }
@@ -1800,7 +1800,7 @@ impl GfxDemo {
                 Vec2::new(center_x + offset_x, row_5_label_y),
                 11.0,
             );
-            if let Some(text) = world.core.get_sprite_text_mut(entity) {
+            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
                 text.color = [0.6, 0.6, 0.6, 1.0];
                 text.depth = 1.0;
             }
@@ -1812,7 +1812,7 @@ impl GfxDemo {
             Vec2::new(-270.0, -560.0),
             11.0,
         );
-        if let Some(text) = world.core.get_sprite_text_mut(instructions) {
+        if let Some(text) = world.sprite2d.get_sprite_text_mut(instructions) {
             text.color = [0.5, 0.5, 0.5, 1.0];
             text.depth = 1.0;
         }
@@ -1827,21 +1827,21 @@ impl GfxDemo {
 
             if let Some(track) = tween.track_by_tag(TAG_POSITION) {
                 let position = track.value_vec2();
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.position = position;
                 }
             }
 
             if let Some(track) = tween.track_by_tag(TAG_SCALE) {
                 let scale = track.value_f32();
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.scale = Vec2::new(scale, scale);
                 }
             }
 
             if let Some(track) = tween.track_by_tag(TAG_ROTATION) {
                 let rotation = track.value_f32();
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.rotation = rotation;
                 }
             }
@@ -1895,7 +1895,7 @@ impl GfxDemo {
         let world_position = self.screen_to_world(world, screen_position);
 
         if let Some(entity) = self.preview_entity
-            && let Some(sprite) = world.core.get_sprite_mut(entity)
+            && let Some(sprite) = world.sprite2d.get_sprite_mut(entity)
         {
             sprite.position = world_position;
         }
@@ -1905,7 +1905,7 @@ impl GfxDemo {
         let world_thickness = screen_pixels_to_world_size(world, 2.0);
         let aa_padding = (world_thickness * 0.3).max(screen_pixels_to_world_size(world, 1.0));
         for &entity in &self.zoom_line_entities {
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 let length = sprite.size.x;
                 sprite.size = Vec2::new(length, world_thickness + aa_padding);
             }
@@ -2030,7 +2030,7 @@ impl GfxDemo {
                         Vec2::new(60.0, 60.0),
                         [red, green, blue, 0.7],
                     );
-                    if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                    if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                         sprite.blend_mode = SpriteBlendMode::Additive;
                     }
                     entity
@@ -2038,7 +2038,7 @@ impl GfxDemo {
             };
 
             self.next_spawn_depth += 0.01;
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 10.0 + self.next_spawn_depth;
             }
             self.spawned_entities.push(entity);

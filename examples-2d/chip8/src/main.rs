@@ -83,7 +83,7 @@ impl State for Chip8App {
                     Vec2::new(PIXEL_SIZE - 0.5, PIXEL_SIZE - 0.5),
                 );
 
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.texture_index = WHITE_TEXTURE_SLOT;
                     sprite.texture_index2 = WHITE_TEXTURE_SLOT;
                     sprite.uv_min = uv_min;
@@ -137,7 +137,7 @@ impl State for Chip8App {
             for (pixel_index, &pixel_on) in emulator.display.iter().enumerate() {
                 let entity = self.pixel_entities[pixel_index];
                 let color = if pixel_on { COLOR_ON } else { COLOR_OFF };
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.color = color;
                 }
             }

@@ -351,7 +351,7 @@ impl GfxShowcase {
                 Vec2::new(6.0, 10.0),
                 [0.7, 1.0, 0.7, 1.0],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(head) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(head) {
                 sprite.depth = 5.0;
             }
             self.scene_entities.push(head);
@@ -368,7 +368,7 @@ impl GfxShowcase {
                     Vec2::new(6.0, 10.0),
                     [0.0, green, 0.0, alpha],
                 );
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.depth = 5.0;
                 }
                 self.scene_entities.push(entity);
@@ -407,7 +407,7 @@ impl GfxShowcase {
             }
 
             let head_entity = self.scene_entities[column.entity_start];
-            if let Some(sprite) = world.core.get_sprite_mut(head_entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(head_entity) {
                 sprite.position.y = column.cursor_y;
                 let flicker = 0.8 + 0.2 * (self.time * 15.0 + column_index as f32 * 3.7).sin();
                 sprite.color = [0.6 * flicker, 1.0 * flicker, 0.6 * flicker, 1.0];
@@ -420,7 +420,7 @@ impl GfxShowcase {
                 let alpha = (1.0 - parameter).powf(1.2) * 0.8;
                 let green = 0.3 + 0.5 * (1.0 - parameter);
 
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.position.y = trail_y;
                     sprite.color = [0.0, green, 0.0, alpha];
                 }
@@ -444,7 +444,7 @@ impl GfxShowcase {
             let size = 1.0 + distance * 0.008;
 
             let entity = spawn_circle(world, position, size, [1.0, 1.0, 1.0, 0.8]);
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 5.0;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -484,7 +484,7 @@ impl GfxShowcase {
             let alpha = (star.distance / 80.0).min(1.0);
             let stretch = 1.0 + star.distance * 0.003;
 
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[index]) {
                 sprite.position = position;
                 sprite.size = Vec2::new(size * 2.0, size * 2.0 * stretch);
                 sprite.color = [0.9, 0.95, 1.0, alpha];
@@ -526,7 +526,7 @@ impl GfxShowcase {
             let alpha = hash_range(index as u32 + 5000, 0.3, 0.7);
 
             let entity = spawn_circle(world, position, size, [red, green, blue, alpha]);
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 5.0;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -545,7 +545,7 @@ impl GfxShowcase {
             Vec2::new(100.0, 55.0),
             [0.9, 0.85, 1.0, 0.3],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(core) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(core) {
             sprite.depth = 4.0;
             sprite.blend_mode = SpriteBlendMode::Additive;
         }
@@ -563,7 +563,7 @@ impl GfxShowcase {
                 particle.radius * particle.angle.sin() * tilt,
             );
 
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[index]) {
                 sprite.position = position;
             }
         }
@@ -571,7 +571,7 @@ impl GfxShowcase {
         let core_index = self.galaxy_particles.len();
         if core_index < self.scene_entities.len() {
             let pulse = 0.9 + 0.1 * (self.time * 0.5).sin();
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[core_index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[core_index]) {
                 sprite.size = Vec2::new(100.0 * pulse, 55.0 * pulse);
                 sprite.color[3] = 0.25 + 0.1 * (self.time * 0.3).sin();
             }
@@ -597,7 +597,7 @@ impl GfxShowcase {
                 Vec2::new(size, size),
                 [red, green, blue, 0.2],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 5.0;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -627,7 +627,7 @@ impl GfxShowcase {
             let pulse = 0.85 + 0.15 * (self.time * 0.3 + index as f32 * 0.5).sin();
             let size = blob.size * pulse;
 
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[index]) {
                 sprite.position = Vec2::new(position_x, position_y);
                 sprite.size = Vec2::new(size, size);
                 sprite.color = [red, green, blue, 0.2];
@@ -654,7 +654,7 @@ impl GfxShowcase {
                 0.5,
                 [0.3, 0.35, 0.5, 0.25],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 3.0;
             }
             self.scene_entities.push(entity);
@@ -672,7 +672,7 @@ impl GfxShowcase {
             Vec2::new(900.0, 700.0),
             [0.8, 0.85, 1.0, 0.0],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(flash) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(flash) {
             sprite.depth = 1.0;
             sprite.blend_mode = SpriteBlendMode::Additive;
         }
@@ -710,7 +710,7 @@ impl GfxShowcase {
                 thickness.max(1.0),
                 [0.7, 0.8, 1.0, 1.0],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 10.0;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -737,7 +737,7 @@ impl GfxShowcase {
                     1.5,
                     [0.5, 0.6, 0.9, 0.8],
                 );
-                if let Some(sprite) = world.core.get_sprite_mut(branch) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(branch) {
                     sprite.depth = 10.0;
                     sprite.blend_mode = SpriteBlendMode::Additive;
                 }
@@ -752,7 +752,7 @@ impl GfxShowcase {
         self.flash_alpha = 0.7;
 
         if let Some(entity) = self.flash_entity
-            && let Some(sprite) = world.core.get_sprite_mut(entity)
+            && let Some(sprite) = world.sprite2d.get_sprite_mut(entity)
         {
             sprite.position.x = start_x;
         }
@@ -772,7 +772,7 @@ impl GfxShowcase {
                 );
             }
 
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[index]) {
                 sprite.position = Vec2::new(drop.position_x, drop.position_y);
             }
         }
@@ -788,7 +788,7 @@ impl GfxShowcase {
             let bolt_alpha = (1.0 - self.lightning_bolt_age / 0.25).max(0.0);
 
             for &entity in &self.lightning_bolt_entities {
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.color[3] = bolt_alpha;
                 }
             }
@@ -802,7 +802,7 @@ impl GfxShowcase {
         if self.flash_alpha > 0.0 {
             self.flash_alpha = (self.flash_alpha - delta_time * 3.5).max(0.0);
             if let Some(entity) = self.flash_entity
-                && let Some(sprite) = world.core.get_sprite_mut(entity)
+                && let Some(sprite) = world.sprite2d.get_sprite_mut(entity)
             {
                 sprite.color[3] = self.flash_alpha;
             }
@@ -839,8 +839,8 @@ impl GfxShowcase {
             emitter.max_particles = 128;
             emitter.burst_count = 96;
 
-            let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-            world.core.set_sprite_particle_emitter(entity, emitter);
+            let entity = world.spawn();
+            world.sprite2d.set_sprite_particle_emitter(entity, emitter);
             self.scene_emitters.push(entity);
 
             if hash_f32((self.time * 100.0) as u32 + 3) < 0.4 {
@@ -866,8 +866,8 @@ impl GfxShowcase {
                 secondary_emitter.max_particles = 80;
                 secondary_emitter.burst_count = 64;
 
-                let secondary_entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-                world.core.set_sprite_particle_emitter(secondary_entity, secondary_emitter);
+                let secondary_entity = world.spawn();
+                world.sprite2d.set_sprite_particle_emitter(secondary_entity, secondary_emitter);
                 self.scene_emitters.push(secondary_entity);
             }
 
@@ -930,7 +930,7 @@ impl GfxShowcase {
                     size,
                     [red, green, blue, 0.65],
                 );
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.depth = 5.0;
                     if shapes[shape_index] == SpriteShape::SoftCircle {
                         sprite.blend_mode = SpriteBlendMode::Additive;
@@ -968,7 +968,7 @@ impl GfxShowcase {
                         .fract();
                 let (red, green, blue) = hue_to_rgb(hue);
 
-                if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[entity_index]) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index]) {
                     sprite.position = position;
                     sprite.color = [red, green, blue, 0.65];
                     sprite.rotation = angle;
@@ -1006,7 +1006,7 @@ impl GfxShowcase {
                 let (red, green, blue) = hue_to_rgb(hue);
 
                 let entity = spawn_ring(world, position, radius, [red, green, blue, alpha]);
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.depth = 5.0;
                     sprite.blend_mode = SpriteBlendMode::Additive;
                 }
@@ -1044,7 +1044,7 @@ impl GfxShowcase {
                 let (red, green, blue) = hue_to_rgb(hue);
 
                 let entity_index = source_index * rings_per_source + ring_index;
-                if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[entity_index]) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index]) {
                     sprite.position = source.position;
                     sprite.size = Vec2::new(radius * 2.0, radius * 2.0);
                     sprite.color = [red, green, blue, alpha];
@@ -1129,8 +1129,8 @@ impl GfxShowcase {
                 }
             };
 
-            let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-            world.core.set_sprite_particle_emitter(entity, emitter);
+            let entity = world.spawn();
+            world.sprite2d.set_sprite_particle_emitter(entity, emitter);
             self.scene_emitters.push(entity);
 
             self.storm_timer = hash_range(seed + 5, 0.08, 0.35);
@@ -1169,7 +1169,7 @@ impl GfxShowcase {
                 size1,
                 [0.2, 0.5, 1.0, alpha1],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(strand1) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(strand1) {
                 sprite.depth = 5.0 + depth1;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -1191,7 +1191,7 @@ impl GfxShowcase {
                 size2,
                 [1.0, 0.3, 0.3, alpha2],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(strand2) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(strand2) {
                 sprite.depth = 5.0 + depth2;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -1211,7 +1211,7 @@ impl GfxShowcase {
                 1.5,
                 [0.4, 0.4, 0.6, 0.4],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(rung) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(rung) {
                 sprite.depth = 4.5;
             }
             self.scene_entities.push(rung);
@@ -1230,7 +1230,7 @@ impl GfxShowcase {
                 1.0,
                 [0.15, 0.35, 0.8, 0.5],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(backbone1) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(backbone1) {
                 sprite.depth = 5.5;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -1250,7 +1250,7 @@ impl GfxShowcase {
                 1.0,
                 [0.8, 0.2, 0.2, 0.5],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(backbone2) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(backbone2) {
                 sprite.depth = 5.5;
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
@@ -1284,7 +1284,7 @@ impl GfxShowcase {
             let color_shift = (self.time * 0.3 + nucleotide_index as f32 * 0.05).sin() * 0.15;
 
             if let Some(sprite) =
-                world.core.get_sprite_mut(self.scene_entities[strand1_start + nucleotide_index])
+                world.sprite2d.get_sprite_mut(self.scene_entities[strand1_start + nucleotide_index])
             {
                 sprite.position = Vec2::new(strand1_x, axis_y);
                 sprite.size = Vec2::new(size1 * 2.0, size1 * 2.0);
@@ -1299,7 +1299,7 @@ impl GfxShowcase {
             let alpha2 = 0.5 + 0.5 * (depth2 * 0.5 + 0.5);
 
             if let Some(sprite) =
-                world.core.get_sprite_mut(self.scene_entities[strand2_start + nucleotide_index])
+                world.sprite2d.get_sprite_mut(self.scene_entities[strand2_start + nucleotide_index])
             {
                 sprite.position = Vec2::new(strand2_x, axis_y);
                 sprite.size = Vec2::new(size2 * 2.0, size2 * 2.0);
@@ -1308,7 +1308,7 @@ impl GfxShowcase {
             }
 
             if let Some(sprite) =
-                world.core.get_sprite_mut(self.scene_entities[rung_start + nucleotide_index])
+                world.sprite2d.get_sprite_mut(self.scene_entities[rung_start + nucleotide_index])
             {
                 sprite.position = Vec2::new((strand1_x + strand2_x) / 2.0, axis_y);
                 let rung_length = (strand2_x - strand1_x).abs();
@@ -1334,7 +1334,7 @@ impl GfxShowcase {
             let angle = dy.atan2(dx);
 
             if let Some(sprite) =
-                world.core.get_sprite_mut(self.scene_entities[backbone1_start + nucleotide_index])
+                world.sprite2d.get_sprite_mut(self.scene_entities[backbone1_start + nucleotide_index])
             {
                 sprite.position = Vec2::new(mid_x, mid_y);
                 sprite.size = Vec2::new(length, 1.0);
@@ -1353,7 +1353,7 @@ impl GfxShowcase {
             let angle_b = dy_b.atan2(dx_b);
 
             if let Some(sprite) =
-                world.core.get_sprite_mut(self.scene_entities[backbone2_start + nucleotide_index])
+                world.sprite2d.get_sprite_mut(self.scene_entities[backbone2_start + nucleotide_index])
             {
                 sprite.position = Vec2::new(mid_x_b, mid_y_b);
                 sprite.size = Vec2::new(length_b, 1.0);
@@ -1397,7 +1397,7 @@ impl GfxShowcase {
             };
 
             let entity = spawn_shape(world, shape, Vec2::new(position_x, position_y), size, color);
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 5.0;
                 sprite.rotation = hash_range(seed + 600, 0.0, std::f32::consts::TAU);
             }
@@ -1418,7 +1418,7 @@ impl GfxShowcase {
             confetti.velocity_y -= gravity * delta_time;
             confetti.velocity_x *= 1.0 - 0.3 * delta_time;
 
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[index]) {
                 sprite.position.x += confetti.velocity_x * delta_time;
                 sprite.position.y += confetti.velocity_y * delta_time;
                 sprite.rotation += confetti.angular_velocity * delta_time;
@@ -1451,7 +1451,7 @@ impl GfxShowcase {
             Vec2::new(50.0, 50.0),
             [1.0, 0.85, 0.3, 0.9],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(sun) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(sun) {
             sprite.depth = 3.0;
             sprite.blend_mode = SpriteBlendMode::Additive;
         }
@@ -1464,7 +1464,7 @@ impl GfxShowcase {
             Vec2::new(90.0, 90.0),
             [1.0, 0.7, 0.2, 0.15],
         );
-        if let Some(sprite) = world.core.get_sprite_mut(sun_glow) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(sun_glow) {
             sprite.depth = 2.0;
             sprite.blend_mode = SpriteBlendMode::Additive;
         }
@@ -1482,7 +1482,7 @@ impl GfxShowcase {
 
         for (planet_index, &(orbit_radius, _, _, _)) in planet_configs.iter().enumerate() {
             let ring = spawn_ring(world, Vec2::zeros(), orbit_radius, [0.15, 0.15, 0.2, 0.15]);
-            if let Some(sprite) = world.core.get_sprite_mut(ring) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(ring) {
                 sprite.depth = 1.0;
             }
             self.scene_entities.push(ring);
@@ -1496,7 +1496,7 @@ impl GfxShowcase {
                 planet_configs[planet_index].2 / 2.0,
                 planet_configs[planet_index].3,
             );
-            if let Some(sprite) = world.core.get_sprite_mut(planet) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(planet) {
                 sprite.depth = 6.0;
             }
             self.scene_entities.push(planet);
@@ -1520,7 +1520,7 @@ impl GfxShowcase {
         {
             let moon_angle = hash_range(moon_index as u32 + 8000, 0.0, std::f32::consts::TAU);
             let moon = spawn_circle(world, Vec2::zeros(), moon_size, [0.7, 0.7, 0.75, 0.9]);
-            if let Some(sprite) = world.core.get_sprite_mut(moon) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(moon) {
                 sprite.depth = 7.0;
             }
             self.scene_entities.push(moon);
@@ -1536,11 +1536,11 @@ impl GfxShowcase {
 
     fn update_solar_system(&mut self, world: &mut World, delta_time: f32) {
         let sun_pulse = 0.9 + 0.1 * (self.time * 0.8).sin();
-        if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[0]) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[0]) {
             sprite.size = Vec2::new(50.0 * sun_pulse, 50.0 * sun_pulse);
         }
         let glow_pulse = 0.9 + 0.1 * (self.time * 0.6 + 1.0).sin();
-        if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[1]) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[1]) {
             sprite.size = Vec2::new(90.0 * glow_pulse, 90.0 * glow_pulse);
         }
 
@@ -1556,7 +1556,7 @@ impl GfxShowcase {
             );
 
             let entity_index = orbit_ring_start + planet_index * planet_stride + 1;
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[entity_index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index]) {
                 sprite.position = position;
             }
         }
@@ -1577,7 +1577,7 @@ impl GfxShowcase {
                 );
 
             if let Some(sprite) =
-                world.core.get_sprite_mut(self.scene_entities[moon_entity_start + moon_index])
+                world.sprite2d.get_sprite_mut(self.scene_entities[moon_entity_start + moon_index])
             {
                 sprite.position = moon_position;
             }
@@ -1658,7 +1658,7 @@ impl GfxShowcase {
                     Vec2::new(position_x, position_y),
                     Vec2::new(size, size),
                 );
-                if let Some(sprite) = world.core.get_sprite_mut(entity) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                     sprite.texture_index = slot;
                     sprite.texture_index2 = slot;
                     sprite.uv_min = uv_min;
@@ -1682,7 +1682,7 @@ impl GfxShowcase {
             Vec2::new(-130.0, 240.0),
             13.0,
         );
-        if let Some(text) = world.core.get_sprite_text_mut(label) {
+        if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
             text.color = [0.6, 0.6, 0.7, 0.8];
             text.depth = 1.0;
         }
@@ -1702,7 +1702,7 @@ impl GfxShowcase {
                 let pulse = 0.85 + 0.15 * (self.time * 1.5 + type_index as f32 * 0.8).sin();
                 let base_size = 40.0 + type_index as f32 * 8.0;
 
-                if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[entity_index]) {
+                if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index]) {
                     sprite.position = Vec2::new(position_x, position_y);
                     sprite.rotation = shape.angle * 0.5;
                     sprite.size = Vec2::new(base_size * pulse, base_size * pulse);
@@ -1737,7 +1737,7 @@ impl GfxShowcase {
                 Vec2::new(stripe_width - 1.0, 540.0),
                 [red, green, blue, 1.0],
             );
-            if let Some(sprite) = world.core.get_sprite_mut(entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
                 sprite.depth = 4.0;
                 sprite.stencil_mode = SpriteStencilMode::Test;
             }
@@ -1753,14 +1753,14 @@ impl GfxShowcase {
             let mask_size = 80.0 + index as f32 * 20.0;
             let mask_entity =
                 spawn_circle(world, Vec2::zeros(), mask_size / 2.0, [1.0, 1.0, 1.0, 1.0]);
-            if let Some(sprite) = world.core.get_sprite_mut(mask_entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(mask_entity) {
                 sprite.depth = 3.0;
                 sprite.stencil_mode = SpriteStencilMode::Write;
             }
             self.scene_entities.push(mask_entity);
 
             let border = spawn_ring(world, Vec2::zeros(), mask_size / 2.0, [0.5, 0.5, 0.6, 0.4]);
-            if let Some(sprite) = world.core.get_sprite_mut(border) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(border) {
                 sprite.depth = 6.0;
             }
             self.scene_entities.push(border);
@@ -1773,7 +1773,7 @@ impl GfxShowcase {
         }
 
         let label = spawn_sprite_text(world, "GPU Stencil Masking", Vec2::new(-100.0, 240.0), 13.0);
-        if let Some(text) = world.core.get_sprite_text_mut(label) {
+        if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
             text.color = [0.6, 0.6, 0.7, 0.8];
             text.depth = 1.0;
         }
@@ -1784,7 +1784,7 @@ impl GfxShowcase {
         for index in 0..self.stencil_stripe_count {
             let hue = (index as f32 / self.stencil_stripe_count as f32 + self.time * 0.05).fract();
             let (red, green, blue) = hue_to_rgb(hue);
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[index]) {
                 sprite.color = [red, green, blue, 1.0];
             }
         }
@@ -1800,10 +1800,10 @@ impl GfxShowcase {
             let mask_entity_index = self.stencil_stripe_count + index * 2;
             let border_entity_index = mask_entity_index + 1;
 
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[mask_entity_index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[mask_entity_index]) {
                 sprite.position = position;
             }
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[border_entity_index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[border_entity_index]) {
                 sprite.position = position;
             }
         }
@@ -1857,7 +1857,7 @@ impl GfxShowcase {
                 Vec2::new(position_x + 6.0, position_y - 6.0),
                 Vec2::new(size * 1.3, size * 1.3),
             );
-            if let Some(sprite) = world.core.get_sprite_mut(shadow_entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(shadow_entity) {
                 sprite.texture_index = shadow_slot;
                 sprite.texture_index2 = shadow_slot;
                 sprite.uv_min = uv_min;
@@ -1872,7 +1872,7 @@ impl GfxShowcase {
                 Vec2::new(position_x, position_y),
                 Vec2::new(size, size),
             );
-            if let Some(sprite) = world.core.get_sprite_mut(shape_entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(shape_entity) {
                 sprite.texture_index = source_slot;
                 sprite.texture_index2 = source_slot;
                 sprite.uv_min = uv_min;
@@ -1903,7 +1903,7 @@ impl GfxShowcase {
             let glow_y = hash_range(index as u32 + 800, -100.0, 100.0);
             let glow_entity =
                 spawn_sprite(world, Vec2::new(glow_x, glow_y), Vec2::new(120.0, 120.0));
-            if let Some(sprite) = world.core.get_sprite_mut(glow_entity) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(glow_entity) {
                 sprite.texture_index = glow_slot;
                 sprite.texture_index2 = glow_slot;
                 sprite.uv_min = uv_min;
@@ -1923,7 +1923,7 @@ impl GfxShowcase {
             Vec2::new(-120.0, 240.0),
             13.0,
         );
-        if let Some(text) = world.core.get_sprite_text_mut(label) {
+        if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
             text.color = [0.6, 0.6, 0.7, 0.8];
             text.depth = 1.0;
         }
@@ -1938,7 +1938,7 @@ impl GfxShowcase {
             let mut shape_position = Vec2::zeros();
             let mut shape_size = Vec2::zeros();
 
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[shape_index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[shape_index]) {
                 sprite.position += item
                     .velocity
                     .component_mul(&Vec2::new(delta_time, delta_time));
@@ -1965,7 +1965,7 @@ impl GfxShowcase {
                 shape_size = sprite.size;
             }
 
-            if let Some(shadow) = world.core.get_sprite_mut(self.scene_entities[shadow_index]) {
+            if let Some(shadow) = world.sprite2d.get_sprite_mut(self.scene_entities[shadow_index]) {
                 shadow.position = shape_position + Vec2::new(6.0, -6.0);
                 shadow.size = shape_size * 1.3;
             }
@@ -1975,7 +1975,7 @@ impl GfxShowcase {
         for glow_index in 0..4 {
             let entity_index = glow_start + glow_index;
             if entity_index < self.scene_entities.len()
-                && let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[entity_index])
+                && let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index])
             {
                 let pulse = 0.6 + 0.4 * (self.time * 0.8 + glow_index as f32 * 1.2).sin();
                 sprite.color[3] = 0.3 * pulse;
@@ -2051,7 +2051,7 @@ impl GfxShowcase {
         }
 
         let label = spawn_sprite_text(world, "Filled Path Shapes", Vec2::new(-95.0, 240.0), 13.0);
-        if let Some(text) = world.core.get_sprite_text_mut(label) {
+        if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
             text.color = [0.6, 0.6, 0.7, 0.8];
             text.depth = 1.0;
         }
@@ -2061,7 +2061,7 @@ impl GfxShowcase {
     fn update_path_stars(&mut self, world: &mut World) {
         let total_entities = self.path_star_count + 8;
         for index in 0..total_entities {
-            if let Some(sprite) = world.core.get_sprite_mut(self.scene_entities[index]) {
+            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[index]) {
                 let speed = if index < self.path_star_count {
                     0.3 + (index as f32 * 0.1)
                 } else {

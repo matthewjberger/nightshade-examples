@@ -145,10 +145,13 @@ fn spawn_bunnies(world: &mut World, bunny_world: &mut BunnyWorld, count: usize) 
     let spawn_x = bunny_world.resources.max_x * 0.5;
     let spawn_y = bunny_world.resources.max_y * 0.9;
 
-    let new_entities = world.spawn_entities(SPRITE | VISIBILITY, count);
+    let new_entities = world.spawn_entities(VISIBILITY, count);
+    for &entity in &new_entities {
+        world.sprite2d.add_components(entity, SPRITE);
+    }
 
     for &entity in &new_entities {
-        if let Some(sprite) = world.core.get_sprite_mut(entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
             sprite.position = Vec2::new(spawn_x, spawn_y);
             sprite.texture_index = 0;
             sprite.uv_min = Vec2::new(0.0, 0.0);
@@ -231,7 +234,7 @@ fn update_physics(world: &mut World, bunny_world: &mut BunnyWorld) {
 
         velocity.y += GRAVITY * delta_time;
 
-        if let Some(sprite) = world.core.get_sprite_mut(entity) {
+        if let Some(sprite) = world.sprite2d.get_sprite_mut(entity) {
             sprite.position.x += velocity.x * delta_time;
             sprite.position.y += velocity.y * delta_time;
 

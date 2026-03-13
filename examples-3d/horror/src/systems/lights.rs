@@ -34,16 +34,16 @@ pub fn spawn_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
             1,
         )[0];
 
-        if let Some(name) = world.get_name_mut(fixture_entity) {
+        if let Some(name) = world.core.get_name_mut(fixture_entity) {
             name.0 = format!("Light Fixture {}", index);
         }
 
-        if let Some(transform) = world.get_local_transform_mut(fixture_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(fixture_entity) {
             transform.translation = position;
             transform.scale = nalgebra_glm::vec3(0.6, 0.08, 0.2);
         }
 
-        if let Some(mesh) = world.get_render_mesh_mut(fixture_entity) {
+        if let Some(mesh) = world.core.get_render_mesh_mut(fixture_entity) {
             mesh.name = "Cube".to_string();
         }
 
@@ -66,9 +66,9 @@ pub fn spawn_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
                 .registry
                 .add_reference(mat_index);
         }
-        world.set_material_ref(fixture_entity, MaterialRef::new(material_name));
+        world.core.set_material_ref(fixture_entity, MaterialRef::new(material_name));
 
-        if let Some(bv) = world.get_bounding_volume_mut(fixture_entity) {
+        if let Some(bv) = world.core.get_bounding_volume_mut(fixture_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
         }
 
@@ -77,17 +77,17 @@ pub fn spawn_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
             1,
         )[0];
 
-        if let Some(name) = world.get_name_mut(light_entity) {
+        if let Some(name) = world.core.get_name_mut(light_entity) {
             name.0 = format!("Overhead Light {}", index);
         }
 
-        if let Some(transform) = world.get_local_transform_mut(light_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(light_entity) {
             transform.translation = position - nalgebra_glm::vec3(0.0, 0.1, 0.0);
         }
 
         let base_intensity = 1.5 + (index % 3) as f32 * 0.3;
 
-        if let Some(light) = world.get_light_mut(light_entity) {
+        if let Some(light) = world.core.get_light_mut(light_entity) {
             *light = Light {
                 light_type: LightType::Point,
                 color: nalgebra_glm::vec3(1.0, 0.9, 0.7),
@@ -125,7 +125,7 @@ pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
                 let flicker = ((spark_progress * 50.0).sin() * 0.5 + 0.5).powi(2);
                 let intensity = light_state.base_intensity * flicker * 3.0;
 
-                if let Some(light) = world.get_light_mut(light_state.light_entity) {
+                if let Some(light) = world.core.get_light_mut(light_state.light_entity) {
                     light.intensity = intensity;
                     light.color = nalgebra_glm::vec3(1.0, 0.6 + flicker * 0.3, 0.3);
                 }
@@ -134,7 +134,7 @@ pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
                 light_state.spark_timer = 0.0;
                 light_state.next_spark_time = 3.0 + (total_time * 7.0).sin().abs() * 8.0;
 
-                if let Some(light) = world.get_light_mut(light_state.light_entity) {
+                if let Some(light) = world.core.get_light_mut(light_state.light_entity) {
                     light.intensity = light_state.base_intensity;
                     light.color = nalgebra_glm::vec3(1.0, 0.9, 0.7);
                 }
@@ -142,7 +142,7 @@ pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
         } else {
             let subtle_flicker =
                 1.0 + (total_time * 3.0 + light_state.base_intensity * 10.0).sin() * 0.05;
-            if let Some(light) = world.get_light_mut(light_state.light_entity) {
+            if let Some(light) = world.core.get_light_mut(light_state.light_entity) {
                 light.intensity = light_state.base_intensity * subtle_flicker;
             }
 
@@ -158,7 +158,7 @@ pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
 
 fn spawn_spark_particles(world: &mut World, fixture_entity: Entity) {
     let fixture_pos = world
-        .get_local_transform(fixture_entity)
+        .core.get_local_transform(fixture_entity)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 
@@ -186,16 +186,16 @@ fn spawn_spark_particles(world: &mut World, fixture_entity: Entity) {
         let spread = 0.1 + (spark_index % 3) as f32 * 0.05;
         let offset = nalgebra_glm::vec3(angle.cos() * spread, -0.1, angle.sin() * spread);
 
-        if let Some(name) = world.get_name_mut(entity) {
+        if let Some(name) = world.core.get_name_mut(entity) {
             name.0 = "Spark".to_string();
         }
 
-        if let Some(transform) = world.get_local_transform_mut(entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(entity) {
             transform.translation = fixture_pos + offset;
             transform.scale = nalgebra_glm::vec3(0.02, 0.02, 0.02);
         }
 
-        if let Some(mesh) = world.get_render_mesh_mut(entity) {
+        if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
             mesh.name = "Sphere".to_string();
         }
 
@@ -218,9 +218,9 @@ fn spawn_spark_particles(world: &mut World, fixture_entity: Entity) {
                 .registry
                 .add_reference(mat_index);
         }
-        world.set_material_ref(entity, MaterialRef::new(material_name));
+        world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-        if let Some(bv) = world.get_bounding_volume_mut(entity) {
+        if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");
         }
     }

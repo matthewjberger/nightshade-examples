@@ -168,7 +168,7 @@ fn spawn_textured_sprite(
 ) -> Entity {
     let entity = spawn_sprite(world, position, size);
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
-    if let Some(sprite) = world.get_sprite_mut(entity) {
+    if let Some(sprite) = world.core.get_sprite_mut(entity) {
         sprite.depth = depth;
         sprite.texture_index = texture_slot;
         sprite.texture_index2 = texture_slot;
@@ -223,17 +223,17 @@ impl SpriteShowcase {
             let hue = index as f32 / EASING_NAMES.len() as f32;
             let (red, green, blue) = hue_to_rgb(hue);
 
-            if let Some(sprite) = world.get_sprite_mut(entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(entity) {
                 sprite.color = [red, green, blue, 1.0];
             }
 
             let label = spawn_sprite_text(world, name, Vec2::new(label_x, position_y - 5.0), 14.0);
-            if let Some(text) = world.get_sprite_text_mut(label) {
+            if let Some(text) = world.core.get_sprite_text_mut(label) {
                 text.color = [red, green, blue, 1.0];
                 text.depth = 10.0;
             }
 
-            world.add_components(entity, TWEEN);
+            world.core.add_components(entity, TWEEN);
             let mut tween = Tween::new();
 
             tween.add_track(
@@ -254,7 +254,7 @@ impl SpriteShowcase {
                     .with_tag(TAG_SCALE),
             );
 
-            world.set_tween(entity, tween);
+            world.core.set_tween(entity, tween);
             self.tween_entities.push(entity);
         }
 
@@ -266,7 +266,7 @@ impl SpriteShowcase {
             SLOT_RING,
             &self.uv_max_table,
         );
-        world.add_components(color_sprite, TWEEN);
+        world.core.add_components(color_sprite, TWEEN);
         let mut color_tween = Tween::new();
         color_tween.add_track(
             TweenTrack::new(
@@ -284,7 +284,7 @@ impl SpriteShowcase {
                 .with_loop_mode(TweenLoopMode::PingPong)
                 .with_tag(TAG_SCALE),
         );
-        world.set_tween(color_sprite, color_tween);
+        world.core.set_tween(color_sprite, color_tween);
         self.tween_entities.push(color_sprite);
     }
 
@@ -367,42 +367,42 @@ impl SpriteShowcase {
 
         for emitter_config in emitter_configs {
             let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-            world.set_sprite_particle_emitter(entity, emitter_config);
+            world.core.set_sprite_particle_emitter(entity, emitter_config);
             self.emitter_entities.push(entity);
         }
     }
 
     fn apply_tweens(&self, world: &mut World) {
         for &entity in &self.tween_entities {
-            let tween_data = world.get_tween(entity).cloned();
+            let tween_data = world.core.get_tween(entity).cloned();
             let Some(tween) = tween_data else {
                 continue;
             };
 
             if let Some(track) = tween.track_by_tag(TAG_POSITION) {
                 let position = track.value_vec2();
-                if let Some(sprite) = world.get_sprite_mut(entity) {
+                if let Some(sprite) = world.core.get_sprite_mut(entity) {
                     sprite.position = position;
                 }
             }
 
             if let Some(track) = tween.track_by_tag(TAG_SCALE) {
                 let scale = track.value_f32();
-                if let Some(sprite) = world.get_sprite_mut(entity) {
+                if let Some(sprite) = world.core.get_sprite_mut(entity) {
                     sprite.scale = Vec2::new(scale, scale);
                 }
             }
 
             if let Some(track) = tween.track_by_tag(TAG_ALPHA) {
                 let alpha = track.value_f32();
-                if let Some(sprite) = world.get_sprite_mut(entity) {
+                if let Some(sprite) = world.core.get_sprite_mut(entity) {
                     sprite.color[3] = alpha;
                 }
             }
 
             if let Some(track) = tween.track_by_tag(TAG_COLOR) {
                 let color = track.value_vec4();
-                if let Some(sprite) = world.get_sprite_mut(entity) {
+                if let Some(sprite) = world.core.get_sprite_mut(entity) {
                     sprite.color = [color.x, color.y, color.z, color.w];
                 }
             }
@@ -423,13 +423,13 @@ impl SpriteShowcase {
 
         let camera_position = self
             .camera_entity
-            .and_then(|entity| world.get_local_transform(entity))
+            .and_then(|entity| world.core.get_local_transform(entity))
             .map(|transform| Vec2::new(transform.translation.x, transform.translation.y))
             .unwrap_or(Vec2::zeros());
 
         let half_view = self
             .camera_entity
-            .and_then(|entity| world.get_camera(entity))
+            .and_then(|entity| world.core.get_camera(entity))
             .map(|camera| {
                 if let Projection::Orthographic(ortho) = &camera.projection {
                     Vec2::new(ortho.x_mag, ortho.y_mag)
@@ -540,7 +540,7 @@ impl SpriteShowcase {
         final_emitter.burst_count = 0;
 
         let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-        world.set_sprite_particle_emitter(entity, final_emitter);
+        world.core.set_sprite_particle_emitter(entity, final_emitter);
         entity
     }
 
@@ -558,12 +558,12 @@ impl SpriteShowcase {
         } else if mouse_state.contains(MouseState::LEFT_CLICKED) {
             if let Some(entity) = self.held_emitter {
                 let world_position = self.screen_to_world(world, screen_position);
-                if let Some(emitter) = world.get_sprite_particle_emitter_mut(entity) {
+                if let Some(emitter) = world.core.get_sprite_particle_emitter_mut(entity) {
                     emitter.anchor = world_position;
                 }
             }
         } else if let Some(entity) = self.held_emitter.take()
-            && let Some(emitter) = world.get_sprite_particle_emitter_mut(entity)
+            && let Some(emitter) = world.core.get_sprite_particle_emitter_mut(entity)
         {
             emitter.enabled = false;
         }
@@ -615,7 +615,7 @@ impl State for SpriteShowcase {
         let camera = spawn_ortho_camera(world, Vec2::new(0.0, 0.0));
         self.camera_entity = Some(camera);
 
-        if let Some(camera_data) = world.get_camera_mut(camera)
+        if let Some(camera_data) = world.core.get_camera_mut(camera)
             && let Projection::Orthographic(ref mut ortho) = camera_data.projection
         {
             ortho.x_mag = 480.0;

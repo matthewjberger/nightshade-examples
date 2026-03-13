@@ -66,7 +66,7 @@ fn spawn_huts(game_world: &GameWorld, world: &mut World) {
                         Vec3::new(x, hut_y, z),
                     );
 
-                    if let Some(transform) = world.get_local_transform_mut(entity) {
+                    if let Some(transform) = world.core.get_local_transform_mut(entity) {
                         transform.translation = Vec3::new(x, hut_y, z);
                         transform.rotation = nalgebra_glm::quat_angle_axis(rotation, &Vec3::y());
                         transform.scale = Vec3::new(1.0, 1.0, 1.0);
@@ -167,7 +167,7 @@ fn spawn_trees(game_world: &mut GameWorld, world: &mut World) {
                     | CASTS_SHADOW,
                 1,
             )[0];
-            world.set_local_transform(
+            world.core.set_local_transform(
                 cone,
                 LocalTransform {
                     translation: Vec3::new(*x, y_pos, *z),
@@ -175,7 +175,7 @@ fn spawn_trees(game_world: &mut GameWorld, world: &mut World) {
                     scale: Vec3::new(radius, height, radius),
                 },
             );
-            world.set_render_mesh(cone, RenderMesh::new("Cone"));
+            world.core.set_render_mesh(cone, RenderMesh::new("Cone"));
 
             let cone_material_name = format!("TreeCone_{}_{}", tree_index, tier);
             material_registry_insert(
@@ -201,8 +201,8 @@ fn spawn_trees(game_world: &mut GameWorld, world: &mut World) {
                     .registry
                     .add_reference(mat_index);
             }
-            world.set_material_ref(cone, MaterialRef::new(cone_material_name));
-            world.set_casts_shadow(cone, CastsShadow);
+            world.core.set_material_ref(cone, MaterialRef::new(cone_material_name));
+            world.core.set_casts_shadow(cone, CastsShadow);
         }
 
         let mut tree_bauble_positions: Vec<(Vec3, Vec3)> = Vec::new();
@@ -279,11 +279,11 @@ fn spawn_trees(game_world: &mut GameWorld, world: &mut World) {
         LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | LINES | VISIBILITY,
         1,
     )[0];
-    world.set_local_transform(string_lights_entity, LocalTransform::default());
-    world.set_global_transform(string_lights_entity, GlobalTransform::default());
-    world.set_local_transform_dirty(string_lights_entity, LocalTransformDirty);
-    world.set_lines(string_lights_entity, Lines::new(all_string_lights));
-    world.set_visibility(string_lights_entity, Visibility { visible: true });
+    world.core.set_local_transform(string_lights_entity, LocalTransform::default());
+    world.core.set_global_transform(string_lights_entity, GlobalTransform::default());
+    world.core.set_local_transform_dirty(string_lights_entity, LocalTransformDirty);
+    world.core.set_lines(string_lights_entity, Lines::new(all_string_lights));
+    world.core.set_visibility(string_lights_entity, Visibility { visible: true });
     game_world.resources.string_lights_entity = Some(freecs::Entity {
         id: string_lights_entity.id,
         generation: string_lights_entity.generation,
@@ -308,7 +308,7 @@ fn spawn_bauble(
             | CASTS_SHADOW,
         1,
     )[0];
-    world.set_local_transform(
+    world.core.set_local_transform(
         bauble,
         LocalTransform {
             translation: position,
@@ -316,7 +316,7 @@ fn spawn_bauble(
             scale: Vec3::new(size, size, size),
         },
     );
-    world.set_render_mesh(bauble, RenderMesh::new("Sphere"));
+    world.core.set_render_mesh(bauble, RenderMesh::new("Sphere"));
 
     let bauble_material_name = format!("Bauble_{}_{}_{}", tree_index, tier, bauble_index);
     material_registry_insert(
@@ -343,8 +343,8 @@ fn spawn_bauble(
             .registry
             .add_reference(mat_index);
     }
-    world.set_material_ref(bauble, MaterialRef::new(bauble_material_name));
-    world.set_casts_shadow(bauble, CastsShadow);
+    world.core.set_material_ref(bauble, MaterialRef::new(bauble_material_name));
+    world.core.set_casts_shadow(bauble, CastsShadow);
 
     let sparkle_gradient = ColorGradient {
         colors: vec![
@@ -362,7 +362,7 @@ fn spawn_bauble(
         ],
     };
     let sparkle_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
-    world.set_particle_emitter(
+    world.core.set_particle_emitter(
         sparkle_entity,
         ParticleEmitter {
             emitter_type: EmitterType::Sparks,
@@ -418,7 +418,7 @@ fn spawn_tree_star(
             | CASTS_SHADOW,
         1,
     )[0];
-    world.set_local_transform(
+    world.core.set_local_transform(
         star,
         LocalTransform {
             translation: Vec3::new(base_position.x, star_height, base_position.z),
@@ -426,7 +426,7 @@ fn spawn_tree_star(
             scale: Vec3::new(star_size, star_size * 1.5, star_size),
         },
     );
-    world.set_render_mesh(star, RenderMesh::new("Sphere"));
+    world.core.set_render_mesh(star, RenderMesh::new("Sphere"));
 
     let star_material_name = format!("Star_{}", tree_index);
     material_registry_insert(
@@ -453,8 +453,8 @@ fn spawn_tree_star(
             .registry
             .add_reference(mat_index);
     }
-    world.set_material_ref(star, MaterialRef::new(star_material_name));
-    world.set_casts_shadow(star, CastsShadow);
+    world.core.set_material_ref(star, MaterialRef::new(star_material_name));
+    world.core.set_casts_shadow(star, CastsShadow);
 }
 
 fn spawn_rocks(game_world: &GameWorld, world: &mut World) {
@@ -496,8 +496,8 @@ fn spawn_rocks(game_world: &GameWorld, world: &mut World) {
         )[0];
 
         let rock_y = terrain_y + size * 0.4;
-        world.set_name(rock, Name(format!("Rock_{}", index)));
-        world.set_local_transform(
+        world.core.set_name(rock, Name(format!("Rock_{}", index)));
+        world.core.set_local_transform(
             rock,
             LocalTransform {
                 translation: Vec3::new(pos.x, rock_y, pos.z),
@@ -505,7 +505,7 @@ fn spawn_rocks(game_world: &GameWorld, world: &mut World) {
                 scale: Vec3::new(*size, size * 0.7, *size),
             },
         );
-        world.set_render_mesh(rock, RenderMesh::new("Sphere"));
+        world.core.set_render_mesh(rock, RenderMesh::new("Sphere"));
 
         let material_name = format!("RockMat_{}", rock.id);
         material_registry_insert(
@@ -526,25 +526,25 @@ fn spawn_rocks(game_world: &GameWorld, world: &mut World) {
                 .registry
                 .add_reference(mat_index);
         }
-        world.set_material_ref(rock, MaterialRef::new(material_name));
+        world.core.set_material_ref(rock, MaterialRef::new(material_name));
 
-        if let Some(bv) = world.get_bounding_volume_mut(rock) {
+        if let Some(bv) = world.core.get_bounding_volume_mut(rock) {
             *bv = BoundingVolume::from_mesh_type("Sphere");
         }
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(rock) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(rock) {
             *rigid_body = nightshade::ecs::physics::RigidBodyComponent::new_static()
                 .with_translation(pos.x, rock_y, pos.z);
         }
 
-        if let Some(collider) = world.get_collider_mut(rock) {
+        if let Some(collider) = world.core.get_collider_mut(rock) {
             *collider = nightshade::ecs::physics::ColliderComponent::new_ball(size * 0.5)
                 .with_friction(0.8)
                 .with_restitution(0.1);
         }
 
-        world.set_casts_shadow(rock, CastsShadow);
-        world.set_visibility(rock, Visibility { visible: true });
+        world.core.set_casts_shadow(rock, CastsShadow);
+        world.core.set_visibility(rock, Visibility { visible: true });
     }
 }
 
@@ -593,7 +593,7 @@ fn spawn_campfire_logs(world: &mut World, campfire_x: f32, campfire_z: f32, terr
         let roll_rotation =
             nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::new(0.0, 0.0, 1.0));
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             log,
             LocalTransform {
                 translation: Vec3::new(
@@ -605,7 +605,7 @@ fn spawn_campfire_logs(world: &mut World, campfire_x: f32, campfire_z: f32, terr
                 scale: Vec3::new(log_radius, log_length, log_radius),
             },
         );
-        world.set_render_mesh(log, RenderMesh::new("Cylinder"));
+        world.core.set_render_mesh(log, RenderMesh::new("Cylinder"));
 
         let log_material_name = format!("CampfireLog_{}", index);
         material_registry_insert(
@@ -626,8 +626,8 @@ fn spawn_campfire_logs(world: &mut World, campfire_x: f32, campfire_z: f32, terr
                 .registry
                 .add_reference(mat_index);
         }
-        world.set_material_ref(log, MaterialRef::new(log_material_name));
-        world.set_casts_shadow(log, CastsShadow);
+        world.core.set_material_ref(log, MaterialRef::new(log_material_name));
+        world.core.set_casts_shadow(log, CastsShadow);
     }
 }
 
@@ -643,7 +643,7 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             (1.0, Vec4::new(0.5, 0.05, 0.0, 0.0)),
         ],
     };
-    world.set_particle_emitter(
+    world.core.set_particle_emitter(
         fire_core_entity,
         ParticleEmitter {
             emitter_type: EmitterType::Fire,
@@ -685,7 +685,7 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             (1.0, Vec4::new(0.2, 0.02, 0.0, 0.0)),
         ],
     };
-    world.set_particle_emitter(
+    world.core.set_particle_emitter(
         fire_outer_entity,
         ParticleEmitter {
             emitter_type: EmitterType::Fire,
@@ -726,7 +726,7 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             (1.0, Vec4::new(0.3, 0.03, 0.0, 0.0)),
         ],
     };
-    world.set_particle_emitter(
+    world.core.set_particle_emitter(
         fire_flicker_entity,
         ParticleEmitter {
             emitter_type: EmitterType::Fire,
@@ -769,7 +769,7 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             (1.0, Vec4::new(0.65, 0.63, 0.6, 0.0)),
         ],
     };
-    world.set_particle_emitter(
+    world.core.set_particle_emitter(
         smoke_entity,
         ParticleEmitter {
             emitter_type: EmitterType::Smoke,
@@ -811,7 +811,7 @@ fn spawn_campfire_particles(world: &mut World, campfire_x: f32, campfire_z: f32,
             (1.0, Vec4::new(0.3, 0.03, 0.0, 0.0)),
         ],
     };
-    world.set_particle_emitter(
+    world.core.set_particle_emitter(
         ember_entity,
         ParticleEmitter {
             emitter_type: EmitterType::Sparks,
@@ -853,14 +853,14 @@ fn spawn_campfire_light(
         LIGHT | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM,
         1,
     )[0];
-    world.set_local_transform(
+    world.core.set_local_transform(
         light_entity,
         LocalTransform {
             translation: Vec3::new(campfire_x, terrain_y + 0.7, campfire_z),
             ..Default::default()
         },
     );
-    world.set_light(
+    world.core.set_light(
         light_entity,
         Light {
             light_type: LightType::Point,
@@ -885,7 +885,7 @@ pub fn update_campfire_light(game_world: &GameWorld, world: &mut World) {
     };
 
     let time = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
-    if let Some(light) = world.get_light_mut(engine_entity) {
+    if let Some(light) = world.core.get_light_mut(engine_entity) {
         let flicker1 = (time * 8.0).sin() * 0.15;
         let flicker2 = (time * 12.5).sin() * 0.1;
         let flicker3 = (time * 23.0).sin() * 0.08;
@@ -939,7 +939,7 @@ fn spawn_snowmen(game_world: &GameWorld, world: &mut World) {
                         Vec3::new(*x, snowman_y, *z),
                     );
 
-                    if let Some(transform) = world.get_local_transform_mut(entity) {
+                    if let Some(transform) = world.core.get_local_transform_mut(entity) {
                         transform.translation = Vec3::new(*x, snowman_y, *z);
                         transform.rotation = nalgebra_glm::quat_angle_axis(*rotation, &Vec3::y());
                         transform.scale = Vec3::new(1.0, 1.0, 1.0);
@@ -998,7 +998,7 @@ fn spawn_presents(
                     Vec3::new(present_x, present_y, present_z),
                 );
 
-                if let Some(transform) = world.get_local_transform_mut(entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(entity) {
                     transform.translation = Vec3::new(present_x, present_y, present_z);
                     transform.rotation = nalgebra_glm::quat_angle_axis(rotation, &Vec3::y());
                     transform.scale = Vec3::new(scale, scale, scale);

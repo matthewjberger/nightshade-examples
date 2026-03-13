@@ -56,7 +56,7 @@ pub fn generate_gpu_thumbnail(
     }
 
     let sun_entity = spawn_sun(&mut world);
-    if let Some(transform) = world.get_local_transform_mut(sun_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(sun_entity) {
         transform.translation = Vec3::new(10.0, 20.0, 10.0);
     }
 

@@ -20,7 +20,7 @@ pub fn range_lines_system(
     }
 
     if current_count == 0 {
-        if let Some(visibility) = world.get_visibility_mut(entity) {
+        if let Some(visibility) = world.core.get_visibility_mut(entity) {
             visibility.visible = false;
         }
     } else {
@@ -38,11 +38,11 @@ pub fn range_lines_system(
             nalgebra_glm::vec4(1.0, 1.0, 0.0, 1.0),
         );
 
-        if let Some(lines_component) = world.get_lines_mut(entity) {
+        if let Some(lines_component) = world.core.get_lines_mut(entity) {
             lines_component.lines = range_lines;
             lines_component.mark_dirty();
         }
-        if let Some(visibility) = world.get_visibility_mut(entity) {
+        if let Some(visibility) = world.core.get_visibility_mut(entity) {
             visibility.visible = true;
         }
     }

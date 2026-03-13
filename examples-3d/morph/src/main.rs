@@ -44,7 +44,7 @@ impl State for MorphState {
         load_hdr_skybox(world, HDR_BYTES.to_vec());
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 2.0;
         }
@@ -115,7 +115,7 @@ impl State for MorphState {
                     self.primitives_entity = Some(entity);
                     tracing::info!("Spawned MorphPrimitivesTest with root entity {:?}", entity);
 
-                    if let Some(player) = world.get_animation_player_mut(entity)
+                    if let Some(player) = world.core.get_animation_player_mut(entity)
                         && !player.clips.is_empty()
                     {
                         player.play(0);
@@ -177,7 +177,7 @@ impl State for MorphState {
                     self.cube_entity = Some(entity);
                     tracing::info!("Spawned AnimatedMorphCube with root entity {:?}", entity);
 
-                    if let Some(player) = world.get_animation_player_mut(entity)
+                    if let Some(player) = world.core.get_animation_player_mut(entity)
                         && !player.clips.is_empty()
                     {
                         player.play(0);
@@ -239,7 +239,7 @@ impl State for MorphState {
                     self.stress_test_entity = Some(entity);
                     tracing::info!("Spawned MorphStressTest with root entity {:?}", entity);
 
-                    if let Some(player) = world.get_animation_player_mut(entity)
+                    if let Some(player) = world.core.get_animation_player_mut(entity)
                         && !player.clips.is_empty()
                     {
                         player.play(0);
@@ -337,9 +337,9 @@ impl State for MorphState {
 
                 for mesh_name in fox_mesh_names {
                     let morph_entities: Vec<Entity> = world
-                        .query_entities(RENDER_MESH)
+                        .core.query_entities(RENDER_MESH)
                         .filter(|entity| {
-                            if let Some(render_mesh) = world.get_render_mesh(*entity) {
+                            if let Some(render_mesh) = world.core.get_render_mesh(*entity) {
                                 render_mesh.name == mesh_name
                             } else {
                                 false
@@ -348,8 +348,8 @@ impl State for MorphState {
                         .collect();
 
                     for morph_entity in morph_entities {
-                        world.add_components(morph_entity, MORPH_WEIGHTS);
-                        world.set_morph_weights(
+                        world.core.add_components(morph_entity, MORPH_WEIGHTS);
+                        world.core.set_morph_weights(
                             morph_entity,
                             MorphWeights::new(vec![0.5, 0.0], mesh_name.clone()),
                         );
@@ -441,7 +441,7 @@ impl MorphState {
             return;
         };
 
-        let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) else {
+        let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera_entity) else {
             return;
         };
 
@@ -463,7 +463,7 @@ impl MorphState {
             return;
         };
 
-        if let Some(player) = world.get_animation_player_mut(entity) {
+        if let Some(player) = world.core.get_animation_player_mut(entity) {
             if player.clips.is_empty() {
                 ui.label("No animations");
             } else {
@@ -541,7 +541,7 @@ impl MorphState {
         _id_suffix: &str,
     ) {
         let entities_with_morphs: Vec<Entity> = world
-            .query_entities(MORPH_WEIGHTS)
+            .core.query_entities(MORPH_WEIGHTS)
             .filter(|entity| Self::is_descendant_of(world, *entity, root_entity))
             .collect();
 
@@ -556,7 +556,7 @@ impl MorphState {
         ));
 
         for (entity_index, morph_entity) in entities_with_morphs.iter().enumerate() {
-            if let Some(morph_weights) = world.get_morph_weights_mut(*morph_entity) {
+            if let Some(morph_weights) = world.core.get_morph_weights_mut(*morph_entity) {
                 let weight_count = morph_weights.weights.len();
                 if weight_count > 0 {
                     ui.collapsing(
@@ -589,7 +589,7 @@ impl MorphState {
             return true;
         }
 
-        if let Some(parent) = world.get_parent(entity)
+        if let Some(parent) = world.core.get_parent(entity)
             && let Some(parent_entity) = parent.0
         {
             return Self::is_descendant_of(world, parent_entity, ancestor);
@@ -618,7 +618,7 @@ impl MorphState {
         ));
 
         for (entity_index, &morph_entity) in self.fox_morph_entities.iter().enumerate() {
-            if let Some(morph_weights) = world.get_morph_weights_mut(morph_entity) {
+            if let Some(morph_weights) = world.core.get_morph_weights_mut(morph_entity) {
                 let weight_count = morph_weights.weights.len();
                 if weight_count > 0 {
                     ui.horizontal(|ui| {

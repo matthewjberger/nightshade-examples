@@ -18,7 +18,7 @@ pub fn check_puzzle_state(demo: &mut HorrorDemo, world: &mut World) {
                 if should_activate && !activated {
                     demo.levers[lever_index].activated = true;
                     demo.power_restored = true;
-                    if let Some(light) = world.get_light_mut(light_entity) {
+                    if let Some(light) = world.core.get_light_mut(light_entity) {
                         light.color = nalgebra_glm::vec3(0.2, 1.0, 0.2);
                         light.intensity = 3.0;
                     }
@@ -39,7 +39,7 @@ pub fn check_puzzle_state(demo: &mut HorrorDemo, world: &mut World) {
                         material.emissive_factor = [0.2, 1.0, 0.2];
                     }
                     if let Some(generator_entity) = demo.generator_audio_entity
-                        && let Some(source) = world.get_audio_source_mut(generator_entity)
+                        && let Some(source) = world.core.get_audio_source_mut(generator_entity)
                     {
                         source.playing = true;
                     }
@@ -53,7 +53,7 @@ pub fn check_puzzle_state(demo: &mut HorrorDemo, world: &mut World) {
                         door.locked = false;
                         door.angular_velocity = -3.0;
                     }
-                    if let Some(light) = world.get_light_mut(light_entity) {
+                    if let Some(light) = world.core.get_light_mut(light_entity) {
                         light.color = nalgebra_glm::vec3(0.2, 1.0, 0.2);
                         light.intensity = 3.0;
                     }
@@ -88,7 +88,7 @@ pub fn check_puzzle_state(demo: &mut HorrorDemo, world: &mut World) {
         && !demo.cutscene.active
         && !demo.monster.active
         && let Some(player_entity) = demo.player_entity
-        && let Some(transform) = world.get_local_transform(player_entity)
+        && let Some(transform) = world.core.get_local_transform(player_entity)
         && transform.translation.z < -24.0
     {
         demo.game_won = true;

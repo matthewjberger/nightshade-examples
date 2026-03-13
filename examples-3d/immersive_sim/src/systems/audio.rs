@@ -11,7 +11,7 @@ fn update_footstep_audio(game: &mut ImmersiveSim, world: &mut World) {
     };
 
     let is_moving = world
-        .get_character_controller(player_entity)
+        .core.get_character_controller(player_entity)
         .map(|cc| {
             let vel = cc.velocity;
             let horizontal_speed = (vel.x * vel.x + vel.z * vel.z).sqrt();
@@ -23,7 +23,7 @@ fn update_footstep_audio(game: &mut ImmersiveSim, world: &mut World) {
         game.audio.was_moving = is_moving;
 
         if let Some(footstep_entity) = game.audio.footstep_entity
-            && let Some(source) = world.get_audio_source_mut(footstep_entity)
+            && let Some(source) = world.core.get_audio_source_mut(footstep_entity)
         {
             source.playing = is_moving;
         }

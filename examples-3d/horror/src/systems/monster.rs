@@ -23,7 +23,7 @@ pub fn start_cutscene(demo: &mut HorrorDemo, world: &mut World) {
     world.resources.graphics.letterbox_target = 1.0;
 
     if let Some(ambient_entity) = demo.ambient_audio_entity
-        && let Some(source) = world.get_audio_source_mut(ambient_entity)
+        && let Some(source) = world.core.get_audio_source_mut(ambient_entity)
     {
         source.playing = false;
     }
@@ -32,7 +32,7 @@ pub fn start_cutscene(demo: &mut HorrorDemo, world: &mut World) {
     demo.cutscene.wall_break_position = wall_break_pos;
 
     if let Some(camera_entity) = demo.camera_entity
-        && let Some(camera_transform) = world.get_global_transform(camera_entity)
+        && let Some(camera_transform) = world.core.get_global_transform(camera_entity)
     {
         let camera_pos = camera_transform.translation();
         let direction = wall_break_pos - camera_pos;
@@ -73,7 +73,7 @@ pub fn cutscene_system(demo: &mut HorrorDemo, world: &mut World) {
                 spawn_wall_destruction(demo, world);
 
                 if let Some(rubble_entity) = demo.rubble_audio_entity
-                    && let Some(source) = world.get_audio_source_mut(rubble_entity)
+                    && let Some(source) = world.core.get_audio_source_mut(rubble_entity)
                 {
                     source.playing = true;
                 }
@@ -93,7 +93,7 @@ pub fn cutscene_system(demo: &mut HorrorDemo, world: &mut World) {
                 demo.monster.active = true;
 
                 if let Some(monster_audio_entity) = demo.monster_audio_entity
-                    && let Some(source) = world.get_audio_source_mut(monster_audio_entity)
+                    && let Some(source) = world.core.get_audio_source_mut(monster_audio_entity)
                 {
                     source.playing = true;
                 }
@@ -113,7 +113,7 @@ pub fn cutscene_system(demo: &mut HorrorDemo, world: &mut World) {
 
                 if let Some(camera_entity) = demo.camera_entity
                     && let Some(exit_door) = demo.doors.get(demo.exit_door_index)
-                    && let Some(camera_transform) = world.get_global_transform(camera_entity)
+                    && let Some(camera_transform) = world.core.get_global_transform(camera_entity)
                 {
                     let door_pos = exit_door.hinge_position;
                     let camera_pos = camera_transform.translation();
@@ -179,7 +179,7 @@ fn spawn_wall_destruction(demo: &mut HorrorDemo, world: &mut World) {
             rubble_material.clone(),
         );
 
-        if let Some(rb_comp) = world.get_rigid_body(entity)
+        if let Some(rb_comp) = world.core.get_rigid_body(entity)
             && let Some(handle) = rb_comp.handle
             && let Some(rb) = world
                 .resources
@@ -231,7 +231,7 @@ fn spawn_dust_particles(demo: &mut HorrorDemo, world: &mut World, position: Vec3
             dust_material.clone(),
         );
 
-        if let Some(rb_comp) = world.get_rigid_body(entity)
+        if let Some(rb_comp) = world.core.get_rigid_body(entity)
             && let Some(handle) = rb_comp.handle
             && let Some(rb) = world
                 .resources
@@ -608,16 +608,16 @@ fn spawn_monster_part(
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         name.0 = "Monster Part".to_string();
     }
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
         transform.scale = scale;
     }
 
-    if let Some(mesh) = world.get_render_mesh_mut(entity) {
+    if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
         mesh.name = mesh_name.to_string();
     }
 
@@ -640,9 +640,9 @@ fn spawn_monster_part(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-    if let Some(bv) = world.get_bounding_volume_mut(entity) {
+    if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
         *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
     }
 
@@ -667,7 +667,7 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
     let dt = world.resources.window.timing.delta_time;
 
     let player_pos = world
-        .get_global_transform(player_entity)
+        .core.get_global_transform(player_entity)
         .map(|t| t.translation())
         .unwrap_or(Vec3::zeros());
 
@@ -686,7 +686,7 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
     }
 
     let monster_pos = world
-        .get_local_transform(monster_entity)
+        .core.get_local_transform(monster_entity)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 
@@ -714,7 +714,7 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
     let breathing = (total_time * 1.5).sin() * 0.006;
 
     for (part_index, &part_entity) in demo.monster.body_parts.iter().enumerate() {
-        if let Some(transform) = world.get_local_transform_mut(part_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(part_entity) {
             transform.translation += movement;
 
             let current_rotation = transform.rotation;
@@ -787,7 +787,7 @@ fn despawn_monster(demo: &mut HorrorDemo, world: &mut World) {
     demo.monster.chasing = false;
 
     if let Some(monster_audio_entity) = demo.monster_audio_entity
-        && let Some(source) = world.get_audio_source_mut(monster_audio_entity)
+        && let Some(source) = world.core.get_audio_source_mut(monster_audio_entity)
     {
         source.playing = false;
     }

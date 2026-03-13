@@ -44,7 +44,7 @@ impl State for DriveInDemo {
         world.resources.graphics.bloom_enabled = true;
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.color = Vec3::new(0.25, 0.3, 0.45);
             light.intensity = 0.4;
             light.cast_shadows = true;
@@ -262,8 +262,8 @@ fn spawn_shadow_entity(world: &mut World, desc: ShadowEntityDesc) -> Entity {
             | CASTS_SHADOW,
         1,
     )[0];
-    world.set_name(entity, Name(desc.name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(entity, Name(desc.name.to_string()));
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: desc.position,
@@ -271,10 +271,10 @@ fn spawn_shadow_entity(world: &mut World, desc: ShadowEntityDesc) -> Entity {
             scale: desc.scale,
         },
     );
-    world.set_render_mesh(entity, RenderMesh::new(desc.mesh));
+    world.core.set_render_mesh(entity, RenderMesh::new(desc.mesh));
     register_material(world, desc.material_name, desc.material);
-    world.set_material_ref(entity, MaterialRef::new(desc.material_name.to_string()));
-    world.set_casts_shadow(entity, CastsShadow);
+    world.core.set_material_ref(entity, MaterialRef::new(desc.material_name.to_string()));
+    world.core.set_casts_shadow(entity, CastsShadow);
     entity
 }
 
@@ -307,12 +307,12 @@ fn spawn_movie_screen(world: &mut World) {
             | MATERIAL_REF,
         1,
     )[0];
-    world.set_name(screen, Name("Movie Screen".to_string()));
+    world.core.set_name(screen, Name("Movie Screen".to_string()));
 
     let rotation =
         nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::new(1.0, 0.0, 0.0));
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         screen,
         LocalTransform {
             translation: Vec3::new(0.0, 4.0, -10.0),
@@ -320,7 +320,7 @@ fn spawn_movie_screen(world: &mut World) {
             scale: Vec3::new(3.5, 1.0, 2.625),
         },
     );
-    world.set_render_mesh(screen, RenderMesh::new("Plane"));
+    world.core.set_render_mesh(screen, RenderMesh::new("Plane"));
 
     register_material(
         world,
@@ -334,7 +334,7 @@ fn spawn_movie_screen(world: &mut World) {
             ..Default::default()
         },
     );
-    world.set_material_ref(screen, MaterialRef::new("ScreenMaterial".to_string()));
+    world.core.set_material_ref(screen, MaterialRef::new("ScreenMaterial".to_string()));
 }
 
 fn spawn_screen_posts(world: &mut World) {
@@ -520,7 +520,7 @@ fn spawn_campfire_particles(world: &mut World) {
     fire.emissive_strength = 6.0;
     fire.turbulence_strength = 0.4;
     fire.turbulence_frequency = 1.5;
-    world.set_particle_emitter(fire_entity, fire);
+    world.core.set_particle_emitter(fire_entity, fire);
 
     let smoke_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
     let mut smoke = ParticleEmitter::smoke(campfire + Vec3::new(0.0, 0.6, 0.0));
@@ -529,10 +529,10 @@ fn spawn_campfire_particles(world: &mut World) {
     smoke.spawn_rate = 8.0;
     smoke.size_start = 0.1;
     smoke.size_end = 0.8;
-    world.set_particle_emitter(smoke_entity, smoke);
+    world.core.set_particle_emitter(smoke_entity, smoke);
 
     let ember_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
-    world.set_particle_emitter(
+    world.core.set_particle_emitter(
         ember_entity,
         ParticleEmitter {
             emitter_type: EmitterType::Sparks,
@@ -580,14 +580,14 @@ fn spawn_campfire_light(world: &mut World) -> Entity {
         LIGHT | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM,
         1,
     )[0];
-    world.set_local_transform(
+    world.core.set_local_transform(
         light_entity,
         LocalTransform {
             translation: campfire + Vec3::new(0.0, 0.6, 0.0),
             ..Default::default()
         },
     );
-    world.set_light(
+    world.core.set_light(
         light_entity,
         Light {
             light_type: LightType::Point,
@@ -607,7 +607,7 @@ fn update_campfire_light(world: &mut World, light_entity: Option<Entity>) {
     };
 
     let time = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
-    if let Some(light) = world.get_light_mut(entity) {
+    if let Some(light) = world.core.get_light_mut(entity) {
         let flicker1 = (time * 8.0).sin() * 0.2;
         let flicker2 = (time * 12.5).sin() * 0.15;
         let flicker3 = (time * 23.0).sin() * 0.1;
@@ -706,7 +706,7 @@ fn create_secondary_world(renderer: &dyn Render) -> SecondaryWorld {
     world.resources.active_camera = Some(camera);
 
     let sun = spawn_sun_without_shadows(&mut world);
-    if let Some(transform) = world.get_local_transform_mut(sun) {
+    if let Some(transform) = world.core.get_local_transform_mut(sun) {
         transform.translation = Vec3::new(5.0, 10.0, 5.0);
     }
 
@@ -743,8 +743,8 @@ fn spawn_secondary_scene(world: &mut World) -> Vec<Entity> {
         Vec3::new(0.0, -0.5, 0.0),
         Vec3::new(12.0, 1.0, 12.0),
     );
-    world.set_name(floor, Name("Secondary Floor".to_string()));
-    world.set_material_ref(floor, MaterialRef::new("White".to_string()));
+    world.core.set_name(floor, Name("Secondary Floor".to_string()));
+    world.core.set_material_ref(floor, MaterialRef::new("White".to_string()));
 
     let mut cube_entities = Vec::new();
 
@@ -757,8 +757,8 @@ fn spawn_secondary_scene(world: &mut World) -> Vec<Entity> {
         let position = Vec3::new(angle.cos() * radius, 0.5, angle.sin() * radius);
 
         let entity = spawn_mesh(world, "Cube", position, Vec3::new(0.8, 0.8, 0.8));
-        world.set_name(entity, Name(format!("Orbiting Cube {}", index)));
-        world.set_material_ref(entity, MaterialRef::new(color.to_string()));
+        world.core.set_name(entity, Name(format!("Orbiting Cube {}", index)));
+        world.core.set_material_ref(entity, MaterialRef::new(color.to_string()));
         cube_entities.push(entity);
     }
 
@@ -768,7 +768,7 @@ fn spawn_secondary_scene(world: &mut World) -> Vec<Entity> {
         Vec3::new(0.0, 1.5, 0.0),
         Vec3::new(1.0, 1.0, 1.0),
     );
-    world.set_name(center_sphere, Name("Center Sphere".to_string()));
+    world.core.set_name(center_sphere, Name("Center Sphere".to_string()));
 
     material_registry_insert(
         &mut world.resources.material_registry,
@@ -780,7 +780,7 @@ fn spawn_secondary_scene(world: &mut World) -> Vec<Entity> {
             ..Default::default()
         },
     );
-    world.set_material_ref(center_sphere, MaterialRef::new("GlowingSphere".to_string()));
+    world.core.set_material_ref(center_sphere, MaterialRef::new("GlowingSphere".to_string()));
 
     cube_entities
 }
@@ -792,12 +792,12 @@ fn animate_secondary_cubes(world: &mut World, cube_entities: &[Entity], total_ti
         let radius = 3.0;
         let bob_height = 0.5 + (total_time * 1.5 + index as f32).sin() * 0.4;
 
-        if let Some(transform) = world.get_local_transform_mut(entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(entity) {
             transform.translation =
                 Vec3::new(angle.cos() * radius, bob_height, angle.sin() * radius);
             transform.rotation =
                 nalgebra_glm::quat_angle_axis(total_time * 2.0 + index as f32, &Vec3::y());
         }
-        world.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
     }
 }

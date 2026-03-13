@@ -173,12 +173,12 @@ pub fn update_particles(particle_system: &mut ParticleSystem, world: &mut World,
             request.particle_type,
             request.count as u32,
         );
-        world.set_particle_emitter(entity, emitter);
+        world.core.set_particle_emitter(entity, emitter);
         particle_system.active_emitters.push(entity);
     }
 
     particle_system.active_emitters.retain(|&entity| {
-        if let Some(emitter) = world.get_particle_emitter(entity) {
+        if let Some(emitter) = world.core.get_particle_emitter(entity) {
             emitter.enabled
         } else {
             false

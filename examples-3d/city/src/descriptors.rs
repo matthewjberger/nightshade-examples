@@ -217,10 +217,10 @@ impl ChunkData {
                 let entity = spawn_city_mesh(world, desc.mesh, desc.position, desc.scale);
                 apply_material(world, entity, desc.material);
                 if desc.casts_shadow {
-                    world.set_casts_shadow(entity, CastsShadow);
+                    world.core.set_casts_shadow(entity, CastsShadow);
                 }
                 if let Some(rotation) = desc.rotation {
-                    if let Some(transform) = world.get_local_transform_mut(entity) {
+                    if let Some(transform) = world.core.get_local_transform_mut(entity) {
                         transform.rotation = rotation;
                     }
                     mark_local_transform_dirty(world, entity);
@@ -238,7 +238,7 @@ impl ChunkData {
                     group.instances.clone(),
                     group.key.material,
                 );
-                world.remove_casts_shadow(entity);
+                world.core.remove_casts_shadow(entity);
                 entities.push(entity);
             } else if index < light_end {
                 let desc = &self.lights[index - instance_end];
@@ -292,7 +292,7 @@ impl ChunkData {
                         emitter
                     }
                 };
-                world.set_particle_emitter(entity, emitter);
+                world.core.set_particle_emitter(entity, emitter);
                 entities.push(entity);
             }
         }
@@ -351,7 +351,7 @@ fn instantiate_neon_sign(world: &mut World, desc: &NeonSignDescriptor) -> Entity
     let entity = spawn_city_mesh(world, &mesh_name, desc.position, scale_vec);
     apply_material(world, entity, desc.material);
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.rotation = desc.rotation;
     }
     mark_local_transform_dirty(world, entity);

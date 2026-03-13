@@ -84,7 +84,7 @@ fn spawn_rsvp_text(world: &mut World, word: &str) -> Entity {
     );
 
     let colors = create_orp_colors(word, orp_index);
-    world.set_text_character_colors(
+    world.core.set_text_character_colors(
         entity,
         TextCharacterColors {
             colors,
@@ -98,18 +98,18 @@ fn spawn_rsvp_text(world: &mut World, word: &str) -> Entity {
 fn update_rsvp_word(world: &mut World, entity: Entity, word: &str) {
     let orp_index = calculate_orp_index(word);
 
-    if let Some(hud_text) = world.get_hud_text(entity) {
+    if let Some(hud_text) = world.core.get_hud_text(entity) {
         let text_index = hud_text.text_index;
         world.resources.text_cache.set_text(text_index, word);
     }
 
-    if let Some(hud_text) = world.get_hud_text_mut(entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
         hud_text.properties.anchor_character = Some(orp_index);
         hud_text.dirty = true;
     }
 
     let colors = create_orp_colors(word, orp_index);
-    if let Some(char_colors) = world.get_text_character_colors_mut(entity) {
+    if let Some(char_colors) = world.core.get_text_character_colors_mut(entity) {
         char_colors.colors = colors;
         char_colors.dirty = true;
     }
@@ -127,15 +127,15 @@ fn spawn_camera(world: &mut World, position: nalgebra_glm::Vec3, name: String) -
 
     let camera = cameras[0];
 
-    if let Some(camera_name) = world.get_name_mut(camera) {
+    if let Some(camera_name) = world.core.get_name_mut(camera) {
         *camera_name = Name(name);
     }
 
-    if let Some(local_transform) = world.get_local_transform_mut(camera) {
+    if let Some(local_transform) = world.core.get_local_transform_mut(camera) {
         local_transform.translation = position;
     }
 
-    if let Some(camera_component) = world.get_camera_mut(camera) {
+    if let Some(camera_component) = world.core.get_camera_mut(camera) {
         *camera_component = Camera {
             projection: Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,

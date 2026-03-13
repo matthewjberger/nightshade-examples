@@ -509,7 +509,7 @@ impl AssetViewer {
                     nightshade::ecs::prefab::spawn_prefab(&mut viewer_world, prefab, Vec3::zeros())
                 };
 
-                if let Some(player) = viewer_world.get_animation_player_mut(entity)
+                if let Some(player) = viewer_world.core.get_animation_player_mut(entity)
                     && !player.clips.is_empty()
                 {
                     player.play(0);
@@ -529,7 +529,7 @@ impl AssetViewer {
         viewer_world.resources.active_camera = Some(orbit_camera);
 
         let sun_entity = spawn_sun(&mut viewer_world);
-        if let Some(transform) = viewer_world.get_local_transform_mut(sun_entity) {
+        if let Some(transform) = viewer_world.core.get_local_transform_mut(sun_entity) {
             transform.translation = Vec3::new(10.0, 20.0, 10.0);
         }
 
@@ -675,7 +675,7 @@ impl AssetViewer {
                     nightshade::ecs::prefab::spawn_prefab(&mut viewer_world, prefab, Vec3::zeros())
                 };
 
-                if let Some(player) = viewer_world.get_animation_player_mut(entity)
+                if let Some(player) = viewer_world.core.get_animation_player_mut(entity)
                     && !player.clips.is_empty()
                 {
                     player.play(0);
@@ -707,7 +707,7 @@ impl AssetViewer {
         viewer_world.resources.active_camera = Some(orbit_camera);
 
         let sun_entity = spawn_sun(&mut viewer_world);
-        if let Some(transform) = viewer_world.get_local_transform_mut(sun_entity) {
+        if let Some(transform) = viewer_world.core.get_local_transform_mut(sun_entity) {
             transform.translation = Vec3::new(10.0, 20.0, 10.0);
         }
 
@@ -906,7 +906,7 @@ impl AssetViewer {
         zoo_world.resources.active_camera = Some(camera_entity);
 
         let sun_entity = spawn_sun(&mut zoo_world);
-        if let Some(transform) = zoo_world.get_local_transform_mut(sun_entity) {
+        if let Some(transform) = zoo_world.core.get_local_transform_mut(sun_entity) {
             transform.translation = Vec3::new(10.0, 20.0, 10.0);
         }
 
@@ -1374,7 +1374,7 @@ impl State for AssetViewer {
                             nightshade::ecs::prefab::spawn_prefab(&mut zoo.world, &prefab, position)
                         };
 
-                        if let Some(player) = zoo.world.get_animation_player_mut(entity)
+                        if let Some(player) = zoo.world.core.get_animation_player_mut(entity)
                             && !player.clips.is_empty()
                         {
                             player.play(0);
@@ -1386,7 +1386,7 @@ impl State for AssetViewer {
                     let grid_extent = zoo.grid_max - zoo.grid_min;
                     let target_radius = nalgebra_glm::length(&grid_extent) * 0.8;
 
-                    if let Some(cam) = zoo.world.get_pan_orbit_camera_mut(zoo.camera_entity) {
+                    if let Some(cam) = zoo.world.core.get_pan_orbit_camera_mut(zoo.camera_entity) {
                         cam.target_focus = grid_center;
                         cam.target_radius = target_radius.max(5.0);
                         cam.focus = cam.target_focus;
@@ -1849,7 +1849,7 @@ impl State for AssetViewer {
                 PaneAction::PlayAnimation { clip_index } => {
                     if let Some(ref mut viewer) = self.model_viewer {
                         if let Some(entity) = viewer.root_entity
-                            && let Some(player) = viewer.world.get_animation_player_mut(entity)
+                            && let Some(player) = viewer.world.core.get_animation_player_mut(entity)
                         {
                             player.blend_to(clip_index, 0.3);
                             player.looping = true;

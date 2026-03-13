@@ -970,7 +970,7 @@ fn spawn_material_mesh(world: &mut World, mesh_name: &str, position: Vec3, label
         1,
     )[0];
 
-    world.set_render_mesh(entity, RenderMesh::new(mesh_name));
+    world.core.set_render_mesh(entity, RenderMesh::new(mesh_name));
 
     if let Some(&index) = world
         .resources
@@ -985,18 +985,18 @@ fn spawn_material_mesh(world: &mut World, mesh_name: &str, position: Vec3, label
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(MATERIAL_NAME));
+    world.core.set_material_ref(entity, MaterialRef::new(MATERIAL_NAME));
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
     }
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume =
             nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
     }
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         *name = Name(format!("Hot Reload {label}"));
     }
 
@@ -1022,7 +1022,7 @@ fn spawn_textured_mesh(
         1,
     )[0];
 
-    world.set_render_mesh(entity, RenderMesh::new(mesh_name));
+    world.core.set_render_mesh(entity, RenderMesh::new(mesh_name));
 
     let material_name = format!("HotReload_{}_{}", label, entity.id);
     texture_cache_add_reference(&mut world.resources.texture_cache, texture_name);
@@ -1048,18 +1048,18 @@ fn spawn_textured_mesh(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
     }
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume =
             nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
     }
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         *name = Name(format!("Hot Reload {label}"));
     }
 

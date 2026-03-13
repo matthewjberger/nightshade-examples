@@ -278,7 +278,7 @@ impl Platformer {
 
     fn cleanup_fallen_objects(&mut self, world: &mut World) {
         self.physics_object_pool.retain(|&entity| {
-            if let Some(transform) = world.get_local_transform(entity) {
+            if let Some(transform) = world.core.get_local_transform(entity) {
                 if transform.translation.y < -10.0 {
                     world.despawn_entities(&[entity]);
                     false
@@ -309,7 +309,7 @@ impl Platformer {
             return;
         };
 
-        let Some(player_transform) = world.get_local_transform(player_entity) else {
+        let Some(player_transform) = world.core.get_local_transform(player_entity) else {
             return;
         };
 
@@ -318,7 +318,7 @@ impl Platformer {
         let kick_force = 15.0;
 
         for &object_entity in &self.physics_object_pool {
-            if let Some(object_transform) = world.get_local_transform(object_entity) {
+            if let Some(object_transform) = world.core.get_local_transform(object_entity) {
                 let distance =
                     nalgebra_glm::distance(&player_position, &object_transform.translation);
 
@@ -327,7 +327,7 @@ impl Platformer {
                         nalgebra_glm::normalize(&(object_transform.translation - player_position));
                     let kick_velocity = kick_direction * kick_force;
 
-                    if let Some(rigid_body_component) = world.get_rigid_body(object_entity)
+                    if let Some(rigid_body_component) = world.core.get_rigid_body(object_entity)
                         && let Some(handle) = rigid_body_component.handle
                         && let Some(rigid_body) = world
                             .resources

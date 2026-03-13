@@ -32,7 +32,7 @@ impl ObserverCamera {
         let pitch: f32 = -70.0_f32.to_radians();
 
         let camera_entity = spawn_camera(world, position, "Observer Camera".to_string());
-        if let Some(camera) = world.get_camera_mut(camera_entity) {
+        if let Some(camera) = world.core.get_camera_mut(camera_entity) {
             camera.projection = Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,
                 y_fov_rad: 90.0_f32.to_radians(),
@@ -42,7 +42,7 @@ impl ObserverCamera {
         }
 
         let rotation = Self::compute_rotation(yaw, pitch);
-        if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
             transform.rotation = rotation;
         }
         mark_local_transform_dirty(world, camera_entity);
@@ -67,7 +67,7 @@ impl ObserverCamera {
             LINES | VISIBILITY | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM,
             1,
         )[0];
-        world.set_lines(frustum_lines_entity, Lines::new(Vec::new()));
+        world.core.set_lines(frustum_lines_entity, Lines::new(Vec::new()));
 
         Self {
             enabled: false,
@@ -102,7 +102,7 @@ impl ObserverCamera {
         };
 
         let visualization_far = 500.0;
-        let projection = if let Some(camera) = world.get_camera(main_camera) {
+        let projection = if let Some(camera) = world.core.get_camera(main_camera) {
             match &camera.projection {
                 Projection::Perspective(persp) if persp.z_far.is_none() => {
                     let aspect_ratio = persp
@@ -258,7 +258,7 @@ impl ObserverCamera {
             });
         }
 
-        if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
+        if let Some(lines_component) = world.core.get_lines_mut(self.frustum_lines_entity) {
             lines_component.lines = lines;
             lines_component.mark_dirty();
         }
@@ -321,7 +321,7 @@ impl ObserverCamera {
         self.position.y += (trigger_up - trigger_down) * ALTITUDE_SPEED * delta_time;
 
         let rotation = Self::compute_rotation(self.yaw, self.pitch);
-        if let Some(transform) = world.get_local_transform_mut(self.camera_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(self.camera_entity) {
             transform.translation = self.position;
             transform.rotation = rotation;
         }
@@ -350,7 +350,7 @@ impl ObserverCamera {
         world.resources.active_camera = saved_camera;
         world.resources.graphics.culling_camera_override = None;
 
-        if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
+        if let Some(lines_component) = world.core.get_lines_mut(self.frustum_lines_entity) {
             lines_component.lines.clear();
             lines_component.mark_dirty();
         }

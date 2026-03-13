@@ -136,7 +136,7 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
                     | CASTS_SHADOW,
                 1,
             )[0];
-            world.set_casts_shadow(entity, CastsShadow);
+            world.core.set_casts_shadow(entity, CastsShadow);
 
             if let Some(&index) = world
                 .resources
@@ -148,13 +148,13 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
                 world.resources.mesh_cache.registry.add_reference(index);
             }
 
-            world.set_render_mesh(entity, RenderMesh::new(&mesh_name));
-            world.set_name(entity, Name(format!("Piece_{}_{}", grid_x, grid_y)));
+            world.core.set_render_mesh(entity, RenderMesh::new(&mesh_name));
+            world.core.set_name(entity, Name(format!("Piece_{}_{}", grid_x, grid_y)));
 
             let solved_x = (grid_x as f32 - (cols as f32 - 1.0) / 2.0) * piece_width;
             let solved_z = (grid_y as f32 - (rows as f32 - 1.0) / 2.0) * piece_height;
 
-            world.set_local_transform(
+            world.core.set_local_transform(
                 entity,
                 LocalTransform {
                     translation: nalgebra_glm::vec3(solved_x, 0.003, solved_z),
@@ -162,9 +162,9 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
                     rotation: Quat::identity(),
                 },
             );
-            world.set_local_transform_dirty(entity, LocalTransformDirty);
-            world.set_global_transform(entity, GlobalTransform::default());
-            world.set_visibility(entity, Visibility { visible: true });
+            world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+            world.core.set_global_transform(entity, GlobalTransform::default());
+            world.core.set_visibility(entity, Visibility { visible: true });
             let obb = OrientedBoundingBox::new(
                 nalgebra_glm::vec3(0.0, 0.0, 0.0),
                 nalgebra_glm::vec3(piece_width / 2.0, 0.05, piece_height / 2.0),
@@ -172,7 +172,7 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
             );
             let sphere_radius =
                 (piece_width * piece_width / 4.0 + piece_height * piece_height / 4.0).sqrt();
-            world.set_bounding_volume(entity, BoundingVolume::new(obb, sphere_radius));
+            world.core.set_bounding_volume(entity, BoundingVolume::new(obb, sphere_radius));
 
             let material_name = format!("PuzzleMaterial_{}_{}", grid_x, grid_y);
             texture_cache_add_reference(&mut world.resources.texture_cache, texture_name);
@@ -199,7 +199,7 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
                     .registry
                     .add_reference(index);
             }
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
             let group_entity = puzzle_world.spawn_entities(PIECE_GROUP | GROUP_MEMBERS, 1)[0];
             puzzle_world.set_piece_group(group_entity, PieceGroup);
@@ -401,7 +401,7 @@ pub fn shuffle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World) {
 
                 if let Some(engine_entity) = puzzle_world.get_engine_entity(piece_entity) {
                     let engine_ent = engine_entity.0;
-                    if let Some(transform) = world.get_local_transform_mut(engine_ent) {
+                    if let Some(transform) = world.core.get_local_transform_mut(engine_ent) {
                         transform.translation.x = pos_x;
                         transform.translation.y = 0.003 + z_order as f32 * 0.0005;
                         transform.translation.z = pos_z;
@@ -412,7 +412,7 @@ pub fn shuffle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World) {
                             &nalgebra_glm::vec3(0.0, 1.0, 0.0),
                         );
                     }
-                    world.set_local_transform_dirty(engine_ent, LocalTransformDirty);
+                    world.core.set_local_transform_dirty(engine_ent, LocalTransformDirty);
                 }
             }
         }
@@ -571,9 +571,9 @@ pub fn spawn_board_outline(puzzle_world: &mut PuzzleWorld, world: &mut World) {
 
     let mut lines = Lines::new(lines_data);
     lines.mark_dirty();
-    world.set_lines(entity, lines);
+    world.core.set_lines(entity, lines);
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: nalgebra_glm::vec3(0.0, 0.0, 0.0),
@@ -581,9 +581,9 @@ pub fn spawn_board_outline(puzzle_world: &mut PuzzleWorld, world: &mut World) {
             rotation: Quat::identity(),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_visibility(
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_visibility(
         entity,
         Visibility {
             visible: puzzle_world.resources.show_board_outline,
@@ -597,7 +597,7 @@ pub fn toggle_board_outline(puzzle_world: &mut PuzzleWorld, world: &mut World) {
     puzzle_world.resources.show_board_outline = !puzzle_world.resources.show_board_outline;
 
     if let Some(entity) = puzzle_world.resources.board_outline_entity
-        && let Some(visibility) = world.get_visibility_mut(entity)
+        && let Some(visibility) = world.core.get_visibility_mut(entity)
     {
         visibility.visible = puzzle_world.resources.show_board_outline;
     }
@@ -722,7 +722,7 @@ pub fn solve_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_tim
 
     let lift_height = 0.15 * (1.0 - (2.0 * t - 1.0).powi(2)).max(0.0);
 
-    if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(engine_entity) {
         transform.translation.x = current_x;
         transform.translation.y = 0.003 + lift_height;
         transform.translation.z = current_z;
@@ -737,7 +737,7 @@ pub fn solve_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_tim
                 nalgebra_glm::quat_angle_axis(lerp_angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
         }
 
-        world.set_local_transform_dirty(engine_entity, LocalTransformDirty);
+        world.core.set_local_transform_dirty(engine_entity, LocalTransformDirty);
     }
 
     if t >= 1.0 {
@@ -750,14 +750,14 @@ pub fn solve_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_tim
             pp.rotation = pp.correct_rotation;
         }
 
-        if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(engine_entity) {
             transform.translation.x = solved_x;
             transform.translation.y = 0.003;
             transform.translation.z = solved_z;
             let target_angle = puzzle_piece.correct_rotation as f32 * std::f32::consts::FRAC_PI_2;
             transform.rotation =
                 nalgebra_glm::quat_angle_axis(target_angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
-            world.set_local_transform_dirty(engine_entity, LocalTransformDirty);
+            world.core.set_local_transform_dirty(engine_entity, LocalTransformDirty);
         }
 
         puzzle_world.resources.solve_queue.remove(0);
@@ -787,15 +787,15 @@ pub fn start_victory_celebration(puzzle_world: &mut PuzzleWorld, world: &mut Wor
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(text_entity) {
+    if let Some(name) = world.core.get_name_mut(text_entity) {
         *name = Name("Victory Text".to_string());
     }
 
-    if let Some(transform) = world.get_local_transform_mut(text_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(text_entity) {
         transform.translation = nalgebra_glm::vec3(0.0, 0.5, 0.0);
     }
 
-    if let Some(text_component) = world.get_text_mut(text_entity) {
+    if let Some(text_component) = world.core.get_text_mut(text_entity) {
         text_component.text_index = text_index;
         text_component.properties = TextProperties {
             font_size: 128.0,
@@ -836,7 +836,7 @@ pub fn victory_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_t
     for i in 0..total_pieces {
         let piece_entity = puzzle_world.resources.all_piece_entities[i];
         if let Some(engine_entity) = puzzle_world.get_engine_entity(piece_entity)
-            && let Some(transform) = world.get_local_transform_mut(engine_entity.0)
+            && let Some(transform) = world.core.get_local_transform_mut(engine_entity.0)
         {
             let phase = i as f32 * 0.15;
             let wave_pos = ripple_time * 2.0 - phase;
@@ -846,7 +846,7 @@ pub fn victory_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_t
                 0.0
             };
             transform.translation.y = 0.003 + wave;
-            world.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+            world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
         }
     }
 
@@ -868,12 +868,12 @@ pub fn victory_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_t
 
     if let Some(text_entity) = puzzle_world.resources.victory_text_entity {
         if lifetime < 4.0 {
-            if let Some(transform) = world.get_local_transform_mut(text_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(text_entity) {
                 transform.translation.y += delta_time * 0.8;
-                world.set_local_transform_dirty(text_entity, LocalTransformDirty);
+                world.core.set_local_transform_dirty(text_entity, LocalTransformDirty);
             }
 
-            if let Some(text_component) = world.get_text_mut(text_entity) {
+            if let Some(text_component) = world.core.get_text_mut(text_entity) {
                 let alpha = if lifetime > 3.0 {
                     1.0 - (lifetime - 3.0)
                 } else {
@@ -889,10 +889,10 @@ pub fn victory_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_t
             for i in 0..total_pieces {
                 let piece_entity = puzzle_world.resources.all_piece_entities[i];
                 if let Some(engine_entity) = puzzle_world.get_engine_entity(piece_entity)
-                    && let Some(transform) = world.get_local_transform_mut(engine_entity.0)
+                    && let Some(transform) = world.core.get_local_transform_mut(engine_entity.0)
                 {
                     transform.translation.y = 0.003;
-                    world.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                    world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
                 }
             }
 

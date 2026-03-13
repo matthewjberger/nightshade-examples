@@ -850,7 +850,7 @@ impl DemoSceneState {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             entity,
             LocalTransform {
                 translation: position,
@@ -858,10 +858,10 @@ impl DemoSceneState {
                 scale: Vec3::new(scale, scale, scale),
             },
         );
-        world.set_render_mesh(entity, RenderMesh::new(mesh_name));
+        world.core.set_render_mesh(entity, RenderMesh::new(mesh_name));
 
         let material_name = self.create_material(world, color, emissive);
-        world.set_material_ref(entity, MaterialRef::new(material_name));
+        world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
         entity
     }
@@ -878,11 +878,11 @@ impl DemoSceneState {
             1,
         )[0];
 
-        world.set_name(
+        world.core.set_name(
             light_entity,
             Name(format!("DemoLight_{}", self.light_count)),
         );
-        world.set_local_transform(
+        world.core.set_local_transform(
             light_entity,
             LocalTransform {
                 translation: position,
@@ -890,9 +890,9 @@ impl DemoSceneState {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(light_entity, LocalTransformDirty);
-        world.set_global_transform(light_entity, GlobalTransform::default());
-        world.set_light(
+        world.core.set_local_transform_dirty(light_entity, LocalTransformDirty);
+        world.core.set_global_transform(light_entity, GlobalTransform::default());
+        world.core.set_light(
             light_entity,
             Light {
                 light_type: LightType::Point,
@@ -929,7 +929,7 @@ impl DemoSceneState {
         }
 
         for emitter in self.particle_emitters.drain(..) {
-            if let Some(particle_emitter) = world.get_particle_emitter_mut(emitter) {
+            if let Some(particle_emitter) = world.core.get_particle_emitter_mut(emitter) {
                 particle_emitter.enabled = false;
             }
         }
@@ -945,7 +945,7 @@ impl DemoSceneState {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             entity,
             LocalTransform {
                 translation: position,
@@ -953,7 +953,7 @@ impl DemoSceneState {
                 scale: Vec3::new(scale, scale, scale),
             },
         );
-        world.set_render_mesh(entity, RenderMesh::new("Sphere"));
+        world.core.set_render_mesh(entity, RenderMesh::new("Sphere"));
 
         let material_name = format!("ChromeMaterial_{}", self.material_counter);
         self.material_counter += 1;
@@ -984,7 +984,7 @@ impl DemoSceneState {
                 .add_reference(index);
         }
 
-        world.set_material_ref(entity, MaterialRef::new(material_name));
+        world.core.set_material_ref(entity, MaterialRef::new(material_name));
         entity
     }
 
@@ -1399,7 +1399,7 @@ impl DemoSceneState {
             emitter.emissive_strength = 8.0;
             emitter.initial_velocity_min = 3.0;
             emitter.initial_velocity_max = 8.0;
-            world.set_particle_emitter(entity, emitter);
+            world.core.set_particle_emitter(entity, emitter);
             self.particle_emitters.push(entity);
         }
     }
@@ -1420,14 +1420,14 @@ impl DemoSceneState {
         self.spawn_chrome_spheres_for_phase(world, phase);
 
         if let Some(title_entity) = self.title_text {
-            if let Some(text) = world.get_text(title_entity) {
+            if let Some(text) = world.core.get_text(title_entity) {
                 let text_index = text.text_index;
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, phase.name().to_string());
             }
-            if let Some(text) = world.get_text_mut(title_entity) {
+            if let Some(text) = world.core.get_text_mut(title_entity) {
                 text.dirty = true;
             }
         }
@@ -1565,7 +1565,7 @@ impl DemoSceneState {
                         }
 
                         if let Some(entity) = self.audio_entity {
-                            world.set_audio_source(
+                            world.core.set_audio_source(
                                 entity,
                                 AudioSource::new("demo_audio")
                                     .with_volume(1.0)
@@ -1965,7 +1965,7 @@ impl DemoSceneState {
 
         let entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
         let trail_emitter = ParticleEmitter::firework_shell(launch_pos, velocity);
-        world.set_particle_emitter(entity, trail_emitter);
+        world.core.set_particle_emitter(entity, trail_emitter);
 
         self.firework_shells.push(FireworkShell {
             entity,
@@ -1985,7 +1985,7 @@ impl DemoSceneState {
             shell.position += shell.velocity * delta_time;
             shell.velocity.y -= 15.0 * delta_time;
 
-            if let Some(emitter) = world.get_particle_emitter_mut(shell.entity) {
+            if let Some(emitter) = world.core.get_particle_emitter_mut(shell.entity) {
                 emitter.position = shell.position;
             }
 
@@ -2002,17 +2002,17 @@ impl DemoSceneState {
         for (pos, color, particle_count, entity) in explosions {
             let flash_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
             let flash_emitter = ParticleEmitter::flash_burst(pos);
-            world.set_particle_emitter(flash_entity, flash_emitter);
+            world.core.set_particle_emitter(flash_entity, flash_emitter);
 
             let explosion_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
             let emitter = ParticleEmitter::firework_explosion(pos, color, particle_count);
-            world.set_particle_emitter(explosion_entity, emitter);
+            world.core.set_particle_emitter(explosion_entity, emitter);
 
             let glitter_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
             let glitter_emitter = ParticleEmitter::firework_glitter(pos, particle_count / 3);
-            world.set_particle_emitter(glitter_entity, glitter_emitter);
+            world.core.set_particle_emitter(glitter_entity, glitter_emitter);
 
-            if let Some(emitter) = world.get_particle_emitter_mut(entity) {
+            if let Some(emitter) = world.core.get_particle_emitter_mut(entity) {
                 emitter.enabled = false;
             }
         }
@@ -2061,7 +2061,7 @@ impl DemoSceneState {
 
     fn stop_audio(&mut self, world: &mut World) {
         if let Some(entity) = self.audio_entity
-            && let Some(source) = world.get_audio_source_mut(entity)
+            && let Some(source) = world.core.get_audio_source_mut(entity)
         {
             source.playing = false;
         }
@@ -2307,7 +2307,7 @@ impl DemoSceneState {
                 object.base_position + Vec3::new(wave_x, wave_y, wave_z) + snare_jitter
             };
 
-            if let Some(transform) = world.get_local_transform_mut(object.entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(object.entity) {
                 transform.translation = new_position;
                 transform.rotation = spin_rotation;
                 transform.scale = Vec3::new(object.scale, object.scale, object.scale) * scale_pulse;
@@ -2331,7 +2331,7 @@ impl DemoSceneState {
             let audio_emissive = kick * 0.8 + bass * 0.4 + intensity * 0.3 + drop_intensity * 0.5;
             let emissive_strength = base_emissive + audio_emissive;
 
-            if let Some(material_ref) = world.get_material_ref(object.entity)
+            if let Some(material_ref) = world.core.get_material_ref(object.entity)
                 && let Some(material_index) = world
                     .resources
                     .material_registry
@@ -2417,12 +2417,12 @@ impl DemoSceneState {
                 angle.sin() * radius_pulse,
             ) + snare_scatter;
 
-            if let Some(transform) = world.get_local_transform_mut(light.entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(light.entity) {
                 transform.translation = new_position;
             }
             world.mark_local_transform_dirty(light.entity);
 
-            if let Some(transform) = world.get_local_transform_mut(light.sphere_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(light.sphere_entity) {
                 transform.translation = new_position;
             }
             world.mark_local_transform_dirty(light.sphere_entity);
@@ -2458,7 +2458,7 @@ impl DemoSceneState {
                 + beat_pulse * groove * 1.5;
             let intensity_pulse = base_intensity + audio_intensity;
 
-            if let Some(light_component) = world.get_light_mut(light.entity) {
+            if let Some(light_component) = world.core.get_light_mut(light.entity) {
                 light_component.color = new_color;
                 light_component.intensity = intensity_pulse;
             }
@@ -2469,7 +2469,7 @@ impl DemoSceneState {
                 + highs * 0.8
                 + intensity * 2.0
                 + drop_intensity * 2.0;
-            if let Some(material_ref) = world.get_material_ref(light.sphere_entity)
+            if let Some(material_ref) = world.core.get_material_ref(light.sphere_entity)
                 && let Some(material_index) = world
                     .resources
                     .material_registry
@@ -2804,7 +2804,7 @@ impl DemoSceneState {
         let rotation_matrix = view_matrix.fixed_view::<3, 3>(0, 0).transpose();
         let rotation = nalgebra_glm::mat3_to_quat(&rotation_matrix);
 
-        if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
             transform.translation = base_position;
             transform.rotation = rotation;
         }
@@ -2830,7 +2830,7 @@ impl State for DemoSceneState {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             camera,
             LocalTransform {
                 translation: Vec3::new(0.0, 15.0, 40.0),
@@ -2838,9 +2838,9 @@ impl State for DemoSceneState {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.set_global_transform(camera, GlobalTransform::default());
-        world.set_camera(
+        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
+        world.core.set_global_transform(camera, GlobalTransform::default());
+        world.core.set_camera(
             camera,
             Camera {
                 projection: Projection::Perspective(PerspectiveCamera {
@@ -2920,7 +2920,7 @@ impl State for DemoSceneState {
 
         if let Some(title_entity) = self.title_text {
             let title_rotation = nalgebra_glm::quat_angle_axis(self.global_time * 0.1, &Vec3::y());
-            if let Some(transform) = world.get_local_transform_mut(title_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(title_entity) {
                 transform.rotation = title_rotation;
                 let pulse = (self.global_time * 2.0).sin() * 0.5 + 0.5;
                 transform.scale = Vec3::new(1.0, 1.0, 1.0) * (0.9 + pulse * 0.2);

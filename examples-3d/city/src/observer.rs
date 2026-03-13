@@ -36,7 +36,7 @@ impl ObserverCamera {
         let pitch: f32 = -70.0_f32.to_radians();
 
         let camera_entity = spawn_camera(world, position, "Observer Camera".to_string());
-        if let Some(camera) = world.get_camera_mut(camera_entity) {
+        if let Some(camera) = world.core.get_camera_mut(camera_entity) {
             camera.projection = Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,
                 y_fov_rad: 90.0_f32.to_radians(),
@@ -46,7 +46,7 @@ impl ObserverCamera {
         }
 
         let rotation = Self::compute_rotation(yaw, pitch);
-        if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
             transform.rotation = rotation;
         }
         mark_local_transform_dirty(world, camera_entity);
@@ -71,7 +71,7 @@ impl ObserverCamera {
             LINES | VISIBILITY | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM,
             1,
         )[0];
-        world.set_lines(frustum_lines_entity, Lines::new(Vec::new()));
+        world.core.set_lines(frustum_lines_entity, Lines::new(Vec::new()));
 
         Self {
             enabled: false,
@@ -230,7 +230,7 @@ impl ObserverCamera {
             });
         }
 
-        if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
+        if let Some(lines_component) = world.core.get_lines_mut(self.frustum_lines_entity) {
             lines_component.lines = lines;
             lines_component.mark_dirty();
         }
@@ -293,7 +293,7 @@ impl ObserverCamera {
         self.position.y += (trigger_up - trigger_down) * ALTITUDE_SPEED * delta_time;
 
         let rotation = Self::compute_rotation(self.yaw, self.pitch);
-        if let Some(transform) = world.get_local_transform_mut(self.camera_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(self.camera_entity) {
             transform.translation = self.position;
             transform.rotation = rotation;
         }
@@ -325,7 +325,7 @@ impl ObserverCamera {
         world.resources.graphics.fog = saved_fog;
         world.resources.graphics.culling_camera_override = None;
 
-        if let Some(lines_component) = world.get_lines_mut(self.frustum_lines_entity) {
+        if let Some(lines_component) = world.core.get_lines_mut(self.frustum_lines_entity) {
             lines_component.lines.clear();
             lines_component.mark_dirty();
         }
@@ -409,7 +409,7 @@ fn fly_cam_look(world: &mut World) {
 
         let raw_delta = world.resources.input.mouse.raw_mouse_delta;
 
-        let Some(camera) = world.get_camera_mut(camera_entity) else {
+        let Some(camera) = world.core.get_camera_mut(camera_entity) else {
             return;
         };
         let Some(smoothing) = camera.smoothing.as_mut() else {
@@ -430,7 +430,7 @@ fn fly_cam_look(world: &mut World) {
         delta.x *= -1.0;
         delta.y *= -1.0;
 
-        let Some(local_transform) = world.get_local_transform_mut(camera_entity) else {
+        let Some(local_transform) = world.core.get_local_transform_mut(camera_entity) else {
             return;
         };
 
@@ -463,7 +463,7 @@ fn fly_cam_look(world: &mut World) {
                     ..
                 }),
             ..
-        }) = world.get_camera_mut(camera_entity)
+        }) = world.core.get_camera_mut(camera_entity)
         {
             let decay_smoothness = (*mouse_smoothness * 0.5).max(0.01);
             let smoothing_factor = 1.0 - decay_smoothness.powi(7).powf(delta_time);
@@ -480,7 +480,7 @@ fn fly_cam_look(world: &mut World) {
         .contains(MouseState::MIDDLE_CLICKED)
     {
         let (right, up) = {
-            let Some(local_transform) = world.get_local_transform(camera_entity) else {
+            let Some(local_transform) = world.core.get_local_transform(camera_entity) else {
                 return;
             };
             (local_transform.right_vector(), local_transform.up_vector())
@@ -491,7 +491,7 @@ fn fly_cam_look(world: &mut World) {
         delta.x *= -1.0;
         delta.y *= -1.0;
 
-        let Some(local_transform) = world.get_local_transform_mut(camera_entity) else {
+        let Some(local_transform) = world.core.get_local_transform_mut(camera_entity) else {
             return;
         };
         let translation_right = right * delta.x;
@@ -555,7 +555,7 @@ fn fly_cam_wasd(world: &mut World) {
         target_movement = target_movement.normalize();
     }
 
-    let Some(camera) = world.get_camera_mut(camera_entity) else {
+    let Some(camera) = world.core.get_camera_mut(camera_entity) else {
         return;
     };
     let Some(smoothing) = camera.smoothing.as_mut() else {
@@ -572,7 +572,7 @@ fn fly_cam_wasd(world: &mut World) {
 
     let movement = smoothing.smoothed_movement;
 
-    let Some(local_transform) = world.get_local_transform_mut(camera_entity) else {
+    let Some(local_transform) = world.core.get_local_transform_mut(camera_entity) else {
         return;
     };
     let forward = local_transform.forward_vector();

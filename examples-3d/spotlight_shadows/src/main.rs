@@ -234,10 +234,10 @@ fn create_spotlight_shadows_scene() -> Scene {
 
 fn find_entities_starting_with(world: &World, prefix: &str) -> Vec<Entity> {
     world
-        .query_entities(NAME)
+        .core.query_entities(NAME)
         .filter(|&entity| {
             world
-                .get_name(entity)
+                .core.get_name(entity)
                 .map(|n| n.0.starts_with(prefix))
                 .unwrap_or(false)
         })
@@ -250,7 +250,7 @@ fn spawn_flashlight(world: &mut World) -> Entity {
         1,
     )[0];
 
-    world.set_light(
+    world.core.set_light(
         entity,
         Light {
             light_type: LightType::Spot,
@@ -264,7 +264,7 @@ fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: Vec3::new(0.0, 0.0, 0.0),
@@ -273,9 +273,9 @@ fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_global_transform(entity, GlobalTransform::default());
 
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }
@@ -311,15 +311,15 @@ impl State for SpotlightShadowsDemo {
         let camera_position = Vec3::new(0.0, 8.0, 20.0);
         let camera = spawn_camera(world, camera_position, "Main Camera".to_string());
 
-        if let Some(mut transform) = world.get_local_transform(camera).cloned() {
+        if let Some(mut transform) = world.core.get_local_transform(camera).cloned() {
             let target = Vec3::new(0.0, 0.0, 0.0);
             let direction = (target - transform.translation).normalize();
             let pitch = direction.y.asin();
             let yaw = direction.z.atan2(direction.x);
             transform.rotation = nalgebra_glm::quat_angle_axis(yaw, &Vec3::y())
                 * nalgebra_glm::quat_angle_axis(pitch, &Vec3::x());
-            world.set_local_transform(camera, transform);
-            world.set_local_transform_dirty(camera, LocalTransformDirty);
+            world.core.set_local_transform(camera, transform);
+            world.core.set_local_transform_dirty(camera, LocalTransformDirty);
         }
 
         world.resources.active_camera = Some(camera);
@@ -333,7 +333,7 @@ impl State for SpotlightShadowsDemo {
         self.resources.time += delta;
 
         for (index, &spotlight_entity) in self.resources.spotlight_entities.iter().enumerate() {
-            if let Some(mut transform) = world.get_local_transform(spotlight_entity).cloned() {
+            if let Some(mut transform) = world.core.get_local_transform(spotlight_entity).cloned() {
                 let phase = index as f32 * std::f32::consts::PI * 0.4;
                 let sway_x = (self.resources.time * 0.5 + phase).sin() * 3.0;
                 let sway_z = (self.resources.time * 0.3 + phase).cos() * 2.0;
@@ -356,13 +356,13 @@ impl State for SpotlightShadowsDemo {
                 transform.rotation = nalgebra_glm::quat_angle_axis(yaw, &Vec3::y())
                     * nalgebra_glm::quat_angle_axis(pitch, &Vec3::x());
 
-                world.set_local_transform(spotlight_entity, transform);
-                world.set_local_transform_dirty(spotlight_entity, LocalTransformDirty);
+                world.core.set_local_transform(spotlight_entity, transform);
+                world.core.set_local_transform_dirty(spotlight_entity, LocalTransformDirty);
             }
         }
 
         for (index, &cube_entity) in self.resources.cube_entities.iter().enumerate() {
-            if let Some(mut transform) = world.get_local_transform(cube_entity).cloned() {
+            if let Some(mut transform) = world.core.get_local_transform(cube_entity).cloned() {
                 let phase = index as f32 * 1.5;
                 let bob = (self.resources.time * 2.0 + phase).sin() * 0.3;
 
@@ -386,14 +386,14 @@ impl State for SpotlightShadowsDemo {
                         nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::x_axis());
                 }
 
-                world.set_local_transform(cube_entity, transform);
-                world.set_local_transform_dirty(cube_entity, LocalTransformDirty);
+                world.core.set_local_transform(cube_entity, transform);
+                world.core.set_local_transform_dirty(cube_entity, LocalTransformDirty);
             }
         }
 
         if let Some(flashlight_entity) = self.resources.flashlight_entity {
             if let Some(camera) = world.resources.active_camera {
-                if let Some(camera_transform) = world.get_global_transform(camera).cloned() {
+                if let Some(camera_transform) = world.core.get_global_transform(camera).cloned() {
                     let camera_position = camera_transform.translation();
                     let camera_forward = camera_transform.forward_vector();
 
@@ -402,14 +402,14 @@ impl State for SpotlightShadowsDemo {
                     let flashlight_transform = LocalTransform {
                         translation: offset_position,
                         rotation: world
-                            .get_local_transform(camera)
+                            .core.get_local_transform(camera)
                             .map(|t| t.rotation)
                             .unwrap_or(Quat::identity()),
                         scale: Vec3::new(1.0, 1.0, 1.0),
                     };
 
-                    world.set_local_transform(flashlight_entity, flashlight_transform);
-                    world.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
+                    world.core.set_local_transform(flashlight_entity, flashlight_transform);
+                    world.core.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
                 }
             }
         }

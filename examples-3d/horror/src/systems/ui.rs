@@ -19,7 +19,7 @@ pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
         },
     );
     demo.interaction_prompt_entity = Some(prompt_entity);
-    if let Some(hud_text) = world.get_hud_text(prompt_entity) {
+    if let Some(hud_text) = world.core.get_hud_text(prompt_entity) {
         demo.interaction_prompt_text_index = Some(hud_text.text_index);
     }
 
@@ -35,7 +35,7 @@ pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
         },
     );
     demo.objective_text_entity = Some(objective_entity);
-    if let Some(hud_text) = world.get_hud_text(objective_entity) {
+    if let Some(hud_text) = world.core.get_hud_text(objective_entity) {
         demo.objective_text_index = Some(hud_text.text_index);
     }
 }
@@ -62,7 +62,7 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
         || demo.reading_note.is_some()
     {
         world.resources.text_cache.set_text(text_index, "");
-        if let Some(hud_text) = world.get_hud_text_mut(prompt_entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
             hud_text.dirty = true;
         }
         return;
@@ -144,7 +144,7 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
     };
 
     world.resources.text_cache.set_text(text_index, prompt_text);
-    if let Some(hud_text) = world.get_hud_text_mut(prompt_entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
         hud_text.set_position(prompt_position);
         hud_text.dirty = true;
     }
@@ -209,7 +209,7 @@ pub fn update_objective(demo: &HorrorDemo, world: &mut World) {
     };
 
     world.resources.text_cache.set_text(text_index, objective);
-    if let Some(hud_text) = world.get_hud_text_mut(objective_entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(objective_entity) {
         hud_text.dirty = true;
     }
 }

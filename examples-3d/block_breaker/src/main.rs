@@ -72,7 +72,7 @@ fn spawn_paddle(game_world: &mut GameWorld, world: &mut World, z_offset: f32) ->
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | POSITION | PADDLE, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(engine_entity));
@@ -112,7 +112,7 @@ fn spawn_ball(game_world: &mut GameWorld, world: &mut World, z_offset: f32) -> f
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | POSITION | VELOCITY | BALL, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(engine_entity));
@@ -154,7 +154,7 @@ fn spawn_brick(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | POSITION | BRICK, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(engine_entity));
@@ -201,7 +201,7 @@ fn spawn_particle(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity =
         game_world.spawn_entities(ENTITY_HANDLE | POSITION | VELOCITY | PARTICLE, 1)[0];
@@ -231,7 +231,7 @@ fn update_engine_transform(game_world: &GameWorld, world: &mut World, game_entit
         game_world.get_entity_handle(game_entity),
         game_world.get_position(game_entity),
     ) {
-        if let Some(transform) = world.get_local_transform_mut(handle.0) {
+        if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
             transform.translation = position.0;
         }
         mark_local_transform_dirty(world, handle.0);
@@ -245,7 +245,7 @@ fn update_engine_scale(
     scale: Vec3,
 ) {
     if let Some(handle) = game_world.get_entity_handle(game_entity) {
-        if let Some(transform) = world.get_local_transform_mut(handle.0) {
+        if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
             transform.scale = scale;
         }
         mark_local_transform_dirty(world, handle.0);
@@ -307,13 +307,13 @@ fn camera_shake_system(game_world: &mut GameWorld, world: &mut World) {
             0.0,
         );
         if let Some(camera) = world.resources.active_camera {
-            if let Some(transform) = world.get_local_transform_mut(camera) {
+            if let Some(transform) = world.core.get_local_transform_mut(camera) {
                 transform.translation = Vec3::new(0.0, 0.0, 12.0) + shake_offset;
             }
             mark_local_transform_dirty(world, camera);
         }
     } else if let Some(camera) = world.resources.active_camera {
-        if let Some(transform) = world.get_local_transform_mut(camera) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera) {
             transform.translation = Vec3::new(0.0, 0.0, 12.0);
         }
         mark_local_transform_dirty(world, camera);
@@ -472,7 +472,7 @@ fn brick_collision_system(
 
         let mut brick_color = [1.0, 1.0, 1.0, 1.0];
         if let Some(handle) = game_world.get_entity_handle(brick_entity)
-            && let Some(material_ref) = world.get_material_ref(handle.0)
+            && let Some(material_ref) = world.core.get_material_ref(handle.0)
             && let Some(material) = registry_entry_by_name(
                 &world.resources.material_registry.registry,
                 &material_ref.name,
@@ -608,7 +608,7 @@ impl State for BlockBreakerGame {
             "Main Camera".to_string(),
         );
 
-        if let Some(camera_component) = world.get_camera_mut(camera) {
+        if let Some(camera_component) = world.core.get_camera_mut(camera) {
             camera_component.projection = Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,
                 y_fov_rad: 80.0_f32.to_radians(),
@@ -651,7 +651,7 @@ impl State for BlockBreakerGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(bottom, MaterialRef::new(bottom_mat_name));
+        world.core.set_material_ref(bottom, MaterialRef::new(bottom_mat_name));
 
         let top = spawn_mesh(
             world,
@@ -678,7 +678,7 @@ impl State for BlockBreakerGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(top, MaterialRef::new(top_mat_name));
+        world.core.set_material_ref(top, MaterialRef::new(top_mat_name));
 
         let left = spawn_mesh(
             world,
@@ -705,7 +705,7 @@ impl State for BlockBreakerGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(left, MaterialRef::new(left_mat_name));
+        world.core.set_material_ref(left, MaterialRef::new(left_mat_name));
 
         let right = spawn_mesh(
             world,
@@ -732,7 +732,7 @@ impl State for BlockBreakerGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(right, MaterialRef::new(right_mat_name));
+        world.core.set_material_ref(right, MaterialRef::new(right_mat_name));
 
         self.game_world.resources.score = 0;
         self.game_world.resources.lives = 3;
@@ -850,33 +850,33 @@ impl State for BlockBreakerGame {
         escape_key_exit_system(world);
 
         if let Some(score_entity) = self.score_text {
-            let text_index = world.get_hud_text(score_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(score_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
                     format!("Score: {}", self.game_world.resources.score),
                 );
-                if let Some(hud_text) = world.get_hud_text_mut(score_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(score_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(lives_entity) = self.lives_text {
-            let text_index = world.get_hud_text(lives_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(lives_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
                     format!("Lives: {}", self.game_world.resources.lives),
                 );
-                if let Some(hud_text) = world.get_hud_text_mut(lives_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(lives_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(combo_entity) = self.combo_text {
-            let text_index = world.get_hud_text(combo_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(combo_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 if self.game_world.resources.combo > 1 {
                     world.resources.text_cache.set_text(
@@ -886,14 +886,14 @@ impl State for BlockBreakerGame {
                 } else {
                     world.resources.text_cache.set_text(text_index, "");
                 }
-                if let Some(hud_text) = world.get_hud_text_mut(combo_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(combo_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(message_entity) = self.message_text {
-            let text_index = world.get_hud_text(message_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(message_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 let message = match self.game_world.resources.game_state {
                     GameState::Paused => "PAUSED",
@@ -902,14 +902,14 @@ impl State for BlockBreakerGame {
                     _ => "",
                 };
                 world.resources.text_cache.set_text(text_index, message);
-                if let Some(hud_text) = world.get_hud_text_mut(message_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(message_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(start_entity) = self.start_text {
-            let text_index = world.get_hud_text(start_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(start_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 let start_message =
                     if self.game_world.resources.game_state == GameState::WaitingToStart {
@@ -921,7 +921,7 @@ impl State for BlockBreakerGame {
                     .resources
                     .text_cache
                     .set_text(text_index, start_message);
-                if let Some(hud_text) = world.get_hud_text_mut(start_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(start_entity) {
                     hud_text.dirty = true;
                 }
             }

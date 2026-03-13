@@ -138,7 +138,7 @@ impl State for SsrDemoState {
         load_hdr_skybox(world, HDR_BYTES.to_vec());
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 3.0;
         }
@@ -240,7 +240,7 @@ impl SsrDemoState {
                 | CASTS_SHADOW,
             1,
         )[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             ground,
             LocalTransform {
                 translation: nalgebra_glm::vec3(0.0, 0.0, 0.0),
@@ -248,7 +248,7 @@ impl SsrDemoState {
                 scale: nalgebra_glm::vec3(20.0, 0.05, 20.0),
             },
         );
-        world.set_render_mesh(ground, RenderMesh::new("Cube"));
+        world.core.set_render_mesh(ground, RenderMesh::new("Cube"));
 
         let material_name = format!("GroundMirror_{}", ground.id);
         material_registry_insert(
@@ -274,8 +274,8 @@ impl SsrDemoState {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(ground, MaterialRef::new(material_name));
-        world.set_casts_shadow(ground, CastsShadow);
+        world.core.set_material_ref(ground, MaterialRef::new(material_name));
+        world.core.set_casts_shadow(ground, CastsShadow);
     }
 
     fn spawn_objects(&self, world: &mut World) {
@@ -353,7 +353,7 @@ impl SsrDemoState {
                     | CASTS_SHADOW,
                 1,
             )[0];
-            world.set_local_transform(
+            world.core.set_local_transform(
                 entity,
                 LocalTransform {
                     translation: *position,
@@ -361,7 +361,7 @@ impl SsrDemoState {
                     scale: nalgebra_glm::vec3(0.5, 0.5, 0.5),
                 },
             );
-            world.set_render_mesh(entity, RenderMesh::new("Sphere"));
+            world.core.set_render_mesh(entity, RenderMesh::new("Sphere"));
 
             let material_name = format!("Sphere_{}_{}", index, entity.id);
             material_registry_insert(
@@ -387,8 +387,8 @@ impl SsrDemoState {
                     .registry
                     .add_reference(mat_index);
             }
-            world.set_material_ref(entity, MaterialRef::new(material_name));
-            world.set_casts_shadow(entity, CastsShadow);
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_casts_shadow(entity, CastsShadow);
         }
 
         let emissive_positions = [
@@ -407,7 +407,7 @@ impl SsrDemoState {
                     | CASTS_SHADOW,
                 1,
             )[0];
-            world.set_local_transform(
+            world.core.set_local_transform(
                 entity,
                 LocalTransform {
                     translation: *position,
@@ -415,7 +415,7 @@ impl SsrDemoState {
                     scale: nalgebra_glm::vec3(0.3, 0.3, 0.3),
                 },
             );
-            world.set_render_mesh(entity, RenderMesh::new("Sphere"));
+            world.core.set_render_mesh(entity, RenderMesh::new("Sphere"));
 
             let material_name = format!("Emissive_{}_{}", index, entity.id);
             material_registry_insert(
@@ -442,8 +442,8 @@ impl SsrDemoState {
                     .registry
                     .add_reference(mat_index);
             }
-            world.set_material_ref(entity, MaterialRef::new(material_name));
-            world.set_casts_shadow(entity, CastsShadow);
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_casts_shadow(entity, CastsShadow);
         }
 
         let cube_positions = [
@@ -461,7 +461,7 @@ impl SsrDemoState {
                     | CASTS_SHADOW,
                 1,
             )[0];
-            world.set_local_transform(
+            world.core.set_local_transform(
                 entity,
                 LocalTransform {
                     translation: *position,
@@ -469,7 +469,7 @@ impl SsrDemoState {
                     scale: nalgebra_glm::vec3(0.75, 0.75, 0.75),
                 },
             );
-            world.set_render_mesh(entity, RenderMesh::new("Cube"));
+            world.core.set_render_mesh(entity, RenderMesh::new("Cube"));
 
             let material_name = format!("Cube_{}_{}", index, entity.id);
             material_registry_insert(
@@ -495,8 +495,8 @@ impl SsrDemoState {
                     .registry
                     .add_reference(mat_index);
             }
-            world.set_material_ref(entity, MaterialRef::new(material_name));
-            world.set_casts_shadow(entity, CastsShadow);
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_casts_shadow(entity, CastsShadow);
         }
     }
 }

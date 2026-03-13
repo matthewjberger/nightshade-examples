@@ -16,7 +16,7 @@ fn compute_combined_bounding_volume(world: &World, root_entity: Entity) -> Optio
     let mut descendants = Vec::new();
     collect_descendants(world, root_entity, &mut descendants);
 
-    let root_global = world.get_global_transform(root_entity)?;
+    let root_global = world.core.get_global_transform(root_entity)?;
     let root_inverse = root_global.0.try_inverse()?;
 
     let mut min_corner = nalgebra_glm::vec3(f32::MAX, f32::MAX, f32::MAX);
@@ -24,8 +24,8 @@ fn compute_combined_bounding_volume(world: &World, root_entity: Entity) -> Optio
     let mut found_any = false;
 
     for entity in descendants {
-        if let Some(bounding_volume) = world.get_bounding_volume(entity)
-            && let Some(global_transform) = world.get_global_transform(entity)
+        if let Some(bounding_volume) = world.core.get_bounding_volume(entity)
+            && let Some(global_transform) = world.core.get_global_transform(entity)
         {
             let world_obb = bounding_volume.obb.transform(&global_transform.0);
             let corners = world_obb.get_corners();
@@ -54,7 +54,7 @@ fn find_piece_root(world: &World, entity: Entity) -> Option<Entity> {
     let mut best_candidate: Option<Entity> = None;
 
     loop {
-        if let Some(name) = world.get_name(current) {
+        if let Some(name) = world.core.get_name(current) {
             let name_str = &name.0;
             if name_str == "Plane" || name_str == "Board" {
                 return None;
@@ -64,7 +64,7 @@ fn find_piece_root(world: &World, entity: Entity) -> Option<Entity> {
             }
         }
 
-        if let Some(parent) = world.get_parent(current) {
+        if let Some(parent) = world.core.get_parent(current) {
             if let Some(parent_entity) = parent.0 {
                 current = parent_entity;
             } else {
@@ -119,7 +119,7 @@ pub fn hover_system(chess_world: &mut ChessWorld, world: &mut World) {
 
     if let Some(piece_root) = display_entity {
         if let Some(combined_bv) = compute_combined_bounding_volume(world, piece_root) {
-            world.set_bounding_volume(piece_root, combined_bv);
+            world.core.set_bounding_volume(piece_root, combined_bv);
         }
         world.resources.graphics.show_selected_bounding_volume = false;
         world.resources.graphics.bounding_volume_selected_entity = Some(piece_root);

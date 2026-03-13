@@ -41,8 +41,7 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         map_props,
     );
 
-    world.queue_add_components(map_entity, TEXT_CHARACTER_COLORS);
-    world.apply_commands();
+    world.core.add_components(map_entity, TEXT_CHARACTER_COLORS);
 
     let title_props = TextProperties {
         font_size: 20.0,
@@ -229,15 +228,15 @@ fn update_map_display(display: &DisplayState, game_world: &GameWorld, world: &mu
     text.push('+');
     colors.push(Some(border_color));
 
-    if let Some(hud_text) = world.get_hud_text(entity) {
+    if let Some(hud_text) = world.core.get_hud_text(entity) {
         let text_index = hud_text.text_index;
         world.resources.text_cache.set_text(text_index, &text);
-        if let Some(hud_text) = world.get_hud_text_mut(entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
             hud_text.dirty = true;
         }
     }
 
-    if let Some(char_colors) = world.get_text_character_colors_mut(entity) {
+    if let Some(char_colors) = world.core.get_text_character_colors_mut(entity) {
         char_colors.colors = colors;
         char_colors.dirty = true;
     }
@@ -291,10 +290,10 @@ fn update_stats_display(display: &DisplayState, game_world: &GameWorld, world: &
         }
     }
 
-    if let Some(hud_text) = world.get_hud_text(entity) {
+    if let Some(hud_text) = world.core.get_hud_text(entity) {
         let text_index = hud_text.text_index;
         world.resources.text_cache.set_text(text_index, &stats_text);
-        if let Some(hud_text) = world.get_hud_text_mut(entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
             hud_text.dirty = true;
         }
     }
@@ -311,13 +310,13 @@ fn update_messages_display(display: &DisplayState, game_world: &GameWorld, world
 
     let messages_text: String = messages[start..].to_vec().join("\n");
 
-    if let Some(hud_text) = world.get_hud_text(entity) {
+    if let Some(hud_text) = world.core.get_hud_text(entity) {
         let text_index = hud_text.text_index;
         world
             .resources
             .text_cache
             .set_text(text_index, &messages_text);
-        if let Some(hud_text) = world.get_hud_text_mut(entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
             hud_text.dirty = true;
         }
     }

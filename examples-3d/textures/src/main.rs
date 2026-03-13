@@ -76,7 +76,7 @@ fn spawn_textured_cube(world: &mut World, position: Vec3, texture_name: &str) {
         1,
     )[0];
 
-    world.set_render_mesh(entity, RenderMesh::new("Cube"));
+    world.core.set_render_mesh(entity, RenderMesh::new("Cube"));
 
     let material_name = format!("TexturedCube_{}_{}", texture_name, entity.id);
     texture_cache_add_reference(&mut world.resources.texture_cache, texture_name);
@@ -102,13 +102,13 @@ fn spawn_textured_cube(world: &mut World, position: Vec3, texture_name: &str) {
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
     }
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         *name = Name(format!("Textured Cube ({})", texture_name));
     }
 }
@@ -124,7 +124,7 @@ fn spawn_textured_sphere(world: &mut World, position: Vec3, texture_name: &str) 
         1,
     )[0];
 
-    world.set_render_mesh(entity, RenderMesh::new("Sphere"));
+    world.core.set_render_mesh(entity, RenderMesh::new("Sphere"));
 
     let material_name = format!("TexturedSphere_{}_{}", texture_name, entity.id);
     texture_cache_add_reference(&mut world.resources.texture_cache, texture_name);
@@ -150,13 +150,13 @@ fn spawn_textured_sphere(world: &mut World, position: Vec3, texture_name: &str) 
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
     }
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         *name = Name(format!("Textured Sphere ({})", texture_name));
     }
 }
@@ -173,7 +173,7 @@ fn spawn_textured_plane(world: &mut World, position: Vec3, texture_name: &str) {
         1,
     )[0];
 
-    world.set_render_mesh(entity, RenderMesh::new("Plane"));
+    world.core.set_render_mesh(entity, RenderMesh::new("Plane"));
 
     let material_name = format!("TexturedPlane_{}_{}", texture_name, entity.id);
     texture_cache_add_reference(&mut world.resources.texture_cache, texture_name);
@@ -199,18 +199,18 @@ fn spawn_textured_plane(world: &mut World, position: Vec3, texture_name: &str) {
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
     }
 
-    if let Some(rotation) = world.get_rotation_mut(entity) {
+    if let Some(rotation) = world.core.get_rotation_mut(entity) {
         rotation.axis = Vec3::y();
         rotation.speed = 0.5;
     }
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         *name = Name(format!("Textured Plane ({})", texture_name));
     }
 }
@@ -218,14 +218,14 @@ fn spawn_textured_plane(world: &mut World, position: Vec3, texture_name: &str) {
 fn rotation_system(world: &mut World) {
     let delta_time = world.resources.window.timing.delta_time;
 
-    let entities: Vec<_> = world.query_entities(ROTATION).collect();
+    let entities: Vec<_> = world.core.query_entities(ROTATION).collect();
 
     for entity in entities {
-        if let Some(rotation) = world.get_rotation(entity) {
+        if let Some(rotation) = world.core.get_rotation(entity) {
             let axis = rotation.axis;
             let speed = rotation.speed;
 
-            if let Some(transform) = world.get_local_transform_mut(entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(entity) {
                 let rotation_delta = nalgebra_glm::quat_angle_axis(speed * delta_time, &axis);
                 transform.rotation = rotation_delta * transform.rotation;
             }

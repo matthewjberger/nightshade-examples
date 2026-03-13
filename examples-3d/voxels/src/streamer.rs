@@ -64,7 +64,7 @@ impl ChunkStreamer {
                 Vec::new(),
                 voxel_type.material_name(),
             );
-            world.remove_casts_shadow(entity);
+            world.core.remove_casts_shadow(entity);
             self.material_entities.insert(*voxel_type, entity);
         }
     }
@@ -266,7 +266,7 @@ impl ChunkStreamer {
 
         for (voxel_type, instances) in &all_instances {
             if let Some(&entity) = self.material_entities.get(voxel_type)
-                && let Some(instanced_mesh) = world.get_instanced_mesh_mut(entity)
+                && let Some(instanced_mesh) = world.core.get_instanced_mesh_mut(entity)
             {
                 instanced_mesh.set_instances(instances.clone());
             }

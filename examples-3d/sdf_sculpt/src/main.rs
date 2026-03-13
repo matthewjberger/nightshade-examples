@@ -672,7 +672,7 @@ impl SdfDemo {
 
     fn update_brush_preview(&self, world: &mut World) {
         if let Some(entity) = self.brush_preview_entity {
-            if let Some(visibility) = world.get_visibility_mut(entity) {
+            if let Some(visibility) = world.core.get_visibility_mut(entity) {
                 visibility.visible = self.brush_valid;
             }
 
@@ -696,12 +696,12 @@ impl SdfDemo {
 
             let new_lines = self.generate_brush_lines(color);
 
-            if let Some(lines) = world.get_lines_mut(entity) {
+            if let Some(lines) = world.core.get_lines_mut(entity) {
                 lines.lines = new_lines;
                 lines.mark_dirty();
             }
 
-            if let Some(transform) = world.get_local_transform(entity) {
+            if let Some(transform) = world.core.get_local_transform(entity) {
                 let mut new_transform = *transform;
                 new_transform.translation = self.brush_position;
                 world.assign_local_transform(entity, new_transform);
@@ -856,7 +856,7 @@ impl SdfDemo {
 
     fn update_brick_grid_vis(&self, world: &mut World, camera_pos: Vec3) {
         if let Some(entity) = self.brick_grid_entity {
-            if let Some(visibility) = world.get_visibility_mut(entity) {
+            if let Some(visibility) = world.core.get_visibility_mut(entity) {
                 visibility.visible = self.show_brick_grid;
             }
 
@@ -866,7 +866,7 @@ impl SdfDemo {
 
             let new_lines = self.generate_brick_grid_lines(world, camera_pos);
 
-            if let Some(lines) = world.get_lines_mut(entity) {
+            if let Some(lines) = world.core.get_lines_mut(entity) {
                 lines.lines = new_lines;
                 lines.mark_dirty();
             }
@@ -953,7 +953,7 @@ impl SdfDemo {
         )[0];
 
         let ground_y = self.terrain_base_height - 0.05;
-        world.set_local_transform(
+        world.core.set_local_transform(
             ground,
             LocalTransform {
                 translation: Vec3::new(0.0, ground_y, 0.0),
@@ -961,13 +961,13 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(ground, LocalTransformDirty);
-        world.set_global_transform(ground, GlobalTransform::default());
+        world.core.set_local_transform_dirty(ground, LocalTransformDirty);
+        world.core.set_global_transform(ground, GlobalTransform::default());
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(ground) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(ground) {
             *rigid_body = RigidBodyComponent::new_static().with_translation(0.0, ground_y, 0.0);
         }
-        if let Some(collider) = world.get_collider_mut(ground) {
+        if let Some(collider) = world.core.get_collider_mut(ground) {
             *collider = ColliderComponent::new_cuboid(200.0, 0.05, 200.0).with_friction(0.6);
         }
 
@@ -983,7 +983,7 @@ impl SdfDemo {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             entity,
             LocalTransform {
                 translation: position,
@@ -991,15 +991,15 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(entity, LocalTransformDirty);
-        world.set_global_transform(entity, GlobalTransform::default());
+        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.core.set_global_transform(entity, GlobalTransform::default());
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
                 .with_translation(position.x, position.y, position.z)
                 .with_mass(5.0);
         }
-        if let Some(collider) = world.get_collider_mut(entity) {
+        if let Some(collider) = world.core.get_collider_mut(entity) {
             *collider = ColliderComponent::new_ball(radius)
                 .with_restitution(0.3)
                 .with_friction(0.5);
@@ -1028,7 +1028,7 @@ impl SdfDemo {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             entity,
             LocalTransform {
                 translation: position,
@@ -1036,15 +1036,15 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(entity, LocalTransformDirty);
-        world.set_global_transform(entity, GlobalTransform::default());
+        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.core.set_global_transform(entity, GlobalTransform::default());
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
                 .with_translation(position.x, position.y, position.z)
                 .with_mass(8.0);
         }
-        if let Some(collider) = world.get_collider_mut(entity) {
+        if let Some(collider) = world.core.get_collider_mut(entity) {
             *collider = ColliderComponent::new_cuboid(half_extent, half_extent, half_extent)
                 .with_restitution(0.2)
                 .with_friction(0.5);
@@ -1075,7 +1075,7 @@ impl SdfDemo {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             entity,
             LocalTransform {
                 translation: position,
@@ -1083,15 +1083,15 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(entity, LocalTransformDirty);
-        world.set_global_transform(entity, GlobalTransform::default());
+        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.core.set_global_transform(entity, GlobalTransform::default());
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
                 .with_translation(position.x, position.y, position.z)
                 .with_mass(4.0);
         }
-        if let Some(collider) = world.get_collider_mut(entity) {
+        if let Some(collider) = world.core.get_collider_mut(entity) {
             *collider = ColliderComponent::new_capsule(half_height, radius)
                 .with_restitution(0.3)
                 .with_friction(0.5);
@@ -1123,7 +1123,7 @@ impl SdfDemo {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             entity,
             LocalTransform {
                 translation: position,
@@ -1131,15 +1131,15 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(entity, LocalTransformDirty);
-        world.set_global_transform(entity, GlobalTransform::default());
+        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+        world.core.set_global_transform(entity, GlobalTransform::default());
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
                 .with_translation(position.x, position.y, position.z)
                 .with_mass(10.0);
         }
-        if let Some(collider) = world.get_collider_mut(entity) {
+        if let Some(collider) = world.core.get_collider_mut(entity) {
             *collider = ColliderComponent::new_ball(base_radius)
                 .with_restitution(0.1)
                 .with_friction(0.6);
@@ -1188,7 +1188,7 @@ impl SdfDemo {
     fn sync_physics_objects(&mut self, world: &mut World) {
         for object in &mut self.physics_objects {
             let (entity_translation, entity_rotation) =
-                if let Some(transform) = world.get_local_transform(object.entity) {
+                if let Some(transform) = world.core.get_local_transform(object.entity) {
                     (transform.translation, transform.rotation)
                 } else {
                     continue;
@@ -1430,7 +1430,7 @@ impl SdfDemo {
                         1,
                     )[0];
 
-                    world.set_local_transform(
+                    world.core.set_local_transform(
                         entity,
                         LocalTransform {
                             translation: Vec3::zeros(),
@@ -1438,13 +1438,13 @@ impl SdfDemo {
                             scale: Vec3::new(1.0, 1.0, 1.0),
                         },
                     );
-                    world.set_local_transform_dirty(entity, LocalTransformDirty);
-                    world.set_global_transform(entity, GlobalTransform::default());
+                    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+                    world.core.set_global_transform(entity, GlobalTransform::default());
 
-                    if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+                    if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
                         *rigid_body = RigidBodyComponent::new_static();
                     }
-                    if let Some(collider) = world.get_collider_mut(entity) {
+                    if let Some(collider) = world.core.get_collider_mut(entity) {
                         *collider = ColliderComponent {
                             shape: ColliderShape::TriMesh { vertices, indices },
                             friction: 0.6,
@@ -1496,7 +1496,7 @@ impl SdfDemo {
 
     fn update_collision_wireframe(&mut self, world: &mut World) {
         if let Some(entity) = self.collision_wireframe_entity {
-            if let Some(visibility) = world.get_visibility_mut(entity) {
+            if let Some(visibility) = world.core.get_visibility_mut(entity) {
                 visibility.visible = self.show_collision_wireframe;
             }
 
@@ -1514,7 +1514,7 @@ impl SdfDemo {
                 all_lines.extend_from_slice(&info.wireframe_lines);
             }
 
-            if let Some(lines) = world.get_lines_mut(entity) {
+            if let Some(lines) = world.core.get_lines_mut(entity) {
                 lines.lines = all_lines;
                 lines.mark_dirty();
             }
@@ -1547,7 +1547,7 @@ impl State for SdfDemo {
         let look_direction = nalgebra_glm::normalize(&(look_target - initial_position));
         let initial_rotation = nalgebra_glm::quat_look_at(&look_direction, &Vec3::y());
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             camera,
             LocalTransform {
                 translation: initial_position,
@@ -1555,9 +1555,9 @@ impl State for SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.set_global_transform(camera, GlobalTransform::default());
-        world.set_camera(
+        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
+        world.core.set_global_transform(camera, GlobalTransform::default());
+        world.core.set_camera(
             camera,
             Camera {
                 projection: Projection::Perspective(PerspectiveCamera {
@@ -1605,7 +1605,7 @@ impl State for SdfDemo {
             LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | VISIBILITY | LINES,
             1,
         )[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             brush_preview,
             LocalTransform {
                 translation: Vec3::zeros(),
@@ -1613,17 +1613,17 @@ impl State for SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(brush_preview, LocalTransformDirty);
-        world.set_global_transform(brush_preview, GlobalTransform::default());
-        world.set_visibility(brush_preview, Visibility { visible: true });
-        world.set_lines(brush_preview, Lines::default());
+        world.core.set_local_transform_dirty(brush_preview, LocalTransformDirty);
+        world.core.set_global_transform(brush_preview, GlobalTransform::default());
+        world.core.set_visibility(brush_preview, Visibility { visible: true });
+        world.core.set_lines(brush_preview, Lines::default());
         self.brush_preview_entity = Some(brush_preview);
 
         let brick_grid = world.spawn_entities(
             LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | VISIBILITY | LINES,
             1,
         )[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             brick_grid,
             LocalTransform {
                 translation: Vec3::zeros(),
@@ -1631,17 +1631,17 @@ impl State for SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(brick_grid, LocalTransformDirty);
-        world.set_global_transform(brick_grid, GlobalTransform::default());
-        world.set_visibility(brick_grid, Visibility { visible: false });
-        world.set_lines(brick_grid, Lines::default());
+        world.core.set_local_transform_dirty(brick_grid, LocalTransformDirty);
+        world.core.set_global_transform(brick_grid, GlobalTransform::default());
+        world.core.set_visibility(brick_grid, Visibility { visible: false });
+        world.core.set_lines(brick_grid, Lines::default());
         self.brick_grid_entity = Some(brick_grid);
 
         let collision_wireframe = world.spawn_entities(
             LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | VISIBILITY | LINES,
             1,
         )[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             collision_wireframe,
             LocalTransform {
                 translation: Vec3::zeros(),
@@ -1649,16 +1649,16 @@ impl State for SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(collision_wireframe, LocalTransformDirty);
-        world.set_global_transform(collision_wireframe, GlobalTransform::default());
-        world.set_visibility(collision_wireframe, Visibility { visible: false });
-        world.set_lines(collision_wireframe, Lines::default());
+        world.core.set_local_transform_dirty(collision_wireframe, LocalTransformDirty);
+        world.core.set_global_transform(collision_wireframe, GlobalTransform::default());
+        world.core.set_visibility(collision_wireframe, Visibility { visible: false });
+        world.core.set_lines(collision_wireframe, Lines::default());
         self.collision_wireframe_entity = Some(collision_wireframe);
 
         self.spawn_initial_scene(world);
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 3.0;
         }
@@ -1724,13 +1724,13 @@ impl State for SdfDemo {
 
         if let Some(fps_text_entity) = self.fps_hud_text {
             let fps = world.resources.window.timing.frames_per_second;
-            let text_index = world.get_hud_text(fps_text_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(fps_text_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("FPS: {:.0}", fps));
-                if let Some(hud_text) = world.get_hud_text_mut(fps_text_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(fps_text_entity) {
                     hud_text.properties.color = if fps >= 56.0 {
                         Vec4::new(0.0, 1.0, 0.0, 1.0)
                     } else if fps >= 30.0 {
@@ -1760,7 +1760,7 @@ impl State for SdfDemo {
         }
 
         let camera_position = if let Some(camera_entity) = world.resources.active_camera {
-            if let Some(transform) = world.get_global_transform(camera_entity) {
+            if let Some(transform) = world.core.get_global_transform(camera_entity) {
                 transform.translation()
             } else {
                 Vec3::zeros()

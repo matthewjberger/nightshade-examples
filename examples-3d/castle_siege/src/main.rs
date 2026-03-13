@@ -133,7 +133,7 @@ impl State for CastleSiegeState {
 
 fn setup_sun(world: &mut World) {
     let sun = spawn_sun(world);
-    if let Some(light) = world.get_light_mut(sun) {
+    if let Some(light) = world.core.get_light_mut(sun) {
         light.color = nalgebra_glm::vec3(1.0, 0.95, 0.85);
         light.intensity = 3.0;
         light.cast_shadows = true;

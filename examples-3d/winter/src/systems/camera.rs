@@ -37,7 +37,7 @@ pub fn camera_follow_system(game_world: &GameWorld, world: &mut World) {
     };
 
     let controller_position = world
-        .get_local_transform(engine_controller)
+        .core.get_local_transform(engine_controller)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 
@@ -48,7 +48,7 @@ pub fn camera_follow_system(game_world: &GameWorld, world: &mut World) {
     );
     let delta_time = world.resources.window.timing.delta_time;
 
-    if let Some(pan_orbit) = world.get_pan_orbit_camera_mut(engine_camera) {
+    if let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(engine_camera) {
         let lerp_speed = 5.0;
         let t = (lerp_speed * delta_time).min(1.0);
         pan_orbit.target_focus =

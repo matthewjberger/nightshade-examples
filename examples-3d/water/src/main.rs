@@ -656,7 +656,7 @@ fn spawn_camera(world: &mut World) -> Entity {
         "Main Camera".to_string(),
     );
 
-    if let Some(camera_component) = world.get_camera_mut(camera) {
+    if let Some(camera_component) = world.core.get_camera_mut(camera) {
         camera_component.projection = Projection::Perspective(PerspectiveCamera {
             aspect_ratio: None,
             y_fov_rad: 60.0_f32.to_radians(),
@@ -670,7 +670,7 @@ fn spawn_camera(world: &mut World) -> Entity {
 
 fn set_camera_orbit(world: &mut World, camera_entity: Option<Entity>, focus: Vec3, radius: f32) {
     let Some(entity) = camera_entity else { return };
-    if let Some(orbit) = world.get_pan_orbit_camera_mut(entity) {
+    if let Some(orbit) = world.core.get_pan_orbit_camera_mut(entity) {
         orbit.focus = focus;
         orbit.radius = radius;
         orbit.pitch = 0.4;
@@ -712,7 +712,7 @@ fn update_orbiting_camera(world: &mut World, camera_entity: Option<Entity>) {
     );
     let rotation = nalgebra_glm::mat3_to_quat(&rotation_matrix);
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
         transform.rotation = rotation;
     }
@@ -848,8 +848,8 @@ fn register_material(world: &mut World, name: &str, material: Material) {
 fn spawn_infinite_ocean(world: &mut World) -> Entity {
     let entity = world.spawn_entities(WATER | NAME, 1)[0];
 
-    world.set_name(entity, Name("Infinite Ocean".to_string()));
-    world.set_water(entity, Water::default());
+    world.core.set_name(entity, Name("Infinite Ocean".to_string()));
+    world.core.set_water(entity, Water::default());
 
     entity
 }
@@ -873,8 +873,8 @@ fn spawn_water(
         1,
     )[0];
 
-    world.set_name(entity, Name(name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(entity, Name(name.to_string()));
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -882,10 +882,10 @@ fn spawn_water(
             scale,
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_render_mesh(entity, RenderMesh::new(mesh));
-    world.set_water(entity, water);
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_render_mesh(entity, RenderMesh::new(mesh));
+    world.core.set_water(entity, water);
 
     if let Some(&index) = world.resources.mesh_cache.registry.name_to_index.get(mesh) {
         world.resources.mesh_cache.registry.add_reference(index);
@@ -905,9 +905,9 @@ fn spawn_volumetric_waterfall(
         1,
     )[0];
 
-    world.set_name(entity, Name(name.to_string()));
+    world.core.set_name(entity, Name(name.to_string()));
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -915,9 +915,9 @@ fn spawn_volumetric_waterfall(
             scale: vec3(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_water(entity, water);
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_water(entity, water);
 
     entity
 }
@@ -941,8 +941,8 @@ fn spawn_terrain(
         1,
     )[0];
 
-    world.set_name(entity, Name(name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(entity, Name(name.to_string()));
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -950,10 +950,10 @@ fn spawn_terrain(
             scale,
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_render_mesh(entity, RenderMesh::new("Cube"));
-    world.set_material_ref(entity, MaterialRef::new(material));
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_render_mesh(entity, RenderMesh::new("Cube"));
+    world.core.set_material_ref(entity, MaterialRef::new(material));
 
     if let Some(&index) = world
         .resources
@@ -978,7 +978,7 @@ fn spawn_terrain(
         world.resources.mesh_cache.registry.add_reference(index);
     }
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume = BoundingVolume::from_mesh_type("Cube");
     }
 
@@ -995,8 +995,8 @@ fn spawn_sun(world: &mut World) {
         1,
     )[0];
 
-    world.set_name(sun_entity, Name("Sun".to_string()));
-    world.set_local_transform(
+    world.core.set_name(sun_entity, Name("Sun".to_string()));
+    world.core.set_local_transform(
         sun_entity,
         LocalTransform {
             translation: Vec3::new(100.0, 100.0, 50.0),
@@ -1004,9 +1004,9 @@ fn spawn_sun(world: &mut World) {
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(sun_entity, LocalTransformDirty);
-    world.set_global_transform(sun_entity, GlobalTransform::default());
-    world.set_light(
+    world.core.set_local_transform_dirty(sun_entity, LocalTransformDirty);
+    world.core.set_global_transform(sun_entity, GlobalTransform::default());
+    world.core.set_light(
         sun_entity,
         Light {
             light_type: LightType::Directional,
@@ -1020,7 +1020,7 @@ fn spawn_sun(world: &mut World) {
         },
     );
 
-    if let Some(transform) = world.get_local_transform_mut(sun_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(sun_entity) {
         let sun_direction = Vec3::new(-0.5, -0.8, -0.3).normalize();
         let forward = -sun_direction;
         let up = Vec3::new(0.0, 1.0, 0.0);

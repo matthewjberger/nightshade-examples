@@ -194,7 +194,7 @@ pub fn update_ground(game: &GameWorld, world: &mut World) {
         return;
     };
     let player_pos = get_player_position(game);
-    if let Some(transform) = world.get_local_transform_mut(ground) {
+    if let Some(transform) = world.core.get_local_transform_mut(ground) {
         transform.translation.x = player_pos.x;
         transform.translation.z = player_pos.z;
     }

@@ -200,7 +200,7 @@ pub fn lean_system(demo: &mut CityDemo, world: &mut World) {
 
     let final_rotation = demo.lean_state.base_rotation * roll_quat;
 
-    let Some(camera_transform) = world.get_local_transform_mut(camera_entity) else {
+    let Some(camera_transform) = world.core.get_local_transform_mut(camera_entity) else {
         return;
     };
 
@@ -220,7 +220,7 @@ pub fn crouch_camera_system(demo: &CityDemo, world: &mut World) {
     };
 
     let is_crouching = world
-        .get_character_controller(player_entity)
+        .core.get_character_controller(player_entity)
         .map(|cc| cc.is_crouching)
         .unwrap_or(false);
 
@@ -231,7 +231,7 @@ pub fn crouch_camera_system(demo: &CityDemo, world: &mut World) {
     };
 
     let delta_time = world.resources.window.timing.delta_time;
-    if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
         let speed = 8.0;
         let diff = target_height - transform.translation.y;
         transform.translation.y += diff * speed * delta_time;
@@ -246,7 +246,7 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
         1,
     )[0];
 
-    world.set_light(
+    world.core.set_light(
         entity,
         Light {
             light_type: LightType::Spot,
@@ -260,7 +260,7 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: Vec3::new(0.0, 0.0, 0.0),
@@ -269,8 +269,8 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }
@@ -288,7 +288,7 @@ pub fn update_flashlight(demo: &mut CityDemo, world: &mut World) {
 
     if toggle_pressed && !demo.flashlight_key_was_pressed {
         demo.flashlight_on = !demo.flashlight_on;
-        if let Some(light) = world.get_light_mut(flashlight_entity) {
+        if let Some(light) = world.core.get_light_mut(flashlight_entity) {
             light.intensity = if demo.flashlight_on { 150.0 } else { 0.0 };
         }
     }

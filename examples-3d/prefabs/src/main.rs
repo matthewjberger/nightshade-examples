@@ -518,7 +518,7 @@ impl State for PrefabsState {
         }
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 3.5;
             light.shadow_bias = 0.008;
@@ -549,7 +549,7 @@ impl State for PrefabsState {
                 | CASTS_SHADOW,
             1,
         )[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             ground,
             LocalTransform {
                 translation: Vec3::new(0.0, -2.0, 0.0),
@@ -557,7 +557,7 @@ impl State for PrefabsState {
                 scale: Vec3::new(10.0, 0.1, 10.0),
             },
         );
-        world.set_render_mesh(ground, RenderMesh::new("Cube"));
+        world.core.set_render_mesh(ground, RenderMesh::new("Cube"));
         let ground_material = format!("Ground_{}", ground.id);
         material_registry_insert(
             &mut world.resources.material_registry,
@@ -582,8 +582,8 @@ impl State for PrefabsState {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(ground, MaterialRef::new(ground_material));
-        world.set_casts_shadow(ground, CastsShadow);
+        world.core.set_material_ref(ground, MaterialRef::new(ground_material));
+        world.core.set_casts_shadow(ground, CastsShadow);
 
         tracing::info!("Loading embedded GLTF model");
         const GLTF_DATA: &[u8] = include_bytes!("../../../assets/gltf/DamagedHelmet.glb");
@@ -662,7 +662,7 @@ impl State for PrefabsState {
 
         if self.loaded {
             for entity in &self.model_entities {
-                if let Some(transform) = world.get_local_transform_mut(*entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(*entity) {
                     let rotation = nalgebra_glm::quat_angle_axis(
                         self.rotation_speed * 0.016,
                         &nalgebra_glm::vec3(0.0, 1.0, 0.0),
@@ -982,13 +982,13 @@ impl PrefabsState {
             white
         };
 
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.intensity = sun_intensity;
             light.color = sun_color;
         }
 
         let sun_position = sun_dir * 100.0;
-        if let Some(transform) = world.get_local_transform_mut(sun) {
+        if let Some(transform) = world.core.get_local_transform_mut(sun) {
             transform.translation = sun_position;
             let forward = -sun_dir;
             let up = Vec3::y();

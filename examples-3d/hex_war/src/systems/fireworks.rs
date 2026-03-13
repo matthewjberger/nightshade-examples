@@ -102,7 +102,7 @@ pub fn spawn_capture_firework(
 
         let entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
         let trail_emitter = create_shell_trail(shell_launch_pos);
-        world.set_particle_emitter(entity, trail_emitter);
+        world.core.set_particle_emitter(entity, trail_emitter);
 
         shells.push(FireworkShell {
             entity,
@@ -124,7 +124,7 @@ pub fn update_firework_shells(shells: &mut Vec<FireworkShell>, world: &mut World
         shell.position += shell.velocity * delta_time;
         shell.velocity.y -= 2.0 * delta_time;
 
-        if let Some(emitter) = world.get_particle_emitter_mut(shell.entity) {
+        if let Some(emitter) = world.core.get_particle_emitter_mut(shell.entity) {
             emitter.position = shell.position;
         }
 
@@ -143,18 +143,18 @@ pub fn update_firework_shells(shells: &mut Vec<FireworkShell>, world: &mut World
         let flash_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
         let mut flash_emitter = ParticleEmitter::flash_burst(pos);
         scale_emitter(&mut flash_emitter);
-        world.set_particle_emitter(flash_entity, flash_emitter);
+        world.core.set_particle_emitter(flash_entity, flash_emitter);
 
         let explosion_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
         let mut emitter = ParticleEmitter::firework_explosion(pos, color, particle_count);
         scale_emitter(&mut emitter);
-        world.set_particle_emitter(explosion_entity, emitter);
+        world.core.set_particle_emitter(explosion_entity, emitter);
 
         let glitter_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
         let glitter_count = particle_count / 2;
         let mut glitter_emitter = ParticleEmitter::firework_glitter(pos, glitter_count);
         scale_emitter(&mut glitter_emitter);
-        world.set_particle_emitter(glitter_entity, glitter_emitter);
+        world.core.set_particle_emitter(glitter_entity, glitter_emitter);
 
         if is_capital {
             for ring_index in 0..6 {
@@ -163,11 +163,11 @@ pub fn update_firework_shells(shells: &mut Vec<FireworkShell>, world: &mut World
                 let mut ring_emitter = ParticleEmitter::firework_ring(pos, color, 400);
                 ring_emitter.direction = nalgebra_glm::vec3(angle.sin(), 0.0, angle.cos());
                 scale_emitter(&mut ring_emitter);
-                world.set_particle_emitter(ring_entity, ring_emitter);
+                world.core.set_particle_emitter(ring_entity, ring_emitter);
             }
         }
 
-        if let Some(emitter) = world.get_particle_emitter_mut(entity) {
+        if let Some(emitter) = world.core.get_particle_emitter_mut(entity) {
             emitter.enabled = false;
         }
     }

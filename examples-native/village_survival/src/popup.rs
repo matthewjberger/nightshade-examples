@@ -44,12 +44,12 @@ pub fn update_popups(popups: &mut Vec<Popup>, world: &mut World, delta_time: f32
             continue;
         }
 
-        if let Some(transform) = world.get_local_transform_mut(popup.text_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(popup.text_entity) {
             transform.translation.y += delta_time * POPUP_RISE_SPEED;
         }
-        world.set_local_transform_dirty(popup.text_entity, LocalTransformDirty);
+        world.core.set_local_transform_dirty(popup.text_entity, LocalTransformDirty);
 
-        if let Some(text_component) = world.get_text_mut(popup.text_entity) {
+        if let Some(text_component) = world.core.get_text_mut(popup.text_entity) {
             let alpha = (1.0 - (popup.lifetime / POPUP_DURATION)).max(0.0);
             text_component.properties.color.w = alpha;
             text_component.dirty = true;

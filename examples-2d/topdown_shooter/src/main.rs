@@ -156,7 +156,7 @@ fn spawn_textured_sprite(
 ) -> Entity {
     let entity = spawn_sprite(world, position, size);
     let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
-    if let Some(sprite) = world.get_sprite_mut(entity) {
+    if let Some(sprite) = world.core.get_sprite_mut(entity) {
         sprite.depth = depth;
         sprite.texture_index = texture_slot;
         sprite.texture_index2 = texture_slot;
@@ -390,7 +390,7 @@ impl TopdownShooter {
             .unwrap_or(1080.0);
 
         if let Some(camera_entity) = self.camera_entity
-            && let Some(camera) = world.get_camera(camera_entity)
+            && let Some(camera) = world.core.get_camera(camera_entity)
             && let Projection::Orthographic(ortho) = &camera.projection
         {
             let world_mouse_x =
@@ -645,7 +645,7 @@ impl TopdownShooter {
 
     fn camera_system(&mut self, world: &mut World) {
         if let Some(camera_entity) = self.camera_entity {
-            if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
                 transform.translation.x = self.player_x;
                 transform.translation.y = self.player_y;
             }
@@ -655,21 +655,21 @@ impl TopdownShooter {
 
     fn render_sync(&mut self, world: &mut World) {
         if let Some(player_entity) = self.player_entity
-            && let Some(sprite) = world.get_sprite_mut(player_entity)
+            && let Some(sprite) = world.core.get_sprite_mut(player_entity)
         {
             sprite.position = Vec2::new(self.player_x, self.player_y);
             sprite.rotation = self.player_angle;
         }
 
         for bullet in &self.bullets {
-            if let Some(sprite) = world.get_sprite_mut(bullet.entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(bullet.entity) {
                 sprite.position = Vec2::new(bullet.x, bullet.y);
             }
         }
 
         for zombie in &self.zombies {
             let angle = (self.player_y - zombie.y).atan2(self.player_x - zombie.x);
-            if let Some(sprite) = world.get_sprite_mut(zombie.entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(zombie.entity) {
                 sprite.position = Vec2::new(zombie.x, zombie.y);
                 sprite.rotation = angle;
             }
@@ -678,26 +678,26 @@ impl TopdownShooter {
 
     fn update_hud(&self, world: &mut World) {
         if let Some(score_entity) = self.score_hud {
-            let text_index = world.get_hud_text(score_entity).map(|text| text.text_index);
+            let text_index = world.core.get_hud_text(score_entity).map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
                     format!("Score: {}  Kills: {}", self.score, self.kills),
                 );
-                if let Some(hud_text) = world.get_hud_text_mut(score_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(score_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(wave_entity) = self.wave_hud {
-            let text_index = world.get_hud_text(wave_entity).map(|text| text.text_index);
+            let text_index = world.core.get_hud_text(wave_entity).map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("Wave {}", self.wave));
-                if let Some(hud_text) = world.get_hud_text_mut(wave_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(wave_entity) {
                     hud_text.dirty = true;
                 }
             }
@@ -705,7 +705,7 @@ impl TopdownShooter {
 
         if let Some(message_entity) = self.message_hud {
             let text_index = world
-                .get_hud_text(message_entity)
+                .core.get_hud_text(message_entity)
                 .map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 let message = match self.phase {
@@ -713,7 +713,7 @@ impl TopdownShooter {
                     GamePhase::GameOver => "GAME OVER - Press R to restart".to_string(),
                 };
                 world.resources.text_cache.set_text(text_index, message);
-                if let Some(hud_text) = world.get_hud_text_mut(message_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(message_entity) {
                     hud_text.dirty = true;
                 }
             }

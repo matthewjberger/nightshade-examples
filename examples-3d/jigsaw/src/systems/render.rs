@@ -24,7 +24,7 @@ pub fn render_system(puzzle_world: &PuzzleWorld, world: &mut World) {
         let is_dragging = dragging_entities.contains(&piece_entity);
         let is_hovered = hovered == Some(piece_entity);
 
-        if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(engine_entity) {
             let base_y = PIECE_BASE_HEIGHT + z_order as f32 * Z_ORDER_HEIGHT_STEP;
             let target_y = if is_dragging {
                 base_y + DRAGGING_LIFT_HEIGHT
@@ -33,7 +33,7 @@ pub fn render_system(puzzle_world: &PuzzleWorld, world: &mut World) {
             };
             if (transform.translation.y - target_y).abs() > 0.001 {
                 transform.translation.y = target_y;
-                world.set_local_transform_dirty(engine_entity, LocalTransformDirty);
+                world.core.set_local_transform_dirty(engine_entity, LocalTransformDirty);
             }
         }
 
@@ -64,14 +64,14 @@ pub fn drop_pieces_system(puzzle_world: &PuzzleWorld, world: &mut World) {
             .unwrap_or(0);
         let target_y = PIECE_BASE_HEIGHT + z_order as f32 * Z_ORDER_HEIGHT_STEP;
 
-        if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(engine_entity) {
             let diff = transform.translation.y - target_y;
             if diff.abs() > 0.01 {
                 transform.translation.y = target_y + diff * 0.8;
                 if (transform.translation.y - target_y).abs() < 0.01 {
                     transform.translation.y = target_y;
                 }
-                world.set_local_transform_dirty(engine_entity, LocalTransformDirty);
+                world.core.set_local_transform_dirty(engine_entity, LocalTransformDirty);
             }
         }
     }

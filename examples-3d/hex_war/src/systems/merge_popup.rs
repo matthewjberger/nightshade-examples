@@ -84,12 +84,12 @@ pub fn floating_popup_system(game_world: &mut GameWorld, world: &mut World, delt
 
         game_world.set_floating_popup(entity, popup);
 
-        if let Some(transform) = world.get_local_transform_mut(popup.text_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(popup.text_entity) {
             transform.translation.y += delta_time * POPUP_FLOAT_SPEED * game_speed;
         }
         mark_local_transform_dirty(world, popup.text_entity);
 
-        if let Some(text_component) = world.get_text_mut(popup.text_entity) {
+        if let Some(text_component) = world.core.get_text_mut(popup.text_entity) {
             let alpha = (1.0 - (popup.lifetime / POPUP_LIFETIME)).max(0.0);
             text_component.properties.color.w = alpha;
             text_component.dirty = true;

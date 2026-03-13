@@ -60,7 +60,7 @@ impl State for ChessGame {
         world.resources.graphics.selection_outline_enabled = true;
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 2.0;
         }
@@ -215,7 +215,7 @@ impl State for ChessGame {
                                 | nightshade::ecs::world::VISIBILITY,
                             1,
                         )[0];
-                        world.set_visibility(
+                        world.core.set_visibility(
                             entity,
                             nightshade::ecs::world::components::Visibility { visible: true },
                         );
@@ -223,7 +223,7 @@ impl State for ChessGame {
                     }
                     update_picking_collider_lines(world, self.debug_lines_entity.unwrap());
                 } else if let Some(entity) = self.debug_lines_entity {
-                    world.set_lines(entity, nightshade::ecs::world::components::Lines::default());
+                    world.core.set_lines(entity, nightshade::ecs::world::components::Lines::default());
                 }
             }
             _ => {}
@@ -267,7 +267,7 @@ fn update_picking_collider_lines(world: &mut World, lines_entity: Entity) {
         }
     }
 
-    world.set_lines(lines_entity, Lines::new(lines));
+    world.core.set_lines(lines_entity, Lines::new(lines));
 }
 
 fn reset_camera_to_board(world: &mut World, square_size: f32) {
@@ -278,7 +278,7 @@ fn reset_camera_to_board(world: &mut World, square_size: f32) {
     let board_size = 8.0 * square_size;
     let center = 3.5 * square_size;
 
-    let y_fov_rad = if let Some(camera) = world.get_camera(camera_entity) {
+    let y_fov_rad = if let Some(camera) = world.core.get_camera(camera_entity) {
         match &camera.projection {
             Projection::Perspective(persp) => persp.y_fov_rad,
             Projection::Orthographic(_) => std::f32::consts::FRAC_PI_4,
@@ -299,7 +299,7 @@ fn reset_camera_to_board(world: &mut World, square_size: f32) {
     let radius_for_width = (board_size / 2.0) / (half_fov_tan * aspect_ratio);
     let radius = radius_for_height.max(radius_for_width) * 3.0;
 
-    let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) else {
+    let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera_entity) else {
         return;
     };
 

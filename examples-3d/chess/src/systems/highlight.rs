@@ -35,7 +35,7 @@ pub fn spawn_move_indicators(
             },
         );
         let material_id = MaterialId { index, generation };
-        world.set_material_ref(
+        world.core.set_material_ref(
             entity,
             nightshade::ecs::material::components::MaterialRef::with_id(material_name, material_id),
         );

@@ -49,8 +49,8 @@ impl GizmoDemo {
 
         if let Some(camera_entity) = world.resources.active_camera {
             if let (Some(camera_transform), Some(target_global_transform)) = (
-                world.get_global_transform(camera_entity),
-                world.get_global_transform(entity),
+                world.core.get_global_transform(camera_entity),
+                world.core.get_global_transform(entity),
             ) {
                 let camera_pos = nalgebra_glm::vec3(
                     camera_transform.0[(0, 3)],
@@ -133,7 +133,7 @@ impl State for GizmoDemo {
             1,
         )[0];
 
-        if let Some(name) = world.get_name_mut(sphere_entity) {
+        if let Some(name) = world.core.get_name_mut(sphere_entity) {
             name.0 = "Sphere".to_string();
         }
 
@@ -146,7 +146,7 @@ impl State for GizmoDemo {
             },
         );
 
-        if let Some(mesh) = world.get_render_mesh_mut(sphere_entity) {
+        if let Some(mesh) = world.core.get_render_mesh_mut(sphere_entity) {
             mesh.name = "Sphere".to_string();
         }
 
@@ -175,13 +175,13 @@ impl State for GizmoDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(sphere_entity, MaterialRef::new(sphere_material));
+        world.core.set_material_ref(sphere_entity, MaterialRef::new(sphere_material));
 
-        if let Some(visible) = world.get_visibility_mut(sphere_entity) {
+        if let Some(visible) = world.core.get_visibility_mut(sphere_entity) {
             visible.visible = true;
         }
 
-        if let Some(bounding_volume) = world.get_bounding_volume_mut(sphere_entity) {
+        if let Some(bounding_volume) = world.core.get_bounding_volume_mut(sphere_entity) {
             *bounding_volume = BoundingVolume::from_mesh_type("Sphere");
         }
 
@@ -199,7 +199,7 @@ impl State for GizmoDemo {
             1,
         )[0];
 
-        if let Some(name) = world.get_name_mut(cube_entity) {
+        if let Some(name) = world.core.get_name_mut(cube_entity) {
             name.0 = "Cube".to_string();
         }
 
@@ -212,7 +212,7 @@ impl State for GizmoDemo {
             },
         );
 
-        if let Some(mesh) = world.get_render_mesh_mut(cube_entity) {
+        if let Some(mesh) = world.core.get_render_mesh_mut(cube_entity) {
             mesh.name = "Cube".to_string();
         }
 
@@ -241,13 +241,13 @@ impl State for GizmoDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(cube_entity, MaterialRef::new(cube_material));
+        world.core.set_material_ref(cube_entity, MaterialRef::new(cube_material));
 
-        if let Some(visible) = world.get_visibility_mut(cube_entity) {
+        if let Some(visible) = world.core.get_visibility_mut(cube_entity) {
             visible.visible = true;
         }
 
-        if let Some(bounding_volume) = world.get_bounding_volume_mut(cube_entity) {
+        if let Some(bounding_volume) = world.core.get_bounding_volume_mut(cube_entity) {
             *bounding_volume = BoundingVolume::from_mesh_type("Cube");
         }
 
@@ -301,7 +301,7 @@ impl State for GizmoDemo {
 
                 if let Some(selected) = self.selected_entity {
                     let name = world
-                        .get_name(selected)
+                        .core.get_name(selected)
                         .map(|n| n.0.clone())
                         .unwrap_or_else(|| "Unknown".to_string());
                     ui.label(format!("Selected: {}", name));
@@ -334,8 +334,8 @@ impl State for GizmoDemo {
         if let (Some(gizmo), Some(selected_entity)) = (&self.gizmo, self.selected_entity) {
             if let Some(camera_entity) = world.resources.active_camera {
                 if let (Some(camera_transform), Some(target_global_transform)) = (
-                    world.get_global_transform(camera_entity),
-                    world.get_global_transform(selected_entity),
+                    world.core.get_global_transform(camera_entity),
+                    world.core.get_global_transform(selected_entity),
                 ) {
                     let camera_pos = nalgebra_glm::vec3(
                         camera_transform.0[(0, 3)],
@@ -389,7 +389,7 @@ impl State for GizmoDemo {
                     let mouse_delta = world.resources.input.mouse.position_delta;
                     let sensitivity = 0.01;
 
-                    if let Some(camera_transform) = world.get_global_transform(camera_entity) {
+                    if let Some(camera_transform) = world.core.get_global_transform(camera_entity) {
                         let camera_right = nalgebra_glm::vec3(
                             camera_transform.0[(0, 0)],
                             camera_transform.0[(1, 0)],
@@ -404,7 +404,7 @@ impl State for GizmoDemo {
                         .normalize();
 
                         let target_global_rotation = world
-                            .get_global_transform(selected_entity)
+                            .core.get_global_transform(selected_entity)
                             .map(|t| extract_rotation_from_matrix(&t.0))
                             .unwrap_or(Quat::identity());
 
@@ -525,7 +525,7 @@ fn apply_axis_drag(world: &mut World, target: Entity, axis: Vec3, params: DragPa
             let local_movement =
                 nalgebra_glm::quat_rotate_vec3(&parent_rotation_inv, &world_movement);
 
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 new_transform.translation += local_movement;
                 world.assign_local_transform(target, new_transform);
@@ -540,7 +540,7 @@ fn apply_axis_drag(world: &mut World, target: Entity, axis: Vec3, params: DragPa
             let local_movement =
                 nalgebra_glm::quat_rotate_vec3(&parent_rotation_inv, &world_movement);
 
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 new_transform.translation += local_movement;
                 world.assign_local_transform(target, new_transform);
@@ -560,7 +560,7 @@ fn apply_axis_drag(world: &mut World, target: Entity, axis: Vec3, params: DragPa
                 let parent_rotation_inv = nalgebra_glm::quat_inverse(&parent_global_rotation);
                 let local_axis = nalgebra_glm::quat_rotate_vec3(&parent_rotation_inv, &axis);
                 let local_rotation = nalgebra_glm::quat_angle_axis(angle, &local_axis);
-                if let Some(transform) = world.get_local_transform(target) {
+                if let Some(transform) = world.core.get_local_transform(target) {
                     let mut new_transform = *transform;
                     new_transform.rotation = local_rotation * new_transform.rotation;
                     world.assign_local_transform(target, new_transform);
@@ -569,7 +569,7 @@ fn apply_axis_drag(world: &mut World, target: Entity, axis: Vec3, params: DragPa
         }
         GizmoMode::Scale => {
             let scale_delta = (mouse_delta.x - mouse_delta.y) * sensitivity;
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 if axis.x > 0.99 {
                     new_transform.scale.x *= 1.0 + scale_delta;
@@ -611,7 +611,7 @@ fn apply_plane_drag(world: &mut World, target: Entity, plane_normal: Vec3, param
             let local_movement =
                 nalgebra_glm::quat_rotate_vec3(&parent_rotation_inv, &world_movement);
 
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 new_transform.translation += local_movement;
                 world.assign_local_transform(target, new_transform);
@@ -627,7 +627,7 @@ fn apply_plane_drag(world: &mut World, target: Entity, plane_normal: Vec3, param
             let local_movement =
                 nalgebra_glm::quat_rotate_vec3(&parent_rotation_inv, &world_movement);
 
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 new_transform.translation += local_movement;
                 world.assign_local_transform(target, new_transform);
@@ -648,7 +648,7 @@ fn apply_plane_drag(world: &mut World, target: Entity, plane_normal: Vec3, param
                 let local_axis =
                     nalgebra_glm::quat_rotate_vec3(&parent_rotation_inv, &plane_normal);
                 let local_rotation = nalgebra_glm::quat_angle_axis(angle, &local_axis);
-                if let Some(transform) = world.get_local_transform(target) {
+                if let Some(transform) = world.core.get_local_transform(target) {
                     let mut new_transform = *transform;
                     new_transform.rotation = local_rotation * new_transform.rotation;
                     world.assign_local_transform(target, new_transform);
@@ -657,7 +657,7 @@ fn apply_plane_drag(world: &mut World, target: Entity, plane_normal: Vec3, param
         }
         GizmoMode::Scale => {
             let scale_delta = (mouse_delta.x - mouse_delta.y) * sensitivity;
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 if plane_normal.z.abs() > 0.99 {
                     new_transform.scale.x *= 1.0 + scale_delta;
@@ -698,7 +698,7 @@ fn apply_free_drag(world: &mut World, target: Entity, params: DragParams) {
             let local_movement =
                 nalgebra_glm::quat_rotate_vec3(&parent_rotation_inv, &screen_movement);
 
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 new_transform.translation += local_movement;
                 world.assign_local_transform(target, new_transform);
@@ -718,7 +718,7 @@ fn apply_free_drag(world: &mut World, target: Entity, params: DragParams) {
             let rotation_y =
                 nalgebra_glm::quat_angle_axis(mouse_delta.x * rotation_speed, &local_axis_y);
 
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 new_transform.rotation = rotation_y * rotation_x * new_transform.rotation;
                 world.assign_local_transform(target, new_transform);
@@ -728,7 +728,7 @@ fn apply_free_drag(world: &mut World, target: Entity, params: DragParams) {
             let scale_delta = (mouse_delta.x - mouse_delta.y) * sensitivity;
             let scale_factor = 1.0 + scale_delta;
 
-            if let Some(transform) = world.get_local_transform(target) {
+            if let Some(transform) = world.core.get_local_transform(target) {
                 let mut new_transform = *transform;
                 new_transform.scale *= scale_factor;
                 new_transform.scale.x = new_transform.scale.x.max(0.01);

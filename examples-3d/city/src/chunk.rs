@@ -336,7 +336,7 @@ impl ChunkStreamer {
         if !ground_instances.is_empty() {
             let entity =
                 spawn_instanced_mesh_with_material(world, "Cube", ground_instances, "Ground");
-            world.remove_casts_shadow(entity);
+            world.core.remove_casts_shadow(entity);
             self.proxy_instanced_entities.push(entity);
         }
         world
@@ -400,8 +400,8 @@ impl ChunkStreamer {
                 continue;
             }
 
-            if world.entity_has_components(entity, RENDER_MESH)
-                && !world.entity_has_components(entity, INSTANCED_MESH)
+            if world.core.entity_has_components(entity, RENDER_MESH)
+                && !world.core.entity_has_components(entity, INSTANCED_MESH)
             {
                 self.fading_entities.insert(
                     entity,
@@ -411,7 +411,7 @@ impl ChunkStreamer {
                     },
                 );
             } else {
-                if world.entity_has_components(entity, INSTANCED_MESH) {
+                if world.core.entity_has_components(entity, INSTANCED_MESH) {
                     had_instanced = true;
                 }
                 world.queue_command(WorldCommand::DespawnRecursive { entity });
@@ -429,7 +429,7 @@ impl ChunkStreamer {
     pub fn update_boat_bobbing(&self, world: &mut World, time: f32) {
         for chunk in self.chunks.values() {
             for boat in &chunk.boats {
-                let Some(transform) = world.get_local_transform_mut(boat.entity) else {
+                let Some(transform) = world.core.get_local_transform_mut(boat.entity) else {
                     continue;
                 };
                 let phase = boat.entity.id as f32 * 1.7;
@@ -644,11 +644,11 @@ impl ChunkStreamer {
                     let chunk = self.chunks.get_mut(&key.0).unwrap();
                     let mut boats = Vec::new();
                     for &entity in &lc.entities {
-                        if let Some(render_mesh) = world.get_render_mesh(entity) {
+                        if let Some(render_mesh) = world.core.get_render_mesh(entity) {
                             let mesh_name = render_mesh.name.as_str();
                             if crate::kenney::BOAT_MODELS.contains(&mesh_name) {
                                 let initial_yaw = world
-                                    .get_local_transform(entity)
+                                    .core.get_local_transform(entity)
                                     .map(|t| {
                                         let euler = nalgebra_glm::quat_euler_angles(&t.rotation);
                                         euler.z

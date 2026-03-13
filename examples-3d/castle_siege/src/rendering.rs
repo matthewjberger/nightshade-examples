@@ -78,7 +78,7 @@ fn spawn_mesh_with_material(
     material_name: &str,
 ) -> Entity {
     let entity = spawn_mesh_at(world, mesh_name, position, scale);
-    world.set_material_ref(entity, MaterialRef::new(material_name.to_string()));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name.to_string()));
     entity
 }
 
@@ -239,10 +239,10 @@ pub fn update_agent_body_position(
     ];
 
     for (entity, offset) in &parts {
-        if let Some(transform) = world.get_local_transform_mut(*entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(*entity) {
             transform.translation = position + offset;
         }
-        world.set_local_transform_dirty(*entity, LocalTransformDirty);
+        world.core.set_local_transform_dirty(*entity, LocalTransformDirty);
     }
 }
 
@@ -353,7 +353,7 @@ pub fn spawn_fire_point_light(world: &mut World, position: Vec3) -> Entity {
         LIGHT | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY,
         1,
     )[0];
-    world.set_light(
+    world.core.set_light(
         entity,
         Light {
             light_type: LightType::Point,
@@ -363,15 +363,15 @@ pub fn spawn_fire_point_light(world: &mut World, position: Vec3) -> Entity {
             ..Default::default()
         },
     );
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position + nalgebra_glm::vec3(0.0, 1.0, 0.0),
             ..Default::default()
         },
     );
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
     entity
 }
 

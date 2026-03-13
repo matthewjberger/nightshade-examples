@@ -33,7 +33,7 @@ pub fn clamp_camera_to_bounds(world: &mut World, bounds: &CameraBounds) {
         return;
     };
 
-    let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) else {
+    let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera_entity) else {
         return;
     };
 
@@ -43,8 +43,8 @@ pub fn clamp_camera_to_bounds(world: &mut World, bounds: &CameraBounds) {
 
 pub fn world_to_screen(world: &World, world_pos: Vec3) -> Option<Vec2> {
     let camera_entity = world.resources.active_camera?;
-    let camera = world.get_camera(camera_entity)?;
-    let global_transform = world.get_global_transform(camera_entity)?;
+    let camera = world.core.get_camera(camera_entity)?;
+    let global_transform = world.core.get_global_transform(camera_entity)?;
 
     let window = &world.resources.window;
     let (viewport_width, viewport_height) = window.cached_viewport_size?;
@@ -86,7 +86,7 @@ pub fn reset_camera_to_map(
     let center_row = (map_height - 1) / 2;
     let center_pos = hex_to_world_position(center_column, center_row, hex_width, hex_depth);
 
-    let y_fov_rad = if let Some(camera) = world.get_camera(camera_entity) {
+    let y_fov_rad = if let Some(camera) = world.core.get_camera(camera_entity) {
         match &camera.projection {
             Projection::Perspective(persp) => persp.y_fov_rad,
             Projection::Orthographic(_) => std::f32::consts::FRAC_PI_4,
@@ -107,7 +107,7 @@ pub fn reset_camera_to_map(
     let radius_for_width = (world_width / 2.0) / (half_fov_tan * aspect_ratio);
     let radius = radius_for_height.max(radius_for_width) * 1.1;
 
-    let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) else {
+    let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera_entity) else {
         return;
     };
 

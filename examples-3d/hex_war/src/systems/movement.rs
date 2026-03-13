@@ -70,13 +70,13 @@ pub fn movement_system(game_world: &mut GameWorld, world: &mut World, delta_time
         });
 
     for (_, engine_entity, position, text_entity, radius) in transform_updates {
-        if let Some(transform) = world.get_local_transform_mut(engine_entity.0) {
+        if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0) {
             transform.translation = position;
         }
         mark_local_transform_dirty(world, engine_entity.0);
 
         if let Some(text_ent) = text_entity {
-            if let Some(text_transform) = world.get_local_transform_mut(text_ent) {
+            if let Some(text_transform) = world.core.get_local_transform_mut(text_ent) {
                 text_transform.translation = nalgebra_glm::vec3(
                     position.x,
                     position.y + radius + UNIT_TEXT_HEIGHT_OFFSET,

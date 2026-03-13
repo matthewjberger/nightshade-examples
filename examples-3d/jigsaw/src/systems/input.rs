@@ -72,10 +72,10 @@ pub fn input_system(puzzle_world: &mut PuzzleWorld, world: &mut World) {
                     );
 
                     if let Some(engine_entity) = puzzle_world.get_engine_entity(member) {
-                        if let Some(transform) = world.get_local_transform_mut(engine_entity.0) {
+                        if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0) {
                             transform.translation.y = 0.2;
                         }
-                        world.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                        world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
                     }
                 }
             }
@@ -106,7 +106,7 @@ fn pick_piece_at(
             .map(|z| z.0)
             .unwrap_or(0);
 
-        let transform = world.get_local_transform(engine_entity.0)?;
+        let transform = world.core.get_local_transform(engine_entity.0)?;
         let piece_x = transform.translation.x;
         let piece_z = transform.translation.z;
 
@@ -148,11 +148,11 @@ fn update_group_position(
                 .unwrap_or((0.0, 0.0));
 
             if let Some(engine_entity) = puzzle_world.get_engine_entity(member) {
-                if let Some(transform) = world.get_local_transform_mut(engine_entity.0) {
+                if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0) {
                     transform.translation.x = new_x + local_offset.0;
                     transform.translation.z = new_z + local_offset.1;
                 }
-                world.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
             }
         }
     }
@@ -197,7 +197,7 @@ fn rotate_piece(puzzle_world: &mut PuzzleWorld, world: &mut World, piece_entity:
                 .unwrap_or(0);
 
             if let Some(engine_entity) = puzzle_world.get_engine_entity(member) {
-                if let Some(transform) = world.get_local_transform_mut(engine_entity.0) {
+                if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0) {
                     transform.translation.x = group_pos.0 + local_offset.0;
                     transform.translation.z = group_pos.1 + local_offset.1;
 
@@ -205,7 +205,7 @@ fn rotate_piece(puzzle_world: &mut PuzzleWorld, world: &mut World, piece_entity:
                     transform.rotation =
                         nalgebra_glm::quat_angle_axis(angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
                 }
-                world.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
             }
         }
     }

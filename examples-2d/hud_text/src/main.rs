@@ -81,13 +81,13 @@ fn scrolling_log_update_ui(world: &mut World, log: &ScrollingLog) {
 
     for (slot_index, entity) in log.line_entities.iter().enumerate() {
         if let Some(entry) = entries_to_show.get(slot_index) {
-            if let Some(text_index) = world.get_hud_text(*entity).map(|t| t.text_index) {
+            if let Some(text_index) = world.core.get_hud_text(*entity).map(|t| t.text_index) {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, entry.text.clone());
             }
-            if let Some(hud_text) = world.get_hud_text_mut(*entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(*entity) {
                 hud_text.properties.color = nalgebra_glm::vec4(
                     entry.color[0],
                     entry.color[1],
@@ -97,13 +97,13 @@ fn scrolling_log_update_ui(world: &mut World, log: &ScrollingLog) {
                 hud_text.dirty = true;
             }
         } else {
-            if let Some(text_index) = world.get_hud_text(*entity).map(|t| t.text_index) {
+            if let Some(text_index) = world.core.get_hud_text(*entity).map(|t| t.text_index) {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, String::new());
             }
-            if let Some(hud_text) = world.get_hud_text_mut(*entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(*entity) {
                 hud_text.dirty = true;
             }
         }
@@ -318,13 +318,13 @@ impl State for HudTextDemoState {
 
         let fps = world.resources.window.timing.frames_per_second;
         if let Some(fps_entity) = self.fps_text {
-            let text_index = world.get_hud_text(fps_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(fps_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("FPS: {:.0}", fps));
-                if let Some(hud_text) = world.get_hud_text_mut(fps_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(fps_entity) {
                     hud_text.dirty = true;
                 }
             }
@@ -333,13 +333,13 @@ impl State for HudTextDemoState {
         let elapsed =
             (world.resources.window.timing.uptime_milliseconds as f32) / 1000.0 - self.start_time;
         if let Some(timer_entity) = self.timer_text {
-            let text_index = world.get_hud_text(timer_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(timer_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("Time: {:.1}s", elapsed));
-                if let Some(hud_text) = world.get_hud_text_mut(timer_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(timer_entity) {
                     hud_text.dirty = true;
                     let r = (elapsed * 2.0).sin() * 0.5 + 0.5;
                     let g = (elapsed * 3.0).sin() * 0.5 + 0.5;

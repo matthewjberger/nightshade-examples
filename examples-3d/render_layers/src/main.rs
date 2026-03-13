@@ -59,8 +59,8 @@ impl State for RenderLayersDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(floor, MaterialRef::new(floor_material));
-        if let Some(name) = world.get_name_mut(floor) {
+        world.core.set_material_ref(floor, MaterialRef::new(floor_material));
+        if let Some(name) = world.core.get_name_mut(floor) {
             name.0 = "Floor".to_string();
         }
 
@@ -94,8 +94,8 @@ impl State for RenderLayersDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(wall, MaterialRef::new(wall_material));
-        if let Some(name) = world.get_name_mut(wall) {
+        world.core.set_material_ref(wall, MaterialRef::new(wall_material));
+        if let Some(name) = world.core.get_name_mut(wall) {
             name.0 = "Wall".to_string();
         }
 
@@ -129,8 +129,8 @@ impl State for RenderLayersDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(self.world_cube, MaterialRef::new(world_cube_material));
-        if let Some(name) = world.get_name_mut(self.world_cube) {
+        world.core.set_material_ref(self.world_cube, MaterialRef::new(world_cube_material));
+        if let Some(name) = world.core.get_name_mut(self.world_cube) {
             name.0 = "World Cube (Red)".to_string();
         }
 
@@ -164,12 +164,12 @@ impl State for RenderLayersDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(self.overlay_cube, MaterialRef::new(overlay_cube_material));
-        world.add_render_layer(self.overlay_cube);
-        if let Some(layer) = world.get_render_layer_mut(self.overlay_cube) {
+        world.core.set_material_ref(self.overlay_cube, MaterialRef::new(overlay_cube_material));
+        world.core.add_render_layer(self.overlay_cube);
+        if let Some(layer) = world.core.get_render_layer_mut(self.overlay_cube) {
             layer.0 = RenderLayer::OVERLAY;
         }
-        if let Some(name) = world.get_name_mut(self.overlay_cube) {
+        if let Some(name) = world.core.get_name_mut(self.overlay_cube) {
             name.0 = "Overlay Cube 1 (Green)".to_string();
         }
 
@@ -203,12 +203,12 @@ impl State for RenderLayersDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(self.overlay_cube2, MaterialRef::new(overlay_cube2_material));
-        world.add_render_layer(self.overlay_cube2);
-        if let Some(layer) = world.get_render_layer_mut(self.overlay_cube2) {
+        world.core.set_material_ref(self.overlay_cube2, MaterialRef::new(overlay_cube2_material));
+        world.core.add_render_layer(self.overlay_cube2);
+        if let Some(layer) = world.core.get_render_layer_mut(self.overlay_cube2) {
             layer.0 = RenderLayer::OVERLAY;
         }
-        if let Some(name) = world.get_name_mut(self.overlay_cube2) {
+        if let Some(name) = world.core.get_name_mut(self.overlay_cube2) {
             name.0 = "Overlay Cube 2 (Blue)".to_string();
         }
 
@@ -242,8 +242,8 @@ impl State for RenderLayersDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(occluder, MaterialRef::new(occluder_material));
-        if let Some(name) = world.get_name_mut(occluder) {
+        world.core.set_material_ref(occluder, MaterialRef::new(occluder_material));
+        if let Some(name) = world.core.get_name_mut(occluder) {
             name.0 = "Occluder".to_string();
         }
 
@@ -262,17 +262,17 @@ impl State for RenderLayersDemo {
 
         let time = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
 
-        if let Some(transform) = world.get_local_transform_mut(self.world_cube) {
+        if let Some(transform) = world.core.get_local_transform_mut(self.world_cube) {
             transform.rotation = nalgebra_glm::quat_angle_axis(time, &Vec3::new(0.0, 1.0, 0.0));
         }
 
-        if let Some(transform) = world.get_local_transform_mut(self.overlay_cube) {
+        if let Some(transform) = world.core.get_local_transform_mut(self.overlay_cube) {
             transform.rotation =
                 nalgebra_glm::quat_angle_axis(-time * 0.8, &Vec3::new(1.0, 0.0, 0.0));
             transform.translation.z = time.sin() * 2.0;
         }
 
-        if let Some(transform) = world.get_local_transform_mut(self.overlay_cube2) {
+        if let Some(transform) = world.core.get_local_transform_mut(self.overlay_cube2) {
             transform.rotation =
                 nalgebra_glm::quat_angle_axis(time * 1.2, &Vec3::new(0.0, 0.0, 1.0));
             transform.translation.z = -time.cos() * 2.0;

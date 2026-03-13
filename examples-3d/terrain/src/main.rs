@@ -32,7 +32,7 @@ impl State for TerrainDemo {
         let camera_pos = Vec3::new(0.0, 100.0, 0.0);
         let camera = spawn_camera(world, camera_pos, "Main Camera".to_string());
 
-        if let Some(camera_component) = world.get_camera_mut(camera) {
+        if let Some(camera_component) = world.core.get_camera_mut(camera) {
             camera_component.projection = Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,
                 y_fov_rad: 60.0_f32.to_radians(),
@@ -78,7 +78,7 @@ impl State for TerrainDemo {
     fn ui(&mut self, world: &mut World, ui_context: &egui::Context) {
         egui::Window::new("Terrain Controls").show(ui_context, |ui| {
             if let Some(camera) = self.camera_entity
-                && let Some(transform) = world.get_local_transform(camera)
+                && let Some(transform) = world.core.get_local_transform(camera)
             {
                 ui.label(format!(
                     "Camera: ({:.1}, {:.1}, {:.1})",

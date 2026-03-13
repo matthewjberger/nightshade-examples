@@ -139,7 +139,7 @@ impl BillboardTextures {
             world.resources.active_camera = Some(camera);
 
             let sun = spawn_sun_without_shadows(&mut world);
-            if let Some(light) = world.get_light_mut(sun) {
+            if let Some(light) = world.core.get_light_mut(sun) {
                 light.intensity = 0.3;
             }
 
@@ -162,7 +162,7 @@ impl BillboardTextures {
                 Vec3::zeros(),
                 Vec3::new(0.8, 0.8, 0.8),
             );
-            world.set_material_ref(center, MaterialRef::new(center_mat_name));
+            world.core.set_material_ref(center, MaterialRef::new(center_mat_name));
 
             for (orbit_index, &(base_color, emissive_factor)) in
                 config.orbit_colors.iter().enumerate()
@@ -193,7 +193,7 @@ impl BillboardTextures {
                     position,
                     Vec3::new(0.5, 0.5, 0.5),
                 );
-                world.set_material_ref(entity, MaterialRef::new(mat_name));
+                world.core.set_material_ref(entity, MaterialRef::new(mat_name));
             }
 
             update_global_transforms_system(&mut world);

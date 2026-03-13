@@ -27,7 +27,7 @@ fn get_piece_info_at_entity(
     world: &World,
     entity: Entity,
 ) -> (Option<PieceType>, Option<PieceColor>) {
-    if let Some(name) = world.get_name(entity) {
+    if let Some(name) = world.core.get_name(entity) {
         let name_str = &name.0;
 
         if let Some(index) = extract_circle_index(name_str) {
@@ -74,10 +74,10 @@ fn get_occupied_squares_with_colors(
     square_size: f32,
 ) -> HashMap<SquarePosition, PieceColor> {
     let mut occupied = HashMap::new();
-    for entity in world.query_entities(GLOBAL_TRANSFORM | NAME) {
-        if let Some(name) = world.get_name(entity)
+    for entity in world.core.query_entities(GLOBAL_TRANSFORM | NAME) {
+        if let Some(name) = world.core.get_name(entity)
             && is_piece_entity(&name.0)
-            && let Some(transform) = world.get_global_transform(entity)
+            && let Some(transform) = world.core.get_global_transform(entity)
         {
             let pos = transform.0.column(3).xyz();
             let square = SquarePosition::from_world_position(pos, square_size);
@@ -98,13 +98,13 @@ fn find_piece_entity_at_square(
     square_size: f32,
     exclude_entity: Entity,
 ) -> Option<Entity> {
-    for entity in world.query_entities(GLOBAL_TRANSFORM | NAME) {
+    for entity in world.core.query_entities(GLOBAL_TRANSFORM | NAME) {
         if entity == exclude_entity {
             continue;
         }
-        if let Some(name) = world.get_name(entity)
+        if let Some(name) = world.core.get_name(entity)
             && is_piece_entity(&name.0)
-            && let Some(transform) = world.get_global_transform(entity)
+            && let Some(transform) = world.core.get_global_transform(entity)
         {
             let pos = transform.0.column(3).xyz();
             let square = SquarePosition::from_world_position(pos, square_size);
@@ -143,20 +143,20 @@ fn find_closest_valid_square(
 }
 
 fn set_entity_position(world: &mut World, entity: Entity, position: Vec3) {
-    if let Some(parent) = world.get_parent(entity)
+    if let Some(parent) = world.core.get_parent(entity)
         && let Some(parent_entity) = parent.0
-        && let Some(parent_global) = world.get_global_transform(parent_entity)
+        && let Some(parent_global) = world.core.get_global_transform(parent_entity)
         && let Some(parent_inverse) = parent_global.0.try_inverse()
     {
         let local_pos = parent_inverse.transform_point(&nalgebra_glm::Vec3::from(position).into());
-        if let Some(transform) = world.get_local_transform_mut(entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(entity) {
             transform.translation = local_pos.coords;
         }
         world.mark_local_transform_dirty(entity);
         return;
     }
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
     }
     world.mark_local_transform_dirty(entity);
@@ -178,7 +178,7 @@ pub fn input_system(chess_world: &mut ChessWorld, world: &mut World) {
         world.resources.graphics.bounding_volume_selected_entity = Some(hovered_entity);
 
         if let Some(click_pos) = get_ground_intersection(world, mouse_pos)
-            && let Some(transform) = world.get_global_transform(hovered_entity)
+            && let Some(transform) = world.core.get_global_transform(hovered_entity)
         {
             let entity_pos = transform.0.column(3).xyz();
             chess_world.resources.drag_offset = entity_pos - click_pos;

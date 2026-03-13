@@ -51,7 +51,7 @@ pub fn tile_highlight_system(
     }
 
     for group in instanced_tile_groups {
-        let Some(instanced_mesh) = world.get_instanced_mesh_mut(group.entity) else {
+        let Some(instanced_mesh) = world.core.get_instanced_mesh_mut(group.entity) else {
             continue;
         };
 
@@ -121,16 +121,16 @@ pub fn hover_outline_system(
                 })
                 .collect();
 
-            if let Some(lines_component) = world.get_lines_mut(entity) {
+            if let Some(lines_component) = world.core.get_lines_mut(entity) {
                 lines_component.lines = yellow_lines;
                 lines_component.mark_dirty();
             }
-            if let Some(visibility) = world.get_visibility_mut(entity) {
+            if let Some(visibility) = world.core.get_visibility_mut(entity) {
                 visibility.visible = true;
             }
         }
         None => {
-            if let Some(visibility) = world.get_visibility_mut(entity) {
+            if let Some(visibility) = world.core.get_visibility_mut(entity) {
                 visibility.visible = false;
             }
         }

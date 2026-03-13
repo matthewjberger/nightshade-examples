@@ -160,7 +160,7 @@ pub fn update(game: &mut GameWorld, world: &mut World) -> Vec<TreeChoppedEvent> 
                 let fall_rot = nalgebra_glm::quat_angle_axis(fall_angle, &fall_axis_norm);
 
                 if let Some(trunk) = data.trunk_visual {
-                    if let Some(transform) = world.get_local_transform_mut(trunk) {
+                    if let Some(transform) = world.core.get_local_transform_mut(trunk) {
                         let offset = nalgebra_glm::quat_rotate_vec3(
                             &fall_rot,
                             &Vec3::new(0.0, data.trunk_y_offset, 0.0),
@@ -176,7 +176,7 @@ pub fn update(game: &mut GameWorld, world: &mut World) -> Vec<TreeChoppedEvent> 
                     let Some(foliage_entity) = foliage else {
                         continue;
                     };
-                    if let Some(transform) = world.get_local_transform_mut(*foliage_entity) {
+                    if let Some(transform) = world.core.get_local_transform_mut(*foliage_entity) {
                         let offset = nalgebra_glm::quat_rotate_vec3(
                             &fall_rot,
                             &Vec3::new(0.0, data.foliage_y_offsets[foliage_index], 0.0),
@@ -202,7 +202,7 @@ pub fn update(game: &mut GameWorld, world: &mut World) -> Vec<TreeChoppedEvent> 
                 let scale_factor = (1.0 - progress).max(0.01);
 
                 if let Some(trunk) = data.trunk_visual {
-                    if let Some(transform) = world.get_local_transform_mut(trunk) {
+                    if let Some(transform) = world.core.get_local_transform_mut(trunk) {
                         transform.scale = data.original_trunk_scale * scale_factor;
                     }
                     mark_local_transform_dirty(world, trunk);
@@ -212,7 +212,7 @@ pub fn update(game: &mut GameWorld, world: &mut World) -> Vec<TreeChoppedEvent> 
                     let Some(foliage_entity) = foliage else {
                         continue;
                     };
-                    if let Some(transform) = world.get_local_transform_mut(*foliage_entity) {
+                    if let Some(transform) = world.core.get_local_transform_mut(*foliage_entity) {
                         transform.scale =
                             data.original_foliage_scales[foliage_index] * scale_factor;
                     }

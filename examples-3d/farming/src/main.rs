@@ -29,7 +29,7 @@ struct FarmingGame {
 impl FarmingGame {
     fn check_and_recreate_visuals(&mut self, world: &mut World) {
         let needs_recreate = match self.game.resources.visuals.camera {
-            Some(camera) => world.get_local_transform(camera).is_none(),
+            Some(camera) => world.core.get_local_transform(camera).is_none(),
             None => true,
         };
 

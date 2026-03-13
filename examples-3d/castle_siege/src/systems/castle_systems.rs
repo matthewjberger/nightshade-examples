@@ -168,17 +168,17 @@ pub fn archer_system(game: &mut GameWorld, world: &mut World) {
                     | VISIBILITY,
                 1,
             )[0];
-            world.set_name(line_entity, Name("ArcherLine".to_string()));
-            world.set_local_transform(
+            world.core.set_name(line_entity, Name("ArcherLine".to_string()));
+            world.core.set_local_transform(
                 line_entity,
                 LocalTransform {
                     translation: Vec3::zeros(),
                     ..Default::default()
                 },
             );
-            world.set_global_transform(line_entity, GlobalTransform::default());
-            world.set_local_transform_dirty(line_entity, LocalTransformDirty);
-            world.set_lines(
+            world.core.set_global_transform(line_entity, GlobalTransform::default());
+            world.core.set_local_transform_dirty(line_entity, LocalTransformDirty);
+            world.core.set_lines(
                 line_entity,
                 Lines::new(vec![Line {
                     start: post.position,
@@ -186,7 +186,7 @@ pub fn archer_system(game: &mut GameWorld, world: &mut World) {
                     color: nalgebra_glm::vec4(1.0, 1.0, 1.0, 0.8),
                 }]),
             );
-            world.set_visibility(line_entity, Visibility { visible: true });
+            world.core.set_visibility(line_entity, Visibility { visible: true });
 
             post.line_entity = Some(line_entity);
         }

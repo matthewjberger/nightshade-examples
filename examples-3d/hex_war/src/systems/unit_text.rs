@@ -11,7 +11,7 @@ pub fn unit_text_system(game_world: &GameWorld, world: &mut World) {
             continue;
         };
 
-        let Some(text_index) = world.get_text(text_entity).map(|t| t.text_index) else {
+        let Some(text_index) = world.core.get_text(text_entity).map(|t| t.text_index) else {
             continue;
         };
 
@@ -20,7 +20,7 @@ pub fn unit_text_system(game_world: &GameWorld, world: &mut World) {
             .text_cache
             .set_text(text_index, unit.soldiers.to_string());
 
-        if let Some(text) = world.get_text_mut(text_entity) {
+        if let Some(text) = world.core.get_text_mut(text_entity) {
             text.dirty = true;
         }
     }

@@ -44,7 +44,7 @@ pub fn interaction_system(game: &mut ImmersiveSim, world: &mut World) {
     let Some(camera_entity) = game.camera_entity else {
         return;
     };
-    let Some(camera_transform) = world.get_global_transform(camera_entity).cloned() else {
+    let Some(camera_transform) = world.core.get_global_transform(camera_entity).cloned() else {
         return;
     };
     let camera_position = camera_transform.translation();
@@ -185,7 +185,7 @@ pub fn update_grabbed_object(
         return;
     };
 
-    let Some(rigid_body_component) = world.get_rigid_body(grabbed_entity) else {
+    let Some(rigid_body_component) = world.core.get_rigid_body(grabbed_entity) else {
         return;
     };
     let Some(handle) = rigid_body_component.handle else {
@@ -241,7 +241,7 @@ pub fn throw_grabbed_object(game: &mut ImmersiveSim, world: &mut World, camera_f
         return;
     };
 
-    let Some(rigid_body_component) = world.get_rigid_body(grabbed_entity) else {
+    let Some(rigid_body_component) = world.core.get_rigid_body(grabbed_entity) else {
         return;
     };
     let Some(handle) = rigid_body_component.handle else {

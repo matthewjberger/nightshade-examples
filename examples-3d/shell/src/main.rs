@@ -85,7 +85,7 @@ impl State for ShellDemo {
 
         let hover_prompt_entity =
             spawn_hud_text(world, "", HudAnchor::TopLeft, Vec2::new(0.0, 0.0));
-        if let Some(hud_text) = world.get_hud_text(hover_prompt_entity) {
+        if let Some(hud_text) = world.core.get_hud_text(hover_prompt_entity) {
             self.hover_prompt_text_index = Some(hud_text.text_index);
         }
         self.hover_prompt_entity = Some(hover_prompt_entity);
@@ -169,7 +169,7 @@ impl ShellDemo {
 
         if !alt_pressed {
             world.resources.text_cache.set_text(text_index, "");
-            if let Some(hud_text) = world.get_hud_text_mut(prompt_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
                 hud_text.dirty = true;
             }
             return;
@@ -181,7 +181,7 @@ impl ShellDemo {
             let shell_height = self.shell.height * self.shell.animation_progress;
             if mouse_pos.y < shell_height {
                 world.resources.text_cache.set_text(text_index, "");
-                if let Some(hud_text) = world.get_hud_text_mut(prompt_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
                     hud_text.dirty = true;
                 }
                 return;
@@ -200,7 +200,7 @@ impl ShellDemo {
             .resources
             .text_cache
             .set_text(text_index, &prompt_text);
-        if let Some(hud_text) = world.get_hud_text_mut(prompt_entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
             hud_text.set_position(prompt_position);
             hud_text.dirty = true;
         }
@@ -274,14 +274,14 @@ impl Command<ShellContext> for NoclipCommand {
         context.noclip = !context.noclip;
         if context.noclip {
             if let Some(camera_entity) = world.resources.active_camera
-                && let Some(camera) = world.get_camera_mut(camera_entity)
+                && let Some(camera) = world.core.get_camera_mut(camera_entity)
             {
                 camera.smoothing = Some(Smoothing::default());
             }
             "Noclip enabled - WASD to move, right-click to look".to_string()
         } else {
             if let Some(camera_entity) = world.resources.active_camera
-                && let Some(camera) = world.get_camera_mut(camera_entity)
+                && let Some(camera) = world.core.get_camera_mut(camera_entity)
             {
                 camera.smoothing = None;
             }

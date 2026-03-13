@@ -244,7 +244,7 @@ fn spawn_camera(world: &mut World, name: String) -> Entity {
         name,
     );
 
-    if let Some(camera_component) = world.get_camera_mut(camera_entity) {
+    if let Some(camera_component) = world.core.get_camera_mut(camera_entity) {
         camera_component.projection = Projection::Perspective(PerspectiveCamera {
             aspect_ratio: None,
             y_fov_rad: 45.0_f32.to_radians(),
@@ -377,8 +377,8 @@ fn spawn_lights(world: &mut World) {
         1,
     )[0];
 
-    world.set_name(sun_entity, Name("Sun".to_string()));
-    world.set_local_transform(
+    world.core.set_name(sun_entity, Name("Sun".to_string()));
+    world.core.set_local_transform(
         sun_entity,
         LocalTransform {
             translation: Vec3::new(50.0, 100.0, 50.0),
@@ -386,9 +386,9 @@ fn spawn_lights(world: &mut World) {
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(sun_entity, LocalTransformDirty);
-    world.set_global_transform(sun_entity, GlobalTransform::default());
-    world.set_light(
+    world.core.set_local_transform_dirty(sun_entity, LocalTransformDirty);
+    world.core.set_global_transform(sun_entity, GlobalTransform::default());
+    world.core.set_light(
         sun_entity,
         Light {
             light_type: LightType::Directional,
@@ -402,7 +402,7 @@ fn spawn_lights(world: &mut World) {
         },
     );
 
-    if let Some(transform) = world.get_local_transform_mut(sun_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(sun_entity) {
         let sun_direction = Vec3::new(-0.5, -0.8, -0.3).normalize();
         let forward = -sun_direction;
         let up = Vec3::new(0.0, 1.0, 0.0);
@@ -436,7 +436,7 @@ fn spawn_mesh_with_material(
 ) -> Entity {
     let entity = spawn_mesh(world, mesh_name, position, scale);
 
-    if let Some(entity_name) = world.get_name_mut(entity) {
+    if let Some(entity_name) = world.core.get_name_mut(entity) {
         *entity_name = Name(name.to_string());
     }
 
@@ -463,6 +463,6 @@ fn spawn_mesh_with_material(
             .add_reference(index);
     }
 
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
     entity
 }

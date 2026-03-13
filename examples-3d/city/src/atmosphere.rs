@@ -185,10 +185,10 @@ const CAMPFIRE_BASE_COLOR: Vec3 = Vec3::new(1.0, 0.65, 0.25);
 const CAMPFIRE_BASE_INTENSITY: f32 = 6.0;
 
 pub fn update_campfire_lights(world: &mut World, time: f32) {
-    let light_entities: Vec<Entity> = world.query_entities(LIGHT).collect();
+    let light_entities: Vec<Entity> = world.core.query_entities(LIGHT).collect();
 
     for entity in light_entities {
-        let Some(light) = world.get_light(entity) else {
+        let Some(light) = world.core.get_light(entity) else {
             continue;
         };
         if light.light_type != LightType::Point {
@@ -206,7 +206,7 @@ pub fn update_campfire_lights(world: &mut World, time: f32) {
         let flicker2 = (time * 12.5 + phase * 1.3).sin() * 0.15;
         let flicker3 = (time * 17.0 + phase * 0.7).sin() * 0.1;
 
-        if let Some(light) = world.get_light_mut(entity) {
+        if let Some(light) = world.core.get_light_mut(entity) {
             light.intensity = CAMPFIRE_BASE_INTENSITY + flicker1 + flicker2 + flicker3;
         }
     }
@@ -215,10 +215,10 @@ pub fn update_campfire_lights(world: &mut World, time: f32) {
 const NEON_BASE_INTENSITY: f32 = 3.0;
 
 pub fn update_neon_lights(world: &mut World, time: f32) {
-    let light_entities: Vec<Entity> = world.query_entities(LIGHT).collect();
+    let light_entities: Vec<Entity> = world.core.query_entities(LIGHT).collect();
 
     for entity in light_entities {
-        let Some(light) = world.get_light(entity) else {
+        let Some(light) = world.core.get_light(entity) else {
             continue;
         };
         if light.light_type != LightType::Point {
@@ -240,7 +240,7 @@ pub fn update_neon_lights(world: &mut World, time: f32) {
             1.0
         };
 
-        if let Some(light) = world.get_light_mut(entity) {
+        if let Some(light) = world.core.get_light_mut(entity) {
             light.intensity = NEON_BASE_INTENSITY * multiplier;
         }
     }
@@ -293,7 +293,7 @@ impl LeafSystem {
                 turbulence_frequency: 0.3,
                 ..Default::default()
             };
-            world.set_particle_emitter(entity, emitter);
+            world.core.set_particle_emitter(entity, emitter);
             self.emitter_entities.push(entity);
         }
     }
@@ -309,7 +309,7 @@ impl LeafSystem {
                 10.0 + emitter_index as f32 * 3.0,
                 (emitter_index as f32 * 1.7).cos() * 15.0,
             );
-            if let Some(emitter) = world.get_particle_emitter_mut(entity) {
+            if let Some(emitter) = world.core.get_particle_emitter_mut(entity) {
                 emitter.position = camera_position + offset;
             }
         }

@@ -66,7 +66,7 @@ pub fn spawn_unit(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(render_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(render_entity, MaterialRef::new(material_name));
 
     let font_size = font_size_for_soldiers(soldiers);
     let text_position = nalgebra_glm::vec3(
@@ -177,13 +177,13 @@ pub fn unit_visual_update_system(game_world: &GameWorld, world: &mut World) {
 
         let radius = unit_radius_for_soldiers(unit.soldiers);
 
-        if let Some(transform) = world.get_local_transform_mut(engine_entity.0) {
+        if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0) {
             transform.scale = nalgebra_glm::vec3(radius, radius, radius);
         }
         mark_local_transform_dirty(world, engine_entity.0);
 
         if let Some(text_entity) = unit.text_entity {
-            if let Some(text_transform) = world.get_local_transform_mut(text_entity) {
+            if let Some(text_transform) = world.core.get_local_transform_mut(text_entity) {
                 text_transform.translation = nalgebra_glm::vec3(
                     world_position.0.x,
                     world_position.0.y + radius + UNIT_TEXT_HEIGHT_OFFSET,
@@ -193,7 +193,7 @@ pub fn unit_visual_update_system(game_world: &GameWorld, world: &mut World) {
             mark_local_transform_dirty(world, text_entity);
 
             let font_size = font_size_for_soldiers(unit.soldiers);
-            if let Some(text) = world.get_text_mut(text_entity) {
+            if let Some(text) = world.core.get_text_mut(text_entity) {
                 text.properties.font_size = font_size;
                 text.dirty = true;
             }

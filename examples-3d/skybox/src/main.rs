@@ -29,8 +29,8 @@ impl State for SkyboxDemo {
             1,
         )[0];
 
-        world.set_name(camera_entity, Name("Main Camera".to_string()));
-        world.set_local_transform(
+        world.core.set_name(camera_entity, Name("Main Camera".to_string()));
+        world.core.set_local_transform(
             camera_entity,
             LocalTransform {
                 translation: camera_pos,
@@ -38,9 +38,9 @@ impl State for SkyboxDemo {
                 ..Default::default()
             },
         );
-        world.set_global_transform(camera_entity, GlobalTransform::default());
-        world.set_local_transform_dirty(camera_entity, LocalTransformDirty);
-        world.set_camera(
+        world.core.set_global_transform(camera_entity, GlobalTransform::default());
+        world.core.set_local_transform_dirty(camera_entity, LocalTransformDirty);
+        world.core.set_camera(
             camera_entity,
             Camera {
                 projection: Projection::Perspective(PerspectiveCamera {

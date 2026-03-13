@@ -77,14 +77,14 @@ impl VillageSurvival {
             white
         };
 
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.intensity = sun_intensity;
             light.color = sun_color;
             light.cast_shadows = !is_night;
         }
 
         let sun_position = sun_dir * 100.0;
-        if let Some(transform) = world.get_local_transform_mut(sun) {
+        if let Some(transform) = world.core.get_local_transform_mut(sun) {
             transform.translation = sun_position;
             let direction = -sun_dir;
             let up = Vec3::y();
@@ -206,7 +206,7 @@ impl State for VillageSurvival {
         world.resources.active_camera = Some(camera_entity);
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 3.5;
             light.shadow_bias = 0.008;

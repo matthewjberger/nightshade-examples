@@ -43,7 +43,7 @@ pub fn interaction_system(demo: &mut HorrorDemo, world: &mut World) {
     let Some(camera_entity) = demo.camera_entity else {
         return;
     };
-    let Some(camera_transform) = world.get_global_transform(camera_entity).cloned() else {
+    let Some(camera_transform) = world.core.get_global_transform(camera_entity).cloned() else {
         return;
     };
     let camera_position = camera_transform.translation();
@@ -58,7 +58,7 @@ pub fn interaction_system(demo: &mut HorrorDemo, world: &mut World) {
 
         if demo.interaction.manipulated_door_index.is_some()
             && let Some(door_audio_entity) = demo.door_audio_entity
-            && let Some(source) = world.get_audio_source_mut(door_audio_entity)
+            && let Some(source) = world.core.get_audio_source_mut(door_audio_entity)
         {
             source.playing = false;
         }
@@ -141,7 +141,7 @@ pub fn try_start_interaction(
                     demo.interaction.manipulated_door_index = Some(index);
                     if let Some(door_audio_entity) = demo.door_audio_entity {
                         world.resources.audio.stop_sound(door_audio_entity);
-                        if let Some(source) = world.get_audio_source_mut(door_audio_entity) {
+                        if let Some(source) = world.core.get_audio_source_mut(door_audio_entity) {
                             source.playing = true;
                         }
                     }
@@ -199,7 +199,7 @@ pub fn update_grabbed_object(
         return;
     };
 
-    let Some(rigid_body_component) = world.get_rigid_body(grabbed_entity) else {
+    let Some(rigid_body_component) = world.core.get_rigid_body(grabbed_entity) else {
         return;
     };
     let Some(handle) = rigid_body_component.handle else {
@@ -255,7 +255,7 @@ pub fn throw_grabbed_object(demo: &mut HorrorDemo, world: &mut World, camera_for
         return;
     };
 
-    let Some(rigid_body_component) = world.get_rigid_body(grabbed_entity) else {
+    let Some(rigid_body_component) = world.core.get_rigid_body(grabbed_entity) else {
         return;
     };
     let Some(handle) = rigid_body_component.handle else {
@@ -288,12 +288,12 @@ pub fn update_pressed_button(demo: &mut HorrorDemo, world: &mut World, button_in
     button.current_press = (button.current_press + press_speed * delta_time).min(max_press);
 
     let pressed_y = button.base_position.y - button.current_press;
-    if let Some(transform) = world.get_local_transform_mut(button.entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(button.entity) {
         transform.translation.y = pressed_y;
     }
     world.mark_local_transform_dirty(button.entity);
 
-    if let Some(rb) = world.get_rigid_body_mut(button.entity)
+    if let Some(rb) = world.core.get_rigid_body_mut(button.entity)
         && let Some(handle) = rb.handle
     {
         let physics = &mut world.resources.physics;
@@ -316,12 +316,12 @@ pub fn release_button(demo: &mut HorrorDemo, world: &mut World, button_index: us
     button.current_press = 0.0;
     button.is_pressed = false;
 
-    if let Some(transform) = world.get_local_transform_mut(button.entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(button.entity) {
         transform.translation.y = button.base_position.y;
     }
     world.mark_local_transform_dirty(button.entity);
 
-    if let Some(rb) = world.get_rigid_body_mut(button.entity)
+    if let Some(rb) = world.core.get_rigid_body_mut(button.entity)
         && let Some(handle) = rb.handle
     {
         let physics = &mut world.resources.physics;

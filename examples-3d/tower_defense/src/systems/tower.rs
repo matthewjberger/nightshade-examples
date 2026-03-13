@@ -46,7 +46,7 @@ pub fn spawn_tower(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | POSITION | TOWER, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(engine_entity));
@@ -102,21 +102,21 @@ pub fn spawn_range_indicator(
             1,
         )[0];
 
-        world.set_name(
+        world.core.set_name(
             line_entity,
             Name(format!("Range Indicator Line {}", segment_index)),
         );
-        world.set_local_transform(
+        world.core.set_local_transform(
             line_entity,
             LocalTransform {
                 translation: nalgebra_glm::vec3(0.0, 0.0, 0.0),
                 ..Default::default()
             },
         );
-        world.set_global_transform(line_entity, GlobalTransform::default());
-        world.set_local_transform_dirty(line_entity, LocalTransformDirty);
+        world.core.set_global_transform(line_entity, GlobalTransform::default());
+        world.core.set_local_transform_dirty(line_entity, LocalTransformDirty);
 
-        world.set_lines(
+        world.core.set_lines(
             line_entity,
             Lines::new(vec![Line {
                 start,
@@ -125,7 +125,7 @@ pub fn spawn_range_indicator(
             }]),
         );
 
-        world.set_visibility(line_entity, Visibility { visible: false });
+        world.core.set_visibility(line_entity, Visibility { visible: false });
 
         line_entities.push(line_entity);
     }
@@ -316,7 +316,7 @@ pub fn tower_targeting_system(game_world: &mut GameWorld, world: &mut World) {
                                 }
 
                                 if let Some(line_entity) = tower.target_line {
-                                    if let Some(lines_comp) = world.get_lines_mut(line_entity) {
+                                    if let Some(lines_comp) = world.core.get_lines_mut(line_entity) {
                                         lines_comp.lines.clear();
                                         lines_comp.lines.push(Line {
                                             start: tower_pos.0 + nalgebra_glm::vec3(0.0, 0.5, 0.0),
@@ -325,7 +325,7 @@ pub fn tower_targeting_system(game_world: &mut GameWorld, world: &mut World) {
                                         });
                                     }
 
-                                    if let Some(visibility) = world.get_visibility_mut(line_entity)
+                                    if let Some(visibility) = world.core.get_visibility_mut(line_entity)
                                     {
                                         visibility.visible = true;
                                     }
@@ -410,7 +410,7 @@ pub fn tower_shooting_system(game_world: &mut GameWorld, world: &mut World) {
                                 .registry
                                 .add_reference(index);
                         }
-                        world.set_material_ref(engine_entity, MaterialRef::new(material_name));
+                        world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
 
                         let projectile_entity =
                             game_world.spawn_entities(ENTITY_HANDLE | POSITION | PROJECTILE, 1)[0];
@@ -462,14 +462,14 @@ pub fn tower_shooting_system(game_world: &mut GameWorld, world: &mut World) {
             if needs_fire_animation_update
                 && let Some(handle) = game_world.get_entity_handle(tower_entity)
             {
-                if let Some(transform) = world.get_local_transform_mut(handle.0) {
+                if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                     transform.scale =
                         nalgebra_glm::vec3(0.4 * animation_scale, 0.8, 0.4 * animation_scale);
-                    world.set_local_transform_dirty(handle.0, LocalTransformDirty);
+                    world.core.set_local_transform_dirty(handle.0, LocalTransformDirty);
                 }
 
                 if animation_scale > 1.05 {
-                    if let Some(material_ref) = world.get_material_ref(handle.0).cloned()
+                    if let Some(material_ref) = world.core.get_material_ref(handle.0).cloned()
                         && let Some(material) = registry_entry_by_name_mut(
                             &mut world.resources.material_registry.registry,
                             &material_ref.name,
@@ -482,7 +482,7 @@ pub fn tower_shooting_system(game_world: &mut GameWorld, world: &mut World) {
                             tower.tower_type.color().z * 0.5 + flash_intensity,
                         ];
                     }
-                } else if let Some(material_ref) = world.get_material_ref(handle.0).cloned()
+                } else if let Some(material_ref) = world.core.get_material_ref(handle.0).cloned()
                     && let Some(material) = registry_entry_by_name_mut(
                         &mut world.resources.material_registry.registry,
                         &material_ref.name,

@@ -25,7 +25,7 @@ impl State for SdfTextDemoState {
         spawn_kerning_demo(world);
 
         let camera = spawn_camera(world, Vec3::new(0.0, 4.0, 10.0), "Main Camera".to_string());
-        if let Some(camera_component) = world.get_camera_mut(camera) {
+        if let Some(camera_component) = world.core.get_camera_mut(camera) {
             camera_component.projection = Projection::Perspective(PerspectiveCamera::default());
         }
         world.resources.active_camera = Some(camera);
@@ -53,7 +53,7 @@ impl State for SdfTextDemoState {
                     }
                 }
                 ui.separator();
-                ui.label(format!("Entities: {}", world.get_all_entities().len()));
+                ui.label(format!("Entities: {}", world.core.get_all_entities().len()));
             });
         });
 
@@ -62,7 +62,7 @@ impl State for SdfTextDemoState {
             .resizable(true)
             .show(ui_context, |ui| {
                 if let Some(entity) = self.selected_entity
-                    && world.get_text(entity).is_some()
+                    && world.core.get_text(entity).is_some()
                 {
                     self.text_property_ui(world, ui, entity);
                 }
@@ -87,7 +87,7 @@ impl State for SdfTextDemoState {
                 .is_some()
         {
             if let Some(entity) = self.selected_entity
-                && let Some(text) = world.get_text_mut(entity)
+                && let Some(text) = world.core.get_text_mut(entity)
             {
                 text.font_index = font_index;
                 text.dirty = true;
@@ -99,7 +99,7 @@ impl State for SdfTextDemoState {
 
 impl SdfTextDemoState {
     fn text_property_ui(&mut self, world: &mut World, ui: &mut egui::Ui, entity: Entity) {
-        let (text_index, current_content) = if let Some(text) = world.get_text(entity) {
+        let (text_index, current_content) = if let Some(text) = world.core.get_text(entity) {
             let content = world
                 .resources
                 .text_cache
@@ -121,12 +121,12 @@ impl SdfTextDemoState {
                 .resources
                 .text_cache
                 .set_text(text_index, text_content);
-            if let Some(text) = world.get_text_mut(entity) {
+            if let Some(text) = world.core.get_text_mut(entity) {
                 text.dirty = true;
             }
         }
 
-        if let Some(text) = world.get_text_mut(entity) {
+        if let Some(text) = world.core.get_text_mut(entity) {
             let mut changed = false;
 
             ui.separator();
@@ -373,15 +373,15 @@ fn spawn_default_text(world: &mut World) -> Entity {
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         *name = Name("Sample Text".to_string());
     }
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = Vec3::new(0.0, 2.0, 0.0);
     }
 
-    if let Some(text) = world.get_text_mut(entity) {
+    if let Some(text) = world.core.get_text_mut(entity) {
         text.text_index = text_index;
         text.properties = TextProperties {
             font_size: 24.0,
@@ -410,16 +410,16 @@ fn spawn_3d_text(world: &mut World) {
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         *name = Name("3D Text".to_string());
     }
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         let offset = rand::random::<f32>() * 10.0 - 5.0;
         transform.translation = Vec3::new(offset, 3.0, offset);
     }
 
-    if let Some(text) = world.get_text_mut(entity) {
+    if let Some(text) = world.core.get_text_mut(entity) {
         text.text_index = text_index;
         text.properties = TextProperties {
             font_size: 32.0,
@@ -472,11 +472,11 @@ fn spawn_text_lattice(world: &mut World) {
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(parent_entity) {
+    if let Some(name) = world.core.get_name_mut(parent_entity) {
         *name = Name("Text Lattice (Stress Test)".to_string());
     }
 
-    if let Some(transform) = world.get_local_transform_mut(parent_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(parent_entity) {
         transform.translation = Vec3::new(0.0, 5.0, 0.0);
     }
 
@@ -516,15 +516,15 @@ fn spawn_text_lattice(world: &mut World) {
                     1,
                 )[0];
 
-                if let Some(parent) = world.get_parent_mut(entity) {
+                if let Some(parent) = world.core.get_parent_mut(entity) {
                     parent.0 = Some(parent_entity);
                 }
 
-                if let Some(name) = world.get_name_mut(entity) {
+                if let Some(name) = world.core.get_name_mut(entity) {
                     *name = Name(format!("Text {}", text_count + 1));
                 }
 
-                if let Some(transform) = world.get_local_transform_mut(entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(entity) {
                     transform.translation = Vec3::new(
                         offset_x + x as f32 * SPACING,
                         offset_y + y as f32 * SPACING,
@@ -532,7 +532,7 @@ fn spawn_text_lattice(world: &mut World) {
                     );
                 }
 
-                if let Some(text) = world.get_text_mut(entity) {
+                if let Some(text) = world.core.get_text_mut(entity) {
                     text.text_index = text_index;
                     text.properties = TextProperties {
                         font_size: 16.0,

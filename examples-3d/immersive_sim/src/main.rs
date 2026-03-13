@@ -225,13 +225,13 @@ impl State for ImmersiveSim {
 fn update_fps_text(game: &ImmersiveSim, world: &mut World) {
     if let Some(fps_text_entity) = game.fps_hud_text {
         let fps = world.resources.window.timing.frames_per_second;
-        let text_index = world.get_hud_text(fps_text_entity).map(|t| t.text_index);
+        let text_index = world.core.get_hud_text(fps_text_entity).map(|t| t.text_index);
         if let Some(text_index) = text_index {
             world
                 .resources
                 .text_cache
                 .set_text(text_index, format!("FPS: {:.0}", fps));
-            if let Some(hud_text) = world.get_hud_text_mut(fps_text_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(fps_text_entity) {
                 hud_text.dirty = true;
             }
         }
@@ -304,13 +304,13 @@ fn generate_colliders_from_entity(world: &mut World, entity: Entity) {
     let mut collider_count = 0;
 
     for current_entity in entities_to_process {
-        let mesh_name = match world.get_render_mesh(current_entity) {
+        let mesh_name = match world.core.get_render_mesh(current_entity) {
             Some(render_mesh) => render_mesh.name.clone(),
             None => continue,
         };
 
         let global_transform = world
-            .get_global_transform(current_entity)
+            .core.get_global_transform(current_entity)
             .map(|t| t.0)
             .unwrap_or_else(nalgebra_glm::Mat4::identity);
 
@@ -352,15 +352,15 @@ fn generate_colliders_from_entity(world: &mut World, entity: Entity) {
             1,
         )[0];
 
-        if let Some(name) = world.get_name_mut(collision_entity) {
+        if let Some(name) = world.core.get_name_mut(collision_entity) {
             name.0 = format!("Mesh Collision {}", collider_count);
         }
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(collision_entity) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(collision_entity) {
             *rigid_body = RigidBodyComponent::new_static();
         }
 
-        if let Some(collider) = world.get_collider_mut(collision_entity) {
+        if let Some(collider) = world.core.get_collider_mut(collision_entity) {
             *collider = ColliderComponent {
                 shape: ColliderShape::TriMesh { vertices, indices },
                 friction: 0.7,
@@ -381,13 +381,13 @@ fn generate_navmesh_from_entity(world: &mut World, entity: Entity) {
     entities_to_process.extend(query_descendants(world, entity));
 
     for current_entity in entities_to_process {
-        let mesh_name = match world.get_render_mesh(current_entity) {
+        let mesh_name = match world.core.get_render_mesh(current_entity) {
             Some(render_mesh) => render_mesh.name.clone(),
             None => continue,
         };
 
         let global_transform = world
-            .get_global_transform(current_entity)
+            .core.get_global_transform(current_entity)
             .map(|t| t.0)
             .unwrap_or_else(nalgebra_glm::Mat4::identity);
 
@@ -552,7 +552,7 @@ fn spawn_player_hands_and_flashlight(game: &mut ImmersiveSim, world: &mut World)
 
                 world.update_parent(hands_entity, Some(Parent(Some(camera_entity))));
 
-                if let Some(transform) = world.get_local_transform_mut(hands_entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(hands_entity) {
                     let view_model_scale = 0.4;
                     transform.translation = Vec3::new(0.0, -0.02, -0.06);
                     transform.rotation = nalgebra_glm::quat_angle_axis(
@@ -564,7 +564,7 @@ fn spawn_player_hands_and_flashlight(game: &mut ImmersiveSim, world: &mut World)
                 }
                 world.mark_local_transform_dirty(hands_entity);
 
-                if let Some(player) = world.get_animation_player_mut(hands_entity)
+                if let Some(player) = world.core.get_animation_player_mut(hands_entity)
                     && player.clips.len() > 9
                 {
                     player.blend_to(9, 0.0);
@@ -743,7 +743,7 @@ fn run_gameplay_systems(game: &mut ImmersiveSim, world: &mut World) {
 
 fn get_player_position(game: &ImmersiveSim, world: &World) -> Vec3 {
     game.player_entity
-        .and_then(|entity| world.get_global_transform(entity))
+        .and_then(|entity| world.core.get_global_transform(entity))
         .map(|t| t.translation())
         .unwrap_or(Vec3::zeros())
 }
@@ -792,7 +792,7 @@ fn handle_enemy_deaths(game: &mut ImmersiveSim, world: &mut World) {
     for enemy in &mut game.loaded_level.enemies {
         if enemy.is_dead() && enemy.entity.id != 0 {
             let enemy_pos = world
-                .get_local_transform(enemy.entity)
+                .core.get_local_transform(enemy.entity)
                 .map(|t| t.translation)
                 .unwrap_or(enemy.home_position);
 
@@ -916,12 +916,12 @@ fn transition_to_level(
 
     let level_def = data::levels::get_level(target_level);
     if let Some(player_entity) = game.player_entity {
-        if let Some(transform) = world.get_local_transform_mut(player_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(player_entity) {
             transform.translation = level_def.player_spawn;
         }
         world.mark_local_transform_dirty(player_entity);
 
-        let rigid_body_handle = world.get_rigid_body(player_entity).and_then(|rb| rb.handle);
+        let rigid_body_handle = world.core.get_rigid_body(player_entity).and_then(|rb| rb.handle);
         if let Some(handle) = rigid_body_handle
             && let Some(rigid_body) = world
                 .resources
@@ -951,16 +951,16 @@ fn teleport_player_to_camera(game: &ImmersiveSim, world: &mut World) {
     };
 
     let camera_global_pos = world
-        .get_global_transform(camera_entity)
+        .core.get_global_transform(camera_entity)
         .map(|t| t.translation())
         .unwrap_or(Vec3::zeros());
 
-    if let Some(transform) = world.get_local_transform_mut(player_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(player_entity) {
         transform.translation = camera_global_pos;
     }
     world.mark_local_transform_dirty(player_entity);
 
-    let rigid_body_handle = world.get_rigid_body(player_entity).and_then(|rb| rb.handle);
+    let rigid_body_handle = world.core.get_rigid_body(player_entity).and_then(|rb| rb.handle);
 
     if let Some(handle) = rigid_body_handle
         && let Some(rigid_body) = world
@@ -1006,12 +1006,12 @@ fn respawn_player(game: &mut ImmersiveSim, world: &mut World) {
     let spawn_pos = data::levels::get_level(game.current_level).player_spawn;
 
     if let Some(player_entity) = game.player_entity {
-        if let Some(transform) = world.get_local_transform_mut(player_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(player_entity) {
             transform.translation = spawn_pos;
         }
         world.mark_local_transform_dirty(player_entity);
 
-        let rigid_body_handle = world.get_rigid_body(player_entity).and_then(|rb| rb.handle);
+        let rigid_body_handle = world.core.get_rigid_body(player_entity).and_then(|rb| rb.handle);
         if let Some(handle) = rigid_body_handle
             && let Some(rigid_body) = world
                 .resources

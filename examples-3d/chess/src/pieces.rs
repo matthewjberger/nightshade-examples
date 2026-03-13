@@ -79,7 +79,7 @@ pub fn spawn_full_scene(world: &mut World, prefabs: &PiecePrefabs, scale: f32) -
     let prefab = prefabs.full_scene.as_ref()?;
     let entity = spawn_prefab(world, prefab, nalgebra_glm::vec3(0.0, 0.0, 0.0));
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.scale = nalgebra_glm::vec3(scale, scale, scale);
     }
     world.mark_local_transform_dirty(entity);

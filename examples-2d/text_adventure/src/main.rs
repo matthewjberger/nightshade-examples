@@ -616,20 +616,20 @@ impl TextAdventureState {
         let terminal_text = visible_text.join("\n");
 
         for entity in &self.terminal_entities {
-            if let Some(hud_text) = world.get_hud_text(*entity) {
+            if let Some(hud_text) = world.core.get_hud_text(*entity) {
                 let text_index = hud_text.text_index;
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, &terminal_text);
-                if let Some(hud_text) = world.get_hud_text_mut(*entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(*entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(entity) = self.scrollbar_entity
-            && let Some(hud_text) = world.get_hud_text(entity)
+            && let Some(hud_text) = world.core.get_hud_text(entity)
         {
             let text_index = hud_text.text_index;
 
@@ -662,13 +662,13 @@ impl TextAdventureState {
                 .resources
                 .text_cache
                 .set_text(text_index, &scrollbar_text);
-            if let Some(hud_text) = world.get_hud_text_mut(entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(entity) = self.input_entity
-            && let Some(hud_text) = world.get_hud_text(entity)
+            && let Some(hud_text) = world.core.get_hud_text(entity)
         {
             let text_index = hud_text.text_index;
             let cursor = if (self.cursor_blink_counter / 30).is_multiple_of(2) {
@@ -678,7 +678,7 @@ impl TextAdventureState {
             };
             let input_text = format!("> {}{}", self.user_input, cursor);
             world.resources.text_cache.set_text(text_index, &input_text);
-            if let Some(hud_text) = world.get_hud_text_mut(entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                 hud_text.dirty = true;
             }
         }

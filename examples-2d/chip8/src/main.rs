@@ -38,7 +38,7 @@ impl State for Chip8App {
         world.resources.graphics.clear_color = [0.02, 0.02, 0.02, 1.0];
 
         let camera = spawn_ortho_camera(world, Vec2::new(0.0, 0.0));
-        if let Some(camera_component) = world.get_camera_mut(camera)
+        if let Some(camera_component) = world.core.get_camera_mut(camera)
             && let Projection::Orthographic(ref mut ortho) = camera_component.projection
         {
             ortho.y_mag = BASE_Y_MAG;
@@ -83,7 +83,7 @@ impl State for Chip8App {
                     Vec2::new(PIXEL_SIZE - 0.5, PIXEL_SIZE - 0.5),
                 );
 
-                if let Some(sprite) = world.get_sprite_mut(entity) {
+                if let Some(sprite) = world.core.get_sprite_mut(entity) {
                     sprite.texture_index = WHITE_TEXTURE_SLOT;
                     sprite.texture_index2 = WHITE_TEXTURE_SLOT;
                     sprite.uv_min = uv_min;
@@ -112,7 +112,7 @@ impl State for Chip8App {
             let size = window_handle.inner_size();
             if size.height > 0 {
                 let aspect = size.width as f32 / size.height as f32;
-                if let Some(camera_component) = world.get_camera_mut(camera_entity)
+                if let Some(camera_component) = world.core.get_camera_mut(camera_entity)
                     && let Projection::Orthographic(ref mut ortho) = camera_component.projection
                 {
                     ortho.x_mag = BASE_Y_MAG * aspect;
@@ -137,7 +137,7 @@ impl State for Chip8App {
             for (pixel_index, &pixel_on) in emulator.display.iter().enumerate() {
                 let entity = self.pixel_entities[pixel_index];
                 let color = if pixel_on { COLOR_ON } else { COLOR_OFF };
-                if let Some(sprite) = world.get_sprite_mut(entity) {
+                if let Some(sprite) = world.core.get_sprite_mut(entity) {
                     sprite.color = color;
                 }
             }

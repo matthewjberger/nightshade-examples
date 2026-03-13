@@ -186,7 +186,7 @@ fn try_harvest(game: &mut GameWorld, world: &mut World) -> Option<CropHarvestedE
             Vec3::new(tile_pos.x, scale * 0.5, tile_pos.z),
             Vec3::new(scale * 0.4, scale, scale * 0.4),
         );
-        world.set_casts_shadow(visual, CastsShadow);
+        world.core.set_casts_shadow(visual, CastsShadow);
 
         let material_name = get_crop_material_name(crop_type, growth_stage, max_stage);
         crate::systems::init::apply_material_by_name(world, visual, material_name);
@@ -252,7 +252,7 @@ fn try_plant(game: &mut GameWorld, world: &mut World) -> bool {
         Vec3::new(tile_pos.x, scale * 0.5, tile_pos.z),
         Vec3::new(scale * 0.4, scale, scale * 0.4),
     );
-    world.set_casts_shadow(visual, CastsShadow);
+    world.core.set_casts_shadow(visual, CastsShadow);
 
     let material_name = get_crop_material_name(crop_type, 1, definition.growth_stages);
     crate::systems::init::apply_material_by_name(world, visual, material_name);
@@ -374,7 +374,7 @@ pub fn process_day_change(game: &mut GameWorld, world: &mut World) {
         if let Some(handle) = update.handle {
             let scale = get_crop_scale(update.new_stage, update.max_stage);
 
-            if let Some(transform) = world.get_local_transform_mut(handle) {
+            if let Some(transform) = world.core.get_local_transform_mut(handle) {
                 transform.translation.y = scale * 0.5;
                 transform.scale = Vec3::new(scale * 0.4, scale, scale * 0.4);
             }

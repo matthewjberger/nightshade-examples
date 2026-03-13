@@ -33,13 +33,13 @@ impl State for AudioDemo {
         );
         world.resources.active_camera = Some(main_camera);
 
-        world.add_components(main_camera, AUDIO_LISTENER);
-        world.set_audio_listener(main_camera, AudioListener);
+        world.core.add_components(main_camera, AUDIO_LISTENER);
+        world.core.set_audio_listener(main_camera, AudioListener);
 
         spawn_sun(world);
 
         let ground_plane = spawn_plane_at(world, Vec3::new(0.0, 0.1, 0.0));
-        if let Some(transform) = world.get_local_transform_mut(ground_plane) {
+        if let Some(transform) = world.core.get_local_transform_mut(ground_plane) {
             transform.scale = Vec3::new(50.0, 1.0, 50.0);
         }
 
@@ -176,10 +176,10 @@ impl AudioDemo {
                     .registry
                     .add_reference(idx);
             }
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-            world.add_components(entity, AUDIO_SOURCE);
-            world.set_audio_source(
+            world.core.add_components(entity, AUDIO_SOURCE);
+            world.core.set_audio_source(
                 entity,
                 AudioSource::new(sound_names[index])
                     .with_looping(true)
@@ -194,7 +194,7 @@ impl AudioDemo {
         self.create_cave_walls(world, positions[0]);
 
         let music_entity = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world.set_audio_source(
+        world.core.set_audio_source(
             music_entity,
             AudioSource::new("music")
                 .with_volume(0.7)
@@ -204,7 +204,7 @@ impl AudioDemo {
     }
 
     fn toggle_sound(&self, world: &mut World, entity: Entity) {
-        if let Some(source) = world.get_audio_source_mut(entity) {
+        if let Some(source) = world.core.get_audio_source_mut(entity) {
             source.playing = !source.playing;
             tracing::info!(
                 "Toggled sound for entity {:?}: playing = {}",
@@ -246,7 +246,7 @@ impl AudioDemo {
             world,
             Vec3::new(center.x, wall_height / 2.0, center.z - cave_size),
         );
-        if let Some(transform) = world.get_local_transform_mut(north_wall) {
+        if let Some(transform) = world.core.get_local_transform_mut(north_wall) {
             transform.scale = Vec3::new(cave_size * 2.0, wall_height, wall_thickness);
         }
 
@@ -254,7 +254,7 @@ impl AudioDemo {
             world,
             Vec3::new(center.x, wall_height / 2.0, center.z + cave_size),
         );
-        if let Some(transform) = world.get_local_transform_mut(south_wall) {
+        if let Some(transform) = world.core.get_local_transform_mut(south_wall) {
             transform.scale = Vec3::new(cave_size * 2.0, wall_height, wall_thickness);
         }
 
@@ -262,7 +262,7 @@ impl AudioDemo {
             world,
             Vec3::new(center.x + cave_size, wall_height / 2.0, center.z),
         );
-        if let Some(transform) = world.get_local_transform_mut(east_wall) {
+        if let Some(transform) = world.core.get_local_transform_mut(east_wall) {
             transform.scale = Vec3::new(wall_thickness, wall_height, cave_size * 2.0);
         }
 
@@ -270,7 +270,7 @@ impl AudioDemo {
             world,
             Vec3::new(center.x - cave_size, wall_height / 2.0, center.z),
         );
-        if let Some(transform) = world.get_local_transform_mut(west_wall) {
+        if let Some(transform) = world.core.get_local_transform_mut(west_wall) {
             transform.scale = Vec3::new(wall_thickness, wall_height, cave_size * 2.0);
         }
 
@@ -297,7 +297,7 @@ impl AudioDemo {
                     .registry
                     .add_reference(index);
             }
-            world.set_material_ref(wall, MaterialRef::new(material_name));
+            world.core.set_material_ref(wall, MaterialRef::new(material_name));
         }
     }
 }

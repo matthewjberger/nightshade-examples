@@ -163,7 +163,7 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
     for (slot_index, line) in log.line_entities.iter().enumerate() {
         if let Some(entry) = entries_to_show.get(slot_index) {
             if let Some(text_index) = world
-                .get_hud_text(line.faction_entity)
+                .core.get_hud_text(line.faction_entity)
                 .map(|t| t.text_index)
             {
                 world
@@ -171,7 +171,7 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
                     .text_cache
                     .set_text(text_index, entry.faction_tag.clone());
             }
-            if let Some(hud_text) = world.get_hud_text_mut(line.faction_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(line.faction_entity) {
                 hud_text.properties.color = nalgebra_glm::vec4(
                     entry.faction_color[0],
                     entry.faction_color[1],
@@ -182,7 +182,7 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
             }
 
             if let Some(text_index) = world
-                .get_hud_text(line.message_entity)
+                .core.get_hud_text(line.message_entity)
                 .map(|t| t.text_index)
             {
                 world
@@ -190,13 +190,13 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
                     .text_cache
                     .set_text(text_index, entry.message.clone());
             }
-            if let Some(hud_text) = world.get_hud_text_mut(line.message_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(line.message_entity) {
                 hud_text.properties.color = nalgebra_glm::vec4(1.0, 1.0, 1.0, 1.0);
                 hud_text.dirty = true;
             }
         } else {
             if let Some(text_index) = world
-                .get_hud_text(line.faction_entity)
+                .core.get_hud_text(line.faction_entity)
                 .map(|t| t.text_index)
             {
                 world
@@ -204,12 +204,12 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
                     .text_cache
                     .set_text(text_index, String::new());
             }
-            if let Some(hud_text) = world.get_hud_text_mut(line.faction_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(line.faction_entity) {
                 hud_text.dirty = true;
             }
 
             if let Some(text_index) = world
-                .get_hud_text(line.message_entity)
+                .core.get_hud_text(line.message_entity)
                 .map(|t| t.text_index)
             {
                 world
@@ -217,7 +217,7 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
                     .text_cache
                     .set_text(text_index, String::new());
             }
-            if let Some(hud_text) = world.get_hud_text_mut(line.message_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(line.message_entity) {
                 hud_text.dirty = true;
             }
         }

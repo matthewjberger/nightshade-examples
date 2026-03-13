@@ -88,7 +88,7 @@ impl State for LatticeState {
         load_hdr_skybox(world, HDR_BYTES.to_vec());
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
         }
 
@@ -204,7 +204,7 @@ impl State for LatticeState {
                             ui.label(format!("Selected: ({}, {}, {})", x, y, z));
 
                             if let Some(lattice_entity) = self.lattice_entity
-                                && let Some(lattice) = world.get_lattice(lattice_entity)
+                                && let Some(lattice) = world.core.get_lattice(lattice_entity)
                             {
                                 let disp = lattice.get_displacement(x, y, z);
                                 ui.label(format!(
@@ -221,7 +221,7 @@ impl State for LatticeState {
 
                     if ui.button("Reset Lattice").clicked()
                         && let Some(lattice_entity) = self.lattice_entity
-                        && let Some(lattice) = world.get_lattice_mut(lattice_entity)
+                        && let Some(lattice) = world.core.get_lattice_mut(lattice_entity)
                     {
                         lattice.reset_displacements();
                         self.selected_point = None;
@@ -281,7 +281,7 @@ impl LatticeState {
                 self.selected_point = Some((x, y, z));
                 self.is_dragging = true;
 
-                if let Some(lattice) = world.get_lattice(lattice_entity) {
+                if let Some(lattice) = world.core.get_lattice(lattice_entity) {
                     self.drag_start_displacement = lattice.get_displacement(x, y, z);
                 }
             } else {
@@ -297,7 +297,7 @@ impl LatticeState {
                     let world_delta = camera_right * mouse_delta.x * sensitivity
                         - camera_up * mouse_delta.y * sensitivity;
 
-                    if let Some(lattice) = world.get_lattice_mut(lattice_entity) {
+                    if let Some(lattice) = world.core.get_lattice_mut(lattice_entity) {
                         let current = lattice.get_displacement(x, y, z);
                         lattice.set_displacement(x, y, z, current + world_delta);
                     }
@@ -310,7 +310,7 @@ impl LatticeState {
 
     fn get_camera_vectors(&self, world: &World) -> Option<(Vec3, Vec3)> {
         let camera_entity = world.resources.active_camera?;
-        let camera_transform = world.get_global_transform(camera_entity)?;
+        let camera_transform = world.core.get_global_transform(camera_entity)?;
 
         let right = vec3(
             camera_transform.0[(0, 0)],
@@ -345,7 +345,7 @@ impl LatticeState {
             return;
         };
 
-        let Some(lattice) = world.get_lattice_mut(lattice_entity) else {
+        let Some(lattice) = world.core.get_lattice_mut(lattice_entity) else {
             return;
         };
 
@@ -413,7 +413,7 @@ impl LatticeState {
             let x_offset = (index as f32 - 2.0) * 0.8;
             let start_z = -6.0 - (index as f32 * 0.5);
 
-            world.set_local_transform(
+            world.core.set_local_transform(
                 entity,
                 LocalTransform {
                     translation: vec3(x_offset, 0.0, start_z),
@@ -422,7 +422,7 @@ impl LatticeState {
                 },
             );
 
-            world.set_render_mesh(entity, RenderMesh::new(mesh_name.clone()));
+            world.core.set_render_mesh(entity, RenderMesh::new(mesh_name.clone()));
 
             let material_name = format!("lattice_material_{}", self.primitives.len());
             material_registry_insert(
@@ -450,8 +450,8 @@ impl LatticeState {
                     .add_reference(mat_index);
             }
 
-            world.set_material_ref(entity, MaterialRef::new(material_name));
-            world.set_casts_shadow(entity, CastsShadow);
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_casts_shadow(entity, CastsShadow);
 
             register_entity_for_lattice_deformation(world, entity, lattice_entity);
 
@@ -467,7 +467,7 @@ impl LatticeState {
         let dt = world.resources.window.timing.delta_time;
 
         for primitive in &self.primitives {
-            if let Some(transform) = world.get_local_transform_mut(primitive.entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(primitive.entity) {
                 transform.translation.z += primitive.speed * self.animation_speed * dt;
 
                 if transform.translation.z > 6.0 {
@@ -478,7 +478,7 @@ impl LatticeState {
         }
 
         if let Some(helmet_entity) = self.helmet_entity {
-            if let Some(transform) = world.get_local_transform_mut(helmet_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(helmet_entity) {
                 transform.translation.z += 0.5 * self.animation_speed * dt;
 
                 if transform.translation.z > 6.0 {
@@ -565,7 +565,7 @@ impl LatticeState {
 
     fn set_tube_mode_visibility(&mut self, world: &mut World, visible: bool) {
         for primitive in &self.primitives {
-            world.set_visibility(primitive.entity, Visibility { visible });
+            world.core.set_visibility(primitive.entity, Visibility { visible });
         }
 
         if let Some(helmet_entity) = self.helmet_entity {
@@ -591,7 +591,7 @@ impl LatticeState {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             entity,
             LocalTransform {
                 translation: vec3(0.0, 1.04, 0.0),
@@ -600,7 +600,7 @@ impl LatticeState {
             },
         );
 
-        world.set_render_mesh(entity, RenderMesh::new("dinner_plate"));
+        world.core.set_render_mesh(entity, RenderMesh::new("dinner_plate"));
 
         material_registry_insert(
             &mut world.resources.material_registry,
@@ -627,8 +627,8 @@ impl LatticeState {
                 .add_reference(mat_index);
         }
 
-        world.set_material_ref(entity, MaterialRef::new("plate_material"));
-        world.set_casts_shadow(entity, CastsShadow);
+        world.core.set_material_ref(entity, MaterialRef::new("plate_material"));
+        world.core.set_casts_shadow(entity, CastsShadow);
 
         self.plate_entity = Some(entity);
     }
@@ -663,7 +663,7 @@ impl LatticeState {
             for prefab in result.prefabs {
                 let entity = nightshade::ecs::prefab::spawn_prefab(world, &prefab, position);
 
-                if let Some(transform) = world.get_local_transform_mut(entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(entity) {
                     transform.scale = vec3(scale, scale, scale);
                 }
                 world.mark_local_transform_dirty(entity);
@@ -705,7 +705,7 @@ impl LatticeState {
             (self.jelly_time * shake_freq * 0.7 + 1.0).cos() * shake_amplitude * 0.6 * shake_freq;
 
         if let Some(plate_entity) = self.plate_entity {
-            if let Some(transform) = world.get_local_transform_mut(plate_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(plate_entity) {
                 transform.translation.x = plate_x;
                 transform.translation.z = plate_z;
             }
@@ -713,7 +713,7 @@ impl LatticeState {
         }
 
         if let Some(pudding_entity) = self.jelly_helmet_entity {
-            if let Some(transform) = world.get_local_transform_mut(pudding_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(pudding_entity) {
                 transform.translation.x = plate_x;
                 transform.translation.z = plate_z;
             }
@@ -724,14 +724,14 @@ impl LatticeState {
             return;
         };
 
-        if let Some(lattice) = world.get_lattice_mut(jelly_lattice) {
+        if let Some(lattice) = world.core.get_lattice_mut(jelly_lattice) {
             lattice.bounds_min.x = -1.5 + plate_x;
             lattice.bounds_max.x = 1.5 + plate_x;
             lattice.bounds_min.z = -1.5 + plate_z;
             lattice.bounds_max.z = 1.5 + plate_z;
         }
 
-        let Some(lattice) = world.get_lattice_mut(jelly_lattice) else {
+        let Some(lattice) = world.core.get_lattice_mut(jelly_lattice) else {
             return;
         };
 
@@ -796,7 +796,7 @@ impl LatticeState {
             return;
         };
 
-        let Some(lattice) = world.get_lattice_mut(jelly_lattice) else {
+        let Some(lattice) = world.core.get_lattice_mut(jelly_lattice) else {
             return;
         };
 
@@ -852,15 +852,15 @@ impl LatticeState {
 }
 
 fn register_helmet_meshes(world: &mut World, entity: Entity, lattice_entity: Entity) {
-    if world.get_render_mesh(entity).is_some() {
+    if world.core.get_render_mesh(entity).is_some() {
         register_entity_for_lattice_deformation(world, entity, lattice_entity);
     }
 
     let children: Vec<Entity> = world
-        .query_entities(PARENT)
+        .core.query_entities(PARENT)
         .filter(|e| {
             world
-                .get_parent(*e)
+                .core.get_parent(*e)
                 .map(|p| p.0 == Some(entity))
                 .unwrap_or(false)
         })
@@ -872,13 +872,13 @@ fn register_helmet_meshes(world: &mut World, entity: Entity, lattice_entity: Ent
 }
 
 fn set_visibility_recursive(world: &mut World, entity: Entity, visible: bool) {
-    world.set_visibility(entity, Visibility { visible });
+    world.core.set_visibility(entity, Visibility { visible });
 
     let children: Vec<Entity> = world
-        .query_entities(PARENT)
+        .core.query_entities(PARENT)
         .filter(|e| {
             world
-                .get_parent(*e)
+                .core.get_parent(*e)
                 .map(|p| p.0 == Some(entity))
                 .unwrap_or(false)
         })

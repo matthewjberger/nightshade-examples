@@ -337,7 +337,7 @@ impl FarmingUi {
 
                                         stamina_bar = tree.add_progress_bar(1.0);
                                         if let Some(node) =
-                                            tree.world_mut().get_ui_layout_node_mut(stamina_bar)
+                                            tree.world_mut().ui.get_ui_layout_node_mut(stamina_bar)
                                         {
                                             node.flow_child_size =
                                                 Some(Ab(Vec2::new(bar_width, bar_height)).into());
@@ -385,7 +385,7 @@ impl FarmingUi {
                 self.gold_text = gold_text;
                 self.tool_text = tool_text;
                 if let Some(UiWidgetState::ProgressBar(data)) =
-                    tree.world_mut().get_ui_widget_state(stamina_bar)
+                    tree.world_mut().ui.get_ui_widget_state(stamina_bar)
                 {
                     self.stamina_bar_fill = data.fill_entity;
                 }
@@ -514,7 +514,7 @@ impl FarmingUi {
                     .flow(FlowDirection::Vertical, 4.0, 0.0)
                     .with_children(|tree| {
                         tree_health_bar = tree.add_progress_bar(1.0);
-                        if let Some(node) = tree.world_mut().get_ui_layout_node_mut(tree_health_bar)
+                        if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(tree_health_bar)
                         {
                             node.flow_child_size = Some(Ab(Vec2::new(200.0, 20.0)).into());
                         }
@@ -533,7 +533,7 @@ impl FarmingUi {
 
         self.tree_health_bar = tree_health_bar;
         if let Some(UiWidgetState::ProgressBar(data)) =
-            tree.world_mut().get_ui_widget_state(tree_health_bar)
+            tree.world_mut().ui.get_ui_widget_state(tree_health_bar)
         {
             self.tree_health_bar_fill = data.fill_entity;
         }
@@ -924,7 +924,7 @@ impl FarmingUi {
         } else {
             Vec4::new(0.9, 0.3, 0.2, 1.0)
         };
-        if let Some(color) = world.get_ui_node_color_mut(self.stamina_bar_fill) {
+        if let Some(color) = world.ui.get_ui_node_color_mut(self.stamina_bar_fill) {
             color.colors[UiBase::INDEX] = Some(stamina_color);
         }
 
@@ -955,7 +955,7 @@ impl FarmingUi {
                 Vec4::new(0.2, 0.2, 0.2, 0.8)
             };
 
-            if let Some(color) = world.get_ui_node_color_mut(self.hotbar_slots[index]) {
+            if let Some(color) = world.ui.get_ui_node_color_mut(self.hotbar_slots[index]) {
                 color.colors[UiBase::INDEX] = Some(bg_color);
             }
 
@@ -1017,7 +1017,7 @@ impl FarmingUi {
             } else {
                 Vec4::new(0.9, 0.2, 0.1, 1.0)
             };
-            if let Some(color) = world.get_ui_node_color_mut(self.tree_health_bar_fill) {
+            if let Some(color) = world.ui.get_ui_node_color_mut(self.tree_health_bar_fill) {
                 color.colors[UiBase::INDEX] = Some(health_color);
             }
         }
@@ -1041,10 +1041,10 @@ impl FarmingUi {
                 Vec4::new(0.2, 0.2, 0.2, 1.0)
             };
 
-            if let Some(color) = world.get_ui_node_color_mut(self.buy_tab) {
+            if let Some(color) = world.ui.get_ui_node_color_mut(self.buy_tab) {
                 color.colors[UiBase::INDEX] = Some(buy_bg);
             }
-            if let Some(color) = world.get_ui_node_color_mut(self.sell_tab) {
+            if let Some(color) = world.ui.get_ui_node_color_mut(self.sell_tab) {
                 color.colors[UiBase::INDEX] = Some(sell_bg);
             }
 
@@ -1060,7 +1060,7 @@ impl FarmingUi {
                     Vec4::new(0.0, 0.0, 0.0, 0.0)
                 };
 
-                if let Some(color) = world.get_ui_node_color_mut(self.shop_item_rows[index]) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.shop_item_rows[index]) {
                     color.colors[UiBase::INDEX] = Some(row_bg);
                 }
 
@@ -1108,7 +1108,7 @@ impl FarmingUi {
         {
             world.ui_set_text(self.dialogue_name_text, definition.name);
 
-            if let Some(color) = world.get_ui_node_color_mut(self.dialogue_header) {
+            if let Some(color) = world.ui.get_ui_node_color_mut(self.dialogue_header) {
                 color.colors[UiBase::INDEX] = Some(Vec4::new(
                     definition.color[0] * 0.5,
                     definition.color[1] * 0.5,
@@ -1117,7 +1117,7 @@ impl FarmingUi {
                 ));
             }
 
-            if let Some(color) = world.get_ui_node_color_mut(self.dialogue_name_entity) {
+            if let Some(color) = world.ui.get_ui_node_color_mut(self.dialogue_name_entity) {
                 color.colors[UiBase::INDEX] = Some(Vec4::new(
                     definition.color[0],
                     definition.color[1],

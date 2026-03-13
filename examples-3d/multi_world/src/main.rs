@@ -1454,7 +1454,7 @@ fn update_picking(world: &mut World, selected_entities: &mut Vec<Entity>) {
             let camera_entity = world.resources.active_camera;
 
             let found_entity = world
-                .query_entities(nightshade::ecs::RENDER_MESH | nightshade::ecs::GLOBAL_TRANSFORM)
+                .core.query_entities(nightshade::ecs::RENDER_MESH | nightshade::ecs::GLOBAL_TRANSFORM)
                 .find(|entity| {
                     if entity.id != entity_id {
                         return false;
@@ -1481,7 +1481,7 @@ fn update_picking(world: &mut World, selected_entities: &mut Vec<Entity>) {
                     selected_entities.push(entity);
                 }
 
-                if let Some(name) = world.get_name(entity) {
+                if let Some(name) = world.core.get_name(entity) {
                     tracing::info!("Selected: {}", name.0);
                 }
             } else if !shift_pressed && !ctrl_pressed {
@@ -1652,7 +1652,7 @@ impl MultiWorldDemo {
         spawn_floor(&mut play_world);
 
         let sun_entity = spawn_sun(&mut play_world);
-        if let Some(transform) = play_world.get_local_transform_mut(sun_entity) {
+        if let Some(transform) = play_world.core.get_local_transform_mut(sun_entity) {
             transform.translation = Vec3::new(10.0, 20.0, 10.0);
         }
 
@@ -1742,9 +1742,9 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .set_name(entity, Name(format!("Dancer_{}", counter)));
+            .core.set_name(entity, Name(format!("Dancer_{}", counter)));
 
-        if let Some(player) = instance.world.get_animation_player_mut(entity) {
+        if let Some(player) = instance.world.core.get_animation_player_mut(entity) {
             player.play(0);
             player.looping = true;
             player.speed = 0.8 + (counter % 5) as f32 * 0.1;
@@ -1787,7 +1787,7 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .set_name(entity, Name(format!("Helmet_{}", counter)));
+            .core.set_name(entity, Name(format!("Helmet_{}", counter)));
 
         instance.dirty = true;
         tracing::info!("Spawned helmet {} in {}", counter, instance.name);
@@ -1827,7 +1827,7 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .set_name(entity, Name(format!("PointLight_{}", counter)));
+            .core.set_name(entity, Name(format!("PointLight_{}", counter)));
 
         let sphere_entity = spawn_mesh(
             &mut instance.world,
@@ -1837,7 +1837,7 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .set_name(sphere_entity, Name(format!("LightBulb_{}", counter)));
+            .core.set_name(sphere_entity, Name(format!("LightBulb_{}", counter)));
 
         let mat_name = format!("EmissiveLight_{}", counter);
         let mat = Material {
@@ -1853,7 +1853,7 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .set_material_ref(sphere_entity, MaterialRef::new(mat_name));
+            .core.set_material_ref(sphere_entity, MaterialRef::new(mat_name));
 
         instance.dirty = true;
         tracing::info!("Spawned point light {} in {}", counter, instance.name);
@@ -1898,7 +1898,7 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .set_name(entity, Name(format!("SpotLight_{}", counter)));
+            .core.set_name(entity, Name(format!("SpotLight_{}", counter)));
 
         let cone_entity = spawn_mesh(
             &mut instance.world,
@@ -1908,7 +1908,7 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .set_name(cone_entity, Name(format!("SpotLightCone_{}", counter)));
+            .core.set_name(cone_entity, Name(format!("SpotLightCone_{}", counter)));
 
         let mat_name = format!("EmissiveSpot_{}", counter);
         let mat = Material {
@@ -1924,7 +1924,7 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .set_material_ref(cone_entity, MaterialRef::new(mat_name));
+            .core.set_material_ref(cone_entity, MaterialRef::new(mat_name));
 
         instance.dirty = true;
         tracing::info!("Spawned spot light {} in {}", counter, instance.name);
@@ -1958,13 +1958,13 @@ impl MultiWorldDemo {
         let entity = spawn_3d_text_at(&mut instance.world, text, position, 0.4);
         instance
             .world
-            .set_name(entity, Name(format!("Text_{}", counter)));
+            .core.set_name(entity, Name(format!("Text_{}", counter)));
 
         let colors = ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"];
         let color = colors[counter as usize % colors.len()];
         instance
             .world
-            .set_material_ref(entity, MaterialRef::new(color.to_string()));
+            .core.set_material_ref(entity, MaterialRef::new(color.to_string()));
 
         instance.dirty = true;
         tracing::info!("Spawned text '{}' ({}) in {}", text, counter, instance.name);
@@ -1992,7 +1992,7 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .set_name(entity, Name(format!("Cube_{}", counter)));
+            .core.set_name(entity, Name(format!("Cube_{}", counter)));
 
         let colors = [
             "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange", "White",
@@ -2000,7 +2000,7 @@ impl MultiWorldDemo {
         let color = colors[counter as usize % colors.len()];
         instance
             .world
-            .set_material_ref(entity, MaterialRef::new(color.to_string()));
+            .core.set_material_ref(entity, MaterialRef::new(color.to_string()));
 
         let animated = AnimatedEntity {
             entity,
@@ -2042,7 +2042,7 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .set_name(entity, Name(format!("Sphere_{}", counter)));
+            .core.set_name(entity, Name(format!("Sphere_{}", counter)));
 
         let colors = [
             "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange", "White",
@@ -2050,7 +2050,7 @@ impl MultiWorldDemo {
         let color = colors[counter as usize % colors.len()];
         instance
             .world
-            .set_material_ref(entity, MaterialRef::new(color.to_string()));
+            .core.set_material_ref(entity, MaterialRef::new(color.to_string()));
 
         let animated = AnimatedEntity {
             entity,
@@ -2093,7 +2093,7 @@ impl MultiWorldDemo {
         let direction = -position.normalize();
         let rotation = nalgebra_glm::quat_look_at(&direction, &Vec3::new(0.0, 1.0, 0.0));
 
-        instance.world.set_local_transform(
+        instance.world.core.set_local_transform(
             entity,
             LocalTransform {
                 translation: position,
@@ -2104,7 +2104,7 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .set_name(entity, Name(format!("TVScreen_{}", counter)));
+            .core.set_name(entity, Name(format!("TVScreen_{}", counter)));
 
         let texture_name = if let Some(target_id) = target_world_id {
             format!("world_{}_render", target_id)
@@ -2129,7 +2129,7 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .set_material_ref(entity, MaterialRef::new(material_name));
+            .core.set_material_ref(entity, MaterialRef::new(material_name));
 
         instance.dirty = true;
         if let Some(target_id) = target_world_id {
@@ -2332,20 +2332,20 @@ fn spawn_floor(world: &mut World) {
         Vec3::new(0.0, -0.5, 0.0),
         Vec3::new(20.0, 1.0, 20.0),
     );
-    world.set_name(entity, Name("Floor".to_string()));
-    world.set_material_ref(entity, MaterialRef::new("White".to_string()));
+    world.core.set_name(entity, Name("Floor".to_string()));
+    world.core.set_material_ref(entity, MaterialRef::new("White".to_string()));
 }
 
 fn spawn_scaled_cube(world: &mut World, position: Vec3, scale: Vec3, name: String) -> Entity {
     let entity = spawn_mesh(world, "Cube", position, scale);
     let name_len = name.len();
-    world.set_name(entity, Name(name));
+    world.core.set_name(entity, Name(name));
 
     let colors = [
         "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange",
     ];
     let color_index = (entity.id as usize + name_len) % colors.len();
-    world.set_material_ref(entity, MaterialRef::new(colors[color_index].to_string()));
+    world.core.set_material_ref(entity, MaterialRef::new(colors[color_index].to_string()));
 
     entity
 }
@@ -2366,7 +2366,7 @@ fn spawn_point_light(
         1,
     )[0];
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -2374,9 +2374,9 @@ fn spawn_point_light(
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_light(
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_light(
         entity,
         Light {
             light_type: LightType::Point,
@@ -2415,7 +2415,7 @@ fn spawn_spotlight(world: &mut World, params: SpotlightParams) -> Entity {
 
     let rotation = nalgebra_glm::quat_rotation(&Vec3::new(0.0, -1.0, 0.0), &params.direction);
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: params.position,
@@ -2423,9 +2423,9 @@ fn spawn_spotlight(world: &mut World, params: SpotlightParams) -> Entity {
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_light(
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_light(
         entity,
         Light {
             light_type: LightType::Spot,
@@ -2456,8 +2456,8 @@ fn spawn_3d_text_at(world: &mut World, text_str: &str, position: Vec3, size: f32
         1,
     )[0];
 
-    world.set_name(entity, Name(text_str.to_string()));
-    world.set_local_transform(
+    world.core.set_name(entity, Name(text_str.to_string()));
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -2465,17 +2465,17 @@ fn spawn_3d_text_at(world: &mut World, text_str: &str, position: Vec3, size: f32
             scale: Vec3::new(size, size, size),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_text(entity, Text::new(text_index));
-    world.set_visibility(entity, Visibility { visible: true });
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_text(entity, Text::new(text_index));
+    world.core.set_visibility(entity, Visibility { visible: true });
 
     entity
 }
 
 fn animate_objects_fixed(world: &mut World, total_time: f32, animated_entities: &[AnimatedEntity]) {
     for anim in animated_entities {
-        let Some(transform) = world.get_local_transform_mut(anim.entity) else {
+        let Some(transform) = world.core.get_local_transform_mut(anim.entity) else {
             continue;
         };
 
@@ -2524,7 +2524,7 @@ fn animate_objects_fixed(world: &mut World, total_time: f32, animated_entities: 
             }
         }
 
-        world.set_local_transform_dirty(anim.entity, LocalTransformDirty);
+        world.core.set_local_transform_dirty(anim.entity, LocalTransformDirty);
     }
 }
 
@@ -2578,7 +2578,7 @@ fn apply_gamepad_to_pan_orbit(world: &mut World, input: &GamepadInput, delta_tim
         return;
     };
 
-    let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) else {
+    let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera_entity) else {
         return;
     };
 

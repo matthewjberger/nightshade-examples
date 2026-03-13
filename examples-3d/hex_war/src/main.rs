@@ -46,8 +46,8 @@ fn spawn_ocean(world: &mut World) -> Entity {
     use nightshade::ecs::world::WATER;
 
     let entity = world.spawn_entities(WATER | NAME, 1)[0];
-    world.set_name(entity, Name("Ocean".to_string()));
-    world.set_water(
+    world.core.set_name(entity, Name("Ocean".to_string()));
+    world.core.set_water(
         entity,
         Water {
             base_height: -0.2,
@@ -87,7 +87,7 @@ fn fps_display_system(world: &mut World, entity: Entity, visible: bool) {
     if !visible {
         return;
     }
-    let Some(text_index) = world.get_hud_text(entity).map(|t| t.text_index) else {
+    let Some(text_index) = world.core.get_hud_text(entity).map(|t| t.text_index) else {
         return;
     };
     let fps = world.resources.window.timing.frames_per_second;
@@ -95,13 +95,13 @@ fn fps_display_system(world: &mut World, entity: Entity, visible: bool) {
         .resources
         .text_cache
         .set_text(text_index, format!("FPS: {:.0}", fps));
-    if let Some(hud_text) = world.get_hud_text_mut(entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
         hud_text.dirty = true;
     }
 }
 
 fn toggle_fps_display(world: &mut World, entity: Entity, visible: bool) {
-    let Some(text_index) = world.get_hud_text(entity).map(|t| t.text_index) else {
+    let Some(text_index) = world.core.get_hud_text(entity).map(|t| t.text_index) else {
         return;
     };
     if visible {
@@ -113,7 +113,7 @@ fn toggle_fps_display(world: &mut World, entity: Entity, visible: bool) {
     } else {
         world.resources.text_cache.set_text(text_index, "");
     }
-    if let Some(hud_text) = world.get_hud_text_mut(entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
         hud_text.dirty = true;
     }
 }
@@ -341,7 +341,7 @@ impl State for HexWarGame {
             std::f32::consts::FRAC_PI_2 - 0.01,
             "Hex War Camera".to_string(),
         );
-        if let Some(camera) = world.get_camera_mut(camera_entity) {
+        if let Some(camera) = world.core.get_camera_mut(camera_entity) {
             camera.projection = Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,
                 y_fov_rad: 45.0_f32.to_radians(),

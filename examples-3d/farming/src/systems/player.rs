@@ -234,7 +234,7 @@ pub fn update_movement(game: &mut GameWorld, world: &mut World, input: &InputSta
     game.modify_position(player_entity, |pos| pos.0 = new_position);
 
     if let Some(visual) = game.resources.visuals.player_visual {
-        if let Some(transform) = world.get_local_transform_mut(visual) {
+        if let Some(transform) = world.core.get_local_transform_mut(visual) {
             transform.translation = new_position;
         }
         mark_local_transform_dirty(world, visual);

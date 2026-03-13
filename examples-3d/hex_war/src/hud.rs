@@ -132,13 +132,13 @@ pub fn update_game_hud(
     let is_player_turn = game_world.resources.current_faction == player_faction;
 
     if let Some(turn_entity) = hud.turn_text
-        && let Some(text_index) = world.get_hud_text(turn_entity).map(|t| t.text_index)
+        && let Some(text_index) = world.core.get_hud_text(turn_entity).map(|t| t.text_index)
     {
         world.resources.text_cache.set_text(
             text_index,
             format!("Turn {}", game_world.resources.turn_number),
         );
-        if let Some(hud_text) = world.get_hud_text_mut(turn_entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(turn_entity) {
             hud_text.dirty = true;
         }
     }
@@ -148,33 +148,33 @@ pub fn update_game_hud(
         let name = faction_name(faction);
         let color = faction_color(faction);
 
-        if let Some(text_index) = world.get_hud_text(faction_entity).map(|t| t.text_index) {
+        if let Some(text_index) = world.core.get_hud_text(faction_entity).map(|t| t.text_index) {
             world
                 .resources
                 .text_cache
                 .set_text(text_index, name.to_string());
         }
-        if let Some(hud_text) = world.get_hud_text_mut(faction_entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(faction_entity) {
             hud_text.properties.color = nalgebra_glm::vec4(color[0], color[1], color[2], color[3]);
             hud_text.dirty = true;
         }
     }
 
     if let Some(actions_entity) = hud.actions_text
-        && let Some(text_index) = world.get_hud_text(actions_entity).map(|t| t.text_index)
+        && let Some(text_index) = world.core.get_hud_text(actions_entity).map(|t| t.text_index)
     {
         world.resources.text_cache.set_text(
             text_index,
             format!("Actions: {}", game_world.resources.actions_remaining),
         );
-        if let Some(hud_text) = world.get_hud_text_mut(actions_entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(actions_entity) {
             hud_text.dirty = true;
         }
     }
 
     if let Some(instructions_entity) = hud.instructions_text
         && let Some(text_index) = world
-            .get_hud_text(instructions_entity)
+            .core.get_hud_text(instructions_entity)
             .map(|t| t.text_index)
     {
         let instructions = if is_player_turn {
@@ -186,13 +186,13 @@ pub fn update_game_hud(
             .resources
             .text_cache
             .set_text(text_index, instructions.to_string());
-        if let Some(hud_text) = world.get_hud_text_mut(instructions_entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(instructions_entity) {
             hud_text.dirty = true;
         }
     }
 
     if let Some(speed_entity) = hud.speed_text
-        && let Some(text_index) = world.get_hud_text(speed_entity).map(|t| t.text_index)
+        && let Some(text_index) = world.core.get_hud_text(speed_entity).map(|t| t.text_index)
     {
         let speed = game_world.resources.game_speed;
         let speed_text = if speed >= 1.0 {
@@ -201,7 +201,7 @@ pub fn update_game_hud(
             format!("Speed: {:.2}x", speed)
         };
         world.resources.text_cache.set_text(text_index, speed_text);
-        if let Some(hud_text) = world.get_hud_text_mut(speed_entity) {
+        if let Some(hud_text) = world.core.get_hud_text_mut(speed_entity) {
             hud_text.dirty = true;
         }
     }

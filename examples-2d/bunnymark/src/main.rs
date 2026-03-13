@@ -49,7 +49,7 @@ impl State for BunnyWorld {
         let half_x = self.resources.max_x / 2.0;
         let half_y = self.resources.max_y / 2.0;
         let camera = spawn_ortho_camera(world, Vec2::new(half_x, half_y));
-        if let Some(camera_data) = world.get_camera_mut(camera)
+        if let Some(camera_data) = world.core.get_camera_mut(camera)
             && let Projection::Orthographic(ref mut ortho) = camera_data.projection
         {
             ortho.x_mag = half_x;
@@ -148,7 +148,7 @@ fn spawn_bunnies(world: &mut World, bunny_world: &mut BunnyWorld, count: usize) 
     let new_entities = world.spawn_entities(SPRITE | VISIBILITY, count);
 
     for &entity in &new_entities {
-        if let Some(sprite) = world.get_sprite_mut(entity) {
+        if let Some(sprite) = world.core.get_sprite_mut(entity) {
             sprite.position = Vec2::new(spawn_x, spawn_y);
             sprite.texture_index = 0;
             sprite.uv_min = Vec2::new(0.0, 0.0);
@@ -157,7 +157,7 @@ fn spawn_bunnies(world: &mut World, bunny_world: &mut BunnyWorld, count: usize) 
             sprite.size = Vec2::new(BUNNY_SIZE, BUNNY_SIZE);
         }
 
-        if let Some(visibility) = world.get_visibility_mut(entity) {
+        if let Some(visibility) = world.core.get_visibility_mut(entity) {
             visibility.visible = true;
         }
 
@@ -231,7 +231,7 @@ fn update_physics(world: &mut World, bunny_world: &mut BunnyWorld) {
 
         velocity.y += GRAVITY * delta_time;
 
-        if let Some(sprite) = world.get_sprite_mut(entity) {
+        if let Some(sprite) = world.core.get_sprite_mut(entity) {
             sprite.position.x += velocity.x * delta_time;
             sprite.position.y += velocity.y * delta_time;
 
@@ -259,7 +259,7 @@ fn update_hud(world: &mut World, bunny_world: &BunnyWorld) {
     let count = bunny_world.resources.engine_entities.len();
 
     if let Some(fps_entity) = bunny_world.resources.fps_text
-        && let Some(text_index) = world.get_hud_text(fps_entity).map(|text| text.text_index)
+        && let Some(text_index) = world.core.get_hud_text(fps_entity).map(|text| text.text_index)
     {
         world
             .resources
@@ -271,27 +271,27 @@ fn update_hud(world: &mut World, bunny_world: &BunnyWorld) {
         } else {
             Vec4::new(1.0, 0.3, 0.3, 1.0)
         };
-        if let Some(hud) = world.get_hud_text_mut(fps_entity) {
+        if let Some(hud) = world.core.get_hud_text_mut(fps_entity) {
             hud.properties.color = color;
             hud.dirty = true;
         }
     }
 
     if let Some(count_entity) = bunny_world.resources.count_text
-        && let Some(text_index) = world.get_hud_text(count_entity).map(|text| text.text_index)
+        && let Some(text_index) = world.core.get_hud_text(count_entity).map(|text| text.text_index)
     {
         world.resources.text_cache.set_text(
             text_index,
             format!("Bunnies: {}", format_number_with_commas(count)),
         );
-        if let Some(hud) = world.get_hud_text_mut(count_entity) {
+        if let Some(hud) = world.core.get_hud_text_mut(count_entity) {
             hud.dirty = true;
         }
     }
 
     if let Some(status_entity) = bunny_world.resources.status_text
         && let Some(text_index) = world
-            .get_hud_text(status_entity)
+            .core.get_hud_text(status_entity)
             .map(|text| text.text_index)
     {
         let (text, color) = if bunny_world.resources.done {
@@ -307,7 +307,7 @@ fn update_hud(world: &mut World, bunny_world: &BunnyWorld) {
             ("Spawning...".to_string(), Vec4::new(0.5, 1.0, 0.5, 1.0))
         };
         world.resources.text_cache.set_text(text_index, text);
-        if let Some(hud) = world.get_hud_text_mut(status_entity) {
+        if let Some(hud) = world.core.get_hud_text_mut(status_entity) {
             hud.properties.color = color;
             hud.dirty = true;
         }

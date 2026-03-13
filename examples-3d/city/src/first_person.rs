@@ -23,7 +23,7 @@ const MAX_COLLIDER_CHUNKS_PER_FRAME: usize = 2;
 pub fn enter_first_person(demo: &mut CityDemo, world: &mut World) {
     let camera_pos = demo
         .camera_entity
-        .and_then(|entity| world.get_local_transform(entity))
+        .and_then(|entity| world.core.get_local_transform(entity))
         .map(|t| t.translation)
         .unwrap_or(Vec3::new(0.0, 2.0, 0.0));
 
@@ -33,11 +33,11 @@ pub fn enter_first_person(demo: &mut CityDemo, world: &mut World) {
     demo.player_entity = Some(player_entity);
     demo.player_camera_entity = Some(player_camera);
 
-    if let Some(transform) = world.get_local_transform_mut(player_camera) {
+    if let Some(transform) = world.core.get_local_transform_mut(player_camera) {
         transform.translation.y = crate::player_systems::STANDING_CAMERA_HEIGHT;
     }
 
-    if let Some(camera_component) = world.get_camera_mut(player_camera) {
+    if let Some(camera_component) = world.core.get_camera_mut(player_camera) {
         camera_component.projection = Projection::Perspective(PerspectiveCamera {
             aspect_ratio: None,
             y_fov_rad: 60.0_f32.to_radians(),
@@ -52,7 +52,7 @@ pub fn enter_first_person(demo: &mut CityDemo, world: &mut World) {
 
     let flashlight_entity = player_systems::spawn_flashlight(world);
     world.update_parent(flashlight_entity, Some(Parent(Some(player_camera))));
-    if let Some(transform) = world.get_local_transform_mut(flashlight_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(flashlight_entity) {
         transform.translation = Vec3::new(0.0, 0.0, 0.0);
     }
     world.mark_local_transform_dirty(flashlight_entity);
@@ -72,7 +72,7 @@ pub fn enter_first_person(demo: &mut CityDemo, world: &mut World) {
 pub fn exit_first_person(demo: &mut CityDemo, world: &mut World) {
     let restore_position = demo
         .player_camera_entity
-        .and_then(|entity| world.get_global_transform(entity))
+        .and_then(|entity| world.core.get_global_transform(entity))
         .map(|t| t.translation())
         .unwrap_or(Vec3::new(0.0, 30.0, 0.0));
 
@@ -100,7 +100,7 @@ pub fn exit_first_person(demo: &mut CityDemo, world: &mut World) {
 
     if let Some(camera) = demo.camera_entity {
         world.resources.active_camera = Some(camera);
-        if let Some(transform) = world.get_local_transform_mut(camera) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera) {
             transform.translation = Vec3::new(
                 restore_position.x,
                 restore_position.y.max(2.0),
@@ -146,7 +146,7 @@ fn spawn_player_hands(demo: &mut CityDemo, world: &mut World) {
 
                 world.update_parent(hands_entity, Some(Parent(Some(camera_entity))));
 
-                if let Some(transform) = world.get_local_transform_mut(hands_entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(hands_entity) {
                     let view_model_scale = 0.4;
                     transform.translation = Vec3::new(0.0, -0.02, -0.06);
                     transform.rotation = nalgebra_glm::quat_angle_axis(
@@ -158,7 +158,7 @@ fn spawn_player_hands(demo: &mut CityDemo, world: &mut World) {
                 }
                 world.mark_local_transform_dirty(hands_entity);
 
-                if let Some(player) = world.get_animation_player_mut(hands_entity)
+                if let Some(player) = world.core.get_animation_player_mut(hands_entity)
                     && player.clips.len() > 9
                 {
                     player.blend_to(9, 0.0);
@@ -182,7 +182,7 @@ fn spawn_ground_collider(demo: &mut CityDemo, world: &mut World) {
         half_extent,
     );
 
-    if let Some(collider) = world.get_collider_mut(entity) {
+    if let Some(collider) = world.core.get_collider_mut(entity) {
         collider.friction = 0.7;
     }
 
@@ -427,16 +427,16 @@ fn spawn_static_cuboid(world: &mut World, position: Vec3, hx: f32, hy: f32, hz: 
         1,
     )[0];
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
     }
 
-    if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+    if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
         *rigid_body =
             RigidBodyComponent::new_static().with_translation(position.x, position.y, position.z);
     }
 
-    if let Some(collider) = world.get_collider_mut(entity) {
+    if let Some(collider) = world.core.get_collider_mut(entity) {
         *collider = ColliderComponent {
             shape: ColliderShape::Cuboid { hx, hy, hz },
             friction: 0.5,

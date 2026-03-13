@@ -19,20 +19,20 @@ fn spawn_mesh(world: &mut World, mesh_name: &str, position: Vec3, scale: Vec3) -
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         name.0 = format!("NPC_{}", entity.id);
     }
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
         transform.scale = scale;
     }
 
-    if let Some(mesh) = world.get_render_mesh_mut(entity) {
+    if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
         mesh.name = mesh_name.to_string();
     }
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume =
             nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
     }
@@ -41,7 +41,7 @@ fn spawn_mesh(world: &mut World, mesh_name: &str, position: Vec3, scale: Vec3) -
 }
 
 fn mark_local_transform_dirty(world: &mut World, entity: Entity) {
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
 }
 
 pub fn sample_lowest_navmesh_height(world: &World, x: f32, z: f32) -> Option<f32> {
@@ -119,7 +119,7 @@ pub fn spawn_npcs(game: &mut ImmersiveSim, world: &mut World) {
             Vec3::new(npc_def.position.x, visual_y, npc_def.position.z),
             Vec3::new(NPC_RADIUS * 2.0, NPC_HEIGHT, NPC_RADIUS * 2.0),
         );
-        world.set_casts_shadow(visual, CastsShadow);
+        world.core.set_casts_shadow(visual, CastsShadow);
         mark_local_transform_dirty(world, visual);
 
         let mat_name = format!("Npc_{}", index);
@@ -146,7 +146,7 @@ pub fn spawn_npcs(game: &mut ImmersiveSim, world: &mut World) {
                 .registry
                 .add_reference(mat_index);
         }
-        world.set_material_ref(visual, MaterialRef::new(mat_name));
+        world.core.set_material_ref(visual, MaterialRef::new(mat_name));
 
         game.npc_entities.push(visual);
     }
@@ -156,11 +156,11 @@ pub fn get_looked_at_npc(game: &ImmersiveSim, world: &World) -> Option<usize> {
     let camera_entity = game.camera_entity?;
 
     let camera_pos = world
-        .get_global_transform(camera_entity)
+        .core.get_global_transform(camera_entity)
         .map(|t| t.translation())?;
 
     let camera_forward = world
-        .get_global_transform(camera_entity)
+        .core.get_global_transform(camera_entity)
         .map(|t| t.forward_vector())?;
 
     let mut looked_at_npc: Option<usize> = None;
@@ -168,7 +168,7 @@ pub fn get_looked_at_npc(game: &ImmersiveSim, world: &World) -> Option<usize> {
 
     for (index, &npc_entity) in game.npc_entities.iter().enumerate() {
         let npc_pos = world
-            .get_local_transform(npc_entity)
+            .core.get_local_transform(npc_entity)
             .map(|t| t.translation)
             .unwrap_or(Vec3::zeros());
 

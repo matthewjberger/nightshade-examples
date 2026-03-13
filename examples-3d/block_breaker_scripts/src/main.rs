@@ -486,7 +486,7 @@ impl State for BlockBreakerScripts {
             match spawn_scene(world, &scene, None) {
                 Ok(result) => {
                     for &entity in result.uuid_to_entity.values() {
-                        if let Some(name) = world.get_name(entity)
+                        if let Some(name) = world.core.get_name(entity)
                             && name.0 == "Camera_Lens"
                         {
                             world.resources.active_camera = Some(entity);
@@ -597,33 +597,33 @@ impl State for BlockBreakerScripts {
         world.resources.script_runtime = runtime;
 
         if let Some(score_entity) = self.score_text
-            && let Some(hud_text) = world.get_hud_text(score_entity)
+            && let Some(hud_text) = world.core.get_hud_text(score_entity)
         {
             let text_index = hud_text.text_index;
             world
                 .resources
                 .text_cache
                 .set_text(text_index, format!("Score: {}", score));
-            if let Some(hud_text) = world.get_hud_text_mut(score_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(score_entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(lives_entity) = self.lives_text
-            && let Some(hud_text) = world.get_hud_text(lives_entity)
+            && let Some(hud_text) = world.core.get_hud_text(lives_entity)
         {
             let text_index = hud_text.text_index;
             world
                 .resources
                 .text_cache
                 .set_text(text_index, format!("Lives: {}", lives.max(0)));
-            if let Some(hud_text) = world.get_hud_text_mut(lives_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(lives_entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(combo_entity) = self.combo_text
-            && let Some(hud_text) = world.get_hud_text(combo_entity)
+            && let Some(hud_text) = world.core.get_hud_text(combo_entity)
         {
             let text_index = hud_text.text_index;
             if combo > 1 {
@@ -634,13 +634,13 @@ impl State for BlockBreakerScripts {
             } else {
                 world.resources.text_cache.set_text(text_index, "");
             }
-            if let Some(hud_text) = world.get_hud_text_mut(combo_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(combo_entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(message_entity) = self.message_text
-            && let Some(hud_text) = world.get_hud_text(message_entity)
+            && let Some(hud_text) = world.core.get_hud_text(message_entity)
         {
             let text_index = hud_text.text_index;
             let message = if current_game_state > 1.5 && current_game_state < 2.5 {
@@ -651,13 +651,13 @@ impl State for BlockBreakerScripts {
                 ""
             };
             world.resources.text_cache.set_text(text_index, message);
-            if let Some(hud_text) = world.get_hud_text_mut(message_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(message_entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(start_entity) = self.start_text
-            && let Some(hud_text) = world.get_hud_text(start_entity)
+            && let Some(hud_text) = world.core.get_hud_text(start_entity)
         {
             let text_index = hud_text.text_index;
             let start_message = if current_game_state < 0.5 {
@@ -669,7 +669,7 @@ impl State for BlockBreakerScripts {
                 .resources
                 .text_cache
                 .set_text(text_index, start_message);
-            if let Some(hud_text) = world.get_hud_text_mut(start_entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(start_entity) {
                 hud_text.dirty = true;
             }
         }

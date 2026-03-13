@@ -307,15 +307,15 @@ pub fn spawn_chain_light(demo: &mut HorrorDemo, world: &mut World, anchor_pos: V
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(anchor_entity) {
+    if let Some(name) = world.core.get_name_mut(anchor_entity) {
         name.0 = "Chain Anchor".to_string();
     }
 
-    if let Some(transform) = world.get_local_transform_mut(anchor_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(anchor_entity) {
         transform.translation = anchor_position;
     }
 
-    if let Some(rigid_body) = world.get_rigid_body_mut(anchor_entity) {
+    if let Some(rigid_body) = world.core.get_rigid_body_mut(anchor_entity) {
         *rigid_body = RigidBodyComponent::new_static().with_translation(
             anchor_position.x,
             anchor_position.y,
@@ -324,10 +324,10 @@ pub fn spawn_chain_light(demo: &mut HorrorDemo, world: &mut World, anchor_pos: V
     }
 
     let anchor_handle = {
-        let rigid_body_comp = world.get_rigid_body(anchor_entity).cloned().unwrap();
+        let rigid_body_comp = world.core.get_rigid_body(anchor_entity).cloned().unwrap();
         let rigid_body = rigid_body_comp.to_rapier_rigid_body();
         let handle = world.resources.physics.add_rigid_body(rigid_body);
-        if let Some(rigid_body_mut) = world.get_rigid_body_mut(anchor_entity) {
+        if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(anchor_entity) {
             rigid_body_mut.handle = Some(handle.into());
         }
         handle
@@ -360,16 +360,16 @@ pub fn spawn_chain_light(demo: &mut HorrorDemo, world: &mut World, anchor_pos: V
             1,
         )[0];
 
-        if let Some(name) = world.get_name_mut(entity) {
+        if let Some(name) = world.core.get_name_mut(entity) {
             name.0 = format!("Chain Link {}", link_index + 1);
         }
 
-        if let Some(transform) = world.get_local_transform_mut(entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(entity) {
             transform.translation = link_position;
             transform.scale = nalgebra_glm::vec3(link_radius * 2.0, link_length, link_radius * 2.0);
         }
 
-        if let Some(mesh) = world.get_render_mesh_mut(entity) {
+        if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
             mesh.name = "Cylinder".to_string();
         }
 
@@ -392,35 +392,35 @@ pub fn spawn_chain_light(demo: &mut HorrorDemo, world: &mut World, anchor_pos: V
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(entity, MaterialRef::new(material_name));
+        world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-        if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
+        if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
             *bounding_volume =
                 nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
         }
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
                 .with_translation(link_position.x, link_position.y, link_position.z)
                 .with_mass(0.05);
         }
 
-        if let Some(collider) = world.get_collider_mut(entity) {
+        if let Some(collider) = world.core.get_collider_mut(entity) {
             *collider =
                 ColliderComponent::new_capsule(link_length / 2.0 - link_radius, link_radius)
                     .with_friction(0.3);
         }
 
         let handle = {
-            let rigid_body_comp = world.get_rigid_body(entity).cloned().unwrap();
-            let collider_comp = world.get_collider(entity).cloned();
+            let rigid_body_comp = world.core.get_rigid_body(entity).cloned().unwrap();
+            let collider_comp = world.core.get_collider(entity).cloned();
             let rigid_body = rigid_body_comp.to_rapier_rigid_body();
             let handle = world.resources.physics.add_rigid_body(rigid_body);
             if let Some(collider_comp) = collider_comp {
                 let collider = collider_comp.to_rapier_collider();
                 world.resources.physics.add_collider(collider, handle);
             }
-            if let Some(rigid_body_mut) = world.get_rigid_body_mut(entity) {
+            if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(entity) {
                 rigid_body_mut.handle = Some(handle.into());
             }
             if let Some(rb) = world.resources.physics.rigid_body_set.get_mut(handle) {
@@ -467,16 +467,16 @@ pub fn spawn_chain_light(demo: &mut HorrorDemo, world: &mut World, anchor_pos: V
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(lantern_entity) {
+    if let Some(name) = world.core.get_name_mut(lantern_entity) {
         name.0 = "Lantern".to_string();
     }
 
-    if let Some(transform) = world.get_local_transform_mut(lantern_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(lantern_entity) {
         transform.translation = lantern_position;
         transform.scale = nalgebra_glm::vec3(0.2, 0.3, 0.2);
     }
 
-    if let Some(mesh) = world.get_render_mesh_mut(lantern_entity) {
+    if let Some(mesh) = world.core.get_render_mesh_mut(lantern_entity) {
         mesh.name = "Cube".to_string();
     }
 
@@ -499,33 +499,33 @@ pub fn spawn_chain_light(demo: &mut HorrorDemo, world: &mut World, anchor_pos: V
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(lantern_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(lantern_entity, MaterialRef::new(material_name));
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(lantern_entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(lantern_entity) {
         *bounding_volume =
             nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
     }
 
-    if let Some(rigid_body) = world.get_rigid_body_mut(lantern_entity) {
+    if let Some(rigid_body) = world.core.get_rigid_body_mut(lantern_entity) {
         *rigid_body = RigidBodyComponent::new_dynamic()
             .with_translation(lantern_position.x, lantern_position.y, lantern_position.z)
             .with_mass(0.3);
     }
 
-    if let Some(collider) = world.get_collider_mut(lantern_entity) {
+    if let Some(collider) = world.core.get_collider_mut(lantern_entity) {
         *collider = ColliderComponent::new_cuboid(0.1, 0.15, 0.1).with_friction(0.5);
     }
 
     let lantern_handle = {
-        let rigid_body_comp = world.get_rigid_body(lantern_entity).cloned().unwrap();
-        let collider_comp = world.get_collider(lantern_entity).cloned();
+        let rigid_body_comp = world.core.get_rigid_body(lantern_entity).cloned().unwrap();
+        let collider_comp = world.core.get_collider(lantern_entity).cloned();
         let rigid_body = rigid_body_comp.to_rapier_rigid_body();
         let handle = world.resources.physics.add_rigid_body(rigid_body);
         if let Some(collider_comp) = collider_comp {
             let collider = collider_comp.to_rapier_collider();
             world.resources.physics.add_collider(collider, handle);
         }
-        if let Some(rigid_body_mut) = world.get_rigid_body_mut(lantern_entity) {
+        if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(lantern_entity) {
             rigid_body_mut.handle = Some(handle.into());
         }
         if let Some(rb) = world.resources.physics.rigid_body_set.get_mut(handle) {
@@ -550,15 +550,15 @@ pub fn spawn_chain_light(demo: &mut HorrorDemo, world: &mut World, anchor_pos: V
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(light_entity) {
+    if let Some(name) = world.core.get_name_mut(light_entity) {
         name.0 = "Lantern Light".to_string();
     }
 
-    if let Some(transform) = world.get_local_transform_mut(light_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(light_entity) {
         transform.translation = lantern_position;
     }
 
-    if let Some(light) = world.get_light_mut(light_entity) {
+    if let Some(light) = world.core.get_light_mut(light_entity) {
         *light = Light {
             light_type: LightType::Point,
             color: nalgebra_glm::vec3(1.0, 0.85, 0.6),
@@ -657,16 +657,16 @@ pub fn spawn_note(
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(note_entity) {
+    if let Some(name) = world.core.get_name_mut(note_entity) {
         name.0 = format!("Note_{}", demo.notes.len());
     }
 
-    if let Some(transform) = world.get_local_transform_mut(note_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(note_entity) {
         transform.translation = nalgebra_glm::vec3(position.x, position.y + 0.003, position.z);
         transform.scale = nalgebra_glm::vec3(0.12, 0.002, 0.16);
     }
 
-    if let Some(mesh) = world.get_render_mesh_mut(note_entity) {
+    if let Some(mesh) = world.core.get_render_mesh_mut(note_entity) {
         mesh.name = "Cube".to_string();
     }
 
@@ -689,14 +689,14 @@ pub fn spawn_note(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(note_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(note_entity, MaterialRef::new(material_name));
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(note_entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(note_entity) {
         *bounding_volume =
             nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
     }
 
-    if let Some(rigid_body) = world.get_rigid_body_mut(note_entity) {
+    if let Some(rigid_body) = world.core.get_rigid_body_mut(note_entity) {
         *rigid_body = RigidBodyComponent::new_static().with_translation(
             position.x,
             position.y + 0.003,
@@ -704,19 +704,19 @@ pub fn spawn_note(
         );
     }
 
-    if let Some(collider) = world.get_collider_mut(note_entity) {
+    if let Some(collider) = world.core.get_collider_mut(note_entity) {
         *collider = ColliderComponent::new_cuboid(0.06, 0.001, 0.08).with_friction(0.5);
     }
 
-    let rigid_body_comp = world.get_rigid_body(note_entity).cloned().unwrap();
-    let collider_comp = world.get_collider(note_entity).cloned();
+    let rigid_body_comp = world.core.get_rigid_body(note_entity).cloned().unwrap();
+    let collider_comp = world.core.get_collider(note_entity).cloned();
     let rigid_body = rigid_body_comp.to_rapier_rigid_body();
     let handle = world.resources.physics.add_rigid_body(rigid_body);
     if let Some(collider_comp) = collider_comp {
         let collider = collider_comp.to_rapier_collider();
         world.resources.physics.add_collider(collider, handle);
     }
-    if let Some(rigid_body_mut) = world.get_rigid_body_mut(note_entity) {
+    if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(note_entity) {
         rigid_body_mut.handle = Some(handle.into());
     }
 

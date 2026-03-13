@@ -73,7 +73,7 @@ fn init_door(
     };
 
     let door_rb_handle = world
-        .get_rigid_body(door_entity)
+        .core.get_rigid_body(door_entity)
         .and_then(|rb| rb.handle)
         .unwrap_or_else(|| panic!("Door '{}' missing physics handle", name));
 
@@ -190,7 +190,7 @@ pub fn apply_door_transform(demo: &HorrorDemo, world: &mut World, door_index: us
         )
     };
 
-    if let Some(transform) = world.get_local_transform_mut(door.entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(door.entity) {
         transform.translation.x = new_center_x;
         transform.translation.z = new_center_z;
         transform.rotation =

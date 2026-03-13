@@ -40,12 +40,12 @@ pub fn init_lever(
         1,
     )[0];
 
-    if let Some(entity_name) = world.get_name_mut(collider_entity) {
+    if let Some(entity_name) = world.core.get_name_mut(collider_entity) {
         entity_name.0 = format!("{}_Collider", name);
     }
 
     let hitbox_size = 0.15;
-    if let Some(transform) = world.get_local_transform_mut(collider_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(collider_entity) {
         transform.translation = collider_world_position;
         transform.scale = nalgebra_glm::vec3(
             hitbox_size * 2.0,
@@ -54,12 +54,12 @@ pub fn init_lever(
         );
     }
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(collider_entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(collider_entity) {
         *bounding_volume =
             nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
     }
 
-    if let Some(rigid_body) = world.get_rigid_body_mut(collider_entity) {
+    if let Some(rigid_body) = world.core.get_rigid_body_mut(collider_entity) {
         *rigid_body = RigidBodyComponent::new_kinematic().with_translation(
             collider_world_position.x,
             collider_world_position.y,
@@ -67,28 +67,28 @@ pub fn init_lever(
         );
     }
 
-    if let Some(collider) = world.get_collider_mut(collider_entity) {
+    if let Some(collider) = world.core.get_collider_mut(collider_entity) {
         *collider = ColliderComponent::new_cuboid(hitbox_size, hitbox_size, collider_half_length)
             .with_friction(0.5);
     }
 
     let collider_rb_handle = {
-        let rigid_body_comp = world.get_rigid_body(collider_entity).cloned().unwrap();
-        let collider_comp = world.get_collider(collider_entity).cloned();
+        let rigid_body_comp = world.core.get_rigid_body(collider_entity).cloned().unwrap();
+        let collider_comp = world.core.get_collider(collider_entity).cloned();
         let rigid_body = rigid_body_comp.to_rapier_rigid_body();
         let rb_handle = world.resources.physics.add_rigid_body(rigid_body);
         if let Some(collider_comp) = collider_comp {
             let collider = collider_comp.to_rapier_collider();
             world.resources.physics.add_collider(collider, rb_handle);
         }
-        if let Some(rigid_body_mut) = world.get_rigid_body_mut(collider_entity) {
+        if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(collider_entity) {
             rigid_body_mut.handle = Some(rb_handle.into());
         }
         rb_handle
     };
 
-    world.add_components(light_entity, LIGHT);
-    if let Some(light) = world.get_light_mut(light_entity) {
+    world.core.add_components(light_entity, LIGHT);
+    if let Some(light) = world.core.get_light_mut(light_entity) {
         *light = Light {
             light_type: LightType::Point,
             color: nalgebra_glm::vec3(1.0, 0.2, 0.2),
@@ -203,7 +203,7 @@ pub fn apply_lever_transform(demo: &HorrorDemo, world: &mut World, lever_index: 
     let rotation =
         nalgebra_glm::quat_angle_axis(lever.current_angle, &nalgebra_glm::vec3(1.0, 0.0, 0.0));
 
-    if let Some(transform) = world.get_local_transform_mut(lever.pivot_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(lever.pivot_entity) {
         transform.rotation = rotation;
     }
     nightshade::ecs::transform::commands::mark_local_transform_dirty(world, lever.pivot_entity);
@@ -212,7 +212,7 @@ pub fn apply_lever_transform(demo: &HorrorDemo, world: &mut World, lever_index: 
     let rotated_offset = nalgebra_glm::quat_rotate_vec3(&rotation, &local_offset);
     let center_pos = lever.pivot_position + rotated_offset;
 
-    if let Some(transform) = world.get_local_transform_mut(lever.collider_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(lever.collider_entity) {
         transform.translation = center_pos;
         transform.rotation = rotation;
     }

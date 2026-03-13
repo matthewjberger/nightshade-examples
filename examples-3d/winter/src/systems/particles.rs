@@ -48,7 +48,7 @@ pub fn spawn_snow_blizzard(world: &mut World) {
         ..Default::default()
     };
 
-    world.set_particle_emitter(snow_entity, snow_emitter);
+    world.core.set_particle_emitter(snow_entity, snow_emitter);
 
     let snow_entity_2 = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
 
@@ -92,7 +92,7 @@ pub fn spawn_snow_blizzard(world: &mut World) {
         ..Default::default()
     };
 
-    world.set_particle_emitter(snow_entity_2, sparkle_emitter);
+    world.core.set_particle_emitter(snow_entity_2, sparkle_emitter);
 }
 
 pub fn spawn_footprint_emitter(game_world: &mut GameWorld, world: &mut World) {
@@ -136,7 +136,7 @@ pub fn spawn_footprint_emitter(game_world: &mut GameWorld, world: &mut World) {
         ..Default::default()
     };
 
-    world.set_particle_emitter(footprint_entity, footprint_emitter);
+    world.core.set_particle_emitter(footprint_entity, footprint_emitter);
 
     game_world.resources.footprint_emitter = Some(freecs::Entity {
         id: footprint_entity.id,
@@ -162,13 +162,13 @@ pub fn update_footprint_emitter(game_world: &GameWorld, world: &mut World) {
     };
 
     let controller_pos = world
-        .get_local_transform(engine_controller)
+        .core.get_local_transform(engine_controller)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 
     let is_moving = game_world.resources.movement_state != MovementState::Idle;
 
-    if let Some(emitter) = world.get_particle_emitter_mut(engine_footprint) {
+    if let Some(emitter) = world.core.get_particle_emitter_mut(engine_footprint) {
         emitter.position = Vec3::new(controller_pos.x, controller_pos.y - 0.75, controller_pos.z);
         emitter.enabled = is_moving;
     }

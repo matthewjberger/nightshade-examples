@@ -190,19 +190,19 @@ fn uv_for_slot(
 
 fn entity_position_2d(world: &World, entity: freecs::Entity) -> nalgebra_glm::Vec2 {
     world
-        .get_sprite(entity)
+        .core.get_sprite(entity)
         .map(|sprite| sprite.position)
         .unwrap_or_default()
 }
 
 fn set_entity_position_2d(world: &mut World, entity: freecs::Entity, position: nalgebra_glm::Vec2) {
-    if let Some(sprite) = world.get_sprite_mut(entity) {
+    if let Some(sprite) = world.core.get_sprite_mut(entity) {
         sprite.position = position;
     }
 }
 
 fn translate_entity_2d(world: &mut World, entity: freecs::Entity, delta: nalgebra_glm::Vec2) {
-    if let Some(sprite) = world.get_sprite_mut(entity) {
+    if let Some(sprite) = world.core.get_sprite_mut(entity) {
         sprite.position += delta;
     }
 }
@@ -218,10 +218,10 @@ fn texture_size_from_list(sizes: &[(f32, f32)], slot: u32) -> nalgebra_glm::Vec2
 
 fn update_hud_entity(world: &mut World, entity: Option<freecs::Entity>, text: &str) {
     if let Some(entity) = entity {
-        let text_index = world.get_hud_text(entity).map(|hud| hud.text_index);
+        let text_index = world.core.get_hud_text(entity).map(|hud| hud.text_index);
         if let Some(text_index) = text_index {
             world.resources.text_cache.set_text(text_index, text);
-            if let Some(hud_text) = world.get_hud_text_mut(entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                 hud_text.dirty = true;
             }
         }
@@ -1144,7 +1144,7 @@ impl BulletHell {
     ) -> freecs::Entity {
         let (uv_min, uv_max) = uv_for_slot(uv_max_table, texture_slot);
         let entity = spawn_sprite(world, position, size);
-        if let Some(sprite) = world.get_sprite_mut(entity) {
+        if let Some(sprite) = world.core.get_sprite_mut(entity) {
             sprite.texture_index = texture_slot;
             sprite.texture_index2 = texture_slot;
             sprite.uv_min = uv_min;
@@ -1197,7 +1197,7 @@ impl BulletHell {
                 LAYER_STARS,
                 &self.uv_max_table,
             );
-            if let Some(sprite) = world.get_sprite_mut(entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(entity) {
                 sprite.color[3] = rng.random_range(0.2..0.6);
             }
         }
@@ -1251,14 +1251,14 @@ impl BulletHell {
             LAYER_HITBOX,
             &self.uv_max_table,
         );
-        if let Some(sprite) = world.get_sprite_mut(hitbox_entity) {
+        if let Some(sprite) = world.core.get_sprite_mut(hitbox_entity) {
             sprite.color = [1.0, 0.3, 0.3, 0.0];
         }
         self.hitbox_entity = Some(hitbox_entity);
 
         let exhaust_entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
         let exhaust_y = self.player_position.y - player_size.y * 0.45;
-        world.set_sprite_particle_emitter(
+        world.core.set_sprite_particle_emitter(
             exhaust_entity,
             SpriteParticleEmitter::fire_trail(self.player_position.x, exhaust_y)
                 .with_depth(LAYER_PLAYER - 0.1)
@@ -1547,16 +1547,16 @@ impl BulletHell {
         if let Some(entity) = self.player_entity {
             set_entity_position_2d(world, entity, self.player_position);
 
-            if let Some(sprite) = world.get_sprite_mut(entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(entity) {
                 sprite.rotation = y_rotation;
             }
 
             if self.invincible_timer > 0.0 {
                 let blink = ((self.invincible_timer * 10.0).sin() + 1.0) * 0.5;
-                if let Some(sprite) = world.get_sprite_mut(entity) {
+                if let Some(sprite) = world.core.get_sprite_mut(entity) {
                     sprite.color[3] = 0.3 + blink * 0.7;
                 }
-            } else if let Some(sprite) = world.get_sprite_mut(entity) {
+            } else if let Some(sprite) = world.core.get_sprite_mut(entity) {
                 sprite.color[3] = 1.0;
             }
         }
@@ -1564,7 +1564,7 @@ impl BulletHell {
         if let Some(hitbox_entity) = self.hitbox_entity {
             set_entity_position_2d(world, hitbox_entity, self.player_position);
 
-            if let Some(sprite) = world.get_sprite_mut(hitbox_entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(hitbox_entity) {
                 sprite.color[3] = if self.focused { 0.9 } else { 0.0 };
             }
         }
@@ -1575,7 +1575,7 @@ impl BulletHell {
                 self.player_position.x,
                 self.player_position.y - player_size.y * 0.45,
             );
-            if let Some(emitter) = world.get_sprite_particle_emitter_mut(exhaust_entity) {
+            if let Some(emitter) = world.core.get_sprite_particle_emitter_mut(exhaust_entity) {
                 emitter.anchor = exhaust_position;
             }
         }
@@ -1636,7 +1636,7 @@ impl BulletHell {
                 LAYER_PLAYER_BULLETS,
                 &self.uv_max_table,
             );
-            if let Some(sprite) = world.get_sprite_mut(entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(entity) {
                 sprite.blend_mode = SpriteBlendMode::Additive;
             }
 
@@ -1880,7 +1880,7 @@ impl BulletHell {
                 &self.uv_max_table,
             );
 
-            if flip && let Some(sprite) = world.get_sprite_mut(entity) {
+            if flip && let Some(sprite) = world.core.get_sprite_mut(entity) {
                 sprite.flip_y = true;
             }
 
@@ -2038,7 +2038,7 @@ impl BulletHell {
                 &self.uv_max_table,
             );
 
-            if let Some(sprite) = world.get_sprite_mut(entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(entity) {
                 sprite.blend_mode = SpriteBlendMode::Additive;
                 if color == BulletColor::Blue {
                     sprite.color = [0.3, 0.6, 1.0, 1.0];
@@ -2315,7 +2315,7 @@ impl BulletHell {
 
     fn spawn_explosion(&mut self, world: &mut World, position: nalgebra_glm::Vec2) {
         let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-        world.set_sprite_particle_emitter(
+        world.core.set_sprite_particle_emitter(
             entity,
             SpriteParticleEmitter::explosion(position.x, position.y).with_depth(LAYER_EXPLOSIONS),
         );
@@ -2330,7 +2330,7 @@ impl BulletHell {
 
     fn spawn_graze_flash(&mut self, world: &mut World, position: nalgebra_glm::Vec2) {
         let entity = world.spawn_entities(SPRITE_PARTICLE_EMITTER, 1)[0];
-        world.set_sprite_particle_emitter(
+        world.core.set_sprite_particle_emitter(
             entity,
             SpriteParticleEmitter::sparks(position.x, position.y)
                 .with_depth(LAYER_EXPLOSIONS)
@@ -2427,12 +2427,12 @@ impl BulletHell {
 
             powerup.bob_phase += delta_time * 3.0;
 
-            if let Some(sprite) = world.get_sprite_mut(powerup.entity) {
+            if let Some(sprite) = world.core.get_sprite_mut(powerup.entity) {
                 sprite.position.y = powerup.base_y + powerup.bob_phase.sin() * 10.0;
             }
 
             if powerup.lifetime < 3.0
-                && let Some(sprite) = world.get_sprite_mut(powerup.entity)
+                && let Some(sprite) = world.core.get_sprite_mut(powerup.entity)
             {
                 let blink = ((powerup.lifetime * 8.0).sin() + 1.0) * 0.5;
                 sprite.color[3] = 0.3 + blink * 0.7;
@@ -2467,7 +2467,7 @@ impl BulletHell {
     fn screen_shake_system(&mut self, world: &mut World) {
         if self.shake_timer <= 0.0 {
             if let Some(camera_entity) = self.camera_entity {
-                if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
                     transform.translation.x = 0.0;
                     transform.translation.y = 0.0;
                     transform.translation.z = CAMERA_Z;
@@ -2493,7 +2493,7 @@ impl BulletHell {
                 (0.0, 0.0)
             };
 
-            if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
                 transform.translation.x = offset_x;
                 transform.translation.y = offset_y;
                 transform.translation.z = CAMERA_Z;
@@ -2587,7 +2587,7 @@ impl BulletHell {
             self.player_position = nalgebra_glm::Vec2::new(0.0, -self.play_area_half_height * 0.7);
             if let Some(entity) = self.player_entity {
                 set_entity_position_2d(world, entity, self.player_position);
-                if let Some(sprite) = world.get_sprite_mut(entity) {
+                if let Some(sprite) = world.core.get_sprite_mut(entity) {
                     sprite.color[3] = 1.0;
                 }
             }
@@ -2598,13 +2598,13 @@ impl BulletHell {
                     self.player_position.x,
                     self.player_position.y - player_size.y * 0.45,
                 );
-                if let Some(emitter) = world.get_sprite_particle_emitter_mut(exhaust_entity) {
+                if let Some(emitter) = world.core.get_sprite_particle_emitter_mut(exhaust_entity) {
                     emitter.anchor = exhaust_position;
                 }
             }
 
             if let Some(camera_entity) = self.camera_entity {
-                if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
                     transform.translation.x = 0.0;
                     transform.translation.y = 0.0;
                     transform.translation.z = CAMERA_Z;
@@ -2686,8 +2686,8 @@ impl State for BulletHell {
                 | nightshade::ecs::world::CAMERA,
             1,
         )[0];
-        world.set_name(camera, Name("BulletHellCamera".to_string()));
-        world.set_local_transform(
+        world.core.set_name(camera, Name("BulletHellCamera".to_string()));
+        world.core.set_local_transform(
             camera,
             LocalTransform {
                 translation: nalgebra_glm::Vec3::new(0.0, 0.0, CAMERA_Z),
@@ -2695,9 +2695,9 @@ impl State for BulletHell {
                 scale: nalgebra_glm::Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.set_global_transform(camera, GlobalTransform::default());
-        if let Some(camera_component) = world.get_camera_mut(camera) {
+        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
+        world.core.set_global_transform(camera, GlobalTransform::default());
+        if let Some(camera_component) = world.core.get_camera_mut(camera) {
             *camera_component = Camera {
                 projection: Projection::Perspective(PerspectiveCamera {
                     aspect_ratio: None,

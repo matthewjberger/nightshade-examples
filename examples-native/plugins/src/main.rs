@@ -76,7 +76,7 @@ impl State for PluginsDemo {
         if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&ground_material) {
             world.resources.material_registry.registry.add_reference(index);
         };
-        world.set_material_ref(ground, MaterialRef::new(ground_material));
+        world.core.set_material_ref(ground, MaterialRef::new(ground_material));
 
         let plugins_dir = PathBuf::from("plugins");
         let config = PluginRuntimeConfig {
@@ -351,7 +351,7 @@ fn spawn_enemy_entity(world: &mut World, enemy_type: &EnemyType, position: Vec3)
             if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&material_name) {
             world.resources.material_registry.registry.add_reference(index);
         };
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
             entity
         }
         EnemyType::Skeleton => {
@@ -371,7 +371,7 @@ fn spawn_enemy_entity(world: &mut World, enemy_type: &EnemyType, position: Vec3)
             if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&material_name) {
             world.resources.material_registry.registry.add_reference(index);
         };
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
             entity
         }
         EnemyType::Dragon => {
@@ -391,7 +391,7 @@ fn spawn_enemy_entity(world: &mut World, enemy_type: &EnemyType, position: Vec3)
             if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&material_name) {
             world.resources.material_registry.registry.add_reference(index);
         };
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
             entity
         }
     }
@@ -416,7 +416,7 @@ fn spawn_item_entity(world: &mut World, item_type: &ItemType, position: Vec3) ->
             if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&material_name) {
             world.resources.material_registry.registry.add_reference(index);
         };
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
             entity
         }
         ItemType::ManaPotion => {
@@ -436,7 +436,7 @@ fn spawn_item_entity(world: &mut World, item_type: &ItemType, position: Vec3) ->
             if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&material_name) {
             world.resources.material_registry.registry.add_reference(index);
         };
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
             entity
         }
         ItemType::Sword => {
@@ -456,7 +456,7 @@ fn spawn_item_entity(world: &mut World, item_type: &ItemType, position: Vec3) ->
             if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&material_name) {
             world.resources.material_registry.registry.add_reference(index);
         };
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
             entity
         }
         ItemType::Shield => {
@@ -476,7 +476,7 @@ fn spawn_item_entity(world: &mut World, item_type: &ItemType, position: Vec3) ->
             if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&material_name) {
             world.resources.material_registry.registry.add_reference(index);
         };
-            world.set_material_ref(entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(entity, MaterialRef::new(material_name));
             entity
         }
     }
@@ -488,8 +488,8 @@ fn spawn_camera(world: &mut World) -> Entity {
         1,
     )[0];
 
-    world.set_name(entity, Name("Camera".to_string()));
-    world.set_local_transform(
+    world.core.set_name(entity, Name("Camera".to_string()));
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: Vec3::new(0.0, 5.0, 10.0),
@@ -497,9 +497,9 @@ fn spawn_camera(world: &mut World) -> Entity {
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_camera(
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_camera(
         entity,
         Camera {
             projection: Projection::Perspective(PerspectiveCamera {

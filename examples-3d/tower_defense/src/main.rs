@@ -46,7 +46,7 @@ impl State for TowerDefenseECS {
 
         let camera_radius = 16.1;
         let camera_pitch = 0.52;
-        world.set_local_transform(
+        world.core.set_local_transform(
             main_camera,
             LocalTransform {
                 translation: Vec3::new(0.0, 8.0, 14.0),
@@ -54,9 +54,9 @@ impl State for TowerDefenseECS {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(main_camera, LocalTransformDirty);
-        world.set_global_transform(main_camera, GlobalTransform::default());
-        world.set_camera(
+        world.core.set_local_transform_dirty(main_camera, LocalTransformDirty);
+        world.core.set_global_transform(main_camera, GlobalTransform::default());
+        world.core.set_camera(
             main_camera,
             Camera {
                 projection: Projection::Perspective(PerspectiveCamera {
@@ -68,7 +68,7 @@ impl State for TowerDefenseECS {
                 smoothing: Some(Smoothing::default()),
             },
         );
-        world.set_pan_orbit_camera(
+        world.core.set_pan_orbit_camera(
             main_camera,
             PanOrbitCamera {
                 focus: Vec3::new(0.0, 0.0, 0.0),
@@ -230,13 +230,13 @@ impl State for TowerDefenseECS {
         }
 
         if let Some(status_text) = ui_handles.status_text
-            && let Some(visibility) = world.get_visibility_mut(status_text)
+            && let Some(visibility) = world.core.get_visibility_mut(status_text)
         {
             visibility.visible = false;
         }
 
         if let Some(wave_announce_text) = ui_handles.wave_announce_text
-            && let Some(visibility) = world.get_visibility_mut(wave_announce_text)
+            && let Some(visibility) = world.core.get_visibility_mut(wave_announce_text)
         {
             visibility.visible = false;
         }
@@ -271,7 +271,7 @@ impl State for TowerDefenseECS {
                     .registry
                     .add_reference(index);
             }
-            world.set_material_ref(bg_entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(bg_entity, MaterialRef::new(material_name));
         }
 
         let total_hp = (self.game_world.resources.lives - 1) * self.game_world.resources.max_hp
@@ -310,7 +310,7 @@ impl State for TowerDefenseECS {
                     .registry
                     .add_reference(index);
             }
-            world.set_material_ref(bar_entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(bar_entity, MaterialRef::new(material_name));
         }
 
         self.game_world.resources.ui_handles = ui_handles;
@@ -413,7 +413,7 @@ impl State for TowerDefenseECS {
 
         if key == KeyCode::KeyC || key == KeyCode::Home {
             let camera = self.game_world.resources.camera_entity;
-            if let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera) {
+            if let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera) {
                 pan_orbit.target_focus = Vec3::new(0.0, 0.0, 0.0);
                 pan_orbit.target_radius = 16.1;
                 pan_orbit.target_pitch = 0.52;

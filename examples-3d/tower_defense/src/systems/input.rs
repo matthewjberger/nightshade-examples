@@ -33,15 +33,15 @@ pub fn input_system(game_world: &mut GameWorld, world: &mut World) {
             1,
         )[0];
 
-        if let Some(name) = world.get_name_mut(text_entity) {
+        if let Some(name) = world.core.get_name_mut(text_entity) {
             *name = Name("Hover Tower Text".to_string());
         }
 
-        if let Some(transform) = world.get_local_transform_mut(text_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(text_entity) {
             transform.translation = nalgebra_glm::vec3(grid_x as f32, 2.0, grid_z as f32);
         }
 
-        if let Some(text_component) = world.get_text_mut(text_entity) {
+        if let Some(text_component) = world.core.get_text_mut(text_entity) {
             text_component.text_index = text_index;
             text_component.properties = TextProperties {
                 font_size: 36.0,

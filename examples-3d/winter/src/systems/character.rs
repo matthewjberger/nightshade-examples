@@ -12,9 +12,9 @@ pub fn spawn_character_controller(game_world: &mut GameWorld, world: &mut World)
         1,
     )[0];
 
-    world.set_name(controller_entity, Name("Fox Controller".to_string()));
+    world.core.set_name(controller_entity, Name("Fox Controller".to_string()));
     let spawn_terrain_y = sample_height(0.0, 0.0, &game_world.resources.terrain_config);
-    world.set_local_transform(
+    world.core.set_local_transform(
         controller_entity,
         LocalTransform {
             translation: Vec3::new(0.0, spawn_terrain_y + 1.0, 0.0),
@@ -22,7 +22,7 @@ pub fn spawn_character_controller(game_world: &mut GameWorld, world: &mut World)
         },
     );
 
-    if let Some(controller) = world.get_character_controller_mut(controller_entity) {
+    if let Some(controller) = world.core.get_character_controller_mut(controller_entity) {
         *controller = CharacterControllerComponent::new_capsule(0.5, 0.3);
         controller.max_speed = 3.0;
         controller.acceleration = 15.0;
@@ -112,20 +112,20 @@ pub fn load_fox_model(game_world: &mut GameWorld, world: &mut World) {
                 });
                 tracing::info!("Spawned fox with root entity {:?}", entity);
 
-                if let Some(transform) = world.get_local_transform_mut(entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(entity) {
                     transform.scale = Vec3::new(FOX_SCALE, FOX_SCALE, FOX_SCALE);
                 }
                 world.mark_local_transform_dirty(entity);
 
                 let bone_entities: Vec<Entity> =
-                    if let Some(player) = world.get_animation_player(entity) {
+                    if let Some(player) = world.core.get_animation_player(entity) {
                         player.node_index_to_entity.values().copied().collect()
                     } else {
                         Vec::new()
                     };
 
                 for bone_entity in bone_entities {
-                    if let Some(name) = world.get_name(bone_entity)
+                    if let Some(name) = world.core.get_name(bone_entity)
                         && name.0.to_lowercase().contains("head")
                     {
                         game_world.resources.head_bone_entity = Some(freecs::Entity {
@@ -136,7 +136,7 @@ pub fn load_fox_model(game_world: &mut GameWorld, world: &mut World) {
                     }
                 }
 
-                if let Some(player) = world.get_animation_player_mut(entity) {
+                if let Some(player) = world.core.get_animation_player_mut(entity) {
                     if let Some(survey_index) = game_world.resources.animation_indices.survey {
                         player.play(survey_index);
                         player.speed = 0.5;
@@ -198,7 +198,7 @@ pub fn load_santa_hat(game_world: &mut GameWorld, world: &mut World) {
                     generation: hat_entity.generation,
                 });
 
-                if let Some(transform) = world.get_local_transform_mut(hat_entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(hat_entity) {
                     transform.translation = Vec3::new(0.0, 10.0, 0.0);
                     transform.scale = Vec3::new(1.2, 1.2, 1.2);
                     transform.rotation =
@@ -232,7 +232,7 @@ pub fn sync_fox_to_controller(game_world: &mut GameWorld, world: &mut World) {
     };
 
     let controller_pos = world
-        .get_local_transform(engine_controller)
+        .core.get_local_transform(engine_controller)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 
@@ -251,7 +251,7 @@ pub fn sync_fox_to_controller(game_world: &mut GameWorld, world: &mut World) {
     }
 
     let (velocity, grounded, is_sprinting) =
-        if let Some(controller) = world.get_character_controller(engine_controller) {
+        if let Some(controller) = world.core.get_character_controller(engine_controller) {
             (
                 controller.velocity,
                 controller.grounded,
@@ -320,13 +320,13 @@ pub fn animation_system(game_world: &mut GameWorld, world: &mut World) {
 
     if target_animation != game_world.resources.current_animation {
         if let Some(anim_index) = target_animation
-            && let Some(player) = world.get_animation_player_mut(engine_entity)
+            && let Some(player) = world.core.get_animation_player_mut(engine_entity)
         {
             player.blend_to(anim_index, 0.2);
             player.speed = target_speed;
             game_world.resources.current_animation = Some(anim_index);
         }
-    } else if let Some(player) = world.get_animation_player_mut(engine_entity) {
+    } else if let Some(player) = world.core.get_animation_player_mut(engine_entity) {
         player.speed = target_speed;
     }
 }

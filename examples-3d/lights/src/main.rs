@@ -106,8 +106,8 @@ impl ManyLights {
                 1,
             )[0];
 
-            world.set_name(light_entity, Name(format!("Light_{}", index)));
-            world.set_local_transform(
+            world.core.set_name(light_entity, Name(format!("Light_{}", index)));
+            world.core.set_local_transform(
                 light_entity,
                 LocalTransform {
                     translation: initial_position,
@@ -115,9 +115,9 @@ impl ManyLights {
                     scale: Vec3::new(1.0, 1.0, 1.0),
                 },
             );
-            world.set_local_transform_dirty(light_entity, LocalTransformDirty);
-            world.set_global_transform(light_entity, GlobalTransform::default());
-            world.set_light(
+            world.core.set_local_transform_dirty(light_entity, LocalTransformDirty);
+            world.core.set_global_transform(light_entity, GlobalTransform::default());
+            world.core.set_light(
                 light_entity,
                 Light {
                     light_type: LightType::Point,
@@ -172,20 +172,20 @@ impl ManyLights {
 
             let new_position = Vec3::new(x, y, z);
 
-            if let Some(transform) = world.get_local_transform(light_entity) {
+            if let Some(transform) = world.core.get_local_transform(light_entity) {
                 let mut new_transform = *transform;
                 new_transform.translation = new_position;
-                world.set_local_transform(light_entity, new_transform);
-                world.set_local_transform_dirty(light_entity, LocalTransformDirty);
+                world.core.set_local_transform(light_entity, new_transform);
+                world.core.set_local_transform_dirty(light_entity, LocalTransformDirty);
             }
 
             if let Some(&sphere_entity) = self.light_spheres.get(index)
-                && let Some(transform) = world.get_local_transform(sphere_entity)
+                && let Some(transform) = world.core.get_local_transform(sphere_entity)
             {
                 let mut new_transform = *transform;
                 new_transform.translation = new_position;
-                world.set_local_transform(sphere_entity, new_transform);
-                world.set_local_transform_dirty(sphere_entity, LocalTransformDirty);
+                world.core.set_local_transform(sphere_entity, new_transform);
+                world.core.set_local_transform_dirty(sphere_entity, LocalTransformDirty);
             }
         }
     }
@@ -270,7 +270,7 @@ fn spawn_mesh_with_material(
             .registry
             .add_reference(index);
     };
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
     entity
 }
 
@@ -286,18 +286,18 @@ fn spawn_camera(world: &mut World, position: Vec3, name: String) -> Entity {
 
     let camera = cameras[0];
 
-    if let Some(camera_name) = world.get_name_mut(camera) {
+    if let Some(camera_name) = world.core.get_name_mut(camera) {
         *camera_name = Name(name);
     }
 
-    if let Some(local_transform) = world.get_local_transform_mut(camera) {
+    if let Some(local_transform) = world.core.get_local_transform_mut(camera) {
         local_transform.translation = position;
         let pitch = nalgebra_glm::quat_angle_axis(-0.4, &Vec3::x_axis());
         let yaw = nalgebra_glm::quat_angle_axis(0.8, &Vec3::y_axis());
         local_transform.rotation = yaw * pitch;
     }
 
-    if let Some(camera_component) = world.get_camera_mut(camera) {
+    if let Some(camera_component) = world.core.get_camera_mut(camera) {
         *camera_component = Camera {
             projection: Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,

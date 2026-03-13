@@ -79,7 +79,7 @@ pub fn recreate_visuals(game: &mut GameWorld, world: &mut World) {
         ),
         Vec3::new(0.15, 0.6, 0.15),
     );
-    world.set_casts_shadow(tool_visual, CastsShadow);
+    world.core.set_casts_shadow(tool_visual, CastsShadow);
     apply_material(world, tool_visual, "ToolHoe");
 
     if let Some(player_entity) = game.resources.player_entity {
@@ -208,7 +208,7 @@ fn recreate_farm_visuals(game: &mut GameWorld, world: &mut World) {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             visual,
             LocalTransform {
                 translation: Vec3::new(tile_pos.x, 0.02, tile_pos.z),
@@ -220,7 +220,7 @@ fn recreate_farm_visuals(game: &mut GameWorld, world: &mut World) {
                 ),
             },
         );
-        world.set_render_mesh(visual, RenderMesh::new("Cube"));
+        world.core.set_render_mesh(visual, RenderMesh::new("Cube"));
         mark_local_transform_dirty(world, visual);
         world.resources.mesh_render_state.mark_entity_added(visual);
 
@@ -263,7 +263,7 @@ fn recreate_farm_visuals(game: &mut GameWorld, world: &mut World) {
             1,
         )[0];
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             visual,
             LocalTransform {
                 translation: Vec3::new(tile_pos.x, scale * 0.5, tile_pos.z),
@@ -271,8 +271,8 @@ fn recreate_farm_visuals(game: &mut GameWorld, world: &mut World) {
                 scale: Vec3::new(scale * 0.4, scale, scale * 0.4),
             },
         );
-        world.set_render_mesh(visual, RenderMesh::new("Cube"));
-        world.set_casts_shadow(visual, CastsShadow);
+        world.core.set_render_mesh(visual, RenderMesh::new("Cube"));
+        world.core.set_casts_shadow(visual, CastsShadow);
         mark_local_transform_dirty(world, visual);
         world.resources.mesh_render_state.mark_entity_added(visual);
 
@@ -327,7 +327,7 @@ fn spawn_grass(world: &mut World) -> Entity {
         LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | RENDER_MESH | MATERIAL_REF,
         1,
     )[0];
-    world.set_local_transform(
+    world.core.set_local_transform(
         plane,
         LocalTransform {
             translation: Vec3::new(0.0, -0.01, 0.0),
@@ -335,7 +335,7 @@ fn spawn_grass(world: &mut World) -> Entity {
             scale: Vec3::new(1000.0, 0.1, 1000.0),
         },
     );
-    world.set_render_mesh(plane, RenderMesh::new("Cube"));
+    world.core.set_render_mesh(plane, RenderMesh::new("Cube"));
     material_registry_insert(
         &mut world.resources.material_registry,
         "GrassPlane".to_string(),
@@ -419,7 +419,7 @@ fn spawn_player(game: &mut GameWorld, world: &mut World) -> (Entity, Entity) {
         ),
         Vec3::new(0.15, 0.6, 0.15),
     );
-    world.set_casts_shadow(tool, CastsShadow);
+    world.core.set_casts_shadow(tool, CastsShadow);
     apply_material(world, tool, "ToolHoe");
 
     let player_entity = game.spawn_entities(HANDLE | POSITION | PLAYER, 1)[0];
@@ -456,7 +456,7 @@ fn spawn_camera(game: &GameWorld, world: &mut World) -> Entity {
         1,
     )[0];
 
-    if let Some(transform) = world.get_local_transform_mut(camera) {
+    if let Some(transform) = world.core.get_local_transform_mut(camera) {
         transform.translation = cam_pos;
         let direction = nalgebra_glm::normalize(&(player_pos - cam_pos));
         let right = nalgebra_glm::normalize(&nalgebra_glm::cross(&direction, &Vec3::y()));
@@ -466,7 +466,7 @@ fn spawn_camera(game: &GameWorld, world: &mut World) -> Entity {
     }
     mark_local_transform_dirty(world, camera);
 
-    world.set_camera(
+    world.core.set_camera(
         camera,
         Camera {
             projection: Projection::Perspective(PerspectiveCamera {
@@ -485,7 +485,7 @@ fn spawn_camera(game: &GameWorld, world: &mut World) -> Entity {
 
 fn spawn_sun(world: &mut World) -> Entity {
     let sun = nightshade::prelude::spawn_sun(world);
-    if let Some(light) = world.get_light_mut(sun) {
+    if let Some(light) = world.core.get_light_mut(sun) {
         light.cast_shadows = true;
         light.intensity = 1.5;
     }
@@ -542,7 +542,7 @@ fn apply_material(world: &mut World, entity: Entity, name: &str) {
             .registry
             .add_reference(idx);
     }
-    world.set_material_ref(entity, MaterialRef::new(name.to_string()));
+    world.core.set_material_ref(entity, MaterialRef::new(name.to_string()));
 }
 
 fn create_materials(world: &mut World) {
@@ -594,7 +594,7 @@ pub fn create_npc_visual(world: &mut World, position: Vec3, color: [f32; 4]) -> 
         Vec3::new(position.x, 1.0, position.z),
         Vec3::new(1.0, 2.0, 1.0),
     );
-    world.set_casts_shadow(visual, CastsShadow);
+    world.core.set_casts_shadow(visual, CastsShadow);
 
     let mat_name = format!("Npc_{}", visual.id);
     material_registry_insert(
@@ -634,7 +634,7 @@ pub fn create_tree_visual(
         Vec3::new(trunk_radius * 2.0, trunk_height, trunk_radius * 2.0),
     );
     apply_material(world, trunk, "TreeTrunk");
-    world.set_casts_shadow(trunk, CastsShadow);
+    world.core.set_casts_shadow(trunk, CastsShadow);
 
     let tier_heights = [1.8 * tree_scale, 1.5 * tree_scale, 1.2 * tree_scale];
     let tier_radii = [2.0 * tree_scale, 1.5 * tree_scale, 1.0 * tree_scale];
@@ -654,7 +654,7 @@ pub fn create_tree_visual(
             ),
         );
         apply_material(world, foliage_entity, "TreeFoliage");
-        world.set_casts_shadow(foliage_entity, CastsShadow);
+        world.core.set_casts_shadow(foliage_entity, CastsShadow);
         foliage[tier] = foliage_entity;
     }
 

@@ -89,7 +89,7 @@ pub fn update_sun(game: &GameWorld, world: &mut World) {
     let sun_y = hour_angle.sin() * orbit_radius;
     let sun_position = Vec3::new(sun_x, sun_y.abs().max(5.0), 0.0);
 
-    if let Some(transform) = world.get_local_transform_mut(sun) {
+    if let Some(transform) = world.core.get_local_transform_mut(sun) {
         transform.translation = sun_position;
         let direction = nalgebra_glm::normalize(&(-sun_position));
         let up = Vec3::y();
@@ -103,7 +103,7 @@ pub fn update_sun(game: &GameWorld, world: &mut World) {
     }
     mark_local_transform_dirty(world, sun);
 
-    if let Some(light) = world.get_light_mut(sun) {
+    if let Some(light) = world.core.get_light_mut(sun) {
         light.color = get_sun_color(hour);
         light.intensity = get_sun_intensity(hour);
     }

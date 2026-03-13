@@ -136,7 +136,7 @@ impl State for DecalsDemo {
         world.resources.active_camera = Some(camera);
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = false;
             light.intensity = 3.0;
         }
@@ -152,12 +152,12 @@ impl State for DecalsDemo {
                 | nightshade::ecs::GLOBAL_TRANSFORM,
             1,
         )[0];
-        world.set_lines(preview_entity, Lines::default());
-        world.set_visibility(
+        world.core.set_lines(preview_entity, Lines::default());
+        world.core.set_visibility(
             preview_entity,
             nightshade::ecs::world::components::Visibility { visible: true },
         );
-        world.set_global_transform(preview_entity, GlobalTransform::default());
+        world.core.set_global_transform(preview_entity, GlobalTransform::default());
         self.preview_lines_entity = Some(preview_entity);
 
         spawn_hud_text_with_properties(
@@ -258,12 +258,12 @@ impl State for DecalsDemo {
                         pick.world_normal,
                         self.decal_size,
                     );
-                    world.set_lines(preview_entity, lines);
+                    world.core.set_lines(preview_entity, lines);
                 } else {
-                    world.set_lines(preview_entity, Lines::new(vec![]));
+                    world.core.set_lines(preview_entity, Lines::new(vec![]));
                 }
             } else {
-                world.set_lines(preview_entity, Lines::new(vec![]));
+                world.core.set_lines(preview_entity, Lines::new(vec![]));
             }
         }
     }
@@ -781,7 +781,7 @@ fn spawn_decal_at(
 
     let rotation = rotation_from_normal(normal);
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -789,9 +789,9 @@ fn spawn_decal_at(
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_name(entity, Name(format!("Decal_{}", entity.id)));
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_name(entity, Name(format!("Decal_{}", entity.id)));
 
     let color = if texture_override.is_some() {
         [1.0, 1.0, 1.0, 1.0]
@@ -805,7 +805,7 @@ fn spawn_decal_at(
     };
     let texture = texture_override.unwrap_or_else(|| decal_type.texture());
 
-    world.set_decal(
+    world.core.set_decal(
         entity,
         Decal::new(texture)
             .with_size(size, size)
@@ -864,6 +864,6 @@ fn spawn_mesh_with_material(
             .registry
             .add_reference(index);
     };
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
     entity
 }

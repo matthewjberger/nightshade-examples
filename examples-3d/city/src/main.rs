@@ -392,7 +392,7 @@ impl State for CityDemo {
             {
                 let head_pos = xr_input.head_position;
                 let head_rot = xr_input.head_orientation;
-                if let Some(transform) = world.get_local_transform_mut(camera) {
+                if let Some(transform) = world.core.get_local_transform_mut(camera) {
                     transform.translation = head_pos;
                     transform.rotation = head_rot;
                 }
@@ -672,20 +672,20 @@ fn run_fly_camera_systems(demo: &mut CityDemo, world: &mut World) {
     if let Some(camera) = demo.camera_entity {
         if let Some(controller) = &mut demo.camera_controller {
             let (position, rotation) = controller.update(delta_time);
-            if let Some(transform) = world.get_local_transform_mut(camera) {
+            if let Some(transform) = world.core.get_local_transform_mut(camera) {
                 transform.translation = position;
                 transform.rotation = rotation;
             }
         } else if demo.observer_enabled {
             observer::fly_camera_keyboard_mouse_only(world);
-            if let Some(transform) = world.get_local_transform_mut(camera)
+            if let Some(transform) = world.core.get_local_transform_mut(camera)
                 && transform.translation.y < MIN_CAMERA_Y
             {
                 transform.translation.y = MIN_CAMERA_Y;
             }
         } else {
             fly_camera_system(world);
-            if let Some(transform) = world.get_local_transform_mut(camera)
+            if let Some(transform) = world.core.get_local_transform_mut(camera)
                 && transform.translation.y < MIN_CAMERA_Y
             {
                 transform.translation.y = MIN_CAMERA_Y;
@@ -700,13 +700,13 @@ fn run_fly_camera_systems(demo: &mut CityDemo, world: &mut World) {
         }
 
         let camera_pos = world
-            .get_local_transform(camera)
+            .core.get_local_transform(camera)
             .map(|t| t.translation)
             .unwrap_or(Vec3::zeros());
 
         if let Some(streamer) = &mut demo.chunk_streamer {
             let camera_forward = world
-                .get_local_transform(camera)
+                .core.get_local_transform(camera)
                 .map(|t| nalgebra_glm::quat_rotate_vec3(&t.rotation, &Vec3::new(0.0, 0.0, -1.0)))
                 .unwrap_or(Vec3::new(0.0, 0.0, -1.0));
             streamer.update(world, camera_pos, camera_forward);
@@ -718,12 +718,12 @@ impl CityDemo {
     fn active_camera_position(&self, world: &World) -> Vec3 {
         if self.first_person_mode {
             self.player_camera_entity
-                .and_then(|entity| world.get_global_transform(entity))
+                .and_then(|entity| world.core.get_global_transform(entity))
                 .map(|t| t.translation())
                 .unwrap_or(Vec3::zeros())
         } else {
             self.camera_entity
-                .and_then(|entity| world.get_local_transform(entity))
+                .and_then(|entity| world.core.get_local_transform(entity))
                 .map(|t| t.translation)
                 .unwrap_or(Vec3::zeros())
         }
@@ -732,12 +732,12 @@ impl CityDemo {
     fn active_camera_forward(&self, world: &World) -> Vec3 {
         if self.first_person_mode {
             self.player_camera_entity
-                .and_then(|entity| world.get_global_transform(entity))
+                .and_then(|entity| world.core.get_global_transform(entity))
                 .map(|t| t.forward_vector())
                 .unwrap_or(Vec3::new(0.0, 0.0, -1.0))
         } else {
             self.camera_entity
-                .and_then(|entity| world.get_local_transform(entity))
+                .and_then(|entity| world.core.get_local_transform(entity))
                 .map(|t| nalgebra_glm::quat_rotate_vec3(&t.rotation, &Vec3::new(0.0, 0.0, -1.0)))
                 .unwrap_or(Vec3::new(0.0, 0.0, -1.0))
         }
@@ -745,7 +745,7 @@ impl CityDemo {
 
     fn setup_world(&mut self, world: &mut World) {
         let camera = spawn_camera(world, Vec3::new(0.0, 30.0, 0.0), "City Camera".to_string());
-        if let Some(camera_component) = world.get_camera_mut(camera) {
+        if let Some(camera_component) = world.core.get_camera_mut(camera) {
             camera_component.projection = Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,
                 y_fov_rad: 60.0_f32.to_radians(),
@@ -757,7 +757,7 @@ impl CityDemo {
         self.camera_entity = Some(camera);
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 3.5;
             light.shadow_bias = 0.008;
@@ -766,8 +766,8 @@ impl CityDemo {
         self.update_sun_for_hour(world);
 
         let ocean = world.spawn_entities(WATER | NAME, 1)[0];
-        world.set_name(ocean, Name("Ocean".to_string()));
-        world.set_water(
+        world.core.set_name(ocean, Name("Ocean".to_string()));
+        world.core.set_water(
             ocean,
             Water {
                 base_height: -2.0,
@@ -824,14 +824,14 @@ impl CityDemo {
             white
         };
 
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.intensity = sun_intensity;
             light.color = sun_color;
             light.cast_shadows = self.sun_shadows;
         }
 
         let sun_position = sun_dir * 100.0;
-        if let Some(transform) = world.get_local_transform_mut(sun) {
+        if let Some(transform) = world.core.get_local_transform_mut(sun) {
             transform.translation = sun_position;
             let direction = -sun_dir;
             let up = Vec3::y();

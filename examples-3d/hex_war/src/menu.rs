@@ -462,7 +462,7 @@ fn update_buttons_hover(
     if current_hovered != previous_hovered {
         if let Some(prev_index) = previous_hovered
             && let Some(button) = buttons.get(prev_index)
-            && let Some(hud_text) = world.get_hud_text_mut(button.entity)
+            && let Some(hud_text) = world.core.get_hud_text_mut(button.entity)
         {
             hud_text.properties.color = button.base_color;
             hud_text.dirty = true;
@@ -470,7 +470,7 @@ fn update_buttons_hover(
 
         if let Some(curr_index) = current_hovered
             && let Some(button) = buttons.get(curr_index)
-            && let Some(hud_text) = world.get_hud_text_mut(button.entity)
+            && let Some(hud_text) = world.core.get_hud_text_mut(button.entity)
         {
             hud_text.properties.color = button.hover_color;
             hud_text.dirty = true;

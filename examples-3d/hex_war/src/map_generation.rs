@@ -122,7 +122,7 @@ fn spawn_lines_entity(world: &mut World, lines: Vec<Line>) -> Entity {
         LINES | VISIBILITY | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY,
         1,
     )[0];
-    if let Some(lines_component) = world.get_lines_mut(entity) {
+    if let Some(lines_component) = world.core.get_lines_mut(entity) {
         lines_component.lines = lines;
         lines_component.mark_dirty();
     }
@@ -134,11 +134,11 @@ fn spawn_hidden_lines_entity(world: &mut World) -> Entity {
         LINES | VISIBILITY | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY,
         1,
     )[0];
-    if let Some(lines_component) = world.get_lines_mut(entity) {
+    if let Some(lines_component) = world.core.get_lines_mut(entity) {
         lines_component.lines = Vec::new();
         lines_component.mark_dirty();
     }
-    if let Some(visibility) = world.get_visibility_mut(entity) {
+    if let Some(visibility) = world.core.get_visibility_mut(entity) {
         visibility.visible = false;
     }
     entity

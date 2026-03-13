@@ -237,7 +237,7 @@ fn update_button_visuals(world: &mut World, button: &Button, global_alpha: f32) 
         button.base_color
     };
 
-    if let Some(hud_text) = world.get_hud_text_mut(button.entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
         hud_text.properties.color = apply_alpha(color, global_alpha);
         hud_text.dirty = true;
     }
@@ -250,7 +250,7 @@ fn update_toggle_visuals(world: &mut World, toggle: &Toggle, global_alpha: f32) 
         nalgebra_glm::vec4(0.7, 0.7, 0.7, 1.0)
     };
 
-    if let Some(hud_text) = world.get_hud_text_mut(toggle.label_entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(toggle.label_entity) {
         hud_text.properties.color = apply_alpha(label_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -261,7 +261,7 @@ fn update_toggle_visuals(world: &mut World, toggle: &Toggle, global_alpha: f32) 
         nalgebra_glm::vec4(0.6, 0.6, 0.6, 1.0)
     };
 
-    if let Some(hud_text) = world.get_hud_text_mut(toggle.value_entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(toggle.value_entity) {
         hud_text.properties.color = apply_alpha(value_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -274,7 +274,7 @@ fn update_slider_visuals(world: &mut World, slider: &Slider, global_alpha: f32) 
         nalgebra_glm::vec4(0.7, 0.7, 0.7, 1.0)
     };
 
-    if let Some(hud_text) = world.get_hud_text_mut(slider.label_entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(slider.label_entity) {
         hud_text.properties.color = apply_alpha(label_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -285,7 +285,7 @@ fn update_slider_visuals(world: &mut World, slider: &Slider, global_alpha: f32) 
         nalgebra_glm::vec4(0.5, 0.8, 1.0, 1.0)
     };
 
-    if let Some(hud_text) = world.get_hud_text_mut(slider.value_entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(slider.value_entity) {
         hud_text.properties.color = apply_alpha(value_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -298,7 +298,7 @@ fn update_dropdown_visuals(world: &mut World, dropdown: &Dropdown, global_alpha:
         nalgebra_glm::vec4(0.7, 0.7, 0.7, 1.0)
     };
 
-    if let Some(hud_text) = world.get_hud_text_mut(dropdown.label_entity) {
+    if let Some(hud_text) = world.core.get_hud_text_mut(dropdown.label_entity) {
         hud_text.properties.color = apply_alpha(label_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -402,7 +402,7 @@ impl MenuDemoState {
             spawn_hud_text_with_properties(world, value_text, anchor, value_position, value_props);
 
         let value_text_index = world
-            .get_hud_text(value_entity)
+            .core.get_hud_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -455,7 +455,7 @@ impl MenuDemoState {
             spawn_hud_text_with_properties(world, &bar, anchor, value_position, value_props);
 
         let value_text_index = world
-            .get_hud_text(value_entity)
+            .core.get_hud_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -511,7 +511,7 @@ impl MenuDemoState {
             spawn_hud_text_with_properties(world, &value_text, anchor, value_position, value_props);
 
         let value_text_index = world
-            .get_hud_text(value_entity)
+            .core.get_hud_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -610,35 +610,35 @@ impl MenuDemoState {
 
     fn set_background_ui_alpha(&self, world: &mut World, alpha: f32) {
         if let Some(entity) = self.title_entity
-            && let Some(hud_text) = world.get_hud_text_mut(entity)
+            && let Some(hud_text) = world.core.get_hud_text_mut(entity)
         {
             hud_text.properties.color.w = alpha;
             hud_text.properties.outline_color.w = alpha;
             hud_text.dirty = true;
         }
         if let Some(entity) = self.subtitle_entity
-            && let Some(hud_text) = world.get_hud_text_mut(entity)
+            && let Some(hud_text) = world.core.get_hud_text_mut(entity)
         {
             hud_text.properties.color.w = alpha;
             hud_text.properties.outline_color.w = alpha;
             hud_text.dirty = true;
         }
         if let Some(entity) = self.paused_text_entity
-            && let Some(hud_text) = world.get_hud_text_mut(entity)
+            && let Some(hud_text) = world.core.get_hud_text_mut(entity)
         {
             hud_text.properties.color.w = alpha;
             hud_text.properties.outline_color.w = alpha;
             hud_text.dirty = true;
         }
         for button in &self.main_menu_buttons {
-            if let Some(hud_text) = world.get_hud_text_mut(button.entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
                 hud_text.properties.color.w = alpha;
                 hud_text.properties.outline_color.w = alpha;
                 hud_text.dirty = true;
             }
         }
         for button in &self.pause_buttons {
-            if let Some(hud_text) = world.get_hud_text_mut(button.entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
                 hud_text.properties.color.w = alpha;
                 hud_text.properties.outline_color.w = alpha;
                 hud_text.dirty = true;
@@ -696,7 +696,7 @@ impl MenuDemoState {
         world.resources.graphics.show_grid = false;
 
         if let Some(camera) = self.camera_entity
-            && let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera)
+            && let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera)
         {
             pan_orbit.enabled = false;
         }
@@ -979,7 +979,7 @@ impl MenuDemoState {
         world.resources.graphics.show_grid = true;
 
         if let Some(camera) = self.camera_entity {
-            let transform_data = if let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera) {
+            let transform_data = if let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera) {
                 pan_orbit.enabled = true;
                 Some(pan_orbit.compute_camera_transform())
             } else {
@@ -987,12 +987,12 @@ impl MenuDemoState {
             };
 
             if let Some((position, rotation)) = transform_data
-                && let Some(local_transform) = world.get_local_transform_mut(camera)
+                && let Some(local_transform) = world.core.get_local_transform_mut(camera)
             {
                 local_transform.translation = position;
                 local_transform.rotation = rotation;
             }
-            world.set_local_transform_dirty(camera, LocalTransformDirty);
+            world.core.set_local_transform_dirty(camera, LocalTransformDirty);
         }
 
         if self.game_entities.is_empty() {
@@ -1027,7 +1027,7 @@ impl MenuDemoState {
                     .registry
                     .add_reference(index);
             };
-            world.set_material_ref(cube_entity, MaterialRef::new(cube_material));
+            world.core.set_material_ref(cube_entity, MaterialRef::new(cube_material));
 
             self.game_entities.push(cube_entity);
 
@@ -1174,49 +1174,49 @@ impl MenuDemoState {
 
         if !dialog_active {
             if let Some(entity) = self.title_entity
-                && let Some(hud_text) = world.get_hud_text_mut(entity)
+                && let Some(hud_text) = world.core.get_hud_text_mut(entity)
             {
                 hud_text.properties.color.w = self.global_alpha;
                 hud_text.properties.outline_color.w = self.global_alpha;
                 hud_text.dirty = true;
             }
             if let Some(entity) = self.subtitle_entity
-                && let Some(hud_text) = world.get_hud_text_mut(entity)
+                && let Some(hud_text) = world.core.get_hud_text_mut(entity)
             {
                 hud_text.properties.color.w = self.global_alpha;
                 hud_text.properties.outline_color.w = self.global_alpha;
                 hud_text.dirty = true;
             }
             if let Some(entity) = self.paused_text_entity
-                && let Some(hud_text) = world.get_hud_text_mut(entity)
+                && let Some(hud_text) = world.core.get_hud_text_mut(entity)
             {
                 hud_text.properties.color.w = self.global_alpha;
                 hud_text.properties.outline_color.w = self.global_alpha;
                 hud_text.dirty = true;
             }
             for button in &self.main_menu_buttons {
-                if let Some(hud_text) = world.get_hud_text_mut(button.entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
                     hud_text.properties.color.w = self.global_alpha;
                     hud_text.properties.outline_color.w = self.global_alpha;
                     hud_text.dirty = true;
                 }
             }
             for button in &self.settings_buttons {
-                if let Some(hud_text) = world.get_hud_text_mut(button.entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
                     hud_text.properties.color.w = self.global_alpha;
                     hud_text.properties.outline_color.w = self.global_alpha;
                     hud_text.dirty = true;
                 }
             }
             for button in &self.pause_buttons {
-                if let Some(hud_text) = world.get_hud_text_mut(button.entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
                     hud_text.properties.color.w = self.global_alpha;
                     hud_text.properties.outline_color.w = self.global_alpha;
                     hud_text.dirty = true;
                 }
             }
             if let Some(ref button) = self.back_button
-                && let Some(hud_text) = world.get_hud_text_mut(button.entity)
+                && let Some(hud_text) = world.core.get_hud_text_mut(button.entity)
             {
                 hud_text.properties.color.w = self.global_alpha;
                 hud_text.properties.outline_color.w = self.global_alpha;
@@ -1224,7 +1224,7 @@ impl MenuDemoState {
             }
             for toggle in &self.graphics_toggles {
                 for entity in [toggle.label_entity, toggle.value_entity] {
-                    if let Some(hud_text) = world.get_hud_text_mut(entity) {
+                    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                         hud_text.properties.color.w = self.global_alpha;
                         hud_text.properties.outline_color.w = self.global_alpha;
                         hud_text.dirty = true;
@@ -1233,7 +1233,7 @@ impl MenuDemoState {
             }
             for toggle in &self.audio_toggles {
                 for entity in [toggle.label_entity, toggle.value_entity] {
-                    if let Some(hud_text) = world.get_hud_text_mut(entity) {
+                    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                         hud_text.properties.color.w = self.global_alpha;
                         hud_text.properties.outline_color.w = self.global_alpha;
                         hud_text.dirty = true;
@@ -1242,7 +1242,7 @@ impl MenuDemoState {
             }
             for slider in &self.audio_sliders {
                 for entity in [slider.label_entity, slider.value_entity] {
-                    if let Some(hud_text) = world.get_hud_text_mut(entity) {
+                    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                         hud_text.properties.color.w = self.global_alpha;
                         hud_text.properties.outline_color.w = self.global_alpha;
                         hud_text.dirty = true;
@@ -1251,7 +1251,7 @@ impl MenuDemoState {
             }
             for dropdown in &self.graphics_dropdowns {
                 for entity in [dropdown.label_entity, dropdown.value_entity] {
-                    if let Some(hud_text) = world.get_hud_text_mut(entity) {
+                    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                         hud_text.properties.color.w = self.global_alpha;
                         hud_text.properties.outline_color.w = self.global_alpha;
                         hud_text.dirty = true;
@@ -1266,7 +1266,7 @@ impl MenuDemoState {
                 dialog.yes_button.entity,
                 dialog.no_button.entity,
             ] {
-                if let Some(hud_text) = world.get_hud_text_mut(entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                     hud_text.properties.color.w = self.global_alpha;
                     hud_text.properties.outline_color.w = self.global_alpha;
                     hud_text.dirty = true;
@@ -1566,7 +1566,7 @@ impl MenuDemoState {
                     .resources
                     .text_cache
                     .set_text(dropdown.value_text_index, value_text);
-                if let Some(hud_text) = world.get_hud_text_mut(dropdown.value_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(dropdown.value_entity) {
                     hud_text.dirty = true;
                 }
 
@@ -1715,7 +1715,7 @@ impl MenuDemoState {
                     .resources
                     .text_cache
                     .set_text(slider.value_text_index, bar);
-                if let Some(hud_text) = world.get_hud_text_mut(slider.value_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(slider.value_entity) {
                     hud_text.dirty = true;
                 }
                 update_slider_visuals(world, slider, self.global_alpha);
@@ -1765,7 +1765,7 @@ impl MenuDemoState {
         self.game_rotation += delta_time * self.settings.game_speed;
 
         for &entity in &self.game_entities {
-            if let Some(transform) = world.get_local_transform_mut(entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(entity) {
                 transform.rotation =
                     nalgebra_glm::quat_angle_axis(self.game_rotation, &Vec3::new(0.0, 1.0, 0.0))
                         * nalgebra_glm::quat_angle_axis(
@@ -1773,7 +1773,7 @@ impl MenuDemoState {
                             &Vec3::new(1.0, 0.0, 0.0),
                         );
             }
-            world.set_local_transform_dirty(entity, LocalTransformDirty);
+            world.core.set_local_transform_dirty(entity, LocalTransformDirty);
         }
     }
 
@@ -1855,11 +1855,11 @@ impl State for MenuDemoState {
             1,
         )[0];
 
-        if let Some(name) = world.get_name_mut(camera) {
+        if let Some(name) = world.core.get_name_mut(camera) {
             *name = Name("Main Camera".to_string());
         }
 
-        world.set_local_transform(
+        world.core.set_local_transform(
             camera,
             LocalTransform {
                 translation: Vec3::new(0.0, 2.0, 8.0),
@@ -1867,10 +1867,10 @@ impl State for MenuDemoState {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.set_global_transform(camera, GlobalTransform::default());
+        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
+        world.core.set_global_transform(camera, GlobalTransform::default());
 
-        world.set_camera(
+        world.core.set_camera(
             camera,
             Camera {
                 projection: Projection::Perspective(PerspectiveCamera {
@@ -1883,7 +1883,7 @@ impl State for MenuDemoState {
             },
         );
 
-        world.set_pan_orbit_camera(
+        world.core.set_pan_orbit_camera(
             camera,
             PanOrbitCamera {
                 focus: Vec3::new(0.0, 0.5, 0.0),

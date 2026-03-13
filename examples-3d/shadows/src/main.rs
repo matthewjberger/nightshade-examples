@@ -166,8 +166,8 @@ fn create_shadows_scene() -> Scene {
 
 fn find_entity_by_name(world: &World, name: &str) -> Option<Entity> {
     world
-        .query_entities(NAME)
-        .find(|&entity| world.get_name(entity).map(|n| n.0 == name).unwrap_or(false))
+        .core.query_entities(NAME)
+        .find(|&entity| world.core.get_name(entity).map(|n| n.0 == name).unwrap_or(false))
 }
 
 impl State for ShadowsDemo {
@@ -199,10 +199,10 @@ impl State for ShadowsDemo {
         self.resources.torus_entity = find_entity_by_name(world, "Torus");
 
         let sphere_entities: Vec<Entity> = world
-            .query_entities(NAME)
+            .core.query_entities(NAME)
             .filter(|&entity| {
                 world
-                    .get_name(entity)
+                    .core.get_name(entity)
                     .map(|n| n.0.starts_with("Sphere_"))
                     .unwrap_or(false)
             })
@@ -224,7 +224,7 @@ impl State for ShadowsDemo {
         self.resources.time += delta;
 
         if let Some(light_entity) = self.resources.light_entity {
-            if let Some(mut transform) = world.get_local_transform(light_entity).cloned() {
+            if let Some(mut transform) = world.core.get_local_transform(light_entity).cloned() {
                 let x = 50.0 * self.resources.time.sin();
                 let z = 50.0 * self.resources.time.cos();
                 transform.translation.x = x;
@@ -239,26 +239,26 @@ impl State for ShadowsDemo {
                 transform.rotation = nalgebra_glm::quat_angle_axis(yaw, &Vec3::y())
                     * nalgebra_glm::quat_angle_axis(pitch, &Vec3::x());
 
-                world.set_local_transform(light_entity, transform);
-                world.set_local_transform_dirty(light_entity, LocalTransformDirty);
+                world.core.set_local_transform(light_entity, transform);
+                world.core.set_local_transform_dirty(light_entity, LocalTransformDirty);
             }
         }
 
         if let Some(torus_entity) = self.resources.torus_entity {
-            if let Some(mut transform) = world.get_local_transform(torus_entity).cloned() {
+            if let Some(mut transform) = world.core.get_local_transform(torus_entity).cloned() {
                 transform.rotation =
                     nalgebra_glm::quat_angle_axis(self.resources.time * 2.0, &Vec3::y_axis())
                         * nalgebra_glm::quat_angle_axis(
                             std::f32::consts::FRAC_PI_2,
                             &Vec3::x_axis(),
                         );
-                world.set_local_transform(torus_entity, transform);
-                world.set_local_transform_dirty(torus_entity, LocalTransformDirty);
+                world.core.set_local_transform(torus_entity, transform);
+                world.core.set_local_transform_dirty(torus_entity, LocalTransformDirty);
             }
         }
 
         for (sphere_entity, velocity) in &mut self.resources.spheres {
-            if let Some(mut transform) = world.get_local_transform(*sphere_entity).cloned() {
+            if let Some(mut transform) = world.core.get_local_transform(*sphere_entity).cloned() {
                 transform.translation.y += *velocity;
 
                 if transform.translation.y > 11.0 {
@@ -269,8 +269,8 @@ impl State for ShadowsDemo {
                     *velocity = velocity.abs();
                 }
 
-                world.set_local_transform(*sphere_entity, transform);
-                world.set_local_transform_dirty(*sphere_entity, LocalTransformDirty);
+                world.core.set_local_transform(*sphere_entity, transform);
+                world.core.set_local_transform_dirty(*sphere_entity, LocalTransformDirty);
             }
         }
 

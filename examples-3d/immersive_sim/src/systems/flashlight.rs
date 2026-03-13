@@ -9,7 +9,7 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
         1,
     )[0];
 
-    world.set_light(
+    world.core.set_light(
         entity,
         Light {
             light_type: LightType::Spot,
@@ -23,7 +23,7 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: Vec3::new(0.0, 0.0, 0.0),
@@ -32,8 +32,8 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }
@@ -56,13 +56,13 @@ pub fn update_flashlight(game: &mut ImmersiveSim, world: &mut World) {
 
     if toggle_pressed && !game.flashlight_key_was_pressed {
         game.flashlight_on = !game.flashlight_on;
-        if let Some(light) = world.get_light_mut(flashlight_entity) {
+        if let Some(light) = world.core.get_light_mut(flashlight_entity) {
             light.intensity = if game.flashlight_on { 150.0 } else { 0.0 };
         }
     }
     game.flashlight_key_was_pressed = toggle_pressed;
 
-    if let Some(camera_transform) = world.get_global_transform(camera).cloned() {
+    if let Some(camera_transform) = world.core.get_global_transform(camera).cloned() {
         let camera_position = camera_transform.translation();
         let camera_forward = camera_transform.forward_vector();
 
@@ -71,13 +71,13 @@ pub fn update_flashlight(game: &mut ImmersiveSim, world: &mut World) {
         let flashlight_transform = LocalTransform {
             translation: offset_position,
             rotation: world
-                .get_local_transform(camera)
+                .core.get_local_transform(camera)
                 .map(|t| t.rotation)
                 .unwrap_or(Quat::identity()),
             scale: Vec3::new(1.0, 1.0, 1.0),
         };
 
-        world.set_local_transform(flashlight_entity, flashlight_transform);
-        world.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
+        world.core.set_local_transform(flashlight_entity, flashlight_transform);
+        world.core.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
     }
 }

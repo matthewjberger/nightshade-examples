@@ -176,7 +176,7 @@ impl State for NavMeshDemo {
         load_hdr_skybox(world, HDR_SKYBOX.to_vec());
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 5.0;
         }
@@ -245,7 +245,7 @@ impl State for NavMeshDemo {
                 ui.label("Grass Settings:");
 
                 if let Some(grass_region) = self.grass_region
-                    && let Some(region) = world.get_grass_region_mut(grass_region)
+                    && let Some(region) = world.core.get_grass_region_mut(grass_region)
                 {
                     ui.add(
                         egui::Slider::new(&mut region.config.wind_strength, 0.0..=2.0)
@@ -305,7 +305,7 @@ impl State for NavMeshDemo {
 
                 if radius_changed || strength_changed {
                     for fox in &self.foxes {
-                        if let Some(interactor) = world.get_grass_interactor_mut(fox.agent_entity) {
+                        if let Some(interactor) = world.core.get_grass_interactor_mut(fox.agent_entity) {
                             interactor.radius = self.interactor_radius;
                             interactor.strength = self.interactor_strength;
                         }
@@ -467,7 +467,7 @@ impl NavMeshDemo {
             return;
         };
 
-        if let Some(pan_orbit) = world.get_pan_orbit_camera(camera) {
+        if let Some(pan_orbit) = world.core.get_pan_orbit_camera(camera) {
             let focus = pan_orbit.focus;
             let terrain_y = self.sample_height(focus.x, focus.z);
             let grass_position = Vec3::new(focus.x, terrain_y, focus.z);
@@ -540,7 +540,7 @@ impl NavMeshDemo {
                     | BOUNDING_VOLUME,
                 1,
             )[0];
-            world.set_local_transform(
+            world.core.set_local_transform(
                 trunk,
                 LocalTransform {
                     translation: Vec3::new(x, terrain_y + trunk_height / 2.0, z),
@@ -548,9 +548,9 @@ impl NavMeshDemo {
                     scale: Vec3::new(trunk_radius * 2.0, trunk_height, trunk_radius * 2.0),
                 },
             );
-            world.set_render_mesh(trunk, RenderMesh::new("Cube"));
-            world.set_material_ref(trunk, MaterialRef::new(trunk_material_name));
-            world.set_casts_shadow(trunk, CastsShadow);
+            world.core.set_render_mesh(trunk, RenderMesh::new("Cube"));
+            world.core.set_material_ref(trunk, MaterialRef::new(trunk_material_name));
+            world.core.set_casts_shadow(trunk, CastsShadow);
 
             let green_variation = (index as f32 * 0.02) % 0.12;
             let tier_radii = [2.0 * tree_scale, 1.5 * tree_scale, 0.9 * tree_scale];
@@ -598,7 +598,7 @@ impl NavMeshDemo {
                         | BOUNDING_VOLUME,
                     1,
                 )[0];
-                world.set_local_transform(
+                world.core.set_local_transform(
                     cone,
                     LocalTransform {
                         translation: Vec3::new(x, y_pos, z),
@@ -606,9 +606,9 @@ impl NavMeshDemo {
                         scale: Vec3::new(radius, height, radius),
                     },
                 );
-                world.set_render_mesh(cone, RenderMesh::new("Cone"));
-                world.set_material_ref(cone, MaterialRef::new(cone_material_name));
-                world.set_casts_shadow(cone, CastsShadow);
+                world.core.set_render_mesh(cone, RenderMesh::new("Cone"));
+                world.core.set_material_ref(cone, MaterialRef::new(cone_material_name));
+                world.core.set_casts_shadow(cone, CastsShadow);
             }
         }
     }
@@ -804,11 +804,11 @@ impl NavMeshDemo {
             1,
         )[0];
 
-        if let Some(transform) = world.get_local_transform_mut(agent_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(agent_entity) {
             transform.translation = position;
         }
 
-        if let Some(agent) = world.get_navmesh_agent_mut(agent_entity) {
+        if let Some(agent) = world.core.get_navmesh_agent_mut(agent_entity) {
             agent.movement_speed = self.agent_speed;
         }
 
@@ -820,7 +820,7 @@ impl NavMeshDemo {
             Vec3::zeros(),
         );
 
-        if let Some(transform) = world.get_local_transform_mut(fox_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(fox_entity) {
             transform.translation = position;
             transform.scale = Vec3::new(FOX_SCALE, FOX_SCALE, FOX_SCALE);
         }
@@ -834,7 +834,7 @@ impl NavMeshDemo {
         );
 
         let initial_animation = self.animation_indices.survey;
-        if let Some(player) = world.get_animation_player_mut(fox_entity) {
+        if let Some(player) = world.core.get_animation_player_mut(fox_entity) {
             if let Some(survey_index) = initial_animation {
                 player.play(survey_index);
                 player.speed = 0.5;
@@ -925,7 +925,7 @@ impl NavMeshDemo {
 
         for fox in &mut self.foxes {
             let agent_pos = world
-                .get_local_transform(fox.agent_entity)
+                .core.get_local_transform(fox.agent_entity)
                 .map(|t| t.translation)
                 .unwrap_or(Vec3::zeros());
 
@@ -936,7 +936,7 @@ impl NavMeshDemo {
             );
             let fox_pos = Vec3::new(agent_pos.x, terrain_y, agent_pos.z);
 
-            let agent = world.get_navmesh_agent(fox.agent_entity);
+            let agent = world.core.get_navmesh_agent(fox.agent_entity);
             let is_moving = agent
                 .map(|a| a.state == NavMeshAgentState::Moving)
                 .unwrap_or(false);
@@ -963,14 +963,14 @@ impl NavMeshDemo {
 
             fox.was_moving = is_moving;
 
-            if let Some(transform) = world.get_local_transform_mut(fox.entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(fox.entity) {
                 transform.translation = fox_pos;
                 transform.rotation =
                     nalgebra_glm::quat_angle_axis(fox.current_rotation, &Vec3::y());
             }
             world.mark_local_transform_dirty(fox.entity);
 
-            if let Some(transform) = world.get_local_transform_mut(fox.name_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(fox.name_entity) {
                 transform.translation = fox_pos + nalgebra_glm::vec3(0.0, 1.5, 0.0);
             }
             world.mark_local_transform_dirty(fox.name_entity);
@@ -982,7 +982,7 @@ impl NavMeshDemo {
         const WALK_DISTANCE_THRESHOLD: f32 = 2.0;
 
         for fox in &mut self.foxes {
-            let agent = world.get_navmesh_agent(fox.agent_entity);
+            let agent = world.core.get_navmesh_agent(fox.agent_entity);
             let (is_moving, distance) = agent
                 .map(|a| {
                     (
@@ -1004,13 +1004,13 @@ impl NavMeshDemo {
 
             if target_animation != fox.current_animation {
                 if let Some(anim_index) = target_animation
-                    && let Some(player) = world.get_animation_player_mut(fox.entity)
+                    && let Some(player) = world.core.get_animation_player_mut(fox.entity)
                 {
                     player.blend_to(anim_index, 0.3);
                     player.speed = target_speed;
                     fox.current_animation = Some(anim_index);
                 }
-            } else if let Some(player) = world.get_animation_player_mut(fox.entity) {
+            } else if let Some(player) = world.core.get_animation_player_mut(fox.entity) {
                 player.speed = target_speed;
             }
         }
@@ -1024,7 +1024,7 @@ impl NavMeshDemo {
         let terrain_config = self.terrain_config.to_nightshade_config();
 
         for fox in &self.foxes {
-            let agent = world.get_navmesh_agent(fox.agent_entity);
+            let agent = world.core.get_navmesh_agent(fox.agent_entity);
             let needs_destination = agent
                 .map(|a| {
                     a.state == NavMeshAgentState::Idle
@@ -1063,7 +1063,7 @@ impl NavMeshDemo {
         };
 
         let fox_pos = world
-            .get_local_transform(fox.entity)
+            .core.get_local_transform(fox.entity)
             .map(|t| t.translation)
             .unwrap_or(Vec3::zeros());
 
@@ -1073,7 +1073,7 @@ impl NavMeshDemo {
         let camera_pos = fox_pos + rotated_offset;
         let look_target = fox_pos + nalgebra_glm::vec3(0.0, 1.0, 0.0);
 
-        if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
             transform.translation = camera_pos;
             let direction = nalgebra_glm::normalize(&(look_target - camera_pos));
             let up = Vec3::y();
@@ -1143,9 +1143,9 @@ impl NavMeshDemo {
                     | nightshade::ecs::GLOBAL_TRANSFORM,
                 1,
             )[0];
-            world.set_lines(entity, Lines::default());
-            world.set_visibility(entity, Visibility { visible: true });
-            world.set_global_transform(entity, GlobalTransform::default());
+            world.core.set_lines(entity, Lines::default());
+            world.core.set_visibility(entity, Visibility { visible: true });
+            world.core.set_global_transform(entity, GlobalTransform::default());
             self.interactor_debug_entity = Some(entity);
         }
 
@@ -1154,7 +1154,7 @@ impl NavMeshDemo {
         };
 
         if !self.show_interactor_debug {
-            world.set_lines(debug_entity, Lines::new(vec![]));
+            world.core.set_lines(debug_entity, Lines::new(vec![]));
             return;
         }
 
@@ -1163,10 +1163,10 @@ impl NavMeshDemo {
         let color = Vec4::new(1.0, 0.5, 0.0, 1.0);
 
         for fox in &self.foxes {
-            let Some(interactor) = world.get_grass_interactor(fox.agent_entity) else {
+            let Some(interactor) = world.core.get_grass_interactor(fox.agent_entity) else {
                 continue;
             };
-            let Some(transform) = world.get_local_transform(fox.agent_entity) else {
+            let Some(transform) = world.core.get_local_transform(fox.agent_entity) else {
                 continue;
             };
 
@@ -1196,6 +1196,6 @@ impl NavMeshDemo {
             });
         }
 
-        world.set_lines(debug_entity, Lines::new(lines));
+        world.core.set_lines(debug_entity, Lines::new(lines));
     }
 }

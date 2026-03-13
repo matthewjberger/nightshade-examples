@@ -82,11 +82,11 @@ impl State for HorrorDemo {
         let player_position = nalgebra_glm::vec3(0.0, 1.2, 4.0);
         let (player_entity, camera_entity) = spawn_first_person_player(world, player_position);
 
-        if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
             transform.translation.y = STANDING_CAMERA_HEIGHT;
         }
 
-        if let Some(camera) = world.get_camera_mut(camera_entity)
+        if let Some(camera) = world.core.get_camera_mut(camera_entity)
             && let Projection::Perspective(ref mut perspective) = camera.projection
         {
             perspective.y_fov_rad = 75.0_f32.to_radians();
@@ -96,8 +96,8 @@ impl State for HorrorDemo {
         self.camera_entity = Some(camera_entity);
         world.resources.active_camera = Some(camera_entity);
 
-        world.add_components(camera_entity, AUDIO_LISTENER);
-        world.set_audio_listener(camera_entity, AudioListener);
+        world.core.add_components(camera_entity, AUDIO_LISTENER);
+        world.core.set_audio_listener(camera_entity, AudioListener);
 
         let flashlight = spawn_flashlight(world);
         self.flashlight_entity = Some(flashlight);
@@ -127,7 +127,7 @@ impl State for HorrorDemo {
         load_audio_assets(world);
 
         let ambient_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world.set_audio_source(
+        world.core.set_audio_source(
             ambient_audio,
             AudioSource::new("atmosphere")
                 .with_volume(0.4)
@@ -136,28 +136,28 @@ impl State for HorrorDemo {
         self.ambient_audio_entity = Some(ambient_audio);
 
         let generator_audio = world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             generator_audio,
             LocalTransform {
                 translation: nalgebra_glm::vec3(-8.0, 1.0, -14.5),
                 ..Default::default()
             },
         );
-        world.set_audio_source(
+        world.core.set_audio_source(
             generator_audio,
             AudioSource::new("generator").with_spatial(true),
         );
         self.generator_audio_entity = Some(generator_audio);
 
         let rubble_audio = world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             rubble_audio,
             LocalTransform {
                 translation: nalgebra_glm::vec3(-4.5, 1.5, -16.0),
                 ..Default::default()
             },
         );
-        world.set_audio_source(
+        world.core.set_audio_source(
             rubble_audio,
             AudioSource::new("rubble")
                 .with_spatial(true)
@@ -166,7 +166,7 @@ impl State for HorrorDemo {
         self.rubble_audio_entity = Some(rubble_audio);
 
         let monster_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world.set_audio_source(
+        world.core.set_audio_source(
             monster_audio,
             AudioSource::new("monster")
                 .with_volume(0.6)
@@ -175,7 +175,7 @@ impl State for HorrorDemo {
         self.monster_audio_entity = Some(monster_audio);
 
         let footstep_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world.set_audio_source(
+        world.core.set_audio_source(
             footstep_audio,
             AudioSource::new("footsteps")
                 .with_volume(0.4)
@@ -184,7 +184,7 @@ impl State for HorrorDemo {
         self.footstep_audio_entity = Some(footstep_audio);
 
         let door_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world.set_audio_source(door_audio, AudioSource::new("door_creak").with_volume(0.6));
+        world.core.set_audio_source(door_audio, AudioSource::new("door_creak").with_volume(0.6));
         self.door_audio_entity = Some(door_audio);
     }
 
@@ -197,7 +197,7 @@ impl State for HorrorDemo {
         if !self.audio_started
             && world.resources.audio.is_initialized()
             && let Some(entity) = self.ambient_audio_entity
-            && let Some(source) = world.get_audio_source_mut(entity)
+            && let Some(source) = world.core.get_audio_source_mut(entity)
         {
             source.playing = true;
             self.audio_started = true;
@@ -430,19 +430,19 @@ fn update_footstep_audio(demo: &mut HorrorDemo, world: &mut World) {
     let movement_keys_pressed = w_pressed || a_pressed || s_pressed || d_pressed;
 
     let is_grounded = world
-        .get_character_controller(player_entity)
+        .core.get_character_controller(player_entity)
         .map(|cc| cc.grounded)
         .unwrap_or(false);
 
     let is_moving = movement_keys_pressed && is_grounded && !demo.cutscene.active;
 
     if is_moving && !demo.was_moving {
-        if let Some(source) = world.get_audio_source_mut(footstep_entity) {
+        if let Some(source) = world.core.get_audio_source_mut(footstep_entity) {
             source.playing = true;
         }
     } else if !is_moving
         && demo.was_moving
-        && let Some(source) = world.get_audio_source_mut(footstep_entity)
+        && let Some(source) = world.core.get_audio_source_mut(footstep_entity)
     {
         source.playing = false;
     }

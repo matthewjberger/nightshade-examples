@@ -125,7 +125,7 @@ impl TrafficSystem {
 
             check_intersection_turn(car, &mut self.rng);
 
-            if let Some(transform) = world.get_local_transform_mut(car.entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(car.entity) {
                 transform.translation = car.position;
                 transform.rotation =
                     nalgebra_glm::quat_angle_axis(car.direction.yaw_angle(), &Vec3::y());
@@ -195,7 +195,7 @@ impl TrafficSystem {
 
         let entity = spawn_city_mesh(world, model, position, CAR_SCALE);
         apply_material(world, entity, kenney::MAT_CAR);
-        if let Some(transform) = world.get_local_transform_mut(entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(entity) {
             transform.rotation =
                 nalgebra_glm::quat_angle_axis(direction.yaw_angle(), &Vec3::y());
         }

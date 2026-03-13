@@ -218,7 +218,7 @@ impl State for CustomPassDemo {
 
         let camera = spawn_camera(world, Vec3::new(0.0, 1.0, 5.0), "Main Camera".to_string());
 
-        if let Some(camera_component) = world.get_camera_mut(camera) {
+        if let Some(camera_component) = world.core.get_camera_mut(camera) {
             camera_component.projection = Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,
                 y_fov_rad: 60.0_f32.to_radians(),
@@ -257,7 +257,7 @@ impl State for CustomPassDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(cube1, MaterialRef::new(cube1_material));
+        world.core.set_material_ref(cube1, MaterialRef::new(cube1_material));
 
         let cube2 = spawn_mesh(
             world,
@@ -287,7 +287,7 @@ impl State for CustomPassDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(cube2, MaterialRef::new(cube2_material));
+        world.core.set_material_ref(cube2, MaterialRef::new(cube2_material));
 
         let cube3 = spawn_mesh(
             world,
@@ -317,7 +317,7 @@ impl State for CustomPassDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(cube3, MaterialRef::new(cube3_material));
+        world.core.set_material_ref(cube3, MaterialRef::new(cube3_material));
 
         let sphere = spawn_mesh(
             world,
@@ -347,7 +347,7 @@ impl State for CustomPassDemo {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(sphere, MaterialRef::new(sphere_material));
+        world.core.set_material_ref(sphere, MaterialRef::new(sphere_material));
     }
 
     fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {
@@ -391,10 +391,10 @@ impl State for CustomPassDemo {
         let rotation_y = nalgebra_glm::quat_angle_axis(angle, &Vec3::y());
 
         let entities: Vec<_> = world
-            .query_entities(RENDER_MESH | LOCAL_TRANSFORM)
+            .core.query_entities(RENDER_MESH | LOCAL_TRANSFORM)
             .collect();
         for entity in entities {
-            if let Some(transform) = world.get_local_transform_mut(entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(entity) {
                 transform.rotation = rotation_y;
             }
             mark_local_transform_dirty(world, entity);

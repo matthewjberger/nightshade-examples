@@ -34,7 +34,7 @@ impl State for DoomGame {
             .unwrap_or(Vec3::new(0.0, 0.5, 0.0));
         let camera = spawn_camera(world, start_pos, "Camera".to_string());
 
-        if let Some(camera_component) = world.get_camera_mut(camera) {
+        if let Some(camera_component) = world.core.get_camera_mut(camera) {
             *camera_component = Camera {
                 projection: Projection::Perspective(PerspectiveCamera {
                     aspect_ratio: None,
@@ -155,7 +155,7 @@ fn doom_look_system(world: &mut World) {
 
         let raw_delta = world.resources.input.mouse.raw_mouse_delta;
 
-        let Some(local_transform) = world.get_local_transform_mut(camera_entity) else {
+        let Some(local_transform) = world.core.get_local_transform_mut(camera_entity) else {
             return;
         };
 
@@ -249,7 +249,7 @@ fn doom_movement_system(world: &mut World) {
 
     movement = movement.normalize();
 
-    let Some(local_transform) = world.get_local_transform_mut(camera_entity) else {
+    let Some(local_transform) = world.core.get_local_transform_mut(camera_entity) else {
         return;
     };
 

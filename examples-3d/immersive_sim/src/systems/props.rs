@@ -45,16 +45,16 @@ pub fn spawn_grabbable_prop(
         1,
     )[0];
 
-    if let Some(name) = world.get_name_mut(entity) {
+    if let Some(name) = world.core.get_name_mut(entity) {
         name.0 = format!("Prop_{}", entity.id);
     }
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
         transform.scale = scale;
     }
 
-    if let Some(mesh) = world.get_render_mesh_mut(entity) {
+    if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
         mesh.name = mesh_name.to_string();
     }
 
@@ -77,33 +77,33 @@ pub fn spawn_grabbable_prop(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume =
             nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
     }
 
-    if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+    if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
         *rigid_body = RigidBodyComponent::new_dynamic()
             .with_translation(position.x, position.y, position.z)
             .with_mass(mass);
     }
 
-    if let Some(coll) = world.get_collider_mut(entity) {
+    if let Some(coll) = world.core.get_collider_mut(entity) {
         *coll = collider.with_friction(0.5);
     }
 
     let handle = {
-        let rigid_body_comp = world.get_rigid_body(entity).cloned().unwrap();
-        let collider_comp = world.get_collider(entity).cloned();
+        let rigid_body_comp = world.core.get_rigid_body(entity).cloned().unwrap();
+        let collider_comp = world.core.get_collider(entity).cloned();
         let rigid_body = rigid_body_comp.to_rapier_rigid_body();
         let handle = world.resources.physics.add_rigid_body(rigid_body);
         if let Some(collider_comp) = collider_comp {
             let collider = collider_comp.to_rapier_collider();
             world.resources.physics.add_collider(collider, handle);
         }
-        if let Some(rigid_body_mut) = world.get_rigid_body_mut(entity) {
+        if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(entity) {
             rigid_body_mut.handle = Some(handle.into());
         }
         handle

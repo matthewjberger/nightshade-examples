@@ -175,7 +175,7 @@ impl State for DanceState {
         load_hdr_skybox(world, HDR_BYTES.to_vec());
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 2.0;
         }
@@ -189,7 +189,7 @@ impl State for DanceState {
                 | CASTS_SHADOW,
             1,
         )[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             ground,
             LocalTransform {
                 translation: Vec3::new(0.0, -0.05, 0.0),
@@ -197,7 +197,7 @@ impl State for DanceState {
                 scale: Vec3::new(100.0, 0.1, 100.0),
             },
         );
-        world.set_render_mesh(ground, RenderMesh::new("Cube"));
+        world.core.set_render_mesh(ground, RenderMesh::new("Cube"));
         let ground_material = format!("Ground_{}", ground.id);
         material_registry_insert(
             &mut world.resources.material_registry,
@@ -222,8 +222,8 @@ impl State for DanceState {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(ground, MaterialRef::new(ground_material));
-        world.set_casts_shadow(ground, CastsShadow);
+        world.core.set_material_ref(ground, MaterialRef::new(ground_material));
+        world.core.set_casts_shadow(ground, CastsShadow);
 
         self.home_focus = Vec3::new(0.0, 1.0, 0.0);
         self.home_radius = 8.0;
@@ -347,13 +347,13 @@ impl State for DanceState {
                 Vec4::new(1.0, 0.65, 0.0, 1.0)
             };
 
-            let text_index = world.get_hud_text(fps_text_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(fps_text_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("FPS: {:.0}", fps));
-                if let Some(hud_text) = world.get_hud_text_mut(fps_text_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(fps_text_entity) {
                     hud_text.properties.color = fps_color;
                     hud_text.dirty = true;
                 }
@@ -362,7 +362,7 @@ impl State for DanceState {
 
         if let Some(dancer_count_entity) = self.dancer_count_hud_text {
             let text_index = world
-                .get_hud_text(dancer_count_entity)
+                .core.get_hud_text(dancer_count_entity)
                 .map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
@@ -372,20 +372,20 @@ impl State for DanceState {
                         format_number_with_commas(self.dancer_entities.len())
                     ),
                 );
-                if let Some(hud_text) = world.get_hud_text_mut(dancer_count_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(dancer_count_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(target_fps_entity) = self.target_fps_hud_text {
-            let text_index = world.get_hud_text(target_fps_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(target_fps_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("Target FPS: {:.0}", self.target_fps));
-                if let Some(hud_text) = world.get_hud_text_mut(target_fps_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(target_fps_entity) {
                     hud_text.dirty = true;
                 }
             }
@@ -519,7 +519,7 @@ impl State for DanceState {
                         return;
                     };
 
-                    let Some(player) = world.get_animation_player_mut(entity) else {
+                    let Some(player) = world.core.get_animation_player_mut(entity) else {
                         ui.label("No animation player found");
                         return;
                     };
@@ -563,7 +563,7 @@ impl State for DanceState {
                     }
 
                     let (mut speed, mut looping, playing) =
-                        if let Some(player) = world.get_animation_player(entity) {
+                        if let Some(player) = world.core.get_animation_player(entity) {
                             (player.speed, player.looping, player.playing)
                         } else {
                             (1.0, true, false)
@@ -691,7 +691,7 @@ impl DanceState {
             return;
         };
 
-        let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) else {
+        let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera_entity) else {
             return;
         };
 
@@ -882,16 +882,16 @@ impl DanceState {
         let positions = calculate_grid_positions(self.dancer_entities.len(), self.grid_spacing);
 
         for (entity, position) in self.dancer_entities.iter().zip(positions.iter()) {
-            if let Some(transform) = world.get_local_transform_mut(*entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(*entity) {
                 transform.translation = *position;
             }
-            world.set_local_transform_dirty(*entity, LocalTransformDirty);
+            world.core.set_local_transform_dirty(*entity, LocalTransformDirty);
         }
     }
 
     fn play_animation_all(&self, world: &mut World, clip_index: usize) {
         for &entity in &self.dancer_entities {
-            if let Some(player) = world.get_animation_player_mut(entity) {
+            if let Some(player) = world.core.get_animation_player_mut(entity) {
                 player.play(clip_index);
             }
         }
@@ -899,7 +899,7 @@ impl DanceState {
 
     fn set_speed_all(&self, world: &mut World, speed: f32) {
         for &entity in &self.dancer_entities {
-            if let Some(player) = world.get_animation_player_mut(entity) {
+            if let Some(player) = world.core.get_animation_player_mut(entity) {
                 player.speed = speed;
             }
         }
@@ -907,7 +907,7 @@ impl DanceState {
 
     fn set_looping_all(&self, world: &mut World, looping: bool) {
         for &entity in &self.dancer_entities {
-            if let Some(player) = world.get_animation_player_mut(entity) {
+            if let Some(player) = world.core.get_animation_player_mut(entity) {
                 player.looping = looping;
             }
         }
@@ -915,7 +915,7 @@ impl DanceState {
 
     fn pause_all(&self, world: &mut World) {
         for &entity in &self.dancer_entities {
-            if let Some(player) = world.get_animation_player_mut(entity) {
+            if let Some(player) = world.core.get_animation_player_mut(entity) {
                 player.pause();
             }
         }
@@ -923,7 +923,7 @@ impl DanceState {
 
     fn resume_all(&self, world: &mut World) {
         for &entity in &self.dancer_entities {
-            if let Some(player) = world.get_animation_player_mut(entity) {
+            if let Some(player) = world.core.get_animation_player_mut(entity) {
                 player.resume();
             }
         }
@@ -931,7 +931,7 @@ impl DanceState {
 
     fn stop_all(&self, world: &mut World) {
         for &entity in &self.dancer_entities {
-            if let Some(player) = world.get_animation_player_mut(entity) {
+            if let Some(player) = world.core.get_animation_player_mut(entity) {
                 player.stop();
             }
         }

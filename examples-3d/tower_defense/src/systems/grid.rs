@@ -84,7 +84,7 @@ pub fn spawn_grid_tiles(game_world: &mut GameWorld, world: &mut World) {
                     .registry
                     .add_reference(index);
             }
-            world.set_material_ref(tile_entity, MaterialRef::new(material_name));
+            world.core.set_material_ref(tile_entity, MaterialRef::new(material_name));
 
             game_world.resources.grid_tiles.insert((x, z), tile_entity);
             game_world
@@ -178,7 +178,7 @@ pub fn create_path(game_world: &mut GameWorld, world: &mut World) {
                     .registry
                     .add_reference(index);
             }
-            world.set_material_ref(path_segment, MaterialRef::new(material_name));
+            world.core.set_material_ref(path_segment, MaterialRef::new(material_name));
         }
     }
 
@@ -212,7 +212,7 @@ pub fn create_path(game_world: &mut GameWorld, world: &mut World) {
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(start_marker, MaterialRef::new(material_name));
+    world.core.set_material_ref(start_marker, MaterialRef::new(material_name));
 
     let end_marker = spawn_mesh(
         world,
@@ -244,7 +244,7 @@ pub fn create_path(game_world: &mut GameWorld, world: &mut World) {
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(end_marker, MaterialRef::new(material_name));
+    world.core.set_material_ref(end_marker, MaterialRef::new(material_name));
 }
 
 pub fn get_grid_position_from_mouse(_game_world: &GameWorld, world: &World) -> Option<(i32, i32)> {

@@ -44,7 +44,7 @@ impl State for VoxelWorld {
         world.resources.active_camera = Some(camera);
         self.camera_entity = Some(camera);
 
-        if let Some(transform) = world.get_local_transform_mut(camera) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera) {
             let look_at = Vec3::new(30.0, 40.0, 30.0);
             let direction = (look_at - camera_position).normalize();
             let pitch = direction.y.asin();
@@ -54,7 +54,7 @@ impl State for VoxelWorld {
         }
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 3.0;
             light.shadow_bias = 0.007;
@@ -78,7 +78,7 @@ impl State for VoxelWorld {
         fly_camera_system(world);
 
         let (camera_pos, camera_forward) = if let Some(camera) = self.camera_entity
-            && let Some(transform) = world.get_local_transform(camera)
+            && let Some(transform) = world.core.get_local_transform(camera)
         {
             let forward =
                 nalgebra_glm::quat_rotate_vec3(&transform.rotation, &Vec3::new(0.0, 0.0, -1.0));
@@ -111,7 +111,7 @@ impl State for VoxelWorld {
                 ui.separator();
 
                 if let Some(camera) = self.camera_entity
-                    && let Some(transform) = world.get_local_transform(camera)
+                    && let Some(transform) = world.core.get_local_transform(camera)
                 {
                     ui.label(format!(
                         "Camera: ({:.1}, {:.1}, {:.1})",

@@ -33,7 +33,7 @@ pub fn update(game: &GameWorld, world: &mut World) {
         }
     };
 
-    if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
         transform.translation = target_position;
         let look_target = player_pos + Vec3::new(0.0, 1.0, 0.0);
         let direction = nalgebra_glm::normalize(&(look_target - target_position));

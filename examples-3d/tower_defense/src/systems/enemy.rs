@@ -80,7 +80,7 @@ fn spawn_normal_enemy(world: &mut World, position: Vec3, base_y: f32, color: Vec
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(main_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(main_entity, MaterialRef::new(material_name));
 
     spawn_child_sphere(
         world,
@@ -139,7 +139,7 @@ fn spawn_fast_enemy(world: &mut World, position: Vec3, base_y: f32, color: Vec4)
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(main_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(main_entity, MaterialRef::new(material_name));
 
     spawn_child_sphere(
         world,
@@ -182,7 +182,7 @@ fn spawn_tank_enemy(world: &mut World, position: Vec3, base_y: f32, color: Vec4)
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(main_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(main_entity, MaterialRef::new(material_name));
 
     spawn_child_cube(
         world,
@@ -242,7 +242,7 @@ fn spawn_flying_enemy(world: &mut World, position: Vec3, base_y: f32, color: Vec
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(main_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(main_entity, MaterialRef::new(material_name));
 
     spawn_child_cone_rotated(
         world,
@@ -295,7 +295,7 @@ fn spawn_shielded_enemy(world: &mut World, position: Vec3, base_y: f32, color: V
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(main_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(main_entity, MaterialRef::new(material_name));
 
     spawn_child_sphere(
         world,
@@ -348,7 +348,7 @@ fn spawn_healer_enemy(world: &mut World, position: Vec3, base_y: f32, color: Vec
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(main_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(main_entity, MaterialRef::new(material_name));
 
     spawn_child_sphere_emissive(
         world,
@@ -392,7 +392,7 @@ fn spawn_boss_enemy(world: &mut World, position: Vec3, base_y: f32, color: Vec4)
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(main_entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(main_entity, MaterialRef::new(material_name));
 
     spawn_child_cube(
         world,
@@ -449,8 +449,8 @@ fn spawn_child_sphere(
             | PARENT,
         1,
     )[0];
-    world.set_name(child, Name(name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(child, Name(name.to_string()));
+    world.core.set_local_transform(
         child,
         LocalTransform {
             translation,
@@ -458,9 +458,9 @@ fn spawn_child_sphere(
             ..Default::default()
         },
     );
-    world.set_global_transform(child, GlobalTransform::default());
-    world.set_local_transform_dirty(child, LocalTransformDirty);
-    world.set_render_mesh(child, RenderMesh::new("Sphere"));
+    world.core.set_global_transform(child, GlobalTransform::default());
+    world.core.set_local_transform_dirty(child, LocalTransformDirty);
+    world.core.set_render_mesh(child, RenderMesh::new("Sphere"));
     let material_name = format!("{}_{}", name.replace(' ', ""), child.id);
     material_registry_insert(
         &mut world.resources.material_registry,
@@ -483,9 +483,9 @@ fn spawn_child_sphere(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(child, MaterialRef::new(material_name));
-    world.set_bounding_volume(child, BoundingVolume::from_mesh_type("Sphere"));
-    world.set_parent(child, Parent(Some(parent)));
+    world.core.set_material_ref(child, MaterialRef::new(material_name));
+    world.core.set_bounding_volume(child, BoundingVolume::from_mesh_type("Sphere"));
+    world.core.set_parent(child, Parent(Some(parent)));
 }
 
 fn spawn_child_sphere_emissive(
@@ -507,8 +507,8 @@ fn spawn_child_sphere_emissive(
             | PARENT,
         1,
     )[0];
-    world.set_name(child, Name(name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(child, Name(name.to_string()));
+    world.core.set_local_transform(
         child,
         LocalTransform {
             translation,
@@ -516,9 +516,9 @@ fn spawn_child_sphere_emissive(
             ..Default::default()
         },
     );
-    world.set_global_transform(child, GlobalTransform::default());
-    world.set_local_transform_dirty(child, LocalTransformDirty);
-    world.set_render_mesh(child, RenderMesh::new("Sphere"));
+    world.core.set_global_transform(child, GlobalTransform::default());
+    world.core.set_local_transform_dirty(child, LocalTransformDirty);
+    world.core.set_render_mesh(child, RenderMesh::new("Sphere"));
     let material_name = format!("{}_{}", name.replace(' ', ""), child.id);
     material_registry_insert(
         &mut world.resources.material_registry,
@@ -542,9 +542,9 @@ fn spawn_child_sphere_emissive(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(child, MaterialRef::new(material_name));
-    world.set_bounding_volume(child, BoundingVolume::from_mesh_type("Sphere"));
-    world.set_parent(child, Parent(Some(parent)));
+    world.core.set_material_ref(child, MaterialRef::new(material_name));
+    world.core.set_bounding_volume(child, BoundingVolume::from_mesh_type("Sphere"));
+    world.core.set_parent(child, Parent(Some(parent)));
 }
 
 fn spawn_child_cube(
@@ -565,8 +565,8 @@ fn spawn_child_cube(
             | PARENT,
         1,
     )[0];
-    world.set_name(child, Name(name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(child, Name(name.to_string()));
+    world.core.set_local_transform(
         child,
         LocalTransform {
             translation,
@@ -574,9 +574,9 @@ fn spawn_child_cube(
             ..Default::default()
         },
     );
-    world.set_global_transform(child, GlobalTransform::default());
-    world.set_local_transform_dirty(child, LocalTransformDirty);
-    world.set_render_mesh(child, RenderMesh::new("Cube"));
+    world.core.set_global_transform(child, GlobalTransform::default());
+    world.core.set_local_transform_dirty(child, LocalTransformDirty);
+    world.core.set_render_mesh(child, RenderMesh::new("Cube"));
     let material_name = format!("{}_{}", name.replace(' ', ""), child.id);
     material_registry_insert(
         &mut world.resources.material_registry,
@@ -599,9 +599,9 @@ fn spawn_child_cube(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(child, MaterialRef::new(material_name));
-    world.set_bounding_volume(child, BoundingVolume::from_mesh_type("Cube"));
-    world.set_parent(child, Parent(Some(parent)));
+    world.core.set_material_ref(child, MaterialRef::new(material_name));
+    world.core.set_bounding_volume(child, BoundingVolume::from_mesh_type("Cube"));
+    world.core.set_parent(child, Parent(Some(parent)));
 }
 
 fn spawn_child_cylinder(
@@ -623,8 +623,8 @@ fn spawn_child_cylinder(
             | PARENT,
         1,
     )[0];
-    world.set_name(child, Name(name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(child, Name(name.to_string()));
+    world.core.set_local_transform(
         child,
         LocalTransform {
             translation,
@@ -632,9 +632,9 @@ fn spawn_child_cylinder(
             ..Default::default()
         },
     );
-    world.set_global_transform(child, GlobalTransform::default());
-    world.set_local_transform_dirty(child, LocalTransformDirty);
-    world.set_render_mesh(child, RenderMesh::new("Cylinder"));
+    world.core.set_global_transform(child, GlobalTransform::default());
+    world.core.set_local_transform_dirty(child, LocalTransformDirty);
+    world.core.set_render_mesh(child, RenderMesh::new("Cylinder"));
     let material_name = format!("{}_{}", name.replace(' ', ""), child.id);
     let alpha_mode = if blend {
         AlphaMode::Blend
@@ -669,9 +669,9 @@ fn spawn_child_cylinder(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(child, MaterialRef::new(material_name));
-    world.set_bounding_volume(child, BoundingVolume::from_mesh_type("Cylinder"));
-    world.set_parent(child, Parent(Some(parent)));
+    world.core.set_material_ref(child, MaterialRef::new(material_name));
+    world.core.set_bounding_volume(child, BoundingVolume::from_mesh_type("Cylinder"));
+    world.core.set_parent(child, Parent(Some(parent)));
 }
 
 fn spawn_child_cone_rotated(
@@ -693,8 +693,8 @@ fn spawn_child_cone_rotated(
             | PARENT,
         1,
     )[0];
-    world.set_name(child, Name(name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(child, Name(name.to_string()));
+    world.core.set_local_transform(
         child,
         LocalTransform {
             translation,
@@ -702,9 +702,9 @@ fn spawn_child_cone_rotated(
             rotation: nalgebra_glm::quat_angle_axis(rotation_z, &nalgebra_glm::vec3(0.0, 0.0, 1.0)),
         },
     );
-    world.set_global_transform(child, GlobalTransform::default());
-    world.set_local_transform_dirty(child, LocalTransformDirty);
-    world.set_render_mesh(child, RenderMesh::new("Cone"));
+    world.core.set_global_transform(child, GlobalTransform::default());
+    world.core.set_local_transform_dirty(child, LocalTransformDirty);
+    world.core.set_render_mesh(child, RenderMesh::new("Cone"));
     let material_name = format!("{}_{}", name.replace(' ', ""), child.id);
     material_registry_insert(
         &mut world.resources.material_registry,
@@ -728,9 +728,9 @@ fn spawn_child_cone_rotated(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(child, MaterialRef::new(material_name));
-    world.set_bounding_volume(child, BoundingVolume::from_mesh_type("Cone"));
-    world.set_parent(child, Parent(Some(parent)));
+    world.core.set_material_ref(child, MaterialRef::new(material_name));
+    world.core.set_bounding_volume(child, BoundingVolume::from_mesh_type("Cone"));
+    world.core.set_parent(child, Parent(Some(parent)));
 }
 
 fn spawn_child_cone_emissive(
@@ -752,8 +752,8 @@ fn spawn_child_cone_emissive(
             | PARENT,
         1,
     )[0];
-    world.set_name(child, Name(name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(child, Name(name.to_string()));
+    world.core.set_local_transform(
         child,
         LocalTransform {
             translation,
@@ -761,9 +761,9 @@ fn spawn_child_cone_emissive(
             ..Default::default()
         },
     );
-    world.set_global_transform(child, GlobalTransform::default());
-    world.set_local_transform_dirty(child, LocalTransformDirty);
-    world.set_render_mesh(child, RenderMesh::new("Cone"));
+    world.core.set_global_transform(child, GlobalTransform::default());
+    world.core.set_local_transform_dirty(child, LocalTransformDirty);
+    world.core.set_render_mesh(child, RenderMesh::new("Cone"));
     let material_name = format!("{}_{}", name.replace(' ', ""), child.id);
     material_registry_insert(
         &mut world.resources.material_registry,
@@ -787,9 +787,9 @@ fn spawn_child_cone_emissive(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(child, MaterialRef::new(material_name));
-    world.set_bounding_volume(child, BoundingVolume::from_mesh_type("Cone"));
-    world.set_parent(child, Parent(Some(parent)));
+    world.core.set_material_ref(child, MaterialRef::new(material_name));
+    world.core.set_bounding_volume(child, BoundingVolume::from_mesh_type("Cone"));
+    world.core.set_parent(child, Parent(Some(parent)));
 }
 
 pub fn enemy_movement_system(game_world: &mut GameWorld, world: &mut World) {
@@ -902,12 +902,12 @@ pub fn enemy_movement_system(game_world: &mut GameWorld, world: &mut World) {
                 game_world.set_position(entity, Position(new_position));
 
                 if let Some(handle) = game_world.get_entity_handle(entity)
-                    && let Some(transform) = world.get_local_transform_mut(handle.0)
+                    && let Some(transform) = world.core.get_local_transform_mut(handle.0)
                 {
                     let visual_position =
                         new_position + nalgebra_glm::vec3(0.0, enemy.enemy_type.y_offset(), 0.0);
                     transform.translation = visual_position;
-                    world.set_local_transform_dirty(handle.0, LocalTransformDirty);
+                    world.core.set_local_transform_dirty(handle.0, LocalTransformDirty);
                 }
             }
         }

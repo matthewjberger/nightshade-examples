@@ -10,13 +10,13 @@ pub fn update_lives_bar(game_world: &mut GameWorld, world: &mut World) {
         let health_percentage = total_hp as f32 / max_total_hp as f32;
         let bar_width = 5.8 * health_percentage;
 
-        if let Some(transform) = world.get_local_transform_mut(bar_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(bar_entity) {
             transform.translation = nalgebra_glm::vec3(-3.9 + bar_width / 2.0, 1.0, -7.9);
             transform.scale = nalgebra_glm::vec3(bar_width, 0.25, 0.1);
-            world.set_local_transform_dirty(bar_entity, LocalTransformDirty);
+            world.core.set_local_transform_dirty(bar_entity, LocalTransformDirty);
         }
 
-        if let Some(material_ref) = world.get_material_ref(bar_entity).cloned()
+        if let Some(material_ref) = world.core.get_material_ref(bar_entity).cloned()
             && let Some(material) = registry_entry_by_name_mut(
                 &mut world.resources.material_registry.registry,
                 &material_ref.name,
@@ -37,31 +37,31 @@ pub fn ui_update_system(game_world: &mut GameWorld, world: &mut World) {
     update_lives_bar(game_world, world);
 
     if let Some(money_entity) = game_world.resources.ui_handles.money_text
-        && let Some(text) = world.get_text(money_entity)
+        && let Some(text) = world.core.get_text(money_entity)
     {
         world.resources.text_cache.set_text(
             text.text_index,
             format!("Money: ${}", game_world.resources.money),
         );
-        if let Some(text_mut) = world.get_text_mut(money_entity) {
+        if let Some(text_mut) = world.core.get_text_mut(money_entity) {
             text_mut.dirty = true;
         }
     }
 
     if let Some(lives_entity) = game_world.resources.ui_handles.lives_text
-        && let Some(text) = world.get_text(lives_entity)
+        && let Some(text) = world.core.get_text(lives_entity)
     {
         world.resources.text_cache.set_text(
             text.text_index,
             format!("Lives: {}", game_world.resources.lives),
         );
-        if let Some(text_mut) = world.get_text_mut(lives_entity) {
+        if let Some(text_mut) = world.core.get_text_mut(lives_entity) {
             text_mut.dirty = true;
         }
     }
 
     if let Some(hp_entity) = game_world.resources.ui_handles.hp_text
-        && let Some(text) = world.get_text(hp_entity)
+        && let Some(text) = world.core.get_text(hp_entity)
     {
         world.resources.text_cache.set_text(
             text.text_index,
@@ -70,7 +70,7 @@ pub fn ui_update_system(game_world: &mut GameWorld, world: &mut World) {
                 game_world.resources.current_hp, game_world.resources.max_hp
             ),
         );
-        if let Some(text_mut) = world.get_text_mut(hp_entity) {
+        if let Some(text_mut) = world.core.get_text_mut(hp_entity) {
             text_mut.dirty = true;
 
             let hp_ratio =
@@ -86,13 +86,13 @@ pub fn ui_update_system(game_world: &mut GameWorld, world: &mut World) {
     }
 
     if let Some(wave_entity) = game_world.resources.ui_handles.wave_text
-        && let Some(text) = world.get_text(wave_entity)
+        && let Some(text) = world.core.get_text(wave_entity)
     {
         world.resources.text_cache.set_text(
             text.text_index,
             format!("Wave: {}", game_world.resources.wave),
         );
-        if let Some(text_mut) = world.get_text_mut(wave_entity) {
+        if let Some(text_mut) = world.core.get_text_mut(wave_entity) {
             text_mut.dirty = true;
         }
     }
@@ -103,7 +103,7 @@ pub fn ui_update_system(game_world: &mut GameWorld, world: &mut World) {
                 world.resources.window.timing.delta_time * game_world.resources.game_speed;
             game_world.resources.wave_announce_timer -= delta_time;
 
-            if let Some(text) = world.get_text(wave_announce_entity) {
+            if let Some(text) = world.core.get_text(wave_announce_entity) {
                 let wave_num = game_world.resources.wave;
                 let is_boss_wave = wave_num.is_multiple_of(5);
                 let announce_text = if is_boss_wave {
@@ -115,15 +115,15 @@ pub fn ui_update_system(game_world: &mut GameWorld, world: &mut World) {
                     .resources
                     .text_cache
                     .set_text(text.text_index, announce_text);
-                if let Some(text_mut) = world.get_text_mut(wave_announce_entity) {
+                if let Some(text_mut) = world.core.get_text_mut(wave_announce_entity) {
                     text_mut.dirty = true;
                 }
             }
 
-            if let Some(visibility) = world.get_visibility_mut(wave_announce_entity) {
+            if let Some(visibility) = world.core.get_visibility_mut(wave_announce_entity) {
                 visibility.visible = true;
             }
-        } else if let Some(visibility) = world.get_visibility_mut(wave_announce_entity) {
+        } else if let Some(visibility) = world.core.get_visibility_mut(wave_announce_entity) {
             visibility.visible = false;
         }
     }
@@ -146,7 +146,7 @@ pub fn update_tower_selection_hud(game_world: &mut GameWorld, world: &mut World)
                 nalgebra_glm::vec4(base_color.x, base_color.y, base_color.z, 0.7)
             };
 
-            if let Some(hud_text) = world.get_hud_text_mut(entity) {
+            if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
                 hud_text.properties.color = text_color;
                 hud_text.dirty = true;
             }
@@ -158,7 +158,7 @@ pub fn tile_hover_system(game_world: &mut GameWorld, world: &mut World) {
     if let Some(last_pos) = game_world.resources.last_hovered_tile
         && let Some(&tile_entity) = game_world.resources.grid_tiles.get(&last_pos)
         && let Some(&original_color) = game_world.resources.tile_original_colors.get(&last_pos)
-        && let Some(material_ref) = world.get_material_ref(tile_entity).cloned()
+        && let Some(material_ref) = world.core.get_material_ref(tile_entity).cloned()
         && let Some(material) = registry_entry_by_name_mut(
             &mut world.resources.material_registry.registry,
             &material_ref.name,
@@ -192,7 +192,7 @@ pub fn tile_hover_system(game_world: &mut GameWorld, world: &mut World) {
 
         if !is_start && !is_end && !is_path {
             if let Some(&tile_entity) = game_world.resources.grid_tiles.get(&current_pos)
-                && let Some(material_ref) = world.get_material_ref(tile_entity).cloned()
+                && let Some(material_ref) = world.core.get_material_ref(tile_entity).cloned()
                 && let Some(material) = registry_entry_by_name_mut(
                     &mut world.resources.material_registry.registry,
                     &material_ref.name,

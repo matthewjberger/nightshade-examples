@@ -14,7 +14,7 @@ pub fn selection_visual_system(game_world: &GameWorld, world: &mut World) {
     if let Some(prev_entity) = previous_selected
         && let Some(unit) = game_world.get_unit(prev_entity)
         && let Some(engine_entity) = game_world.get_engine_entity(prev_entity)
-        && let Some(material_ref) = world.get_material_ref(engine_entity.0)
+        && let Some(material_ref) = world.core.get_material_ref(engine_entity.0)
     {
         let name = material_ref.name.clone();
         if let Some(material) =
@@ -26,7 +26,7 @@ pub fn selection_visual_system(game_world: &GameWorld, world: &mut World) {
 
     if let Some(curr_entity) = current_selected
         && let Some(engine_entity) = game_world.get_engine_entity(curr_entity)
-        && let Some(material_ref) = world.get_material_ref(engine_entity.0)
+        && let Some(material_ref) = world.core.get_material_ref(engine_entity.0)
     {
         let name = material_ref.name.clone();
         if let Some(material) =

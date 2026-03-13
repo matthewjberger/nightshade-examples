@@ -14,15 +14,15 @@ pub fn spawn_city_mesh(world: &mut World, mesh_name: &str, position: Vec3, scale
         1,
     )[0];
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
         transform.scale = scale;
     }
 
-    world.set_render_mesh(entity, RenderMesh::new(mesh_name));
+    world.core.set_render_mesh(entity, RenderMesh::new(mesh_name));
     mark_local_transform_dirty(world, entity);
 
-    if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume = BoundingVolume::from_mesh_type(mesh_name);
     }
 
@@ -41,12 +41,12 @@ pub fn spawn_point_light(
         1,
     )[0];
 
-    if let Some(transform) = world.get_local_transform_mut(entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
     }
     mark_local_transform_dirty(world, entity);
 
-    if let Some(light) = world.get_light_mut(entity) {
+    if let Some(light) = world.core.get_light_mut(entity) {
         *light = Light {
             light_type: LightType::Point,
             color,
@@ -249,5 +249,5 @@ pub fn apply_material(world: &mut World, entity: Entity, name: &str) {
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(name.to_string()));
+    world.core.set_material_ref(entity, MaterialRef::new(name.to_string()));
 }

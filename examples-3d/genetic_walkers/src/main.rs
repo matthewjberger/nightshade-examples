@@ -164,7 +164,7 @@ impl GeneticWalkers {
             nalgebra_glm::vec3(0.0, -0.05, 0.0),
             nalgebra_glm::vec3(4000.0, 0.1, 100.0),
         );
-        world.set_material_ref(ground, MaterialRef::new("ground_material"));
+        world.core.set_material_ref(ground, MaterialRef::new("ground_material"));
         self.ground_entity = Some(ground);
 
         let lines_entity = world.spawn_entities(LINES, 1)[0];
@@ -179,7 +179,7 @@ impl GeneticWalkers {
 
         let camera_x = if let Some(camera) = self.camera_entity {
             world
-                .get_local_transform(camera)
+                .core.get_local_transform(camera)
                 .map(|transform| transform.translation.x)
                 .unwrap_or(0.0)
         } else {
@@ -190,7 +190,7 @@ impl GeneticWalkers {
         let half_width = 40.0;
         let total_span = LANE_LINE_COUNT as f32 * LANE_LINE_SPACING;
 
-        if let Some(lines) = world.get_lines_mut(lines_entity) {
+        if let Some(lines) = world.core.get_lines_mut(lines_entity) {
             lines.clear();
             for line_index in 0..LANE_LINE_COUNT {
                 let base_x = (line_index as f32 - LANE_LINE_COUNT as f32 * 0.5) * LANE_LINE_SPACING;
@@ -304,7 +304,7 @@ impl GeneticWalkers {
             nalgebra_glm::vec3(FINISH_DISTANCE, pole_height * 0.5, pole_z_spread),
             nalgebra_glm::vec3(0.12, pole_height, 0.12),
         );
-        world.set_material_ref(left_pole, MaterialRef::new("finish_pole_material"));
+        world.core.set_material_ref(left_pole, MaterialRef::new("finish_pole_material"));
         self.finish_pole_left = Some(left_pole);
 
         let right_pole = nightshade::ecs::world::commands::spawn_mesh_at(
@@ -313,7 +313,7 @@ impl GeneticWalkers {
             nalgebra_glm::vec3(FINISH_DISTANCE, pole_height * 0.5, -pole_z_spread),
             nalgebra_glm::vec3(0.12, pole_height, 0.12),
         );
-        world.set_material_ref(right_pole, MaterialRef::new("finish_pole_material"));
+        world.core.set_material_ref(right_pole, MaterialRef::new("finish_pole_material"));
         self.finish_pole_right = Some(right_pole);
 
         let bar = nightshade::ecs::world::commands::spawn_mesh_at(
@@ -322,7 +322,7 @@ impl GeneticWalkers {
             nalgebra_glm::vec3(FINISH_DISTANCE, pole_height, 0.0),
             nalgebra_glm::vec3(0.15, 0.15, pole_z_spread * 2.0),
         );
-        world.set_material_ref(bar, MaterialRef::new("finish_bar_material"));
+        world.core.set_material_ref(bar, MaterialRef::new("finish_bar_material"));
         self.finish_bar = Some(bar);
 
         let text_entity = spawn_3d_billboard_text_with_properties(
@@ -402,7 +402,7 @@ impl GeneticWalkers {
                 nalgebra_glm::vec3(center_x, obstacle.height * 0.5, 0.0),
                 nalgebra_glm::vec3(width, obstacle.height, 16.0),
             );
-            world.set_material_ref(entity, MaterialRef::new("obstacle_material"));
+            world.core.set_material_ref(entity, MaterialRef::new("obstacle_material"));
             self.obstacle_entities.push(entity);
         }
 
@@ -416,7 +416,7 @@ impl GeneticWalkers {
             nalgebra_glm::vec3(wall_length * 0.5 - 10.0, wall_height * 0.5, wall_z),
             nalgebra_glm::vec3(wall_length, wall_height, 0.15),
         );
-        world.set_material_ref(left_wall, MaterialRef::new("wall_material"));
+        world.core.set_material_ref(left_wall, MaterialRef::new("wall_material"));
         self.wall_left_entity = Some(left_wall);
 
         let right_wall = nightshade::ecs::world::commands::spawn_mesh_at(
@@ -425,7 +425,7 @@ impl GeneticWalkers {
             nalgebra_glm::vec3(wall_length * 0.5 - 10.0, wall_height * 0.5, -wall_z),
             nalgebra_glm::vec3(wall_length, wall_height, 0.15),
         );
-        world.set_material_ref(right_wall, MaterialRef::new("wall_material"));
+        world.core.set_material_ref(right_wall, MaterialRef::new("wall_material"));
         self.wall_right_entity = Some(right_wall);
     }
 

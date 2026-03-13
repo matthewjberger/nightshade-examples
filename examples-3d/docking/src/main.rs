@@ -31,7 +31,7 @@ impl CompositeWidget for Vec3Editor {
         let input_height = theme.button_height;
         let font_size = theme.font_size;
         let text_color = theme.text_color;
-        if let Some(node) = tree.world_mut().get_ui_layout_node_mut(container) {
+        if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(container) {
             node.flow_layout = Some(FlowLayout {
                 direction: FlowDirection::Horizontal,
                 padding: 0.0,
@@ -56,7 +56,7 @@ impl CompositeWidget for Vec3Editor {
         }
 
         for &entity in &entities {
-            if let Some(node) = tree.world_mut().get_ui_layout_node_mut(entity) {
+            if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(entity) {
                 node.flow_child_size = Some(Ab(nalgebra_glm::Vec2::new(0.0, input_height)).into());
                 node.flex_grow = Some(1.0);
             }
@@ -148,7 +148,7 @@ impl SharedState {
         let angle = self.total_time;
         let position = Vec3::new(angle.cos() * 2.0, 0.5, angle.sin() * 2.0);
         let entity = spawn_mesh(world, mesh_name, position, Vec3::new(0.8, 0.8, 0.8));
-        world.set_name(entity, Name(name.clone()));
+        world.core.set_name(entity, Name(name.clone()));
 
         let mut tree = UiTreeBuilder::new(world);
         let node = tree.add_tree_node(
@@ -170,7 +170,7 @@ impl SharedState {
 }
 
 fn load_entity_to_inspector(world: &mut World, entity: Entity) {
-    let Some(transform) = world.get_local_transform(entity) else {
+    let Some(transform) = world.core.get_local_transform(entity) else {
         return;
     };
     let translation = transform.translation;
@@ -230,7 +230,7 @@ impl State for DockingDemo {
         world.resources.active_camera = Some(camera);
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.color = Vec3::new(0.9, 0.85, 0.8);
             light.intensity = 1.0;
             light.cast_shadows = true;
@@ -242,7 +242,7 @@ impl State for DockingDemo {
             Vec3::new(0.0, -0.25, 0.0),
             Vec3::new(20.0, 0.5, 20.0),
         );
-        world.set_name(floor, Name("Floor".to_string()));
+        world.core.set_name(floor, Name("Floor".to_string()));
 
         let sphere = spawn_mesh(
             world,
@@ -250,7 +250,7 @@ impl State for DockingDemo {
             Vec3::new(0.0, 1.5, 0.0),
             Vec3::new(1.2, 1.2, 1.2),
         );
-        world.set_name(sphere, Name("Center Sphere".to_string()));
+        world.core.set_name(sphere, Name("Center Sphere".to_string()));
 
         let colors = ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta"];
         let mut cube_entities = Vec::new();
@@ -260,8 +260,8 @@ impl State for DockingDemo {
             let position = Vec3::new(angle.cos() * radius, 0.5, angle.sin() * radius);
             let entity = spawn_mesh(world, "Cube", position, Vec3::new(0.8, 0.8, 0.8));
             let name = format!("Cube_{index}");
-            world.set_name(entity, Name(name.clone()));
-            world.set_material_ref(entity, MaterialRef::new(color.to_string()));
+            world.core.set_name(entity, Name(name.clone()));
+            world.core.set_material_ref(entity, MaterialRef::new(color.to_string()));
             cube_entities.push((entity, name));
         }
 
@@ -284,7 +284,7 @@ impl State for DockingDemo {
         tree.world_mut()
             .ui_panel_set_header_visible(top_panel, false);
         if let Some(UiWidgetState::Panel(data)) =
-            tree.world_mut().get_ui_widget_state_mut(top_panel)
+            tree.world_mut().ui.get_ui_widget_state_mut(top_panel)
         {
             data.min_size = nalgebra_glm::Vec2::new(0.0, 26.0);
             data.resizable = false;
@@ -297,7 +297,7 @@ impl State for DockingDemo {
             .widget::<UiPanelData>(top_panel)
             .map(|d| d.content_entity)
         {
-            if let Some(node) = tree.world_mut().get_ui_layout_node_mut(content) {
+            if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(content) {
                 node.flow_layout = Some(FlowLayout {
                     direction: FlowDirection::Horizontal,
                     padding: 4.0,
@@ -333,7 +333,7 @@ impl State for DockingDemo {
                 .flow_child(Ab(nalgebra_glm::Vec2::new(0.0, item_height)))
                 .without_pointer_events()
                 .entity();
-            if let Some(node) = tree.world_mut().get_ui_layout_node_mut(spacer) {
+            if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(spacer) {
                 node.flex_grow = Some(1.0);
             }
 
@@ -757,7 +757,7 @@ impl State for DockingDemo {
         ] {
             world.ui_react_clicked(button, move |world: &mut World| {
                 let pos = world
-                    .get_ui_layout_node(button)
+                    .ui.get_ui_layout_node(button)
                     .map(|n| nalgebra_glm::Vec2::new(n.computed_rect.min.x, n.computed_rect.max.y))
                     .unwrap_or_default();
                 world.ui_show_context_menu(menu, pos);
@@ -836,7 +836,7 @@ impl State for DockingDemo {
                     let panel_index = index + 1;
                     let (panel, name) = state.panels[panel_index];
                     let currently_visible = world
-                        .get_ui_layout_node(panel)
+                        .ui.get_ui_layout_node(panel)
                         .map(|n| n.visible)
                         .unwrap_or(true);
                     world.ui_set_visible(panel, !currently_visible);
@@ -846,7 +846,7 @@ impl State for DockingDemo {
                 3 => {
                     let container = state.tile_container;
                     let currently_visible = world
-                        .get_ui_layout_node(container)
+                        .ui.get_ui_layout_node(container)
                         .map(|n| n.visible)
                         .unwrap_or(true);
                     world.ui_set_visible(container, !currently_visible);
@@ -995,13 +995,13 @@ impl State for DockingDemo {
                 let rot_y: f32 = world.ui_prop("inspector.rot_y");
                 let scale_val: f32 = world.ui_prop("inspector.scale");
 
-                if let Some(transform) = world.get_local_transform_mut(selected) {
+                if let Some(transform) = world.core.get_local_transform_mut(selected) {
                     transform.translation = pos;
                     transform.rotation =
                         nalgebra_glm::quat_angle_axis(rot_y.to_radians(), &Vec3::y());
                     transform.scale = Vec3::new(scale_val, scale_val, scale_val);
                 }
-                world.set_local_transform_dirty(selected, LocalTransformDirty);
+                world.core.set_local_transform_dirty(selected, LocalTransformDirty);
             },
         );
 
@@ -1060,7 +1060,7 @@ impl State for DockingDemo {
                     let panel_index = index - 3;
                     let (panel, name) = state.panels[panel_index];
                     let visible = world
-                        .get_ui_layout_node(panel)
+                        .ui.get_ui_layout_node(panel)
                         .map(|n| n.visible)
                         .unwrap_or(true);
                     world.ui_set_visible(panel, !visible);
@@ -1069,7 +1069,7 @@ impl State for DockingDemo {
                 7 => {
                     let container = state.tile_container;
                     let visible = world
-                        .get_ui_layout_node(container)
+                        .ui.get_ui_layout_node(container)
                         .map(|n| n.visible)
                         .unwrap_or(true);
                     world.ui_set_visible(container, !visible);
@@ -1210,7 +1210,7 @@ impl DockingDemo {
         let mut state = self.shared.borrow_mut();
         let panels = state.panels;
         for (entity, name) in &panels {
-            if let Some(UiWidgetState::Panel(data)) = world.get_ui_widget_state(*entity) {
+            if let Some(UiWidgetState::Panel(data)) = world.ui.get_ui_widget_state(*entity) {
                 let kind_str = match data.panel_kind {
                     UiPanelKind::Floating => "floating",
                     UiPanelKind::DockedLeft => "docked left",
@@ -1242,7 +1242,7 @@ impl DockingDemo {
         }
         let entity_count = state.scene_entities.len();
         let (tile_count, pane_count) = if let Some(UiWidgetState::TileContainer(data)) =
-            world.get_ui_widget_state(state.tile_container)
+            world.ui.get_ui_widget_state(state.tile_container)
         {
             (
                 data.tiles.iter().filter(|tile| tile.is_some()).count(),
@@ -1289,7 +1289,7 @@ impl DockingDemo {
         new_world.resources.active_camera = Some(camera);
 
         let sun = spawn_sun(&mut new_world);
-        if let Some(light) = new_world.get_light_mut(sun) {
+        if let Some(light) = new_world.core.get_light_mut(sun) {
             light.color = Vec3::new(0.9, 0.85, 0.8);
             light.intensity = 1.0;
             light.cast_shadows = true;
@@ -1308,7 +1308,7 @@ impl DockingDemo {
             let radius = 3.5;
             let position = Vec3::new(angle.cos() * radius, 0.5, angle.sin() * radius);
             let entity = spawn_mesh(&mut new_world, "Cube", position, Vec3::new(0.8, 0.8, 0.8));
-            new_world.set_material_ref(entity, MaterialRef::new(color.to_string()));
+            new_world.core.set_material_ref(entity, MaterialRef::new(color.to_string()));
         }
 
         spawn_mesh(

@@ -88,7 +88,7 @@ impl State for PhysicsBenchmark {
         self.grab_distance = 10.0;
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = false;
         }
 
@@ -182,13 +182,13 @@ impl State for PhysicsBenchmark {
                 Vec4::new(1.0, 0.65, 0.0, 1.0)
             };
 
-            let text_index = world.get_hud_text(fps_text_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(fps_text_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("FPS: {:.0}", fps));
-                if let Some(hud_text) = world.get_hud_text_mut(fps_text_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(fps_text_entity) {
                     hud_text.properties.color = fps_color;
                     hud_text.dirty = true;
                 }
@@ -196,7 +196,7 @@ impl State for PhysicsBenchmark {
         }
 
         if let Some(ball_count_entity) = self.ball_count_hud_text {
-            let text_index = world.get_hud_text(ball_count_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(ball_count_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
@@ -205,20 +205,20 @@ impl State for PhysicsBenchmark {
                         format_number_with_commas(self.ball_entities.len())
                     ),
                 );
-                if let Some(hud_text) = world.get_hud_text_mut(ball_count_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(ball_count_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(target_fps_entity) = self.target_fps_hud_text {
-            let text_index = world.get_hud_text(target_fps_entity).map(|t| t.text_index);
+            let text_index = world.core.get_hud_text(target_fps_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("Target FPS: {:.0}", self.target_fps));
-                if let Some(hud_text) = world.get_hud_text_mut(target_fps_entity) {
+                if let Some(hud_text) = world.core.get_hud_text_mut(target_fps_entity) {
                     hud_text.dirty = true;
                 }
             }
@@ -451,16 +451,16 @@ impl PhysicsBenchmark {
             1,
         )[0];
 
-        if let Some(n) = world.get_name_mut(entity) {
+        if let Some(n) = world.core.get_name_mut(entity) {
             n.0 = name.to_string();
         }
 
-        if let Some(transform) = world.get_local_transform_mut(entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(entity) {
             transform.translation = position;
             transform.scale = scale;
         }
 
-        if let Some(mesh) = world.get_render_mesh_mut(entity) {
+        if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
             mesh.name = "Cube".to_string();
         }
 
@@ -489,33 +489,33 @@ impl PhysicsBenchmark {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(entity, MaterialRef::new(material_name));
+        world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
-        if let Some(bounding_volume) = world.get_bounding_volume_mut(entity) {
+        if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
             *bounding_volume =
                 nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
         }
 
-        if let Some(rigid_body) = world.get_rigid_body_mut(entity) {
+        if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_static()
                 .with_translation(position.x, position.y, position.z);
         }
 
-        if let Some(collider) = world.get_collider_mut(entity) {
+        if let Some(collider) = world.core.get_collider_mut(entity) {
             *collider = ColliderComponent::new_cuboid(scale.x / 2.0, scale.y / 2.0, scale.z / 2.0)
                 .with_friction(0.5)
                 .with_restitution(0.3);
         }
 
-        let rigid_body_comp = world.get_rigid_body(entity).cloned().unwrap();
-        let collider_comp = world.get_collider(entity).cloned();
+        let rigid_body_comp = world.core.get_rigid_body(entity).cloned().unwrap();
+        let collider_comp = world.core.get_collider(entity).cloned();
         let rigid_body = rigid_body_comp.to_rapier_rigid_body();
         let handle = world.resources.physics.add_rigid_body(rigid_body);
         if let Some(collider_comp) = collider_comp {
             let collider = collider_comp.to_rapier_collider();
             world.resources.physics.add_collider(collider, handle);
         }
-        if let Some(rigid_body_mut) = world.get_rigid_body_mut(entity) {
+        if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(entity) {
             rigid_body_mut.handle = Some(handle.into());
         }
     }
@@ -548,12 +548,12 @@ impl PhysicsBenchmark {
 
         world.resources.mesh_render_state.mark_entity_added(entity);
 
-        if let Some(collider) = world.get_collider_mut(entity) {
+        if let Some(collider) = world.core.get_collider_mut(entity) {
             collider.friction = 0.5;
             collider.restitution = 0.7;
         }
 
-        if let Some(rigid_body) = world.get_rigid_body(entity)
+        if let Some(rigid_body) = world.core.get_rigid_body(entity)
             && let Some(handle) = rigid_body.handle
         {
             let velocity_x = rng.random_range(-0.3..0.3);
@@ -577,7 +577,7 @@ impl PhysicsBenchmark {
 
     fn despawn_ball(&mut self, world: &mut World) {
         if let Some(entity) = self.ball_entities.pop() {
-            if let Some(rigid_body) = world.get_rigid_body(entity)
+            if let Some(rigid_body) = world.core.get_rigid_body(entity)
                 && let Some(handle) = rigid_body.handle
             {
                 world.resources.physics.remove_rigid_body(handle.into());
@@ -591,7 +591,7 @@ impl PhysicsBenchmark {
             return;
         };
 
-        let Some(pan_orbit) = world.get_pan_orbit_camera_mut(camera_entity) else {
+        let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera_entity) else {
             return;
         };
 
@@ -693,7 +693,7 @@ impl PhysicsBenchmark {
         let pick_results = pick_entities(world, screen_pos, options);
 
         for result in &pick_results {
-            if let Some(rigid_body) = world.get_rigid_body(result.entity)
+            if let Some(rigid_body) = world.core.get_rigid_body(result.entity)
                 && rigid_body.body_type == RigidBodyType::Dynamic
             {
                 self.grabbed_entity = Some(result.entity);
@@ -719,7 +719,7 @@ impl PhysicsBenchmark {
             return;
         };
 
-        let Some(rigid_body_component) = world.get_rigid_body(grabbed_entity) else {
+        let Some(rigid_body_component) = world.core.get_rigid_body(grabbed_entity) else {
             self.grabbed_entity = None;
             return;
         };
@@ -778,7 +778,7 @@ impl PhysicsBenchmark {
             return;
         };
 
-        let Some(rigid_body_component) = world.get_rigid_body(grabbed_entity) else {
+        let Some(rigid_body_component) = world.core.get_rigid_body(grabbed_entity) else {
             self.grabbed_entity = None;
             return;
         };

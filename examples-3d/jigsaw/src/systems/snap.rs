@@ -49,7 +49,7 @@ fn check_puzzle_complete(puzzle_world: &mut PuzzleWorld, world: &World) {
             }
         };
 
-        let transform = match world.get_local_transform(engine_entity) {
+        let transform = match world.core.get_local_transform(engine_entity) {
             Some(t) => t,
             None => {
                 puzzle_world.resources.puzzle_complete = false;
@@ -107,7 +107,7 @@ fn snap_to_board(puzzle_world: &mut PuzzleWorld, world: &mut World) {
             Some(e) => e,
             None => continue,
         };
-        let transform = match world.get_local_transform(engine_entity.0) {
+        let transform = match world.core.get_local_transform(engine_entity.0) {
             Some(t) => t,
             None => continue,
         };
@@ -136,12 +136,12 @@ fn snap_to_board(puzzle_world: &mut PuzzleWorld, world: &mut World) {
 
             for piece in &members {
                 if let Some(engine_entity) = puzzle_world.get_engine_entity(*piece) {
-                    if let Some(transform) = world.get_local_transform_mut(engine_entity.0) {
+                    if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0) {
                         transform.translation.x += dx;
                         transform.translation.z += dz;
                         transform.translation.y = 0.0;
                     }
-                    world.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                    world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
                 }
             }
         }

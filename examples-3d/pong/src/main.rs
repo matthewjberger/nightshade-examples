@@ -55,7 +55,7 @@ impl State for PongGame {
 
         let camera = spawn_camera(world, Vec3::new(0.0, 0.0, 15.0), "Main Camera".to_string());
 
-        if let Some(camera_component) = world.get_camera_mut(camera) {
+        if let Some(camera_component) = world.core.get_camera_mut(camera) {
             camera_component.projection = Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,
                 y_fov_rad: 60.0_f32.to_radians(),
@@ -194,7 +194,7 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(left_paddle, MaterialRef::new(left_paddle_material));
+        world.core.set_material_ref(left_paddle, MaterialRef::new(left_paddle_material));
         self.left_paddle_entity = Some(left_paddle);
 
         let right_paddle = spawn_mesh(
@@ -225,7 +225,7 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(right_paddle, MaterialRef::new(right_paddle_material));
+        world.core.set_material_ref(right_paddle, MaterialRef::new(right_paddle_material));
         self.right_paddle_entity = Some(right_paddle);
 
         let ball = spawn_mesh(
@@ -256,7 +256,7 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(ball, MaterialRef::new(ball_material));
+        world.core.set_material_ref(ball, MaterialRef::new(ball_material));
         self.ball_entity = Some(ball);
 
         let top_wall = spawn_mesh(
@@ -287,7 +287,7 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(top_wall, MaterialRef::new(top_wall_material));
+        world.core.set_material_ref(top_wall, MaterialRef::new(top_wall_material));
 
         let bottom_wall = spawn_mesh(
             world,
@@ -317,7 +317,7 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(bottom_wall, MaterialRef::new(bottom_wall_material));
+        world.core.set_material_ref(bottom_wall, MaterialRef::new(bottom_wall_material));
     }
 
     fn reset_ball(&mut self) {
@@ -444,21 +444,21 @@ impl PongGame {
 
     fn update_visuals(&mut self, world: &mut World) {
         if let Some(entity) = self.left_paddle_entity {
-            if let Some(transform) = world.get_local_transform_mut(entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(entity) {
                 transform.translation.y = self.left_paddle_y;
             }
             mark_local_transform_dirty(world, entity);
         }
 
         if let Some(entity) = self.right_paddle_entity {
-            if let Some(transform) = world.get_local_transform_mut(entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(entity) {
                 transform.translation.y = self.right_paddle_y;
             }
             mark_local_transform_dirty(world, entity);
         }
 
         if let Some(entity) = self.ball_entity {
-            if let Some(transform) = world.get_local_transform_mut(entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(entity) {
                 transform.translation.x = self.ball_x;
                 transform.translation.y = self.ball_y;
             }

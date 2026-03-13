@@ -123,7 +123,7 @@ impl HizDemo {
         let camera_pos = world
             .resources
             .active_camera
-            .and_then(|cam| world.get_global_transform(cam))
+            .and_then(|cam| world.core.get_global_transform(cam))
             .map(|t| Vec3::new(t.0[(0, 3)], t.0[(1, 3)], t.0[(2, 3)]))
             .unwrap_or(Vec3::new(0.0, 0.0, 0.0));
 
@@ -187,7 +187,7 @@ impl HizDemo {
                     );
 
                     let cube = spawn_cube_at(world, position);
-                    world.remove_components(cube, CASTS_SHADOW);
+                    world.core.remove_components(cube, CASTS_SHADOW);
 
                     let material_index =
                         ((chunk_x + chunk_z + local_x + local_y + local_z) % 6).abs();
@@ -199,7 +199,7 @@ impl HizDemo {
                         4 => "Magenta",
                         _ => "Cyan",
                     };
-                    world.set_material_ref(cube, MaterialRef::new(material));
+                    world.core.set_material_ref(cube, MaterialRef::new(material));
 
                     entities.push(cube);
                     self.total_cubes += 1;

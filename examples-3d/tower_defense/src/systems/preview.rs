@@ -11,7 +11,7 @@ pub fn range_indicator_system(game_world: &mut GameWorld, world: &mut World) {
         {
             indicator.visible = false;
             for &line_entity in &indicator.line_entities {
-                if let Some(visibility) = world.get_visibility_mut(line_entity) {
+                if let Some(visibility) = world.core.get_visibility_mut(line_entity) {
                     visibility.visible = false;
                 }
             }
@@ -31,7 +31,7 @@ pub fn range_indicator_system(game_world: &mut GameWorld, world: &mut World) {
             {
                 indicator.visible = true;
                 for &line_entity in &indicator.line_entities {
-                    if let Some(visibility) = world.get_visibility_mut(line_entity) {
+                    if let Some(visibility) = world.core.get_visibility_mut(line_entity) {
                         visibility.visible = true;
                     }
                 }
@@ -101,7 +101,7 @@ pub fn placement_preview_system(game_world: &mut GameWorld, world: &mut World) {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(preview, MaterialRef::new(material_name));
+        world.core.set_material_ref(preview, MaterialRef::new(material_name));
 
         game_world.resources.preview_entity = Some(preview);
 
@@ -127,21 +127,21 @@ pub fn placement_preview_system(game_world: &mut GameWorld, world: &mut World) {
                 1,
             )[0];
 
-            world.set_name(
+            world.core.set_name(
                 line_entity,
                 Name(format!("Preview Range Line {}", segment_index)),
             );
-            world.set_local_transform(
+            world.core.set_local_transform(
                 line_entity,
                 LocalTransform {
                     translation: nalgebra_glm::vec3(0.0, 0.0, 0.0),
                     ..Default::default()
                 },
             );
-            world.set_global_transform(line_entity, GlobalTransform::default());
-            world.set_local_transform_dirty(line_entity, LocalTransformDirty);
+            world.core.set_global_transform(line_entity, GlobalTransform::default());
+            world.core.set_local_transform_dirty(line_entity, LocalTransformDirty);
 
-            world.set_lines(
+            world.core.set_lines(
                 line_entity,
                 Lines::new(vec![Line {
                     start,
@@ -155,7 +155,7 @@ pub fn placement_preview_system(game_world: &mut GameWorld, world: &mut World) {
                 }]),
             );
 
-            world.set_visibility(line_entity, Visibility { visible: true });
+            world.core.set_visibility(line_entity, Visibility { visible: true });
 
             game_world.resources.preview_range_lines.push(line_entity);
         }
@@ -316,18 +316,18 @@ pub fn placement_preview_system(game_world: &mut GameWorld, world: &mut World) {
         } else {
             "Unaffordable Box"
         };
-        world.set_name(box_entity, Name(box_name.to_string()));
-        world.set_local_transform(
+        world.core.set_name(box_entity, Name(box_name.to_string()));
+        world.core.set_local_transform(
             box_entity,
             LocalTransform {
                 translation: nalgebra_glm::vec3(0.0, 0.0, 0.0),
                 ..Default::default()
             },
         );
-        world.set_global_transform(box_entity, GlobalTransform::default());
-        world.set_local_transform_dirty(box_entity, LocalTransformDirty);
-        world.set_lines(box_entity, Lines::new(box_lines));
-        world.set_visibility(box_entity, Visibility { visible: true });
+        world.core.set_global_transform(box_entity, GlobalTransform::default());
+        world.core.set_local_transform_dirty(box_entity, LocalTransformDirty);
+        world.core.set_lines(box_entity, Lines::new(box_lines));
+        world.core.set_visibility(box_entity, Visibility { visible: true });
 
         game_world.resources.preview_range_lines.push(box_entity);
     }

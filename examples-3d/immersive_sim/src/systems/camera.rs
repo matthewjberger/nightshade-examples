@@ -140,7 +140,7 @@ pub fn lean_system(game: &mut ImmersiveSim, world: &mut World) {
 
     let final_rotation = game.lean_state.base_rotation * roll_quat;
 
-    let Some(camera_transform) = world.get_local_transform_mut(camera_entity) else {
+    let Some(camera_transform) = world.core.get_local_transform_mut(camera_entity) else {
         return;
     };
 
@@ -160,7 +160,7 @@ pub fn crouch_camera_system(game: &ImmersiveSim, world: &mut World) {
     };
 
     let is_crouching = world
-        .get_character_controller(player_entity)
+        .core.get_character_controller(player_entity)
         .map(|cc| cc.is_crouching)
         .unwrap_or(false);
 
@@ -171,7 +171,7 @@ pub fn crouch_camera_system(game: &ImmersiveSim, world: &mut World) {
     };
 
     let delta_time = world.resources.window.timing.delta_time;
-    if let Some(transform) = world.get_local_transform_mut(camera_entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
         let speed = 8.0;
         let diff = target_height - transform.translation.y;
         transform.translation.y += diff * speed * delta_time;

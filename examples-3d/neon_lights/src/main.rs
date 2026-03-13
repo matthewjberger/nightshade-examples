@@ -375,7 +375,7 @@ impl NeonLightsDemo {
                 let phase = self.flicker_phases[phase_index];
                 let flicker = compute_flicker(time, phase);
 
-                if let Some(light) = world.get_light_mut(light_entity) {
+                if let Some(light) = world.core.get_light_mut(light_entity) {
                     light.intensity = 1.5 * flicker;
                 }
 
@@ -474,8 +474,8 @@ fn spawn_neon_tube_entity(world: &mut World, mesh_name: &str, color: Vec3) -> En
         1,
     )[0];
 
-    world.set_name(entity, Name(mesh_name.to_string()));
-    world.set_local_transform(
+    world.core.set_name(entity, Name(mesh_name.to_string()));
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: Vec3::zeros(),
@@ -483,9 +483,9 @@ fn spawn_neon_tube_entity(world: &mut World, mesh_name: &str, color: Vec3) -> En
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_render_mesh(entity, RenderMesh::new(mesh_name));
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_render_mesh(entity, RenderMesh::new(mesh_name));
 
     let unique_id = next_unique_id();
     let material_name = format!("NeonMaterial_{unique_id}");
@@ -517,7 +517,7 @@ fn spawn_neon_tube_entity(world: &mut World, mesh_name: &str, color: Vec3) -> En
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
     entity
 }
@@ -538,8 +538,8 @@ fn spawn_point_light(
         1,
     )[0];
 
-    world.set_name(entity, Name("Neon Light".to_string()));
-    world.set_local_transform(
+    world.core.set_name(entity, Name("Neon Light".to_string()));
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -547,9 +547,9 @@ fn spawn_point_light(
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_light(
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_light(
         entity,
         Light {
             light_type: LightType::Point,
@@ -624,8 +624,8 @@ fn spawn_wall(
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
-    world.set_name(entity, Name(name.to_string()));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_name(entity, Name(name.to_string()));
     entity
 }
 
@@ -641,13 +641,13 @@ fn spawn_camera(world: &mut World, position: Vec3) -> Entity {
 
     let camera = cameras[0];
 
-    world.set_name(camera, Name("Main Camera".to_string()));
+    world.core.set_name(camera, Name("Main Camera".to_string()));
 
-    if let Some(local_transform) = world.get_local_transform_mut(camera) {
+    if let Some(local_transform) = world.core.get_local_transform_mut(camera) {
         local_transform.translation = position;
     }
 
-    if let Some(camera_component) = world.get_camera_mut(camera) {
+    if let Some(camera_component) = world.core.get_camera_mut(camera) {
         *camera_component = Camera {
             projection: Projection::Perspective(PerspectiveCamera {
                 aspect_ratio: None,

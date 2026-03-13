@@ -349,7 +349,7 @@ impl BasicApp {
         self.status_bar
             .add_left(format!("FPS: {}", self.context.fps_counter.fps_rounded()));
 
-        let entity_count = world.query_entities(RENDER_MESH | GLOBAL_TRANSFORM).count();
+        let entity_count = world.core.query_entities(RENDER_MESH | GLOBAL_TRANSFORM).count();
         self.status_bar
             .add_left(format!("Entities: {}", entity_count));
 
@@ -467,7 +467,7 @@ impl BasicApp {
                         self.load_project_dialog();
                     }
 
-                    let entity_count = world.query_entities(RENDER_MESH | GLOBAL_TRANSFORM).count();
+                    let entity_count = world.core.query_entities(RENDER_MESH | GLOBAL_TRANSFORM).count();
                     ui.separator();
                     ui.label(format!("Entities: {}", entity_count));
 
@@ -555,13 +555,13 @@ fn spawn_cube(world: &mut World, context: &mut AppContext) -> u32 {
 
     let scale = 0.5 + (counter % 5) as f32 * 0.2;
     let entity = spawn_mesh(world, "Cube", position, Vec3::new(scale, scale, scale));
-    world.set_name(entity, Name(format!("Cube {}", counter)));
+    world.core.set_name(entity, Name(format!("Cube {}", counter)));
 
     let colors = [
         "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange", "White",
     ];
     let color = colors[counter as usize % colors.len()];
-    world.set_material_ref(entity, MaterialRef::new(color.to_string()));
+    world.core.set_material_ref(entity, MaterialRef::new(color.to_string()));
 
     counter
 }
@@ -576,11 +576,11 @@ fn spawn_sphere(world: &mut World, context: &mut AppContext) -> u32 {
     let position = Vec3::new(angle.cos() * radius, height, angle.sin() * radius);
 
     let entity = spawn_mesh(world, "Sphere", position, Vec3::new(0.5, 0.5, 0.5));
-    world.set_name(entity, Name(format!("Sphere {}", counter)));
+    world.core.set_name(entity, Name(format!("Sphere {}", counter)));
 
     let colors = ["Cyan", "Magenta", "Yellow", "White", "Red", "Green", "Blue"];
     let color = colors[counter as usize % colors.len()];
-    world.set_material_ref(entity, MaterialRef::new(color.to_string()));
+    world.core.set_material_ref(entity, MaterialRef::new(color.to_string()));
 
     counter
 }
@@ -610,7 +610,7 @@ fn spawn_colored_point_light(world: &mut World, context: &mut AppContext) -> u32
         1,
     )[0];
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -618,9 +618,9 @@ fn spawn_colored_point_light(world: &mut World, context: &mut AppContext) -> u32
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.set_global_transform(entity, GlobalTransform::default());
-    world.set_light(
+    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world.core.set_global_transform(entity, GlobalTransform::default());
+    world.core.set_light(
         entity,
         Light {
             light_type: LightType::Point,
@@ -633,10 +633,10 @@ fn spawn_colored_point_light(world: &mut World, context: &mut AppContext) -> u32
             shadow_bias: 0.007,
         },
     );
-    world.set_name(entity, Name(format!("Light {}", counter)));
+    world.core.set_name(entity, Name(format!("Light {}", counter)));
 
     let bulb_entity = spawn_mesh(world, "Sphere", position, Vec3::new(0.15, 0.15, 0.15));
-    world.set_name(bulb_entity, Name(format!("LightBulb {}", counter)));
+    world.core.set_name(bulb_entity, Name(format!("LightBulb {}", counter)));
 
     counter
 }
@@ -914,7 +914,7 @@ impl SceneGraphWidget {
             ui.separator();
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                let entities: Vec<Entity> = context.world().query_entities(NAME).collect();
+                let entities: Vec<Entity> = context.world().core.query_entities(NAME).collect();
 
                 if entities.is_empty() {
                     ui.label("No named entities");
@@ -924,13 +924,13 @@ impl SceneGraphWidget {
                 for entity in &entities {
                     let name = context
                         .world()
-                        .get_name(*entity)
+                        .core.get_name(*entity)
                         .map(|name| name.0.clone())
                         .unwrap_or_else(|| format!("Entity {}", entity.id));
 
-                    let has_mesh = context.world().get_render_mesh(*entity).is_some();
-                    let has_light = context.world().get_light(*entity).is_some();
-                    let has_camera = context.world().get_camera(*entity).is_some();
+                    let has_mesh = context.world().core.get_render_mesh(*entity).is_some();
+                    let has_light = context.world().core.get_light(*entity).is_some();
+                    let has_camera = context.world().core.get_camera(*entity).is_some();
 
                     let icon = if has_camera {
                         "cam"
@@ -990,17 +990,17 @@ impl PropertiesWidget {
                     ui.label(if grid_on { "On" } else { "Off" });
                     ui.end_row();
 
-                    let mesh_count = context.world().query_entities(RENDER_MESH).count();
+                    let mesh_count = context.world().core.query_entities(RENDER_MESH).count();
                     ui.label("Meshes:");
                     ui.label(format!("{}", mesh_count));
                     ui.end_row();
 
-                    let light_count = context.world().query_entities(LIGHT).count();
+                    let light_count = context.world().core.query_entities(LIGHT).count();
                     ui.label("Lights:");
                     ui.label(format!("{}", light_count));
                     ui.end_row();
 
-                    let camera_count = context.world().query_entities(CAMERA).count();
+                    let camera_count = context.world().core.query_entities(CAMERA).count();
                     ui.label("Cameras:");
                     ui.label(format!("{}", camera_count));
                     ui.end_row();

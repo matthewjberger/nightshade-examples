@@ -89,7 +89,7 @@ impl State for JigsawGame {
         world.resources.graphics.selection_outline_enabled = true;
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 2.0;
         }
@@ -103,7 +103,7 @@ impl State for JigsawGame {
                 | CASTS_SHADOW,
             1,
         )[0];
-        world.set_local_transform(
+        world.core.set_local_transform(
             ground,
             LocalTransform {
                 translation: Vec3::new(0.0, -0.05, 0.0),
@@ -111,7 +111,7 @@ impl State for JigsawGame {
                 scale: Vec3::new(15.0, 0.1, 15.0),
             },
         );
-        world.set_render_mesh(ground, RenderMesh::new("Cube"));
+        world.core.set_render_mesh(ground, RenderMesh::new("Cube"));
         let ground_material = format!("Ground_{}", ground.id);
         material_registry_insert(
             &mut world.resources.material_registry,
@@ -136,8 +136,8 @@ impl State for JigsawGame {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(ground, MaterialRef::new(ground_material));
-        world.set_casts_shadow(ground, CastsShadow);
+        world.core.set_material_ref(ground, MaterialRef::new(ground_material));
+        world.core.set_casts_shadow(ground, CastsShadow);
 
         let top_down_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
 
@@ -427,7 +427,7 @@ impl State for JigsawGame {
                 reset_puzzle(&mut self.puzzle_world, world);
             }
             KeyCode::KeyC | KeyCode::Home => {
-                if let Some(pan_orbit) = world.get_pan_orbit_camera_mut(self.camera_entity) {
+                if let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(self.camera_entity) {
                     pan_orbit.target_focus = nalgebra_glm::vec3(0.0, 0.0, 0.0);
                     pan_orbit.target_radius = 8.0;
                     pan_orbit.target_pitch = std::f32::consts::FRAC_PI_2 - 0.01;

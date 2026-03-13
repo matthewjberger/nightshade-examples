@@ -134,12 +134,12 @@ impl State for RetainedUiDemo {
                 let prev = active_screen.get();
                 if index != prev {
                     world.ui_set_visible(screen_roots[prev], false);
-                    if let Some(color) = world.get_ui_node_color_mut(nav_indicators[prev]) {
+                    if let Some(color) = world.ui.get_ui_node_color_mut(nav_indicators[prev]) {
                         color.computed_color = INACTIVE_INDICATOR;
                     }
                     active_screen.set(index);
                     world.ui_set_visible(screen_roots[index], true);
-                    if let Some(color) = world.get_ui_node_color_mut(nav_indicators[index]) {
+                    if let Some(color) = world.ui.get_ui_node_color_mut(nav_indicators[index]) {
                         color.computed_color = ACTIVE_INDICATOR;
                     }
                 }
@@ -160,7 +160,7 @@ impl State for RetainedUiDemo {
             &format!("{}:{:02}", minutes, remaining_seconds),
         );
 
-        let entity_count = world.entity_count();
+        let entity_count = world.core.entity_count();
         world.ui_set_text(self.entity_count_text, &format!("{}", entity_count));
 
         self.handle_widget_interactions(world);
@@ -901,7 +901,7 @@ impl RetainedUiDemo {
             nalgebra_glm::Vec4::new(0.0, 1.0, 0.5, 1.0),
             pulse_alpha,
         );
-        if let Some(color_comp) = world.get_ui_node_color_mut(self.pulse_entity) {
+        if let Some(color_comp) = world.ui.get_ui_node_color_mut(self.pulse_entity) {
             color_comp.colors[0] = Some(pulse_color);
         }
 
@@ -979,7 +979,7 @@ fn build_settings_screen(tree: &mut UiTreeBuilder, fps_card: Entity) -> Entity {
         ui.label("Show FPS Counter");
         ui.toggle("show_fps", true);
         ui.react("show_fps", move |val: bool, world: &mut World| {
-            if let Some(node) = world.get_ui_layout_node_mut(fps_card) {
+            if let Some(node) = world.ui.get_ui_layout_node_mut(fps_card) {
                 node.visible = val;
             }
         });

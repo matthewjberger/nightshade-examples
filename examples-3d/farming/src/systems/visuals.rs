@@ -69,7 +69,7 @@ pub fn update_tool(game: &GameWorld, world: &mut World) {
 
     let facing_angle = facing.x.atan2(facing.z);
 
-    if let Some(transform) = world.get_local_transform_mut(tool_visual) {
+    if let Some(transform) = world.core.get_local_transform_mut(tool_visual) {
         transform.translation = tool_position;
         transform.scale = config.scale;
         transform.rotation = nalgebra_glm::quat_angle_axis(facing_angle + 0.3, &Vec3::y());
@@ -107,11 +107,11 @@ pub fn update_popups(game: &mut GameWorld, world: &mut World) {
         let offset_y = progress * 1.5;
         let alpha = popup.lifetime.min(1.0);
 
-        if let Some(text) = world.get_text_mut(entity) {
+        if let Some(text) = world.core.get_text_mut(entity) {
             text.properties.color.w = alpha;
         }
 
-        if let Some(transform) = world.get_local_transform_mut(entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(entity) {
             transform.translation = popup.start_position + Vec3::new(0.0, offset_y, 0.0);
         }
         mark_local_transform_dirty(world, entity);
@@ -128,7 +128,7 @@ fn create_popup_visual(world: &mut World, text: &str, position: Vec3) -> Entity 
         1,
     )[0];
 
-    world.set_local_transform(
+    world.core.set_local_transform(
         entity,
         LocalTransform {
             translation: position,
@@ -143,7 +143,7 @@ fn create_popup_visual(world: &mut World, text: &str, position: Vec3) -> Entity 
     text_component.properties.color = Vec4::new(0.8, 0.9, 0.7, 1.0);
     text_component.properties.font_size = 24.0;
     text_component.billboard = true;
-    world.set_text(entity, text_component);
+    world.core.set_text(entity, text_component);
 
     entity
 }

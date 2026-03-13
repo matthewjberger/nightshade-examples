@@ -17,10 +17,10 @@ pub fn replan_flash_system(game: &mut GameWorld, world: &mut World) {
             let progress = (ring.timer / ring.max_time).clamp(0.0, 1.0);
             let scale = 0.5 + progress * 2.5;
 
-            if let Some(transform) = world.get_local_transform_mut(ring.entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(ring.entity) {
                 transform.scale = nalgebra_glm::vec3(scale, 0.02, scale);
             }
-            world.set_local_transform_dirty(ring.entity, LocalTransformDirty);
+            world.core.set_local_transform_dirty(ring.entity, LocalTransformDirty);
 
             if ring.timer >= ring.max_time {
                 to_remove.push((ring_entity, ring.entity));
@@ -54,7 +54,7 @@ pub fn fire_flicker_system(game: &mut GameWorld, world: &mut World) {
                 let scale_jitter = 1.0 + phase.sin() * 0.3;
                 let y_jitter = (phase * 1.3).sin() * 0.1;
 
-                if let Some(transform) = world.get_local_transform_mut(sphere_entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(sphere_entity) {
                     let base_scale = 0.2 + (sphere_index as f32) * 0.05;
                     transform.scale = nalgebra_glm::vec3(
                         base_scale * scale_jitter,
@@ -64,16 +64,16 @@ pub fn fire_flicker_system(game: &mut GameWorld, world: &mut World) {
                     transform.translation.y =
                         fire.position.y + 0.2 + (sphere_index as f32) * 0.15 + y_jitter;
                 }
-                world.set_local_transform_dirty(sphere_entity, LocalTransformDirty);
+                world.core.set_local_transform_dirty(sphere_entity, LocalTransformDirty);
             }
 
             if let Some(smoke_entity) = fire.smoke_entity {
                 let smoke_sway = (elapsed * 0.8 + fire_index as f32).sin() * 0.3;
-                if let Some(transform) = world.get_local_transform_mut(smoke_entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(smoke_entity) {
                     transform.translation =
                         fire.position + nalgebra_glm::vec3(smoke_sway, 2.0, smoke_sway * 0.5);
                 }
-                world.set_local_transform_dirty(smoke_entity, LocalTransformDirty);
+                world.core.set_local_transform_dirty(smoke_entity, LocalTransformDirty);
             }
         }
     }
@@ -89,11 +89,11 @@ pub fn impact_flash_system(game: &mut GameWorld, world: &mut World) {
         let scale = 0.5 + progress * 3.0;
         let fade = 1.0 - progress;
 
-        if let Some(transform) = world.get_local_transform_mut(flash.entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(flash.entity) {
             transform.scale = nalgebra_glm::vec3(scale, scale * 0.5, scale);
             transform.scale *= fade;
         }
-        world.set_local_transform_dirty(flash.entity, LocalTransformDirty);
+        world.core.set_local_transform_dirty(flash.entity, LocalTransformDirty);
 
         if flash.timer >= flash.max_time {
             to_remove.push(index);
@@ -120,10 +120,10 @@ pub fn trail_particle_system(game: &mut GameWorld, world: &mut World) {
         let progress = (particle.timer / particle.max_time).clamp(0.0, 1.0);
         let scale = 0.3 * (1.0 - progress);
 
-        if let Some(transform) = world.get_local_transform_mut(particle.entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(particle.entity) {
             transform.scale = nalgebra_glm::vec3(scale, scale, scale);
         }
-        world.set_local_transform_dirty(particle.entity, LocalTransformDirty);
+        world.core.set_local_transform_dirty(particle.entity, LocalTransformDirty);
 
         if particle.timer >= particle.max_time {
             to_remove.push(index);
@@ -193,10 +193,10 @@ pub fn failure_system(game: &mut GameWorld, world: &mut World) {
             let mut invader = invader.clone();
             invader.position += invader.velocity * delta_time;
 
-            if let Some(transform) = world.get_local_transform_mut(invader.entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(invader.entity) {
                 transform.translation = invader.position;
             }
-            world.set_local_transform_dirty(invader.entity, LocalTransformDirty);
+            world.core.set_local_transform_dirty(invader.entity, LocalTransformDirty);
 
             game.set_enemy_invader(invader_entity, invader);
         }

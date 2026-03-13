@@ -826,7 +826,7 @@ fn spawn_body_part(world: &mut World, mesh_name: &str, material_name: &str) -> E
             .registry
             .add_reference(index);
     }
-    world.set_material_ref(entity, MaterialRef::new(material_name));
+    world.core.set_material_ref(entity, MaterialRef::new(material_name));
 
     entity
 }

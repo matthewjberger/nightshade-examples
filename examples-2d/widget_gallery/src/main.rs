@@ -49,7 +49,7 @@ impl CompositeWidget for Vec3Editor {
     fn build(tree: &mut UiTreeBuilder) -> Self {
         let container = tree.current_parent();
         let input_height = tree.active_theme().button_height;
-        if let Some(node) = tree.world_mut().get_ui_layout_node_mut(container) {
+        if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(container) {
             node.flow_layout = Some(FlowLayout {
                 direction: FlowDirection::Horizontal,
                 padding: 0.0,
@@ -68,7 +68,7 @@ impl CompositeWidget for Vec3Editor {
         let z_drag = tree.add_drag_value(-1000.0, 1000.0, 0.0);
 
         for &entity in &[x_drag, y_drag, z_drag] {
-            if let Some(node) = tree.world_mut().get_ui_layout_node_mut(entity) {
+            if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(entity) {
                 node.flow_child_size = Some(Ab(nalgebra_glm::Vec2::new(0.0, input_height)).into());
                 node.flex_grow = Some(1.0);
             }
@@ -813,7 +813,7 @@ impl Gallery {
             ui.separator();
             ui.label("Button with text tooltip:");
             let tooltip_btn = ui.button("Hover me");
-            if let Some(interaction) = ui.world_mut().get_ui_node_interaction_mut(tooltip_btn) {
+            if let Some(interaction) = ui.world_mut().ui.get_ui_node_interaction_mut(tooltip_btn) {
                 interaction.tooltip_text = Some("This is a text tooltip".to_string());
             }
 
@@ -969,7 +969,7 @@ impl Gallery {
                 let drag_z = ui.drag_value("", -100.0, 100.0, 0.0);
                 let label_height = ui.theme().font_size * 1.5;
                 for label in [lx, ly, lz] {
-                    if let Some(node) = ui.world_mut().get_ui_layout_node_mut(label) {
+                    if let Some(node) = ui.world_mut().ui.get_ui_layout_node_mut(label) {
                         node.flow_child_size =
                             Some(Ab(nalgebra_glm::Vec2::new(16.0, label_height)).into());
                     }
@@ -1003,7 +1003,7 @@ impl Gallery {
                         None
                     };
                     for entity in [disabled_button, disabled_slider, disabled_input] {
-                        if let Some(interaction) = world.get_ui_node_interaction_mut(entity) {
+                        if let Some(interaction) = world.ui.get_ui_node_interaction_mut(entity) {
                             interaction.tooltip_text = tip.clone();
                         }
                     }
@@ -1773,7 +1773,7 @@ impl Gallery {
                         .with_theme_color::<UiBase>(ThemeColor::Panel)
                         .with_text(text, 11.0)
                         .done();
-                    if let Some(node) = ui.world_mut().get_ui_layout_node_mut(entity) {
+                    if let Some(node) = ui.world_mut().ui.get_ui_layout_node_mut(entity) {
                         node.flex_shrink = Some(if index == 0 { 0.0 } else { 1.0 });
                     }
                 }
@@ -1794,7 +1794,7 @@ impl Gallery {
                     .with_theme_color::<UiBase>(ThemeColor::Accent)
                     .with_text(label, 11.0)
                     .done();
-                if let Some(node) = ui.world_mut().get_ui_layout_node_mut(item) {
+                if let Some(node) = ui.world_mut().ui.get_ui_layout_node_mut(item) {
                     node.flex_grow = Some(1.0);
                 }
             }

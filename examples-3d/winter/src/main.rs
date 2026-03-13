@@ -50,7 +50,7 @@ impl State for ThirdPersonGame {
         load_hdr_skybox(world, SKY_HDR.to_vec());
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
             light.intensity = 1.5;
         }

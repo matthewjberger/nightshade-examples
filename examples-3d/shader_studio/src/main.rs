@@ -151,7 +151,7 @@ impl State for ShaderStudio {
         load_hdr_skybox(world, HDR_BYTES.to_vec());
 
         let sun = spawn_sun(world);
-        if let Some(light) = world.get_light_mut(sun) {
+        if let Some(light) = world.core.get_light_mut(sun) {
             light.cast_shadows = true;
         }
 
@@ -165,7 +165,7 @@ impl State for ShaderStudio {
         );
         world.resources.active_camera = Some(camera_entity);
 
-        if let Some(camera) = world.get_camera_mut(camera_entity)
+        if let Some(camera) = world.core.get_camera_mut(camera_entity)
             && let Projection::Perspective(ref mut perspective) = camera.projection
         {
             perspective.y_fov_rad = 60.0_f32.to_radians();

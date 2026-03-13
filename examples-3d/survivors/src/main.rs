@@ -1330,7 +1330,7 @@ impl Survivors {
 
                                 health_bar = tree.add_progress_bar(1.0);
                                 if let Some(node) =
-                                    tree.world_mut().get_ui_layout_node_mut(health_bar)
+                                    tree.world_mut().ui.get_ui_layout_node_mut(health_bar)
                                 {
                                     node.flow_child_size =
                                         Some(Ab(Vec2::new(bar_width, bar_height)).into());
@@ -1357,7 +1357,7 @@ impl Survivors {
                                     .done();
 
                                 xp_bar = tree.add_progress_bar(0.0);
-                                if let Some(node) = tree.world_mut().get_ui_layout_node_mut(xp_bar)
+                                if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(xp_bar)
                                 {
                                     node.flow_child_size =
                                         Some(Ab(Vec2::new(bar_width, bar_height)).into());
@@ -1385,7 +1385,7 @@ impl Survivors {
 
                                 wave_bar = tree.add_progress_bar(0.0);
                                 if let Some(node) =
-                                    tree.world_mut().get_ui_layout_node_mut(wave_bar)
+                                    tree.world_mut().ui.get_ui_layout_node_mut(wave_bar)
                                 {
                                     node.flow_child_size =
                                         Some(Ab(Vec2::new(bar_width, bar_height)).into());
@@ -1502,7 +1502,7 @@ impl Survivors {
         self.ui.buffs_container = buffs_container;
 
         if let Some(UiWidgetState::ProgressBar(data)) =
-            tree.world_mut().get_ui_widget_state(health_bar)
+            tree.world_mut().ui.get_ui_widget_state(health_bar)
         {
             self.ui.health_bar_fill = data.fill_entity;
         }
@@ -1582,7 +1582,7 @@ impl Survivors {
                                     *button = tree
                                         .add_button_colored("---", Vec4::new(0.3, 0.3, 0.3, 1.0));
                                     if let Some(node) =
-                                        tree.world_mut().get_ui_layout_node_mut(*button)
+                                        tree.world_mut().ui.get_ui_layout_node_mut(*button)
                                     {
                                         node.flex_grow = Some(1.0);
                                     }
@@ -1855,7 +1855,7 @@ impl Survivors {
             } else {
                 Vec4::new(0.78, 0.0, 0.0, 1.0)
             };
-            if let Some(color) = world.get_ui_node_color_mut(self.ui.health_bar_fill) {
+            if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.health_bar_fill) {
                 color.colors[UiBase::INDEX] = Some(health_color);
             }
 
@@ -1897,7 +1897,7 @@ impl Survivors {
                     self.ui.kills_time_slot,
                     format!("Kills: {} | Time: {:.0}s", current_kills, self.game_time),
                 );
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.kills_time_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.kills_time_entity) {
                     color.colors[UiBase::INDEX] = Some(record_color);
                 }
             } else {
@@ -1905,7 +1905,7 @@ impl Survivors {
                     self.ui.kills_time_slot,
                     format!("Kills: {} | Time: {:.0}s", current_kills, self.game_time),
                 );
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.kills_time_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.kills_time_entity) {
                     color.colors[UiBase::INDEX] = Some(Vec4::new(1.0, 1.0, 1.0, 1.0));
                 }
             }
@@ -1926,7 +1926,7 @@ impl Survivors {
                     .resources
                     .text_cache
                     .set_text(self.ui.combo_slot, format!("{}x COMBO!", self.combo_count));
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.combo_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.combo_entity) {
                     color.colors[UiBase::INDEX] = Some(combo_color);
                 }
             }
@@ -1940,7 +1940,7 @@ impl Survivors {
                     .resources
                     .text_cache
                     .set_text(self.ui.combo_best_slot, "NEW BEST COMBO!");
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.combo_best_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.combo_best_entity) {
                     color.colors[UiBase::INDEX] = Some(best_color);
                 }
             }
@@ -1966,7 +1966,7 @@ impl Survivors {
                     .resources
                     .text_cache
                     .set_text(self.ui.bomb_slot, &bomb_text);
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.bomb_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.bomb_entity) {
                     color.colors[UiBase::INDEX] = Some(bomb_color);
                 }
             }
@@ -1990,7 +1990,7 @@ impl Survivors {
                     .resources
                     .text_cache
                     .set_text(self.ui.speed_slot, &speed_text);
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.speed_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.speed_entity) {
                     color.colors[UiBase::INDEX] = Some(speed_color);
                 }
             }
@@ -2014,7 +2014,7 @@ impl Survivors {
                         .resources
                         .text_cache
                         .set_text(slot, format!("{}: {:.1}s", buff_name, buff.remaining_time));
-                    if let Some(color) = world.get_ui_node_color_mut(entity) {
+                    if let Some(color) = world.ui.get_ui_node_color_mut(entity) {
                         color.colors[UiBase::INDEX] = Some(pulsing_color);
                     }
                     world.ui_set_visible(entity, true);
@@ -2054,7 +2054,7 @@ impl Survivors {
                     };
 
                     world.ui_button_set_text(*button, &upgrade.tier_name(current_level));
-                    if let Some(color) = world.get_ui_node_color_mut(*button) {
+                    if let Some(color) = world.ui.get_ui_node_color_mut(*button) {
                         color.colors[UiBase::INDEX] = Some(fill_color);
                     }
                     world.ui_set_visible(*button, true);
@@ -2099,7 +2099,7 @@ impl Survivors {
                     (b + glow * 0.3).min(1.0),
                     1.0,
                 );
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.high_score_banner_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.high_score_banner_entity) {
                     color.colors[UiBase::INDEX] = Some(high_score_color);
                 }
             }
@@ -2125,7 +2125,7 @@ impl Survivors {
                     self.ui.stats_wave_slot,
                     format!("Wave: {} - NEW BEST!", wave),
                 );
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_wave_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.stats_wave_entity) {
                     color.colors[UiBase::INDEX] = Some(gold_color);
                 }
             } else {
@@ -2133,7 +2133,7 @@ impl Survivors {
                     .resources
                     .text_cache
                     .set_text(self.ui.stats_wave_slot, format!("Wave: {}", wave));
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_wave_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.stats_wave_entity) {
                     color.colors[UiBase::INDEX] = Some(normal_color);
                 }
             }
@@ -2143,7 +2143,7 @@ impl Survivors {
                     self.ui.stats_kills_slot,
                     format!("Kills: {} - NEW BEST!", kills),
                 );
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_kills_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.stats_kills_entity) {
                     color.colors[UiBase::INDEX] = Some(gold_color);
                 }
             } else {
@@ -2151,7 +2151,7 @@ impl Survivors {
                     .resources
                     .text_cache
                     .set_text(self.ui.stats_kills_slot, format!("Kills: {}", kills));
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_kills_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.stats_kills_entity) {
                     color.colors[UiBase::INDEX] = Some(normal_color);
                 }
             }
@@ -2161,7 +2161,7 @@ impl Survivors {
                     self.ui.stats_time_slot,
                     format!("Time: {:.0}s - NEW BEST!", self.game_time),
                 );
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_time_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.stats_time_entity) {
                     color.colors[UiBase::INDEX] = Some(gold_color);
                 }
             } else {
@@ -2169,7 +2169,7 @@ impl Survivors {
                     self.ui.stats_time_slot,
                     format!("Time: {:.0}s", self.game_time),
                 );
-                if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_time_entity) {
+                if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.stats_time_entity) {
                     color.colors[UiBase::INDEX] = Some(normal_color);
                 }
             }
@@ -2182,7 +2182,7 @@ impl Survivors {
                         self.ui.stats_combo_slot,
                         format!("Best Combo: {}x - NEW BEST!", self.combo_max),
                     );
-                    if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_combo_entity) {
+                    if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.stats_combo_entity) {
                         color.colors[UiBase::INDEX] = Some(gold_color);
                     }
                 } else {
@@ -2190,7 +2190,7 @@ impl Survivors {
                         self.ui.stats_combo_slot,
                         format!("Best Combo: {}x", self.combo_max),
                     );
-                    if let Some(color) = world.get_ui_node_color_mut(self.ui.stats_combo_entity) {
+                    if let Some(color) = world.ui.get_ui_node_color_mut(self.ui.stats_combo_entity) {
                         color.colors[UiBase::INDEX] = Some(normal_color);
                     }
                 }
@@ -2292,7 +2292,7 @@ impl Survivors {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(
+        world.core.set_material_ref(
             self.ground_entity.unwrap(),
             MaterialRef::new(ground_material),
         );
@@ -2336,7 +2336,7 @@ impl Survivors {
                 PLAYER_RADIUS * 1.4,
             ),
         );
-        world.set_parent(stripe, Parent(Some(player)));
+        world.core.set_parent(stripe, Parent(Some(player)));
 
         let stripe_material = format!("PlayerStripe_{}", stripe.id);
         material_registry_insert(
@@ -2369,7 +2369,7 @@ impl Survivors {
                 .registry
                 .add_reference(index);
         }
-        world.set_material_ref(entity, MaterialRef::new(material_name.to_string()));
+        world.core.set_material_ref(entity, MaterialRef::new(material_name.to_string()));
     }
 
     fn spawn_camera(&mut self, world: &mut World) {
@@ -2379,7 +2379,7 @@ impl Survivors {
             1,
         )[0];
 
-        if let Some(transform) = world.get_local_transform_mut(camera) {
+        if let Some(transform) = world.core.get_local_transform_mut(camera) {
             transform.translation = camera_position;
             let direction = nalgebra_glm::normalize(&(self.player_position - camera_position));
             let right = nalgebra_glm::normalize(&nalgebra_glm::cross(&direction, &Vec3::y()));
@@ -2389,7 +2389,7 @@ impl Survivors {
         }
         mark_local_transform_dirty(world, camera);
 
-        world.set_camera(
+        world.core.set_camera(
             camera,
             Camera {
                 projection: Projection::Perspective(PerspectiveCamera {
@@ -2628,7 +2628,7 @@ impl Survivors {
         }
 
         if let Some(entity) = self.player_entity {
-            if let Some(transform) = world.get_local_transform_mut(entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(entity) {
                 transform.translation = self.player_position;
             }
             mark_local_transform_dirty(world, entity);
@@ -2659,7 +2659,7 @@ impl Survivors {
                 target_position.z += rng.random_range(-shake_amount..shake_amount);
             }
 
-            if let Some(transform) = world.get_local_transform_mut(camera) {
+            if let Some(transform) = world.core.get_local_transform_mut(camera) {
                 transform.translation = target_position;
             }
             mark_local_transform_dirty(world, camera);
@@ -2668,7 +2668,7 @@ impl Survivors {
 
     fn update_ground_position(&mut self, world: &mut World) {
         if let Some(ground) = self.ground_entity {
-            if let Some(transform) = world.get_local_transform_mut(ground) {
+            if let Some(transform) = world.core.get_local_transform_mut(ground) {
                 transform.translation.x = self.player_position.x;
                 transform.translation.z = self.player_position.z;
             }
@@ -2744,7 +2744,7 @@ impl Survivors {
                     | CASTS_SHADOW,
                 1,
             )[0];
-            world.set_local_transform(
+            world.core.set_local_transform(
                 trunk,
                 LocalTransform {
                     translation: Vec3::new(x, trunk_height / 2.0, z),
@@ -2752,7 +2752,7 @@ impl Survivors {
                     scale: Vec3::new(trunk_radius, trunk_height, trunk_radius),
                 },
             );
-            world.set_render_mesh(trunk, RenderMesh::new("Cylinder"));
+            world.core.set_render_mesh(trunk, RenderMesh::new("Cylinder"));
 
             let trunk_material_name =
                 format!("TreeTrunk_{}_{}", chunk_x.wrapping_abs(), tree_index);
@@ -2779,8 +2779,8 @@ impl Survivors {
                     .registry
                     .add_reference(mat_index);
             }
-            world.set_material_ref(trunk, MaterialRef::new(trunk_material_name));
-            world.set_casts_shadow(trunk, CastsShadow);
+            world.core.set_material_ref(trunk, MaterialRef::new(trunk_material_name));
+            world.core.set_casts_shadow(trunk, CastsShadow);
             entities.push(trunk);
 
             let foliage_tiers = 3;
@@ -2800,7 +2800,7 @@ impl Survivors {
                 )[0];
 
                 let tier_y = trunk_height + tier_offsets[tier] + tier_heights[tier] / 2.0;
-                world.set_local_transform(
+                world.core.set_local_transform(
                     cone,
                     LocalTransform {
                         translation: Vec3::new(x, tier_y, z),
@@ -2808,7 +2808,7 @@ impl Survivors {
                         scale: Vec3::new(tier_radii[tier], tier_heights[tier], tier_radii[tier]),
                     },
                 );
-                world.set_render_mesh(cone, RenderMesh::new("Cone"));
+                world.core.set_render_mesh(cone, RenderMesh::new("Cone"));
 
                 let green_variation = rng.random_range(0.0..0.15);
                 let cone_material_name = format!(
@@ -2840,8 +2840,8 @@ impl Survivors {
                         .registry
                         .add_reference(mat_index);
                 }
-                world.set_material_ref(cone, MaterialRef::new(cone_material_name));
-                world.set_casts_shadow(cone, CastsShadow);
+                world.core.set_material_ref(cone, MaterialRef::new(cone_material_name));
+                world.core.set_casts_shadow(cone, CastsShadow);
                 entities.push(cone);
             }
         }
@@ -2861,7 +2861,7 @@ impl Survivors {
                     | CASTS_SHADOW,
                 1,
             )[0];
-            world.set_local_transform(
+            world.core.set_local_transform(
                 rock,
                 LocalTransform {
                     translation: Vec3::new(x, size * 0.4, z),
@@ -2869,7 +2869,7 @@ impl Survivors {
                     scale: Vec3::new(size, size * 0.7, size),
                 },
             );
-            world.set_render_mesh(rock, RenderMesh::new("Sphere"));
+            world.core.set_render_mesh(rock, RenderMesh::new("Sphere"));
 
             let gray = 0.35 + rng.random_range(0.0..0.2);
             let rock_material_name = format!("Rock_{}_{}", chunk_x.wrapping_abs(), rock_index);
@@ -2896,8 +2896,8 @@ impl Survivors {
                     .registry
                     .add_reference(mat_index);
             }
-            world.set_material_ref(rock, MaterialRef::new(rock_material_name));
-            world.set_casts_shadow(rock, CastsShadow);
+            world.core.set_material_ref(rock, MaterialRef::new(rock_material_name));
+            world.core.set_casts_shadow(rock, CastsShadow);
             entities.push(rock);
         }
 
@@ -3073,7 +3073,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(pillar_entity, pillar_emitter);
+        world.core.set_particle_emitter(pillar_entity, pillar_emitter);
     }
 
     fn spawn_enemy(&mut self, world: &mut World) {
@@ -3200,8 +3200,8 @@ impl Survivors {
                     Vec3::new(0.0, -radius * 0.8, 0.0),
                     Vec3::new(radius * 0.6, radius * 0.8, radius * 0.6),
                 );
-                world.set_parent(tail, Parent(Some(body)));
-                if let Some(t) = world.get_local_transform_mut(tail) {
+                world.core.set_parent(tail, Parent(Some(body)));
+                if let Some(t) = world.core.get_local_transform_mut(tail) {
                     t.rotation = nalgebra_glm::quat_angle_axis(std::f32::consts::PI, &Vec3::x());
                 }
                 let tail_mat = format!("FastEnemyTail_{}", tail.id);
@@ -3244,7 +3244,7 @@ impl Survivors {
                     Vec3::new(0.0, radius * 1.0, 0.0),
                     Vec3::new(radius * 1.0, radius * 0.6, radius * 1.0),
                 );
-                world.set_parent(turret, Parent(Some(body)));
+                world.core.set_parent(turret, Parent(Some(body)));
                 let turret_mat = format!("TankTurret_{}", turret.id);
                 material_registry_insert(
                     &mut world.resources.material_registry,
@@ -3291,8 +3291,8 @@ impl Survivors {
                         spike_pos,
                         Vec3::new(radius * 0.3, radius * 0.5, radius * 0.3),
                     );
-                    world.set_parent(spike, Parent(Some(body)));
-                    if let Some(t) = world.get_local_transform_mut(spike) {
+                    world.core.set_parent(spike, Parent(Some(body)));
+                    if let Some(t) = world.core.get_local_transform_mut(spike) {
                         t.rotation = nalgebra_glm::quat_angle_axis(
                             std::f32::consts::FRAC_PI_2,
                             &Vec3::new(-angle.sin(), 0.0, angle.cos()),
@@ -3339,7 +3339,7 @@ impl Survivors {
                     Vec3::new(0.0, 0.0, 0.0),
                     Vec3::new(radius * 1.0, radius * 1.0, radius * 1.0),
                 );
-                world.set_parent(core, Parent(Some(body)));
+                world.core.set_parent(core, Parent(Some(body)));
                 let core_mat = format!("BossCore_{}", core.id);
                 material_registry_insert(
                     &mut world.resources.material_registry,
@@ -3367,7 +3367,7 @@ impl Survivors {
                         horn_pos,
                         Vec3::new(radius * 0.4, radius * 0.8, radius * 0.4),
                     );
-                    world.set_parent(horn, Parent(Some(body)));
+                    world.core.set_parent(horn, Parent(Some(body)));
                     let horn_mat = format!("BossHorn_{}_{}", body.id, index);
                     material_registry_insert(
                         &mut world.resources.material_registry,
@@ -3438,7 +3438,7 @@ impl Survivors {
                 self.game_world.set_position(game_entity, new_position);
 
                 let handle = self.game_world.get_entity_handle(game_entity).unwrap();
-                if let Some(transform) = world.get_local_transform_mut(handle.0) {
+                if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                     transform.translation = new_position.0;
                 }
                 mark_local_transform_dirty(world, handle.0);
@@ -3508,7 +3508,7 @@ impl Survivors {
             ),
         );
 
-        if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(engine_entity) {
             let forward = Vec3::new(0.0, 1.0, 0.0);
             let axis = nalgebra_glm::cross(&forward, &direction);
             let axis_len = nalgebra_glm::length(&axis);
@@ -3544,7 +3544,7 @@ impl Survivors {
                 PROJECTILE_RADIUS * 1.2,
             ),
         );
-        world.set_parent(tip, Parent(Some(engine_entity)));
+        world.core.set_parent(tip, Parent(Some(engine_entity)));
         let tip_mat = format!("ProjectileTip_{}", tip.id);
         material_registry_insert(
             &mut world.resources.material_registry,
@@ -3599,7 +3599,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(trail_entity, trail_emitter);
+        world.core.set_particle_emitter(trail_entity, trail_emitter);
 
         self.game_world
             .set_entity_handle(game_entity, EntityHandle(engine_entity));
@@ -3661,7 +3661,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, flash_emitter);
+        world.core.set_particle_emitter(particle_entity, flash_emitter);
     }
 
     fn projectile_movement_system(&mut self, world: &mut World, delta: f32) {
@@ -3696,13 +3696,13 @@ impl Survivors {
             self.game_world.set_position(game_entity, new_position);
 
             let handle = self.game_world.get_entity_handle(game_entity).unwrap();
-            if let Some(transform) = world.get_local_transform_mut(handle.0) {
+            if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                 transform.translation = new_position.0;
             }
             mark_local_transform_dirty(world, handle.0);
 
             if let Some(emitter_entity) = particle_emitter
-                && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
+                && let Some(emitter) = world.core.get_particle_emitter_mut(emitter_entity)
             {
                 emitter.position = new_position.0;
             }
@@ -3963,7 +3963,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(particle_entity, death_emitter);
+        world.core.set_particle_emitter(particle_entity, death_emitter);
     }
 
     fn spawn_gem_with_xp(&mut self, world: &mut World, position: Vec3, xp_value: u32) {
@@ -3983,7 +3983,7 @@ impl Survivors {
         let engine_entity = spawn_mesh(world, mesh_type, spawn_pos, Vec3::new(scale, scale, scale));
 
         if mesh_type == "Cube" {
-            if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(engine_entity) {
                 transform.rotation =
                     nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_4, &Vec3::y());
             }
@@ -4053,7 +4053,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(particle_entity, gem_emitter);
+        world.core.set_particle_emitter(particle_entity, gem_emitter);
 
         let game_entity = self
             .game_world
@@ -4099,13 +4099,13 @@ impl Survivors {
                 self.game_world.set_position(game_entity, new_position);
 
                 let handle = self.game_world.get_entity_handle(game_entity).unwrap();
-                if let Some(transform) = world.get_local_transform_mut(handle.0) {
+                if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                     transform.translation = new_position.0;
                 }
                 mark_local_transform_dirty(world, handle.0);
 
                 if let Some(emitter_entity) = gem.particle_emitter
-                    && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
+                    && let Some(emitter) = world.core.get_particle_emitter_mut(emitter_entity)
                 {
                     emitter.position = new_position.0;
                 }
@@ -4115,14 +4115,14 @@ impl Survivors {
                 let bob_offset = (self.game_time * 4.0 + phase).sin() * 0.15;
                 let spin = self.game_time * 2.0 + phase;
 
-                if let Some(transform) = world.get_local_transform_mut(handle.0) {
+                if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                     transform.translation.y = GEM_RADIUS + bob_offset;
                     transform.rotation = nalgebra_glm::quat_angle_axis(spin, &Vec3::y());
                 }
                 mark_local_transform_dirty(world, handle.0);
 
                 if let Some(emitter_entity) = gem.particle_emitter
-                    && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
+                    && let Some(emitter) = world.core.get_particle_emitter_mut(emitter_entity)
                 {
                     emitter.position =
                         Vec3::new(position.0.x, GEM_RADIUS + bob_offset, position.0.z);
@@ -4210,7 +4210,7 @@ impl Survivors {
     ) {
         let engine_entity = spawn_mesh(world, "Cone", position, Vec3::new(0.6, 1.2, 0.6));
 
-        if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(engine_entity) {
             transform.rotation = nalgebra_glm::quat_angle_axis(std::f32::consts::PI, &Vec3::x());
         }
         mark_local_transform_dirty(world, engine_entity);
@@ -4266,7 +4266,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(particle_entity, crystal_emitter);
+        world.core.set_particle_emitter(particle_entity, crystal_emitter);
 
         let game_entity = self
             .game_world
@@ -4306,7 +4306,7 @@ impl Survivors {
             let pulse = (self.game_time * 5.0 + phase).sin() * 0.5 + 0.5;
             let spin = self.game_time * 1.5 + phase;
 
-            if let Some(transform) = world.get_local_transform_mut(handle.0) {
+            if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                 transform.translation.y = 0.5 + bob_offset;
                 transform.rotation = nalgebra_glm::quat_angle_axis(spin, &Vec3::y())
                     * nalgebra_glm::quat_angle_axis(std::f32::consts::PI, &Vec3::x());
@@ -4318,7 +4318,7 @@ impl Survivors {
 
             if let Some(crystal) = self.game_world.get_health_crystal(game_entity)
                 && let Some(emitter_entity) = crystal.particle_emitter
-                && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
+                && let Some(emitter) = world.core.get_particle_emitter_mut(emitter_entity)
             {
                 emitter.position = Vec3::new(position.0.x, 0.5 + bob_offset, position.0.z);
             }
@@ -4331,7 +4331,7 @@ impl Survivors {
 
         let engine_entity = spawn_mesh(world, "Cube", spawn_pos, Vec3::new(scale, scale, scale));
 
-        if let Some(transform) = world.get_local_transform_mut(engine_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(engine_entity) {
             transform.rotation =
                 nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_4, &Vec3::y())
                     * nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_4, &Vec3::x());
@@ -4392,7 +4392,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(particle_entity, health_emitter);
+        world.core.set_particle_emitter(particle_entity, health_emitter);
 
         let game_entity = self
             .game_world
@@ -4438,13 +4438,13 @@ impl Survivors {
                 self.game_world.set_position(game_entity, new_position);
 
                 let handle = self.game_world.get_entity_handle(game_entity).unwrap();
-                if let Some(transform) = world.get_local_transform_mut(handle.0) {
+                if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                     transform.translation = new_position.0;
                 }
                 mark_local_transform_dirty(world, handle.0);
 
                 if let Some(emitter_entity) = health_gem.particle_emitter
-                    && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
+                    && let Some(emitter) = world.core.get_particle_emitter_mut(emitter_entity)
                 {
                     emitter.position = new_position.0;
                 }
@@ -4454,7 +4454,7 @@ impl Survivors {
                 let bob_offset = (self.game_time * 4.0 + phase).sin() * 0.15;
                 let spin = self.game_time * 2.0 + phase;
 
-                if let Some(transform) = world.get_local_transform_mut(handle.0) {
+                if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                     transform.translation.y = GEM_RADIUS + bob_offset;
                     let rotation = nalgebra_glm::quat_angle_axis(spin, &Vec3::y())
                         * nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_4, &Vec3::x());
@@ -4463,7 +4463,7 @@ impl Survivors {
                 mark_local_transform_dirty(world, handle.0);
 
                 if let Some(emitter_entity) = health_gem.particle_emitter
-                    && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
+                    && let Some(emitter) = world.core.get_particle_emitter_mut(emitter_entity)
                 {
                     emitter.position =
                         Vec3::new(position.0.x, GEM_RADIUS + bob_offset, position.0.z);
@@ -4542,7 +4542,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(particle_entity, heal_emitter);
+        world.core.set_particle_emitter(particle_entity, heal_emitter);
     }
 
     fn damage_health_crystal(
@@ -4641,7 +4641,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(particle_entity, break_emitter);
+        world.core.set_particle_emitter(particle_entity, break_emitter);
     }
 
     fn maybe_spawn_enemy_health_drop(
@@ -4755,7 +4755,7 @@ impl Survivors {
         let power_up_entity =
             spawn_mesh(world, "Cube", power_up_position, Vec3::new(0.8, 0.8, 0.8));
 
-        if let Some(transform) = world.get_local_transform_mut(power_up_entity) {
+        if let Some(transform) = world.core.get_local_transform_mut(power_up_entity) {
             transform.rotation = nalgebra_glm::quat_angle_axis(
                 std::f32::consts::FRAC_PI_4,
                 &Vec3::new(1.0, 0.0, 1.0).normalize(),
@@ -4824,7 +4824,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(particle_entity, powerup_emitter);
+        world.core.set_particle_emitter(particle_entity, powerup_emitter);
 
         let zone = TreasureZone {
             center,
@@ -4888,7 +4888,7 @@ impl Survivors {
             if zone.cleared
                 && let Some(pue) = power_up_entity
             {
-                if let Some(transform) = world.get_local_transform_mut(pue) {
+                if let Some(transform) = world.core.get_local_transform_mut(pue) {
                     transform.rotation =
                         nalgebra_glm::quat_angle_axis(self.game_time * 2.0, &Vec3::y())
                             * nalgebra_glm::quat_angle_axis(
@@ -4912,7 +4912,7 @@ impl Survivors {
             if !zone.cleared
                 && let Some(pue) = power_up_entity
             {
-                if let Some(transform) = world.get_local_transform_mut(pue) {
+                if let Some(transform) = world.core.get_local_transform_mut(pue) {
                     transform.rotation =
                         nalgebra_glm::quat_angle_axis(self.game_time * 0.5, &Vec3::y())
                             * nalgebra_glm::quat_angle_axis(
@@ -5140,7 +5140,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, collect_emitter);
+        world.core.set_particle_emitter(particle_entity, collect_emitter);
     }
 
     fn update_active_buffs(&mut self, delta: f32) {
@@ -5212,7 +5212,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, levelup_emitter);
+        world.core.set_particle_emitter(particle_entity, levelup_emitter);
     }
 
     fn spawn_hit_effect(&self, world: &mut World, position: Vec3) {
@@ -5256,7 +5256,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, hit_emitter);
+        world.core.set_particle_emitter(particle_entity, hit_emitter);
     }
 
     fn generate_upgrade_choices(&mut self) {
@@ -5429,14 +5429,14 @@ impl Survivors {
 
                 self.game_world.set_popup(entity, popup);
 
-                if let Some(transform) = world.get_local_transform_mut(popup.text_entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(popup.text_entity) {
                     transform.translation = popup.base_position;
-                    world.set_local_transform_dirty(popup.text_entity, LocalTransformDirty);
+                    world.core.set_local_transform_dirty(popup.text_entity, LocalTransformDirty);
                 }
 
                 let alpha = (1.0 - (popup.lifetime / max_lifetime)).max(0.0);
 
-                if let Some(text_component) = world.get_text_mut(popup.text_entity) {
+                if let Some(text_component) = world.core.get_text_mut(popup.text_entity) {
                     text_component.properties.color.w = alpha;
                     text_component.dirty = true;
                 }
@@ -5444,7 +5444,7 @@ impl Survivors {
         }
 
         for (entity, text_entity) in popups_to_remove {
-            if world.get_text(text_entity).is_some() {
+            if world.core.get_text(text_entity).is_some() {
                 world.queue_command(WorldCommand::DespawnRecursive {
                     entity: text_entity,
                 });
@@ -5547,7 +5547,7 @@ impl Survivors {
         );
 
         if let Some(player_entity) = self.player_entity {
-            world.set_parent(shield_entity, Parent(Some(player_entity)));
+            world.core.set_parent(shield_entity, Parent(Some(player_entity)));
         }
 
         let shield_material_name = format!("ShieldLayer_{}_{}", layer_index, shield_entity.id);
@@ -5628,7 +5628,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(effect_entity, shield_emitter);
+        world.core.set_particle_emitter(effect_entity, shield_emitter);
 
         self.line_effects.push(LineEffect {
             entity: world.spawn_entities(LINES, 1)[0],
@@ -5671,7 +5671,7 @@ impl Survivors {
                 let pulse = (self.game_time * (2.0 + *layer_index as f32 * 0.3)).sin() * 0.05 + 1.0;
                 let radius = base_radius * pulse;
 
-                if let Some(transform) = world.get_local_transform_mut(*entity) {
+                if let Some(transform) = world.core.get_local_transform_mut(*entity) {
                     transform.scale = Vec3::new(radius * 2.0, radius * 2.0, radius * 2.0);
                     let rotation_speed = 0.5 + *layer_index as f32 * 0.2;
                     let rotation_axis = match *layer_index % 3 {
@@ -5913,7 +5913,7 @@ impl Survivors {
         self.game_state = GameState::Playing;
 
         if let Some(entity) = self.player_entity {
-            if let Some(transform) = world.get_local_transform_mut(entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(entity) {
                 transform.translation = self.player_position;
             }
             mark_local_transform_dirty(world, entity);
@@ -5951,7 +5951,7 @@ impl Survivors {
             );
             let orb_position = self.player_position + orb_offset;
 
-            if let Some(transform) = world.get_local_transform_mut(*orb_entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(*orb_entity) {
                 transform.translation = orb_position;
             }
             mark_local_transform_dirty(world, *orb_entity);
@@ -5993,7 +5993,7 @@ impl Survivors {
             Vec3::zeros(),
             Vec3::new(ORB_RADIUS * 1.0, ORB_RADIUS * 1.0, ORB_RADIUS * 1.0),
         );
-        world.set_parent(core, Parent(Some(engine_entity)));
+        world.core.set_parent(core, Parent(Some(engine_entity)));
         let core_mat = format!("OrbCore_{}", core.id);
         material_registry_insert(
             &mut world.resources.material_registry,
@@ -6231,7 +6231,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, pulse_emitter);
+        world.core.set_particle_emitter(particle_entity, pulse_emitter);
 
         let ring_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
 
@@ -6273,7 +6273,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(ring_entity, ring_emitter);
+        world.core.set_particle_emitter(ring_entity, ring_emitter);
 
         self.spawn_pulse_lines(world, position, radius);
     }
@@ -6330,7 +6330,7 @@ impl Survivors {
             );
 
             if effect.segments == 0 {
-                if let Some(lines_component) = world.get_lines_mut(effect.entity) {
+                if let Some(lines_component) = world.core.get_lines_mut(effect.entity) {
                     for line in lines_component.lines.iter_mut() {
                         line.color = current_color;
                     }
@@ -6367,7 +6367,7 @@ impl Survivors {
                     });
                 }
 
-                if let Some(lines_component) = world.get_lines_mut(effect.entity) {
+                if let Some(lines_component) = world.core.get_lines_mut(effect.entity) {
                     lines_component.lines = lines;
                     lines_component.mark_dirty();
                 }
@@ -6415,12 +6415,12 @@ impl Survivors {
                     .sin()
                     * 0.5
                     + 0.5;
-                if let Some(visibility) = world.get_visibility_mut(player) {
+                if let Some(visibility) = world.core.get_visibility_mut(player) {
                     visibility.visible = flash > 0.3;
                 }
             }
         } else if let Some(player) = self.player_entity
-            && let Some(visibility) = world.get_visibility_mut(player)
+            && let Some(visibility) = world.core.get_visibility_mut(player)
         {
             visibility.visible = true;
         }
@@ -6468,7 +6468,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, damage_emitter);
+        world.core.set_particle_emitter(particle_entity, damage_emitter);
     }
 
     fn whip_system(&mut self, world: &mut World, delta: f32) {
@@ -6618,7 +6618,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, whip_emitter);
+        world.core.set_particle_emitter(particle_entity, whip_emitter);
 
         let trail_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
 
@@ -6661,7 +6661,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(trail_entity, trail_emitter);
+        world.core.set_particle_emitter(trail_entity, trail_emitter);
     }
 
     fn lightning_system(&mut self, world: &mut World, delta: f32) {
@@ -6854,7 +6854,7 @@ impl Survivors {
                 ..Default::default()
             };
 
-            world.set_particle_emitter(particle_entity, lightning_emitter);
+            world.core.set_particle_emitter(particle_entity, lightning_emitter);
 
             let impact_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
 
@@ -6895,7 +6895,7 @@ impl Survivors {
                 ..Default::default()
             };
 
-            world.set_particle_emitter(impact_entity, impact_emitter);
+            world.core.set_particle_emitter(impact_entity, impact_emitter);
 
             prev_pos = *target_pos;
         }
@@ -6956,7 +6956,7 @@ impl Survivors {
             prev_pos = target;
         }
 
-        if let Some(lines_component) = world.get_lines_mut(line_entity) {
+        if let Some(lines_component) = world.core.get_lines_mut(line_entity) {
             lines_component.lines = lines;
             lines_component.mark_dirty();
         }
@@ -7027,11 +7027,11 @@ impl Survivors {
                 ..Default::default()
             };
 
-            world.set_particle_emitter(particle_entity, garlic_emitter);
+            world.core.set_particle_emitter(particle_entity, garlic_emitter);
         }
 
         if let Some(emitter_entity) = self.garlic_emitter
-            && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
+            && let Some(emitter) = world.core.get_particle_emitter_mut(emitter_entity)
         {
             emitter.position = self.player_position;
         }
@@ -7163,7 +7163,7 @@ impl Survivors {
             Vec3::new(0.0, 0.3, 0.0),
             Vec3::new(0.08, 0.25, 0.08),
         );
-        world.set_parent(fuse_entity, Parent(Some(bomb_entity)));
+        world.core.set_parent(fuse_entity, Parent(Some(bomb_entity)));
 
         let fuse_material_name = format!("LobBombFuse_{}", fuse_entity.id);
         material_registry_insert(
@@ -7214,7 +7214,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(fuse_emitter_entity, fuse_emitter);
+        world.core.set_particle_emitter(fuse_emitter_entity, fuse_emitter);
 
         let smoke_emitter_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
         let smoke_gradient = ColorGradient {
@@ -7251,7 +7251,7 @@ impl Survivors {
 
             ..Default::default()
         };
-        world.set_particle_emitter(smoke_emitter_entity, smoke_emitter);
+        world.core.set_particle_emitter(smoke_emitter_entity, smoke_emitter);
 
         let lob_bomb = LobBomb {
             entity: bomb_entity,
@@ -7338,7 +7338,7 @@ impl Survivors {
             );
 
             let spin = progress * std::f32::consts::TAU * 2.0;
-            if let Some(transform) = world.get_local_transform_mut(bomb.entity) {
+            if let Some(transform) = world.core.get_local_transform_mut(bomb.entity) {
                 transform.translation = current_position;
                 transform.rotation =
                     nalgebra_glm::quat_angle_axis(spin, &Vec3::new(0.3, 1.0, 0.2).normalize());
@@ -7348,13 +7348,13 @@ impl Survivors {
             let fuse_tip_position = current_position + Vec3::new(0.0, 0.45, 0.0);
 
             if let Some(trail_entity) = bomb.trail_emitter
-                && let Some(emitter) = world.get_particle_emitter_mut(trail_entity)
+                && let Some(emitter) = world.core.get_particle_emitter_mut(trail_entity)
             {
                 emitter.position = fuse_tip_position;
             }
 
             if let Some(fuse_emitter) = bomb.fuse_emitter
-                && let Some(emitter) = world.get_particle_emitter_mut(fuse_emitter)
+                && let Some(emitter) = world.core.get_particle_emitter_mut(fuse_emitter)
             {
                 emitter.position = fuse_tip_position;
             }
@@ -7370,13 +7370,13 @@ impl Survivors {
                 entity: bomb.entity,
             });
             if let Some(trail_entity) = bomb.trail_emitter
-                && let Some(emitter) = world.get_particle_emitter_mut(trail_entity)
+                && let Some(emitter) = world.core.get_particle_emitter_mut(trail_entity)
             {
                 emitter.enabled = false;
                 emitter.one_shot = true;
             }
             if let Some(fuse_emitter) = bomb.fuse_emitter
-                && let Some(emitter) = world.get_particle_emitter_mut(fuse_emitter)
+                && let Some(emitter) = world.core.get_particle_emitter_mut(fuse_emitter)
             {
                 emitter.enabled = false;
                 emitter.one_shot = true;
@@ -7428,7 +7428,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(ring_entity, ring_emitter);
+        world.core.set_particle_emitter(ring_entity, ring_emitter);
 
         let core_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
 
@@ -7470,7 +7470,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(core_entity, core_emitter);
+        world.core.set_particle_emitter(core_entity, core_emitter);
 
         let smoke_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
 
@@ -7513,7 +7513,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(smoke_entity, smoke_emitter);
+        world.core.set_particle_emitter(smoke_entity, smoke_emitter);
 
         self.spawn_bomb_lines(world, position);
     }
@@ -7610,7 +7610,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, spawn_emitter);
+        world.core.set_particle_emitter(particle_entity, spawn_emitter);
 
         let ring_entity = world.spawn_entities(
             LINES | VISIBILITY | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY,
@@ -7658,7 +7658,7 @@ impl Survivors {
             ),
         );
 
-        world.set_parent(shield_entity, Parent(Some(engine_entity)));
+        world.core.set_parent(shield_entity, Parent(Some(engine_entity)));
 
         let shield_material_name = format!("EnemyShield_{}", shield_entity.id);
         material_registry_insert(
@@ -7694,7 +7694,7 @@ impl Survivors {
                 } else {
                     let pulse = (self.game_time * 2.0).sin() * 0.05 + 1.0;
                     let shield_scale = base_radius * 2.0 * pulse;
-                    if let Some(transform) = world.get_local_transform_mut(*shield_entity) {
+                    if let Some(transform) = world.core.get_local_transform_mut(*shield_entity) {
                         transform.scale = Vec3::new(shield_scale, shield_scale, shield_scale);
                         transform.rotation = nalgebra_glm::quat_angle_axis(
                             self.game_time * 0.5,
@@ -7755,7 +7755,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(effect_entity, shield_emitter);
+        world.core.set_particle_emitter(effect_entity, shield_emitter);
 
         self.line_effects.push(LineEffect {
             entity: world.spawn_entities(LINES, 1)[0],
@@ -7809,7 +7809,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, dust_emitter);
+        world.core.set_particle_emitter(particle_entity, dust_emitter);
     }
 
     fn update_combo(&mut self, delta: f32) {
@@ -7896,7 +7896,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, combo_emitter);
+        world.core.set_particle_emitter(particle_entity, combo_emitter);
     }
 
     fn update_speed_boost(&mut self, delta: f32) {
@@ -8009,14 +8009,14 @@ impl Survivors {
 
                 ..Default::default()
             };
-            world.set_particle_emitter(particle_entity, fire_emitter);
+            world.core.set_particle_emitter(particle_entity, fire_emitter);
             self.combo_emitter = Some(particle_entity);
         } else if !should_have_fire && self.combo_emitter.is_some() {
             if let Some(emitter) = self.combo_emitter.take() {
                 world.queue_command(WorldCommand::DespawnRecursive { entity: emitter });
             }
         } else if let Some(emitter_entity) = self.combo_emitter
-            && let Some(emitter) = world.get_particle_emitter_mut(emitter_entity)
+            && let Some(emitter) = world.core.get_particle_emitter_mut(emitter_entity)
         {
             emitter.position = self.player_position;
             let intensity = (self.combo_count as f32 / 20.0).min(2.0);
@@ -8115,7 +8115,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(particle_entity, wave_emitter);
+        world.core.set_particle_emitter(particle_entity, wave_emitter);
     }
 
     fn spawn_wave_complete_effect(&mut self, world: &mut World) {
@@ -8169,7 +8169,7 @@ impl Survivors {
                 ..Default::default()
             };
 
-            world.set_particle_emitter(particle_entity, confetti_emitter);
+            world.core.set_particle_emitter(particle_entity, confetti_emitter);
         }
 
         for ring_index in 0..3 {
@@ -8237,7 +8237,7 @@ impl Survivors {
                 ..Default::default()
             };
 
-            world.set_particle_emitter(particle_entity, ambient_emitter);
+            world.core.set_particle_emitter(particle_entity, ambient_emitter);
         }
     }
 
@@ -8290,7 +8290,7 @@ impl Survivors {
                 ..Default::default()
             };
 
-            world.set_particle_emitter(particle_entity, boss_emitter);
+            world.core.set_particle_emitter(particle_entity, boss_emitter);
         }
 
         let shockwave_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
@@ -8333,7 +8333,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(shockwave_entity, shockwave_emitter);
+        world.core.set_particle_emitter(shockwave_entity, shockwave_emitter);
 
         let core_flash_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
 
@@ -8375,7 +8375,7 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(core_flash_entity, core_flash_emitter);
+        world.core.set_particle_emitter(core_flash_entity, core_flash_emitter);
 
         let debris_entity = world.spawn_entities(PARTICLE_EMITTER, 1)[0];
 
@@ -8416,6 +8416,6 @@ impl Survivors {
             ..Default::default()
         };
 
-        world.set_particle_emitter(debris_entity, debris_emitter);
+        world.core.set_particle_emitter(debris_entity, debris_emitter);
     }
 }

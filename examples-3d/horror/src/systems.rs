@@ -11,18 +11,18 @@ pub mod puzzle;
 pub mod ui;
 
 pub use camera::{camera_look_system, crouch_camera_system, lean_system};
-pub use doors::{spawn_doors, update_doors_momentum};
-pub use environment::{load_textures, spawn_interactables, spawn_physics_props};
+pub use doors::update_doors_momentum;
+pub use environment::load_textures;
 pub use flashlight::{
     spawn_ambient_light, spawn_flashlight, update_flashlight, update_lantern_light,
 };
 pub use input::detect_input_mode;
 pub use interaction::interaction_system;
 pub use levers::update_levers_momentum;
-pub use lights::{spawn_overhead_lights, update_overhead_lights};
+pub use lights::update_overhead_lights;
 pub use monster::{cutscene_system, monster_chase_system};
 pub use puzzle::check_puzzle_state;
 pub use ui::{
-    note_reading_system, spawn_ui, update_interaction_prompt, update_objective,
+    note_reading_system, spawn_ui, update_interaction_prompt, update_objective, update_overlays,
     update_temporary_message,
 };

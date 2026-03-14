@@ -1,115 +1,6 @@
-use crate::constants::ROOM_HEIGHT;
-use crate::state::{HorrorDemo, OverheadLightState};
-use nightshade::ecs::light::components::{Light, LightType};
+use crate::state::HorrorDemo;
 use nightshade::ecs::material::resources::material_registry_insert;
-use nightshade::ecs::physics::create_textured_material;
 use nightshade::prelude::*;
-
-pub fn spawn_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
-    let light_positions = [
-        nalgebra_glm::vec3(0.0, ROOM_HEIGHT - 0.1, 4.0),
-        nalgebra_glm::vec3(0.0, ROOM_HEIGHT - 0.1, -2.0),
-        nalgebra_glm::vec3(0.0, ROOM_HEIGHT - 0.1, -8.0),
-        nalgebra_glm::vec3(-3.0, ROOM_HEIGHT - 0.1, -14.0),
-        nalgebra_glm::vec3(3.0, ROOM_HEIGHT - 0.1, -14.0),
-        nalgebra_glm::vec3(0.0, ROOM_HEIGHT - 0.1, -18.0),
-        nalgebra_glm::vec3(9.0, ROOM_HEIGHT - 0.1, -16.0),
-        nalgebra_glm::vec3(-9.0, ROOM_HEIGHT - 0.1, -16.0),
-        nalgebra_glm::vec3(0.0, ROOM_HEIGHT - 0.1, -26.0),
-    ];
-
-    for (index, &position) in light_positions.iter().enumerate() {
-        let fixture_material =
-            create_textured_material(nalgebra_glm::vec3(0.2, 0.2, 0.22), 0.6, 0.5);
-
-        let fixture_entity = world.spawn_entities(
-            NAME | LOCAL_TRANSFORM
-                | GLOBAL_TRANSFORM
-                | LOCAL_TRANSFORM_DIRTY
-                | RENDER_MESH
-                | MATERIAL_REF
-                | BOUNDING_VOLUME
-                | CASTS_SHADOW
-                | VISIBILITY,
-            1,
-        )[0];
-
-        if let Some(name) = world.core.get_name_mut(fixture_entity) {
-            name.0 = format!("Light Fixture {}", index);
-        }
-
-        if let Some(transform) = world.core.get_local_transform_mut(fixture_entity) {
-            transform.translation = position;
-            transform.scale = nalgebra_glm::vec3(0.6, 0.08, 0.2);
-        }
-
-        if let Some(mesh) = world.core.get_render_mesh_mut(fixture_entity) {
-            mesh.name = "Cube".to_string();
-        }
-
-        let material_name = format!("LightFixture_{}", fixture_entity.id);
-        material_registry_insert(
-            &mut world.resources.material_registry,
-            material_name.clone(),
-            fixture_material,
-        );
-        if let Some(&mat_index) = world
-            .resources
-            .material_registry
-            .registry
-            .name_to_index
-            .get(&material_name)
-        {
-            world
-                .resources
-                .material_registry
-                .registry
-                .add_reference(mat_index);
-        }
-        world.core.set_material_ref(fixture_entity, MaterialRef::new(material_name));
-
-        if let Some(bv) = world.core.get_bounding_volume_mut(fixture_entity) {
-            *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
-        }
-
-        let light_entity = world.spawn_entities(
-            NAME | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | LIGHT,
-            1,
-        )[0];
-
-        if let Some(name) = world.core.get_name_mut(light_entity) {
-            name.0 = format!("Overhead Light {}", index);
-        }
-
-        if let Some(transform) = world.core.get_local_transform_mut(light_entity) {
-            transform.translation = position - nalgebra_glm::vec3(0.0, 0.1, 0.0);
-        }
-
-        let base_intensity = 1.5 + (index % 3) as f32 * 0.3;
-
-        if let Some(light) = world.core.get_light_mut(light_entity) {
-            *light = Light {
-                light_type: LightType::Point,
-                color: nalgebra_glm::vec3(1.0, 0.9, 0.7),
-                intensity: base_intensity,
-                range: 8.0,
-                inner_cone_angle: 0.0,
-                outer_cone_angle: 0.0,
-                cast_shadows: false,
-                shadow_bias: 0.0,
-            };
-        }
-
-        demo.overhead_lights.push(OverheadLightState {
-            entity: fixture_entity,
-            light_entity,
-            base_intensity,
-            spark_timer: 0.0,
-            next_spark_time: 2.0 + (index as f32 * 1.7) % 5.0,
-            is_sparking: false,
-        });
-    }
-}
 
 pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
     let dt = world.resources.window.timing.delta_time;
@@ -158,7 +49,8 @@ pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
 
 fn spawn_spark_particles(world: &mut World, fixture_entity: Entity) {
     let fixture_pos = world
-        .core.get_local_transform(fixture_entity)
+        .core
+        .get_local_transform(fixture_entity)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 
@@ -218,7 +110,9 @@ fn spawn_spark_particles(world: &mut World, fixture_entity: Entity) {
                 .registry
                 .add_reference(mat_index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");

@@ -7,10 +7,12 @@ use nightshade::ecs::text::components::TextProperties;
 use nightshade::prelude::*;
 
 pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
+    world.resources.retained_ui.enabled = true;
+
     let prompt_entity = spawn_ui_text_with_properties(
         world,
         "",
-            Vec2::zeros(),
+        Vec2::zeros(),
         TextProperties {
             font_size: 18.0,
             color: Vec4::new(1.0, 1.0, 1.0, 0.9),
@@ -25,7 +27,7 @@ pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
     let objective_entity = spawn_ui_text_with_properties(
         world,
         "Find the generator and restore power",
-            Vec2::zeros(),
+        Vec2::zeros(),
         TextProperties {
             font_size: 20.0,
             color: Vec4::new(0.8, 0.8, 0.6, 0.9),
@@ -35,6 +37,277 @@ pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
     demo.objective_text_entity = Some(objective_entity);
     if let Some(hud_text) = world.core.get_text(objective_entity) {
         demo.objective_text_index = Some(hud_text.text_index);
+    }
+
+    build_death_overlay(demo, world);
+    build_temporary_message_overlay(demo, world);
+    build_note_overlay(demo, world);
+    build_win_overlay(demo, world);
+}
+
+fn build_death_overlay(demo: &mut HorrorDemo, world: &mut World) {
+    let mut tree = UiTreeBuilder::new(world);
+
+    let overlay = tree
+        .add_node()
+        .boundary(
+            Vp(nalgebra_glm::Vec2::new(50.0, 50.0)) + Ab(nalgebra_glm::Vec2::new(-150.0, -50.0)),
+            Vp(nalgebra_glm::Vec2::new(50.0, 50.0)) + Ab(nalgebra_glm::Vec2::new(150.0, 50.0)),
+        )
+        .with_rect(8.0, 2.0, nalgebra_glm::Vec4::new(0.784, 0.0, 0.0, 1.0))
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.314, 0.0, 0.0, 0.902))
+        .with_visible(false)
+        .without_pointer_events()
+        .entity();
+
+    tree.push_parent(overlay);
+
+    tree.add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(0.0, 0.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
+        )
+        .with_text("YOU DIED", 32.0)
+        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(1.0, 0.196, 0.196, 1.0))
+        .without_pointer_events();
+
+    tree.pop_parent();
+    tree.finish();
+
+    demo.death_overlay_entity = Some(overlay);
+}
+
+fn build_temporary_message_overlay(demo: &mut HorrorDemo, world: &mut World) {
+    let mut tree = UiTreeBuilder::new(world);
+
+    let overlay = tree
+        .add_node()
+        .boundary(
+            Vp(nalgebra_glm::Vec2::new(50.0, 100.0)) + Ab(nalgebra_glm::Vec2::new(-200.0, -120.0)),
+            Vp(nalgebra_glm::Vec2::new(50.0, 100.0)) + Ab(nalgebra_glm::Vec2::new(200.0, -60.0)),
+        )
+        .with_rect(6.0, 1.0, nalgebra_glm::Vec4::new(0.471, 0.392, 0.314, 1.0))
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.118, 0.078, 0.059, 0.863))
+        .with_visible(false)
+        .without_pointer_events()
+        .entity();
+
+    tree.push_parent(overlay);
+
+    let text_entity = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(15.0, 10.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 100.0)) + Ab(nalgebra_glm::Vec2::new(-15.0, -10.0)),
+        )
+        .with_text("", 18.0)
+        .with_text_wrap()
+        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.863, 0.784, 0.627, 1.0))
+        .without_pointer_events()
+        .done();
+
+    tree.pop_parent();
+    tree.finish();
+
+    demo.temporary_message_overlay_entity = Some(overlay);
+    demo.temporary_message_text_entity = Some(text_entity);
+}
+
+fn build_note_overlay(demo: &mut HorrorDemo, world: &mut World) {
+    let mut tree = UiTreeBuilder::new(world);
+
+    let panel_width = 500.0;
+    let panel_height = 400.0;
+
+    let overlay = tree
+        .add_node()
+        .boundary(
+            Vp(nalgebra_glm::Vec2::new(50.0, 50.0))
+                + Ab(nalgebra_glm::Vec2::new(
+                    -panel_width / 2.0,
+                    -panel_height / 2.0,
+                )),
+            Vp(nalgebra_glm::Vec2::new(50.0, 50.0))
+                + Ab(nalgebra_glm::Vec2::new(
+                    panel_width / 2.0,
+                    panel_height / 2.0,
+                )),
+        )
+        .with_rect(6.0, 2.0, nalgebra_glm::Vec4::new(0.314, 0.235, 0.157, 1.0))
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.078, 0.059, 0.039, 0.961))
+        .with_visible(false)
+        .without_pointer_events()
+        .with_clip()
+        .entity();
+
+    tree.push_parent(overlay);
+
+    let title_entity = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(20.0, 20.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(-20.0, 50.0)),
+        )
+        .with_text("", 20.0)
+        .with_text_wrap()
+        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Top)
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.863, 0.784, 0.627, 1.0))
+        .without_pointer_events()
+        .done();
+
+    tree.add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(20.0, 56.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(-20.0, 57.0)),
+        )
+        .with_rect(0.0, 0.0, nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0))
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.3, 0.25, 0.2, 0.5))
+        .without_pointer_events();
+
+    let content_entity = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(20.0, 70.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 100.0)) + Ab(nalgebra_glm::Vec2::new(-20.0, -20.0)),
+        )
+        .with_text("", 16.0)
+        .with_text_wrap()
+        .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.784, 0.745, 0.667, 1.0))
+        .without_pointer_events()
+        .done();
+
+    tree.pop_parent();
+    tree.finish();
+
+    demo.note_overlay_entity = Some(overlay);
+    demo.note_title_text_entity = Some(title_entity);
+    demo.note_content_text_entity = Some(content_entity);
+}
+
+fn build_win_overlay(demo: &mut HorrorDemo, world: &mut World) {
+    let mut tree = UiTreeBuilder::new(world);
+
+    let overlay = tree
+        .add_node()
+        .boundary(
+            Rl(nalgebra_glm::Vec2::new(0.0, 0.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
+        )
+        .with_rect(0.0, 0.0, nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0))
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, 0.0))
+        .with_visible(false)
+        .without_pointer_events()
+        .entity();
+
+    tree.push_parent(overlay);
+
+    let text_entity = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(0.0, 0.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 100.0)),
+        )
+        .with_text("You Survived", 48.0)
+        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 0.0))
+        .without_pointer_events()
+        .done();
+
+    tree.pop_parent();
+    tree.finish();
+
+    demo.win_overlay_entity = Some(overlay);
+    demo.win_text_entity = Some(text_entity);
+}
+
+pub fn update_overlays(demo: &mut HorrorDemo, world: &mut World) {
+    update_death_overlay(demo, world);
+    update_temporary_message_overlay(demo, world);
+    update_note_overlay(demo, world);
+    update_win_overlay(demo, world);
+}
+
+fn update_death_overlay(demo: &HorrorDemo, world: &mut World) {
+    let Some(entity) = demo.death_overlay_entity else {
+        return;
+    };
+    let should_show = demo.monster.active && demo.game_won;
+    world.ui_set_visible(entity, should_show);
+}
+
+fn update_temporary_message_overlay(demo: &mut HorrorDemo, world: &mut World) {
+    let Some(overlay) = demo.temporary_message_overlay_entity else {
+        return;
+    };
+
+    if let Some(message) = &demo.temporary_message {
+        world.ui_set_visible(overlay, true);
+        if demo.last_shown_message.as_deref() != Some(message) {
+            if let Some(text_entity) = demo.temporary_message_text_entity {
+                world.ui_set_text(text_entity, message);
+            }
+            demo.last_shown_message = Some(message.clone());
+        }
+    } else {
+        world.ui_set_visible(overlay, false);
+        if demo.last_shown_message.is_some() {
+            demo.last_shown_message = None;
+        }
+    }
+}
+
+fn update_note_overlay(demo: &mut HorrorDemo, world: &mut World) {
+    let Some(overlay) = demo.note_overlay_entity else {
+        return;
+    };
+
+    if let Some(note_index) = demo.reading_note {
+        world.ui_set_visible(overlay, true);
+        if demo.last_shown_note != Some(note_index) {
+            let note = &demo.notes[note_index];
+            if let Some(title_entity) = demo.note_title_text_entity {
+                world.ui_set_text(title_entity, &note.title);
+            }
+            if let Some(content_entity) = demo.note_content_text_entity {
+                world.ui_set_text(content_entity, &note.content);
+            }
+            demo.last_shown_note = Some(note_index);
+        }
+    } else {
+        world.ui_set_visible(overlay, false);
+        if demo.last_shown_note.is_some() {
+            demo.last_shown_note = None;
+        }
+    }
+}
+
+fn update_win_overlay(demo: &HorrorDemo, world: &mut World) {
+    let Some(overlay) = demo.win_overlay_entity else {
+        return;
+    };
+
+    let should_show = demo.game_won && !demo.monster.active && demo.fade_amount > 0.01;
+    world.ui_set_visible(overlay, should_show);
+
+    if should_show {
+        let fade_alpha = demo.fade_amount;
+        if let Some(color) = world.ui.get_ui_node_color_mut(overlay) {
+            color.computed_color = nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, fade_alpha);
+        }
+
+        if let Some(text_entity) = demo.win_text_entity {
+            let text_alpha = if demo.fade_amount > 0.8 {
+                ((demo.fade_amount - 0.8) / 0.2).min(1.0)
+            } else {
+                0.0
+            };
+            if let Some(color) = world.ui.get_ui_node_color_mut(text_entity) {
+                color.computed_color = nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, text_alpha);
+            }
+        }
     }
 }
 
@@ -47,11 +320,6 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
     };
 
     let mouse_pos = world.resources.input.mouse.position;
-    let viewport_size = world
-        .resources
-        .window
-        .cached_viewport_size
-        .unwrap_or((800, 600));
 
     if demo.interaction.grabbed_entity.is_some()
         || demo.interaction.manipulated_door_index.is_some()
@@ -67,6 +335,11 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
     }
 
     let screen_pos = if demo.input_mode == InputMode::Gamepad {
+        let viewport_size = world
+            .resources
+            .window
+            .cached_viewport_size
+            .unwrap_or((800, 600));
         nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0)
     } else {
         mouse_pos

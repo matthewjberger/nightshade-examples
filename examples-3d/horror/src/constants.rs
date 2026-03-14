@@ -21,6 +21,3 @@ pub const CROUCHING_CAMERA_HEIGHT: f32 = 0.3;
 pub const LEAN_AMOUNT: f32 = 0.4;
 pub const LEAN_ANGLE: f32 = 0.15;
 pub const LEAN_SPEED: f32 = 8.0;
-
-pub const ROOM_HEIGHT: f32 = 3.0;
-pub const WALL_THICKNESS: f32 = 0.3;

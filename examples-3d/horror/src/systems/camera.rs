@@ -164,7 +164,8 @@ pub fn crouch_camera_system(demo: &HorrorDemo, world: &mut World) {
     };
 
     let is_crouching = world
-        .core.get_character_controller(player_entity)
+        .core
+        .get_character_controller(player_entity)
         .map(|cc| cc.is_crouching)
         .unwrap_or(false);
 

@@ -11,4 +11,4 @@ rust-version = "1.90"
 openxr = ["nightshade/openxr"]
 
 [dependencies]
-nightshade = { workspace = true, features = ["egui", "physics", "tracing", "audio", "gamepad"] }
+nightshade = { workspace = true, features = ["physics", "tracing", "audio", "gamepad"] }

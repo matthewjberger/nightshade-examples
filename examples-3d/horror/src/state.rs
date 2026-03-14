@@ -42,6 +42,16 @@ pub struct HorrorDemo {
     pub footstep_audio_entity: Option<Entity>,
     pub was_moving: bool,
     pub door_audio_entity: Option<Entity>,
+    pub death_overlay_entity: Option<Entity>,
+    pub temporary_message_overlay_entity: Option<Entity>,
+    pub temporary_message_text_entity: Option<Entity>,
+    pub note_overlay_entity: Option<Entity>,
+    pub note_title_text_entity: Option<Entity>,
+    pub note_content_text_entity: Option<Entity>,
+    pub win_overlay_entity: Option<Entity>,
+    pub win_text_entity: Option<Entity>,
+    pub last_shown_note: Option<usize>,
+    pub last_shown_message: Option<String>,
 }
 
 #[derive(Default)]

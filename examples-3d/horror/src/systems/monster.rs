@@ -640,7 +640,9 @@ fn spawn_monster_part(
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
         *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
@@ -667,7 +669,8 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
     let dt = world.resources.window.timing.delta_time;
 
     let player_pos = world
-        .core.get_global_transform(player_entity)
+        .core
+        .get_global_transform(player_entity)
         .map(|t| t.translation())
         .unwrap_or(Vec3::zeros());
 
@@ -686,7 +689,8 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
     }
 
     let monster_pos = world
-        .core.get_local_transform(monster_entity)
+        .core
+        .get_local_transform(monster_entity)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 

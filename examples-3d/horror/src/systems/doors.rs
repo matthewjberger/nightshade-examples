@@ -1,51 +1,10 @@
-use crate::constants::{INTERACT_RANGE, WALL_THICKNESS};
+use crate::constants::INTERACT_RANGE;
 use crate::state::{DoorState, HorrorDemo, InputMode};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::world::commands::find_entity_by_name;
 use nightshade::prelude::*;
 
-pub fn spawn_doors(demo: &mut HorrorDemo, world: &mut World) {
-    let t = WALL_THICKNESS;
-    init_door(
-        demo,
-        world,
-        "Door_Entry",
-        nalgebra_glm::vec3(0.0, 0.0, t / 2.0),
-        false,
-        false,
-        false,
-    );
-    init_door(
-        demo,
-        world,
-        "Door_Storage",
-        nalgebra_glm::vec3(6.0 + t / 2.0, 0.0, -16.0),
-        false,
-        true,
-        false,
-    );
-    init_door(
-        demo,
-        world,
-        "Door_Generator",
-        nalgebra_glm::vec3(-6.0 - t / 2.0, 0.0, -16.0),
-        false,
-        true,
-        true,
-    );
-    init_door(
-        demo,
-        world,
-        "Door_Exit",
-        nalgebra_glm::vec3(0.0, 0.0, -22.0 - t / 2.0),
-        true,
-        false,
-        false,
-    );
-    demo.exit_door_index = demo.doors.len() - 1;
-}
-
-fn init_door(
+pub fn init_door(
     demo: &mut HorrorDemo,
     world: &mut World,
     name: &str,
@@ -73,7 +32,8 @@ fn init_door(
     };
 
     let door_rb_handle = world
-        .core.get_rigid_body(door_entity)
+        .core
+        .get_rigid_body(door_entity)
         .and_then(|rb| rb.handle)
         .unwrap_or_else(|| panic!("Door '{}' missing physics handle", name));
 

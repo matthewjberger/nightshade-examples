@@ -31,8 +31,12 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.core.set_global_transform(entity, GlobalTransform::default());
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }
@@ -69,8 +73,12 @@ pub fn spawn_ambient_light(world: &mut World) {
         },
     );
 
-    world.core.set_global_transform(entity, GlobalTransform::default());
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 }
 
 pub fn update_flashlight(demo: &mut HorrorDemo, world: &mut World) {
@@ -100,14 +108,19 @@ pub fn update_flashlight(demo: &mut HorrorDemo, world: &mut World) {
         let flashlight_transform = LocalTransform {
             translation: offset_position,
             rotation: world
-                .core.get_local_transform(camera)
+                .core
+                .get_local_transform(camera)
                 .map(|t| t.rotation)
                 .unwrap_or(Quat::identity()),
             scale: Vec3::new(1.0, 1.0, 1.0),
         };
 
-        world.core.set_local_transform(flashlight_entity, flashlight_transform);
-        world.core.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
+        world
+            .core
+            .set_local_transform(flashlight_entity, flashlight_transform);
+        world
+            .core
+            .set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
     }
 }
 

@@ -5,7 +5,6 @@ use std::sync::mpsc;
 use claude_chat_mcp_protocol::{AgentStatus, BackendEvent, FrontendCommand};
 use include_dir::{Dir, include_dir};
 use nightshade::claude::{CliCommand, CliEvent, ClaudeConfig, spawn_cli_worker};
-use nightshade::mosaic::{Mosaic, Pane, ViewportWidget, Widget, WidgetContext, WidgetEntry};
 use nightshade::prelude::*;
 use nightshade::webview::{WebviewContext, serve_embedded_dir};
 
@@ -32,83 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         connected: false,
         cli_cmd_tx,
         cli_event_rx,
-        mosaic: create_default_mosaic(),
-        chat_context: ChatContext {
-            webview_rect: None,
-        },
+        webview_rect: None,
     })?;
 
     Ok(())
-}
-
-fn create_default_mosaic() -> Mosaic<ChatWidget, ChatContext, ()> {
-    let mut tiles = egui_tiles::Tiles::default();
-    let viewport = tiles.insert_pane(Pane::new(ChatWidget::Viewport(ViewportWidget {
-        camera_index: 0,
-    })));
-    let chat = tiles.insert_pane(Pane::new(ChatWidget::Chat(ChatWebWidget)));
-    let root = tiles.insert_horizontal_tile(vec![viewport, chat]);
-    let tree = egui_tiles::Tree::new("chat_mosaic", root, tiles);
-    Mosaic::with_tree(tree)
-}
-
-struct ChatContext {
-    webview_rect: Option<egui::Rect>,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct ChatWebWidget;
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-enum ChatWidget {
-    Viewport(ViewportWidget),
-    Chat(ChatWebWidget),
-}
-
-impl Widget<ChatContext, ()> for ChatWidget {
-    fn title(&self) -> String {
-        match self {
-            ChatWidget::Viewport(viewport) => viewport.title(),
-            ChatWidget::Chat(_) => "Chat".to_string(),
-        }
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui, context: &mut WidgetContext<ChatContext, ()>) {
-        match self {
-            ChatWidget::Viewport(viewport) => viewport.ui(ui, context),
-            ChatWidget::Chat(_) => {
-                let rect = ui.available_rect_before_wrap();
-                ui.painter()
-                    .rect_filled(rect, 0.0, ui.style().visuals.panel_fill);
-                ui.allocate_rect(rect, egui::Sense::hover());
-                context.app.webview_rect = Some(rect);
-            }
-        }
-    }
-
-    fn closable(&self) -> bool {
-        false
-    }
-
-    fn required_camera(&self, cached_cameras: &[Entity]) -> Option<Entity> {
-        match self {
-            ChatWidget::Viewport(viewport) => viewport.required_camera(cached_cameras),
-            ChatWidget::Chat(_) => None,
-        }
-    }
-
-    fn catalog() -> Vec<WidgetEntry<Self>> {
-        vec![
-            WidgetEntry {
-                name: "Viewport".to_string(),
-                create: || ChatWidget::Viewport(ViewportWidget::default()),
-            },
-            WidgetEntry {
-                name: "Chat".to_string(),
-                create: || ChatWidget::Chat(ChatWebWidget),
-            },
-        ]
-    }
 }
 
 struct ChatApp {
@@ -117,8 +43,7 @@ struct ChatApp {
     connected: bool,
     cli_cmd_tx: mpsc::Sender<CliCommand>,
     cli_event_rx: mpsc::Receiver<CliEvent>,
-    mosaic: Mosaic<ChatWidget, ChatContext, ()>,
-    chat_context: ChatContext,
+    webview_rect: Option<egui::Rect>,
 }
 
 impl State for ChatApp {
@@ -172,12 +97,19 @@ impl State for ChatApp {
         self.process_frontend_commands();
         self.forward_cli_events();
 
-        self.chat_context.webview_rect = None;
-        Mosaic::<ChatWidget, ChatContext, ()>::clear_required_cameras(world);
+        self.webview_rect = None;
 
-        self.mosaic.show(world, ui_context, &mut self.chat_context);
+        egui::SidePanel::right("chat_panel")
+            .default_width(ui_context.content_rect().width() * 0.4)
+            .show(ui_context, |ui| {
+                let rect = ui.available_rect_before_wrap();
+                ui.painter()
+                    .rect_filled(rect, 0.0, ui.style().visuals.panel_fill);
+                ui.allocate_rect(rect, egui::Sense::hover());
+                self.webview_rect = Some(rect);
+            });
 
-        if let Some(rect) = self.chat_context.webview_rect
+        if let Some(rect) = self.webview_rect
             && let Some(handle) = &world.resources.window.handle
         {
             self.ctx.ensure_webview(handle.clone(), self.port, rect);

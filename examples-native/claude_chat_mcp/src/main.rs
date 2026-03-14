@@ -5,8 +5,10 @@ use std::sync::mpsc;
 use nightshade::claude::{
     ClaudeConfig, CliCommand, CliEvent, create_cli_channels, spawn_cli_worker,
 };
-use nightshade::mosaic::{ToastKind, Toasts};
 use nightshade::prelude::*;
+
+mod toasts;
+use toasts::{ToastKind, Toasts};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (command_sender, command_receiver, event_sender, event_receiver) = create_cli_channels();

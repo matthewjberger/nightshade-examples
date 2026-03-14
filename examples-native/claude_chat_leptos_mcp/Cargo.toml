@@ -27,7 +27,6 @@ nightshade = { git = "https://github.com/matthewjberger/nightshade.git", default
     "claude",
     "mcp",
     "assets",
-    "mosaic",
 ] }
 include_dir = "0.7"
 serde = "1"

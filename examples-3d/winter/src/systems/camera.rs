@@ -37,7 +37,8 @@ pub fn camera_follow_system(game_world: &GameWorld, world: &mut World) {
     };
 
     let controller_position = world
-        .core.get_local_transform(engine_controller)
+        .core
+        .get_local_transform(engine_controller)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 

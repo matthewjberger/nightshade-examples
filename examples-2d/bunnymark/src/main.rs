@@ -278,7 +278,10 @@ fn update_hud(world: &mut World, bunny_world: &BunnyWorld) {
     }
 
     if let Some(count_entity) = bunny_world.resources.count_text
-        && let Some(text_index) = world.core.get_text(count_entity).map(|text| text.text_index)
+        && let Some(text_index) = world
+            .core
+            .get_text(count_entity)
+            .map(|text| text.text_index)
     {
         world.resources.text_cache.set_text(
             text_index,
@@ -291,7 +294,8 @@ fn update_hud(world: &mut World, bunny_world: &BunnyWorld) {
 
     if let Some(status_entity) = bunny_world.resources.status_text
         && let Some(text_index) = world
-            .core.get_text(status_entity)
+            .core
+            .get_text(status_entity)
             .map(|text| text.text_index)
     {
         let (text, color) = if bunny_world.resources.done {

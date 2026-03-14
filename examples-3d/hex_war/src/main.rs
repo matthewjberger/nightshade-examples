@@ -74,12 +74,7 @@ fn spawn_fps_display(world: &mut World) -> Entity {
         outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
         ..Default::default()
     };
-    spawn_ui_text_with_properties(
-        world,
-        "",
-            nalgebra_glm::Vec2::zeros(),
-        props,
-    )
+    spawn_ui_text_with_properties(world, "", nalgebra_glm::Vec2::zeros(), props)
 }
 
 fn fps_display_system(world: &mut World, entity: Entity, visible: bool) {

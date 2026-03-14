@@ -12,7 +12,9 @@ pub fn spawn_character_controller(game_world: &mut GameWorld, world: &mut World)
         1,
     )[0];
 
-    world.core.set_name(controller_entity, Name("Fox Controller".to_string()));
+    world
+        .core
+        .set_name(controller_entity, Name("Fox Controller".to_string()));
     let spawn_terrain_y = sample_height(0.0, 0.0, &game_world.resources.terrain_config);
     world.core.set_local_transform(
         controller_entity,
@@ -232,7 +234,8 @@ pub fn sync_fox_to_controller(game_world: &mut GameWorld, world: &mut World) {
     };
 
     let controller_pos = world
-        .core.get_local_transform(engine_controller)
+        .core
+        .get_local_transform(engine_controller)
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 

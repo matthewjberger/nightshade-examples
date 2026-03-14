@@ -165,9 +165,13 @@ fn create_shadows_scene() -> Scene {
 }
 
 fn find_entity_by_name(world: &World, name: &str) -> Option<Entity> {
-    world
-        .core.query_entities(NAME)
-        .find(|&entity| world.core.get_name(entity).map(|n| n.0 == name).unwrap_or(false))
+    world.core.query_entities(NAME).find(|&entity| {
+        world
+            .core
+            .get_name(entity)
+            .map(|n| n.0 == name)
+            .unwrap_or(false)
+    })
 }
 
 impl State for ShadowsDemo {
@@ -199,10 +203,12 @@ impl State for ShadowsDemo {
         self.resources.torus_entity = find_entity_by_name(world, "Torus");
 
         let sphere_entities: Vec<Entity> = world
-            .core.query_entities(NAME)
+            .core
+            .query_entities(NAME)
             .filter(|&entity| {
                 world
-                    .core.get_name(entity)
+                    .core
+                    .get_name(entity)
                     .map(|n| n.0.starts_with("Sphere_"))
                     .unwrap_or(false)
             })
@@ -240,7 +246,9 @@ impl State for ShadowsDemo {
                     * nalgebra_glm::quat_angle_axis(pitch, &Vec3::x());
 
                 world.core.set_local_transform(light_entity, transform);
-                world.core.set_local_transform_dirty(light_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(light_entity, LocalTransformDirty);
             }
         }
 
@@ -253,7 +261,9 @@ impl State for ShadowsDemo {
                             &Vec3::x_axis(),
                         );
                 world.core.set_local_transform(torus_entity, transform);
-                world.core.set_local_transform_dirty(torus_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(torus_entity, LocalTransformDirty);
             }
         }
 
@@ -270,7 +280,9 @@ impl State for ShadowsDemo {
                 }
 
                 world.core.set_local_transform(*sphere_entity, transform);
-                world.core.set_local_transform_dirty(*sphere_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(*sphere_entity, LocalTransformDirty);
             }
         }
 

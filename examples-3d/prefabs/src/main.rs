@@ -582,7 +582,9 @@ impl State for PrefabsState {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(ground, MaterialRef::new(ground_material));
+        world
+            .core
+            .set_material_ref(ground, MaterialRef::new(ground_material));
         world.core.set_casts_shadow(ground, CastsShadow);
 
         tracing::info!("Loading embedded GLTF model");

@@ -156,7 +156,8 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
     for (slot_index, line) in log.line_entities.iter().enumerate() {
         if let Some(entry) = entries_to_show.get(slot_index) {
             if let Some(text_index) = world
-                .core.get_text(line.faction_entity)
+                .core
+                .get_text(line.faction_entity)
                 .map(|t| t.text_index)
             {
                 world
@@ -175,7 +176,8 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
             }
 
             if let Some(text_index) = world
-                .core.get_text(line.message_entity)
+                .core
+                .get_text(line.message_entity)
                 .map(|t| t.text_index)
             {
                 world
@@ -189,7 +191,8 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
             }
         } else {
             if let Some(text_index) = world
-                .core.get_text(line.faction_entity)
+                .core
+                .get_text(line.faction_entity)
                 .map(|t| t.text_index)
             {
                 world
@@ -202,7 +205,8 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
             }
 
             if let Some(text_index) = world
-                .core.get_text(line.message_entity)
+                .core
+                .get_text(line.message_entity)
                 .map(|t| t.text_index)
             {
                 world

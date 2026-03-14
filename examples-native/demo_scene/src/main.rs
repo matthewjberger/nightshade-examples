@@ -858,10 +858,14 @@ impl DemoSceneState {
                 scale: Vec3::new(scale, scale, scale),
             },
         );
-        world.core.set_render_mesh(entity, RenderMesh::new(mesh_name));
+        world
+            .core
+            .set_render_mesh(entity, RenderMesh::new(mesh_name));
 
         let material_name = self.create_material(world, color, emissive);
-        world.core.set_material_ref(entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
 
         entity
     }
@@ -890,8 +894,12 @@ impl DemoSceneState {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(light_entity, LocalTransformDirty);
-        world.core.set_global_transform(light_entity, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(light_entity, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(light_entity, GlobalTransform::default());
         world.core.set_light(
             light_entity,
             Light {
@@ -953,7 +961,9 @@ impl DemoSceneState {
                 scale: Vec3::new(scale, scale, scale),
             },
         );
-        world.core.set_render_mesh(entity, RenderMesh::new("Sphere"));
+        world
+            .core
+            .set_render_mesh(entity, RenderMesh::new("Sphere"));
 
         let material_name = format!("ChromeMaterial_{}", self.material_counter);
         self.material_counter += 1;
@@ -984,7 +994,9 @@ impl DemoSceneState {
                 .add_reference(index);
         }
 
-        world.core.set_material_ref(entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
         entity
     }
 
@@ -2010,7 +2022,9 @@ impl DemoSceneState {
 
             let glitter_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
             let glitter_emitter = ParticleEmitter::firework_glitter(pos, particle_count / 3);
-            world.core.set_particle_emitter(glitter_entity, glitter_emitter);
+            world
+                .core
+                .set_particle_emitter(glitter_entity, glitter_emitter);
 
             if let Some(emitter) = world.core.get_particle_emitter_mut(entity) {
                 emitter.enabled = false;
@@ -2838,8 +2852,12 @@ impl State for DemoSceneState {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.core.set_global_transform(camera, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(camera, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(camera, GlobalTransform::default());
         world.core.set_camera(
             camera,
             Camera {

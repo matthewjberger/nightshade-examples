@@ -72,10 +72,13 @@ pub fn input_system(puzzle_world: &mut PuzzleWorld, world: &mut World) {
                     );
 
                     if let Some(engine_entity) = puzzle_world.get_engine_entity(member) {
-                        if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0) {
+                        if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0)
+                        {
                             transform.translation.y = 0.2;
                         }
-                        world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                        world
+                            .core
+                            .set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
                     }
                 }
             }
@@ -152,7 +155,9 @@ fn update_group_position(
                     transform.translation.x = new_x + local_offset.0;
                     transform.translation.z = new_z + local_offset.1;
                 }
-                world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
             }
         }
     }
@@ -205,7 +210,9 @@ fn rotate_piece(puzzle_world: &mut PuzzleWorld, world: &mut World, piece_entity:
                     transform.rotation =
                         nalgebra_glm::quat_angle_axis(angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
                 }
-                world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
             }
         }
     }

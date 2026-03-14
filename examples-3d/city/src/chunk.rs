@@ -648,7 +648,8 @@ impl ChunkStreamer {
                             let mesh_name = render_mesh.name.as_str();
                             if crate::kenney::BOAT_MODELS.contains(&mesh_name) {
                                 let initial_yaw = world
-                                    .core.get_local_transform(entity)
+                                    .core
+                                    .get_local_transform(entity)
                                     .map(|t| {
                                         let euler = nalgebra_glm::quat_euler_angles(&t.rotation);
                                         euler.z

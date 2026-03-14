@@ -11,7 +11,8 @@ fn update_footstep_audio(game: &mut ImmersiveSim, world: &mut World) {
     };
 
     let is_moving = world
-        .core.get_character_controller(player_entity)
+        .core
+        .get_character_controller(player_entity)
         .map(|cc| {
             let vel = cc.velocity;
             let horizontal_speed = (vel.x * vel.x + vel.z * vel.z).sqrt();

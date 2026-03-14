@@ -62,8 +62,12 @@ impl State for AsteroidBeltWorld {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.core.set_global_transform(camera, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(camera, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(camera, GlobalTransform::default());
         world.core.set_camera(
             camera,
             Camera {
@@ -168,7 +172,9 @@ impl State for AsteroidBeltWorld {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(planet, MaterialRef::new("Planet".to_string()));
+        world
+            .core
+            .set_material_ref(planet, MaterialRef::new("Planet".to_string()));
 
         material_registry_insert(
             &mut world.resources.material_registry,
@@ -202,7 +208,9 @@ impl State for AsteroidBeltWorld {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(atmosphere, MaterialRef::new("Atmosphere".to_string()));
+        world
+            .core
+            .set_material_ref(atmosphere, MaterialRef::new("Atmosphere".to_string()));
 
         self.fps_text = Some(spawn_ui_text_with_properties(
             world,
@@ -238,7 +246,9 @@ impl State for AsteroidBeltWorld {
             if let Some(local_transform) = world.core.get_local_transform_mut(asteroid_entity) {
                 local_transform.rotation = rotation;
             }
-            world.core.set_local_transform_dirty(asteroid_entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(asteroid_entity, LocalTransformDirty);
         }
 
         if let Some(fps_entity) = self.fps_text {

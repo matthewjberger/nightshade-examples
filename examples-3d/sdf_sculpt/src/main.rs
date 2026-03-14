@@ -961,8 +961,12 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(ground, LocalTransformDirty);
-        world.core.set_global_transform(ground, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(ground, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(ground, GlobalTransform::default());
 
         if let Some(rigid_body) = world.core.get_rigid_body_mut(ground) {
             *rigid_body = RigidBodyComponent::new_static().with_translation(0.0, ground_y, 0.0);
@@ -991,8 +995,12 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-        world.core.set_global_transform(entity, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(entity, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(entity, GlobalTransform::default());
 
         if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
@@ -1036,8 +1044,12 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-        world.core.set_global_transform(entity, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(entity, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(entity, GlobalTransform::default());
 
         if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
@@ -1083,8 +1095,12 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-        world.core.set_global_transform(entity, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(entity, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(entity, GlobalTransform::default());
 
         if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
@@ -1131,8 +1147,12 @@ impl SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-        world.core.set_global_transform(entity, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(entity, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(entity, GlobalTransform::default());
 
         if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
             *rigid_body = RigidBodyComponent::new_dynamic()
@@ -1438,8 +1458,12 @@ impl SdfDemo {
                             scale: Vec3::new(1.0, 1.0, 1.0),
                         },
                     );
-                    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-                    world.core.set_global_transform(entity, GlobalTransform::default());
+                    world
+                        .core
+                        .set_local_transform_dirty(entity, LocalTransformDirty);
+                    world
+                        .core
+                        .set_global_transform(entity, GlobalTransform::default());
 
                     if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
                         *rigid_body = RigidBodyComponent::new_static();
@@ -1555,8 +1579,12 @@ impl State for SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.core.set_global_transform(camera, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(camera, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(camera, GlobalTransform::default());
         world.core.set_camera(
             camera,
             Camera {
@@ -1613,9 +1641,15 @@ impl State for SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(brush_preview, LocalTransformDirty);
-        world.core.set_global_transform(brush_preview, GlobalTransform::default());
-        world.core.set_visibility(brush_preview, Visibility { visible: true });
+        world
+            .core
+            .set_local_transform_dirty(brush_preview, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(brush_preview, GlobalTransform::default());
+        world
+            .core
+            .set_visibility(brush_preview, Visibility { visible: true });
         world.core.set_lines(brush_preview, Lines::default());
         self.brush_preview_entity = Some(brush_preview);
 
@@ -1631,9 +1665,15 @@ impl State for SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(brick_grid, LocalTransformDirty);
-        world.core.set_global_transform(brick_grid, GlobalTransform::default());
-        world.core.set_visibility(brick_grid, Visibility { visible: false });
+        world
+            .core
+            .set_local_transform_dirty(brick_grid, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(brick_grid, GlobalTransform::default());
+        world
+            .core
+            .set_visibility(brick_grid, Visibility { visible: false });
         world.core.set_lines(brick_grid, Lines::default());
         self.brick_grid_entity = Some(brick_grid);
 
@@ -1649,9 +1689,15 @@ impl State for SdfDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(collision_wireframe, LocalTransformDirty);
-        world.core.set_global_transform(collision_wireframe, GlobalTransform::default());
-        world.core.set_visibility(collision_wireframe, Visibility { visible: false });
+        world
+            .core
+            .set_local_transform_dirty(collision_wireframe, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(collision_wireframe, GlobalTransform::default());
+        world
+            .core
+            .set_visibility(collision_wireframe, Visibility { visible: false });
         world.core.set_lines(collision_wireframe, Lines::default());
         self.collision_wireframe_entity = Some(collision_wireframe);
 

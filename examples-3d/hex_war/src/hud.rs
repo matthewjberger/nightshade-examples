@@ -38,24 +38,16 @@ pub fn spawn_game_hud(world: &mut World) -> GameHud {
         ..Default::default()
     };
 
-    let turn_text = spawn_ui_text_with_properties(
-        world,
-        "Turn 1",
-            nalgebra_glm::Vec2::zeros(),
-        turn_props,
-    );
+    let turn_text =
+        spawn_ui_text_with_properties(world, "Turn 1", nalgebra_glm::Vec2::zeros(), turn_props);
 
-    let faction_text = spawn_ui_text_with_properties(
-        world,
-        "Redosia",
-            nalgebra_glm::Vec2::zeros(),
-        faction_props,
-    );
+    let faction_text =
+        spawn_ui_text_with_properties(world, "Redosia", nalgebra_glm::Vec2::zeros(), faction_props);
 
     let actions_text = spawn_ui_text_with_properties(
         world,
         "Actions: 5",
-            nalgebra_glm::Vec2::zeros(),
+        nalgebra_glm::Vec2::zeros(),
         actions_props,
     );
 
@@ -71,7 +63,7 @@ pub fn spawn_game_hud(world: &mut World) -> GameHud {
     let instructions_text = spawn_ui_text_with_properties(
         world,
         "[SPACE] End Turn  [S] Speech  [P] Pause  [+/-] Speed",
-            nalgebra_glm::Vec2::zeros(),
+        nalgebra_glm::Vec2::zeros(),
         instructions_props,
     );
 
@@ -84,12 +76,8 @@ pub fn spawn_game_hud(world: &mut World) -> GameHud {
         ..Default::default()
     };
 
-    let speed_text = spawn_ui_text_with_properties(
-        world,
-        "Speed: 1x",
-            nalgebra_glm::Vec2::zeros(),
-        speed_props,
-    );
+    let speed_text =
+        spawn_ui_text_with_properties(world, "Speed: 1x", nalgebra_glm::Vec2::zeros(), speed_props);
 
     GameHud {
         turn_text: Some(turn_text),
@@ -169,7 +157,8 @@ pub fn update_game_hud(
 
     if let Some(instructions_entity) = hud.instructions_text
         && let Some(text_index) = world
-            .core.get_text(instructions_entity)
+            .core
+            .get_text(instructions_entity)
             .map(|t| t.text_index)
     {
         let instructions = if is_player_turn {

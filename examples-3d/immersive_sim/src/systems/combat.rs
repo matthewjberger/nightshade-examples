@@ -43,7 +43,9 @@ fn spawn_mesh(world: &mut World, mesh_name: &str, position: Vec3, scale: Vec3) -
 }
 
 fn mark_local_transform_dirty(world: &mut World, entity: Entity) {
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 }
 
 #[derive(Default)]
@@ -78,12 +80,14 @@ pub fn use_skill(
     }
 
     let camera_pos = world
-        .core.get_global_transform(camera_entity)
+        .core
+        .get_global_transform(camera_entity)
         .map(|t| t.translation())
         .unwrap_or(Vec3::zeros());
 
     let camera_forward = world
-        .core.get_global_transform(camera_entity)
+        .core
+        .get_global_transform(camera_entity)
         .map(|t| t.forward_vector())
         .unwrap_or(Vec3::new(0.0, 0.0, -1.0));
 
@@ -259,7 +263,9 @@ fn spawn_projectile(combat_state: &mut CombatState, world: &mut World, params: P
             .registry
             .add_reference(mat_index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(mat_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(mat_name));
 
     combat_state.projectiles.push(Projectile {
         entity,
@@ -309,7 +315,9 @@ pub fn spawn_enemy_projectile(
             .registry
             .add_reference(mat_index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(mat_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(mat_name));
 
     combat_state.projectiles.push(Projectile {
         entity,
@@ -345,7 +353,8 @@ pub fn update_projectiles(
                 }
 
                 let enemy_pos = world
-                    .core.get_local_transform(enemy.entity)
+                    .core
+                    .get_local_transform(enemy.entity)
                     .map(|t| t.translation)
                     .unwrap_or(Vec3::zeros());
 
@@ -389,7 +398,8 @@ pub fn update_projectiles(
                 }
 
                 let enemy_pos = world
-                    .core.get_local_transform(enemy.entity)
+                    .core
+                    .get_local_transform(enemy.entity)
                     .map(|t| t.translation)
                     .unwrap_or(Vec3::zeros());
 
@@ -401,7 +411,8 @@ pub fn update_projectiles(
                                 continue;
                             }
                             let other_pos = world
-                                .core.get_local_transform(other_enemy.entity)
+                                .core
+                                .get_local_transform(other_enemy.entity)
                                 .map(|t| t.translation)
                                 .unwrap_or(Vec3::zeros());
                             let dist_to_impact =
@@ -524,7 +535,8 @@ pub fn update_enemy_ai(
 
         let def = get_enemy_definition(enemy.enemy_type).unwrap();
         let enemy_pos = world
-            .core.get_local_transform(enemy.entity)
+            .core
+            .get_local_transform(enemy.entity)
             .map(|t| t.translation)
             .unwrap_or(enemy.home_position);
 
@@ -612,7 +624,8 @@ pub fn check_melee_combat(
             && enemy.attack_cooldown <= 0.0
         {
             let enemy_pos = world
-                .core.get_local_transform(enemy.entity)
+                .core
+                .get_local_transform(enemy.entity)
                 .map(|t| t.translation)
                 .unwrap_or(enemy.home_position);
 

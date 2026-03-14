@@ -678,7 +678,10 @@ impl TopdownShooter {
 
     fn update_hud(&self, world: &mut World) {
         if let Some(score_entity) = self.score_hud {
-            let text_index = world.core.get_text(score_entity).map(|text| text.text_index);
+            let text_index = world
+                .core
+                .get_text(score_entity)
+                .map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
@@ -705,7 +708,8 @@ impl TopdownShooter {
 
         if let Some(message_entity) = self.message_hud {
             let text_index = world
-                .core.get_text(message_entity)
+                .core
+                .get_text(message_entity)
                 .map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 let message = match self.phase {

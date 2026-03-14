@@ -77,7 +77,9 @@ pub fn spawn_grabbable_prop(
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume =

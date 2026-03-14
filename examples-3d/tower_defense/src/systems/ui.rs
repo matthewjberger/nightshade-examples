@@ -13,7 +13,9 @@ pub fn update_lives_bar(game_world: &mut GameWorld, world: &mut World) {
         if let Some(transform) = world.core.get_local_transform_mut(bar_entity) {
             transform.translation = nalgebra_glm::vec3(-3.9 + bar_width / 2.0, 1.0, -7.9);
             transform.scale = nalgebra_glm::vec3(bar_width, 0.25, 0.1);
-            world.core.set_local_transform_dirty(bar_entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(bar_entity, LocalTransformDirty);
         }
 
         if let Some(material_ref) = world.core.get_material_ref(bar_entity).cloned()

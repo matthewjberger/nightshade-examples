@@ -305,7 +305,9 @@ impl State for NavMeshDemo {
 
                 if radius_changed || strength_changed {
                     for fox in &self.foxes {
-                        if let Some(interactor) = world.core.get_grass_interactor_mut(fox.agent_entity) {
+                        if let Some(interactor) =
+                            world.core.get_grass_interactor_mut(fox.agent_entity)
+                        {
                             interactor.radius = self.interactor_radius;
                             interactor.strength = self.interactor_strength;
                         }
@@ -549,7 +551,9 @@ impl NavMeshDemo {
                 },
             );
             world.core.set_render_mesh(trunk, RenderMesh::new("Cube"));
-            world.core.set_material_ref(trunk, MaterialRef::new(trunk_material_name));
+            world
+                .core
+                .set_material_ref(trunk, MaterialRef::new(trunk_material_name));
             world.core.set_casts_shadow(trunk, CastsShadow);
 
             let green_variation = (index as f32 * 0.02) % 0.12;
@@ -607,7 +611,9 @@ impl NavMeshDemo {
                     },
                 );
                 world.core.set_render_mesh(cone, RenderMesh::new("Cone"));
-                world.core.set_material_ref(cone, MaterialRef::new(cone_material_name));
+                world
+                    .core
+                    .set_material_ref(cone, MaterialRef::new(cone_material_name));
                 world.core.set_casts_shadow(cone, CastsShadow);
             }
         }
@@ -925,7 +931,8 @@ impl NavMeshDemo {
 
         for fox in &mut self.foxes {
             let agent_pos = world
-                .core.get_local_transform(fox.agent_entity)
+                .core
+                .get_local_transform(fox.agent_entity)
                 .map(|t| t.translation)
                 .unwrap_or(Vec3::zeros());
 
@@ -1063,7 +1070,8 @@ impl NavMeshDemo {
         };
 
         let fox_pos = world
-            .core.get_local_transform(fox.entity)
+            .core
+            .get_local_transform(fox.entity)
             .map(|t| t.translation)
             .unwrap_or(Vec3::zeros());
 
@@ -1144,8 +1152,12 @@ impl NavMeshDemo {
                 1,
             )[0];
             world.core.set_lines(entity, Lines::default());
-            world.core.set_visibility(entity, Visibility { visible: true });
-            world.core.set_global_transform(entity, GlobalTransform::default());
+            world
+                .core
+                .set_visibility(entity, Visibility { visible: true });
+            world
+                .core
+                .set_global_transform(entity, GlobalTransform::default());
             self.interactor_debug_entity = Some(entity);
         }
 

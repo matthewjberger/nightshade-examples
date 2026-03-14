@@ -386,8 +386,12 @@ fn spawn_lights(world: &mut World) {
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(sun_entity, LocalTransformDirty);
-    world.core.set_global_transform(sun_entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(sun_entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(sun_entity, GlobalTransform::default());
     world.core.set_light(
         sun_entity,
         Light {
@@ -463,6 +467,8 @@ fn spawn_mesh_with_material(
             .add_reference(index);
     }
 
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
     entity
 }

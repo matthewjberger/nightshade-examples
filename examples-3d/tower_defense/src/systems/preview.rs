@@ -101,7 +101,9 @@ pub fn placement_preview_system(game_world: &mut GameWorld, world: &mut World) {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(preview, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(preview, MaterialRef::new(material_name));
 
         game_world.resources.preview_entity = Some(preview);
 
@@ -138,8 +140,12 @@ pub fn placement_preview_system(game_world: &mut GameWorld, world: &mut World) {
                     ..Default::default()
                 },
             );
-            world.core.set_global_transform(line_entity, GlobalTransform::default());
-            world.core.set_local_transform_dirty(line_entity, LocalTransformDirty);
+            world
+                .core
+                .set_global_transform(line_entity, GlobalTransform::default());
+            world
+                .core
+                .set_local_transform_dirty(line_entity, LocalTransformDirty);
 
             world.core.set_lines(
                 line_entity,
@@ -155,7 +161,9 @@ pub fn placement_preview_system(game_world: &mut GameWorld, world: &mut World) {
                 }]),
             );
 
-            world.core.set_visibility(line_entity, Visibility { visible: true });
+            world
+                .core
+                .set_visibility(line_entity, Visibility { visible: true });
 
             game_world.resources.preview_range_lines.push(line_entity);
         }
@@ -324,10 +332,16 @@ pub fn placement_preview_system(game_world: &mut GameWorld, world: &mut World) {
                 ..Default::default()
             },
         );
-        world.core.set_global_transform(box_entity, GlobalTransform::default());
-        world.core.set_local_transform_dirty(box_entity, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(box_entity, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(box_entity, LocalTransformDirty);
         world.core.set_lines(box_entity, Lines::new(box_lines));
-        world.core.set_visibility(box_entity, Visibility { visible: true });
+        world
+            .core
+            .set_visibility(box_entity, Visibility { visible: true });
 
         game_world.resources.preview_range_lines.push(box_entity);
     }

@@ -33,7 +33,9 @@ pub fn render_system(puzzle_world: &PuzzleWorld, world: &mut World) {
             };
             if (transform.translation.y - target_y).abs() > 0.001 {
                 transform.translation.y = target_y;
-                world.core.set_local_transform_dirty(engine_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(engine_entity, LocalTransformDirty);
             }
         }
 
@@ -71,7 +73,9 @@ pub fn drop_pieces_system(puzzle_world: &PuzzleWorld, world: &mut World) {
                 if (transform.translation.y - target_y).abs() < 0.01 {
                     transform.translation.y = target_y;
                 }
-                world.core.set_local_transform_dirty(engine_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(engine_entity, LocalTransformDirty);
             }
         }
     }

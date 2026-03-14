@@ -66,7 +66,9 @@ pub fn spawn_unit(
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(render_entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(render_entity, MaterialRef::new(material_name));
 
     let font_size = font_size_for_soldiers(soldiers);
     let text_position = nalgebra_glm::vec3(

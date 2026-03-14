@@ -341,7 +341,8 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        let entity = spawn_ui_text_with_properties(world, label, nalgebra_glm::Vec2::zeros(), props);
+        let entity =
+            spawn_ui_text_with_properties(world, label, nalgebra_glm::Vec2::zeros(), props);
 
         let char_width = font_size * 0.55;
         let width = label.len() as f32 * char_width;
@@ -397,11 +398,16 @@ impl MenuDemoState {
         };
 
         let value_text = if initial_value { "[ON]" } else { "[OFF]" };
-        let value_entity =
-            spawn_ui_text_with_properties(world, value_text, nalgebra_glm::Vec2::zeros(), value_props);
+        let value_entity = spawn_ui_text_with_properties(
+            world,
+            value_text,
+            nalgebra_glm::Vec2::zeros(),
+            value_props,
+        );
 
         let value_text_index = world
-            .core.get_text(value_entity)
+            .core
+            .get_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -452,7 +458,8 @@ impl MenuDemoState {
             spawn_ui_text_with_properties(world, &bar, nalgebra_glm::Vec2::zeros(), value_props);
 
         let value_text_index = world
-            .core.get_text(value_entity)
+            .core
+            .get_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -503,11 +510,16 @@ impl MenuDemoState {
 
         let value_text = format!("< {} >", &options[selected_index]);
 
-        let value_entity =
-            spawn_ui_text_with_properties(world, &value_text, nalgebra_glm::Vec2::zeros(), value_props);
+        let value_entity = spawn_ui_text_with_properties(
+            world,
+            &value_text,
+            nalgebra_glm::Vec2::zeros(),
+            value_props,
+        );
 
         let value_text_index = world
-            .core.get_text(value_entity)
+            .core
+            .get_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -540,12 +552,8 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        let title_entity = spawn_ui_text_with_properties(
-            world,
-            title,
-            nalgebra_glm::Vec2::zeros(),
-            title_props,
-        );
+        let title_entity =
+            spawn_ui_text_with_properties(world, title, nalgebra_glm::Vec2::zeros(), title_props);
 
         let message_props = TextProperties {
             font_size: 24.0,
@@ -968,12 +976,13 @@ impl MenuDemoState {
         world.resources.graphics.show_grid = true;
 
         if let Some(camera) = self.camera_entity {
-            let transform_data = if let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera) {
-                pan_orbit.enabled = true;
-                Some(pan_orbit.compute_camera_transform())
-            } else {
-                None
-            };
+            let transform_data =
+                if let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera) {
+                    pan_orbit.enabled = true;
+                    Some(pan_orbit.compute_camera_transform())
+                } else {
+                    None
+                };
 
             if let Some((position, rotation)) = transform_data
                 && let Some(local_transform) = world.core.get_local_transform_mut(camera)
@@ -981,7 +990,9 @@ impl MenuDemoState {
                 local_transform.translation = position;
                 local_transform.rotation = rotation;
             }
-            world.core.set_local_transform_dirty(camera, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(camera, LocalTransformDirty);
         }
 
         if self.game_entities.is_empty() {
@@ -1016,7 +1027,9 @@ impl MenuDemoState {
                     .registry
                     .add_reference(index);
             };
-            world.core.set_material_ref(cube_entity, MaterialRef::new(cube_material));
+            world
+                .core
+                .set_material_ref(cube_entity, MaterialRef::new(cube_material));
 
             self.game_entities.push(cube_entity);
 
@@ -1760,7 +1773,9 @@ impl MenuDemoState {
                             &Vec3::new(1.0, 0.0, 0.0),
                         );
             }
-            world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(entity, LocalTransformDirty);
         }
     }
 
@@ -1854,8 +1869,12 @@ impl State for MenuDemoState {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.core.set_global_transform(camera, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(camera, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(camera, GlobalTransform::default());
 
         world.core.set_camera(
             camera,

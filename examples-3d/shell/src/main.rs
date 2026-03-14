@@ -82,8 +82,7 @@ impl State for ShellDemo {
             },
         );
 
-        let hover_prompt_entity =
-            spawn_ui_text(world, "", Vec2::zeros());
+        let hover_prompt_entity = spawn_ui_text(world, "", Vec2::zeros());
         if let Some(hud_text) = world.core.get_text(hover_prompt_entity) {
             self.hover_prompt_text_index = Some(hud_text.text_index);
         }

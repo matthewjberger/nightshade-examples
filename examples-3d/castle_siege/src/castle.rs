@@ -199,7 +199,9 @@ fn spawn_tracked(
     material_name: &str,
 ) -> Entity {
     let entity = spawn_mesh_at(world, mesh_name, position, scale);
-    world.core.set_material_ref(entity, MaterialRef::new(material_name.to_string()));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name.to_string()));
     tracker.push(entity);
     entity
 }

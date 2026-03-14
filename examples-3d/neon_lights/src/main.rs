@@ -482,9 +482,15 @@ fn spawn_neon_tube_entity(world: &mut World, mesh_name: &str, color: Vec3) -> En
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
-    world.core.set_render_mesh(entity, RenderMesh::new(mesh_name));
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_render_mesh(entity, RenderMesh::new(mesh_name));
 
     let unique_id = next_unique_id();
     let material_name = format!("NeonMaterial_{unique_id}");
@@ -516,7 +522,9 @@ fn spawn_neon_tube_entity(world: &mut World, mesh_name: &str, color: Vec3) -> En
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
 
     entity
 }
@@ -546,8 +554,12 @@ fn spawn_point_light(
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_light(
         entity,
         Light {
@@ -623,7 +635,9 @@ fn spawn_wall(
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
     world.core.set_name(entity, Name(name.to_string()));
     entity
 }

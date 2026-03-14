@@ -148,8 +148,12 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
                 world.resources.mesh_cache.registry.add_reference(index);
             }
 
-            world.core.set_render_mesh(entity, RenderMesh::new(&mesh_name));
-            world.core.set_name(entity, Name(format!("Piece_{}_{}", grid_x, grid_y)));
+            world
+                .core
+                .set_render_mesh(entity, RenderMesh::new(&mesh_name));
+            world
+                .core
+                .set_name(entity, Name(format!("Piece_{}_{}", grid_x, grid_y)));
 
             let solved_x = (grid_x as f32 - (cols as f32 - 1.0) / 2.0) * piece_width;
             let solved_z = (grid_y as f32 - (rows as f32 - 1.0) / 2.0) * piece_height;
@@ -162,9 +166,15 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
                     rotation: Quat::identity(),
                 },
             );
-            world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-            world.core.set_global_transform(entity, GlobalTransform::default());
-            world.core.set_visibility(entity, Visibility { visible: true });
+            world
+                .core
+                .set_local_transform_dirty(entity, LocalTransformDirty);
+            world
+                .core
+                .set_global_transform(entity, GlobalTransform::default());
+            world
+                .core
+                .set_visibility(entity, Visibility { visible: true });
             let obb = OrientedBoundingBox::new(
                 nalgebra_glm::vec3(0.0, 0.0, 0.0),
                 nalgebra_glm::vec3(piece_width / 2.0, 0.05, piece_height / 2.0),
@@ -172,7 +182,9 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
             );
             let sphere_radius =
                 (piece_width * piece_width / 4.0 + piece_height * piece_height / 4.0).sqrt();
-            world.core.set_bounding_volume(entity, BoundingVolume::new(obb, sphere_radius));
+            world
+                .core
+                .set_bounding_volume(entity, BoundingVolume::new(obb, sphere_radius));
 
             let material_name = format!("PuzzleMaterial_{}_{}", grid_x, grid_y);
             texture_cache_add_reference(&mut world.resources.texture_cache, texture_name);
@@ -199,7 +211,9 @@ pub fn spawn_puzzle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World, te
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
 
             let group_entity = puzzle_world.spawn_entities(PIECE_GROUP | GROUP_MEMBERS, 1)[0];
             puzzle_world.set_piece_group(group_entity, PieceGroup);
@@ -412,7 +426,9 @@ pub fn shuffle_pieces(puzzle_world: &mut PuzzleWorld, world: &mut World) {
                             &nalgebra_glm::vec3(0.0, 1.0, 0.0),
                         );
                     }
-                    world.core.set_local_transform_dirty(engine_ent, LocalTransformDirty);
+                    world
+                        .core
+                        .set_local_transform_dirty(engine_ent, LocalTransformDirty);
                 }
             }
         }
@@ -581,8 +597,12 @@ pub fn spawn_board_outline(puzzle_world: &mut PuzzleWorld, world: &mut World) {
             rotation: Quat::identity(),
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_visibility(
         entity,
         Visibility {
@@ -737,7 +757,9 @@ pub fn solve_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_tim
                 nalgebra_glm::quat_angle_axis(lerp_angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
         }
 
-        world.core.set_local_transform_dirty(engine_entity, LocalTransformDirty);
+        world
+            .core
+            .set_local_transform_dirty(engine_entity, LocalTransformDirty);
     }
 
     if t >= 1.0 {
@@ -757,7 +779,9 @@ pub fn solve_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_tim
             let target_angle = puzzle_piece.correct_rotation as f32 * std::f32::consts::FRAC_PI_2;
             transform.rotation =
                 nalgebra_glm::quat_angle_axis(target_angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
-            world.core.set_local_transform_dirty(engine_entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(engine_entity, LocalTransformDirty);
         }
 
         puzzle_world.resources.solve_queue.remove(0);
@@ -846,7 +870,9 @@ pub fn victory_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_t
                 0.0
             };
             transform.translation.y = 0.003 + wave;
-            world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
         }
     }
 
@@ -870,7 +896,9 @@ pub fn victory_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_t
         if lifetime < 4.0 {
             if let Some(transform) = world.core.get_local_transform_mut(text_entity) {
                 transform.translation.y += delta_time * 0.8;
-                world.core.set_local_transform_dirty(text_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(text_entity, LocalTransformDirty);
             }
 
             if let Some(text_component) = world.core.get_text_mut(text_entity) {
@@ -892,7 +920,9 @@ pub fn victory_system(puzzle_world: &mut PuzzleWorld, world: &mut World, delta_t
                     && let Some(transform) = world.core.get_local_transform_mut(engine_entity.0)
                 {
                     transform.translation.y = 0.003;
-                    world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                    world
+                        .core
+                        .set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
                 }
             }
 

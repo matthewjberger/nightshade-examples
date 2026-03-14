@@ -190,7 +190,8 @@ fn uv_for_slot(
 
 fn entity_position_2d(world: &World, entity: freecs::Entity) -> nalgebra_glm::Vec2 {
     world
-        .sprite2d.get_sprite(entity)
+        .sprite2d
+        .get_sprite(entity)
         .map(|sprite| sprite.position)
         .unwrap_or_default()
 }
@@ -1567,7 +1568,10 @@ impl BulletHell {
                 self.player_position.x,
                 self.player_position.y - player_size.y * 0.45,
             );
-            if let Some(emitter) = world.sprite2d.get_sprite_particle_emitter_mut(exhaust_entity) {
+            if let Some(emitter) = world
+                .sprite2d
+                .get_sprite_particle_emitter_mut(exhaust_entity)
+            {
                 emitter.anchor = exhaust_position;
             }
         }
@@ -2590,7 +2594,10 @@ impl BulletHell {
                     self.player_position.x,
                     self.player_position.y - player_size.y * 0.45,
                 );
-                if let Some(emitter) = world.sprite2d.get_sprite_particle_emitter_mut(exhaust_entity) {
+                if let Some(emitter) = world
+                    .sprite2d
+                    .get_sprite_particle_emitter_mut(exhaust_entity)
+                {
                     emitter.anchor = exhaust_position;
                 }
             }
@@ -2678,7 +2685,9 @@ impl State for BulletHell {
                 | nightshade::ecs::world::CAMERA,
             1,
         )[0];
-        world.core.set_name(camera, Name("BulletHellCamera".to_string()));
+        world
+            .core
+            .set_name(camera, Name("BulletHellCamera".to_string()));
         world.core.set_local_transform(
             camera,
             LocalTransform {
@@ -2687,8 +2696,12 @@ impl State for BulletHell {
                 scale: nalgebra_glm::Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.core.set_global_transform(camera, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(camera, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(camera, GlobalTransform::default());
         if let Some(camera_component) = world.core.get_camera_mut(camera) {
             *camera_component = Camera {
                 projection: Projection::Perspective(PerspectiveCamera {

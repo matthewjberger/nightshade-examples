@@ -514,7 +514,8 @@ impl FarmingUi {
                     .flow(FlowDirection::Vertical, 4.0, 0.0)
                     .with_children(|tree| {
                         tree_health_bar = tree.add_progress_bar(1.0);
-                        if let Some(node) = tree.world_mut().ui.get_ui_layout_node_mut(tree_health_bar)
+                        if let Some(node) =
+                            tree.world_mut().ui.get_ui_layout_node_mut(tree_health_bar)
                         {
                             node.flow_child_size = Some(Ab(Vec2::new(200.0, 20.0)).into());
                         }

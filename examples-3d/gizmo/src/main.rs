@@ -175,7 +175,9 @@ impl State for GizmoDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(sphere_entity, MaterialRef::new(sphere_material));
+        world
+            .core
+            .set_material_ref(sphere_entity, MaterialRef::new(sphere_material));
 
         if let Some(visible) = world.core.get_visibility_mut(sphere_entity) {
             visible.visible = true;
@@ -241,7 +243,9 @@ impl State for GizmoDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(cube_entity, MaterialRef::new(cube_material));
+        world
+            .core
+            .set_material_ref(cube_entity, MaterialRef::new(cube_material));
 
         if let Some(visible) = world.core.get_visibility_mut(cube_entity) {
             visible.visible = true;
@@ -301,7 +305,8 @@ impl State for GizmoDemo {
 
                 if let Some(selected) = self.selected_entity {
                     let name = world
-                        .core.get_name(selected)
+                        .core
+                        .get_name(selected)
                         .map(|n| n.0.clone())
                         .unwrap_or_else(|| "Unknown".to_string());
                     ui.label(format!("Selected: {}", name));
@@ -404,7 +409,8 @@ impl State for GizmoDemo {
                         .normalize();
 
                         let target_global_rotation = world
-                            .core.get_global_transform(selected_entity)
+                            .core
+                            .get_global_transform(selected_entity)
                             .map(|t| extract_rotation_from_matrix(&t.0))
                             .unwrap_or(Quat::identity());
 

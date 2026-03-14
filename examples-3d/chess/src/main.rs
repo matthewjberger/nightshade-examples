@@ -223,7 +223,9 @@ impl State for ChessGame {
                     }
                     update_picking_collider_lines(world, self.debug_lines_entity.unwrap());
                 } else if let Some(entity) = self.debug_lines_entity {
-                    world.core.set_lines(entity, nightshade::ecs::world::components::Lines::default());
+                    world
+                        .core
+                        .set_lines(entity, nightshade::ecs::world::components::Lines::default());
                 }
             }
             _ => {}

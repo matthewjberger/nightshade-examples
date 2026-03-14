@@ -149,7 +149,9 @@ fn spawn_mesh_with_named_material(
     material_name: &str,
 ) -> Entity {
     let entity = spawn_mesh(world, mesh_name, position, scale);
-    world.core.set_material_ref(entity, MaterialRef::new(material_name.to_string()));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name.to_string()));
     entity
 }
 
@@ -643,16 +645,23 @@ impl Environment {
         if let Some(transform) = world.core.get_local_transform_mut(self.wolf.body) {
             transform.translation = self.wolf.position;
         }
-        world.core.set_local_transform_dirty(self.wolf.body, LocalTransformDirty);
+        world
+            .core
+            .set_local_transform_dirty(self.wolf.body, LocalTransformDirty);
 
         let is_night = self.day_night.is_night();
         let hunt_radius = self.wolf.hunt_radius(is_night);
         let diameter = hunt_radius * 2.0;
-        if let Some(transform) = world.core.get_local_transform_mut(self.wolf.hunt_radius_entity) {
+        if let Some(transform) = world
+            .core
+            .get_local_transform_mut(self.wolf.hunt_radius_entity)
+        {
             transform.translation = Vec3::new(self.wolf.position.x, 0.005, self.wolf.position.z);
             transform.scale = Vec3::new(diameter, 0.01, diameter);
         }
-        world.core.set_local_transform_dirty(self.wolf.hunt_radius_entity, LocalTransformDirty);
+        world
+            .core
+            .set_local_transform_dirty(self.wolf.hunt_radius_entity, LocalTransformDirty);
 
         let hunting = self.wolf.hunt_target.is_some();
         if let Some(material) = nightshade::ecs::generational_registry::registry_entry_by_name_mut(

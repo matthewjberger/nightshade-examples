@@ -136,7 +136,9 @@ impl State for JigsawGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(ground, MaterialRef::new(ground_material));
+        world
+            .core
+            .set_material_ref(ground, MaterialRef::new(ground_material));
         world.core.set_casts_shadow(ground, CastsShadow);
 
         let top_down_pitch = std::f32::consts::FRAC_PI_2 - 0.01;

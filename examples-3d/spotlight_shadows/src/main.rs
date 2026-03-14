@@ -234,10 +234,12 @@ fn create_spotlight_shadows_scene() -> Scene {
 
 fn find_entities_starting_with(world: &World, prefix: &str) -> Vec<Entity> {
     world
-        .core.query_entities(NAME)
+        .core
+        .query_entities(NAME)
         .filter(|&entity| {
             world
-                .core.get_name(entity)
+                .core
+                .get_name(entity)
                 .map(|n| n.0.starts_with(prefix))
                 .unwrap_or(false)
         })
@@ -273,9 +275,13 @@ fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
 
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }
@@ -319,7 +325,9 @@ impl State for SpotlightShadowsDemo {
             transform.rotation = nalgebra_glm::quat_angle_axis(yaw, &Vec3::y())
                 * nalgebra_glm::quat_angle_axis(pitch, &Vec3::x());
             world.core.set_local_transform(camera, transform);
-            world.core.set_local_transform_dirty(camera, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(camera, LocalTransformDirty);
         }
 
         world.resources.active_camera = Some(camera);
@@ -357,7 +365,9 @@ impl State for SpotlightShadowsDemo {
                     * nalgebra_glm::quat_angle_axis(pitch, &Vec3::x());
 
                 world.core.set_local_transform(spotlight_entity, transform);
-                world.core.set_local_transform_dirty(spotlight_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(spotlight_entity, LocalTransformDirty);
             }
         }
 
@@ -387,7 +397,9 @@ impl State for SpotlightShadowsDemo {
                 }
 
                 world.core.set_local_transform(cube_entity, transform);
-                world.core.set_local_transform_dirty(cube_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(cube_entity, LocalTransformDirty);
             }
         }
 
@@ -402,14 +414,19 @@ impl State for SpotlightShadowsDemo {
                     let flashlight_transform = LocalTransform {
                         translation: offset_position,
                         rotation: world
-                            .core.get_local_transform(camera)
+                            .core
+                            .get_local_transform(camera)
                             .map(|t| t.rotation)
                             .unwrap_or(Quat::identity()),
                         scale: Vec3::new(1.0, 1.0, 1.0),
                     };
 
-                    world.core.set_local_transform(flashlight_entity, flashlight_transform);
-                    world.core.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
+                    world
+                        .core
+                        .set_local_transform(flashlight_entity, flashlight_transform);
+                    world
+                        .core
+                        .set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
                 }
             }
         }

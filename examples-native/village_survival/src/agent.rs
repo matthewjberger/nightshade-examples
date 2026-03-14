@@ -171,7 +171,9 @@ fn spawn_mesh_with_named_material(
     material_name: &str,
 ) -> Entity {
     let entity = spawn_mesh(world, mesh_name, position, scale);
-    world.core.set_material_ref(entity, MaterialRef::new(material_name.to_string()));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name.to_string()));
     entity
 }
 
@@ -254,19 +256,27 @@ pub fn upgrade_home(world: &mut World, agent: &mut Agent) {
 
 pub fn spawn_agent_body(world: &mut World, position: Vec3, material_name: &str) -> AgentBody {
     let torso = spawn_mesh(world, "Cube", position, Vec3::new(0.4, 0.5, 0.25));
-    world.core.set_material_ref(torso, MaterialRef::new(material_name.to_string()));
+    world
+        .core
+        .set_material_ref(torso, MaterialRef::new(material_name.to_string()));
 
     let head_pos = position + Vec3::new(0.0, 0.45, 0.0);
     let head = spawn_mesh(world, "Sphere", head_pos, Vec3::new(0.2, 0.2, 0.2));
-    world.core.set_material_ref(head, MaterialRef::new(material_name.to_string()));
+    world
+        .core
+        .set_material_ref(head, MaterialRef::new(material_name.to_string()));
 
     let left_arm_pos = position + Vec3::new(-0.28, 0.15, 0.0);
     let left_arm = spawn_mesh(world, "Cube", left_arm_pos, Vec3::new(0.08, 0.35, 0.08));
-    world.core.set_material_ref(left_arm, MaterialRef::new(material_name.to_string()));
+    world
+        .core
+        .set_material_ref(left_arm, MaterialRef::new(material_name.to_string()));
 
     let right_arm_pos = position + Vec3::new(0.28, 0.15, 0.0);
     let right_arm = spawn_mesh(world, "Cube", right_arm_pos, Vec3::new(0.08, 0.35, 0.08));
-    world.core.set_material_ref(right_arm, MaterialRef::new(material_name.to_string()));
+    world
+        .core
+        .set_material_ref(right_arm, MaterialRef::new(material_name.to_string()));
 
     AgentBody {
         torso,
@@ -300,27 +310,37 @@ pub fn sync_agent_body_transforms(world: &mut World, agent: &Agent) {
     if let Some(transform) = world.core.get_local_transform_mut(agent.body.torso) {
         transform.translation = position;
     }
-    world.core.set_local_transform_dirty(agent.body.torso, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(agent.body.torso, LocalTransformDirty);
 
     if let Some(transform) = world.core.get_local_transform_mut(agent.body.head) {
         transform.translation = position + Vec3::new(0.0, 0.45, 0.0);
     }
-    world.core.set_local_transform_dirty(agent.body.head, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(agent.body.head, LocalTransformDirty);
 
     if let Some(transform) = world.core.get_local_transform_mut(agent.body.left_arm) {
         transform.translation = position + Vec3::new(-0.28, 0.15, 0.0);
     }
-    world.core.set_local_transform_dirty(agent.body.left_arm, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(agent.body.left_arm, LocalTransformDirty);
 
     if let Some(transform) = world.core.get_local_transform_mut(agent.body.right_arm) {
         transform.translation = position + Vec3::new(0.28, 0.15, 0.0);
     }
-    world.core.set_local_transform_dirty(agent.body.right_arm, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(agent.body.right_arm, LocalTransformDirty);
 
     if let Some(transform) = world.core.get_local_transform_mut(agent.name_entity) {
         transform.translation = position + Vec3::new(0.0, 0.85, 0.0);
     }
-    world.core.set_local_transform_dirty(agent.name_entity, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(agent.name_entity, LocalTransformDirty);
 }
 
 pub fn update_agent_material(world: &mut World, agent: &Agent) {
@@ -360,7 +380,9 @@ pub fn apply_death_animation(world: &mut World, agent: &Agent) {
         transform.scale = Vec3::new(0.4, 0.5 * collapse_factor, 0.25);
         transform.translation.y = agent.position.y * collapse_factor;
     }
-    world.core.set_local_transform_dirty(agent.body.torso, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(agent.body.torso, LocalTransformDirty);
 }
 
 pub fn collect_agent_entities(agents: &[Agent]) -> Vec<Entity> {

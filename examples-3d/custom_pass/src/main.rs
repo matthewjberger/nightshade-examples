@@ -257,7 +257,9 @@ impl State for CustomPassDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(cube1, MaterialRef::new(cube1_material));
+        world
+            .core
+            .set_material_ref(cube1, MaterialRef::new(cube1_material));
 
         let cube2 = spawn_mesh(
             world,
@@ -287,7 +289,9 @@ impl State for CustomPassDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(cube2, MaterialRef::new(cube2_material));
+        world
+            .core
+            .set_material_ref(cube2, MaterialRef::new(cube2_material));
 
         let cube3 = spawn_mesh(
             world,
@@ -317,7 +321,9 @@ impl State for CustomPassDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(cube3, MaterialRef::new(cube3_material));
+        world
+            .core
+            .set_material_ref(cube3, MaterialRef::new(cube3_material));
 
         let sphere = spawn_mesh(
             world,
@@ -347,7 +353,9 @@ impl State for CustomPassDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(sphere, MaterialRef::new(sphere_material));
+        world
+            .core
+            .set_material_ref(sphere, MaterialRef::new(sphere_material));
     }
 
     fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {
@@ -391,7 +399,8 @@ impl State for CustomPassDemo {
         let rotation_y = nalgebra_glm::quat_angle_axis(angle, &Vec3::y());
 
         let entities: Vec<_> = world
-            .core.query_entities(RENDER_MESH | LOCAL_TRANSFORM)
+            .core
+            .query_entities(RENDER_MESH | LOCAL_TRANSFORM)
             .collect();
         for entity in entities {
             if let Some(transform) = world.core.get_local_transform_mut(entity) {

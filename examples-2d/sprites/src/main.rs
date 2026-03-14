@@ -373,7 +373,9 @@ impl SpriteShowcase {
 
         for emitter_config in emitter_configs {
             let entity = world.spawn();
-            world.sprite2d.set_sprite_particle_emitter(entity, emitter_config);
+            world
+                .sprite2d
+                .set_sprite_particle_emitter(entity, emitter_config);
             self.emitter_entities.push(entity);
         }
     }
@@ -546,7 +548,9 @@ impl SpriteShowcase {
         final_emitter.burst_count = 0;
 
         let entity = world.spawn();
-        world.sprite2d.set_sprite_particle_emitter(entity, final_emitter);
+        world
+            .sprite2d
+            .set_sprite_particle_emitter(entity, final_emitter);
         entity
     }
 

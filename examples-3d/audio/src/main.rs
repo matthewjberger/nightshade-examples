@@ -176,7 +176,9 @@ impl AudioDemo {
                     .registry
                     .add_reference(idx);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
 
             world.core.add_components(entity, AUDIO_SOURCE);
             world.core.set_audio_source(
@@ -296,7 +298,9 @@ impl AudioDemo {
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(wall, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(wall, MaterialRef::new(material_name));
         }
     }
 }

@@ -141,7 +141,9 @@ fn snap_to_board(puzzle_world: &mut PuzzleWorld, world: &mut World) {
                         transform.translation.z += dz;
                         transform.translation.y = 0.0;
                     }
-                    world.core.set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
+                    world
+                        .core
+                        .set_local_transform_dirty(engine_entity.0, LocalTransformDirty);
                 }
             }
         }

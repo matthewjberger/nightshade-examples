@@ -43,7 +43,9 @@ pub fn create_explosion_effect(game_world: &mut GameWorld, world: &mut World, po
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(particle, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(particle, MaterialRef::new(material_name));
 
         let game_entity = game_world.spawn_entities(ENTITY_HANDLE | VISUAL_EFFECT, 1)[0];
         game_world.set_entity_handle(game_entity, EntityHandle(particle));
@@ -114,7 +116,9 @@ pub fn create_poison_bubble_effect(game_world: &mut GameWorld, world: &mut World
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(particle, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(particle, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | VISUAL_EFFECT, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(particle));
@@ -155,7 +159,9 @@ pub fn create_muzzle_flash(game_world: &mut GameWorld, world: &mut World, positi
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(flash, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(flash, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | VISUAL_EFFECT, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(flash));
@@ -203,7 +209,9 @@ pub fn create_muzzle_flash(game_world: &mut GameWorld, world: &mut World, positi
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(smoke, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(smoke, MaterialRef::new(material_name));
 
         let smoke_entity = game_world.spawn_entities(ENTITY_HANDLE | VISUAL_EFFECT, 1)[0];
         game_world.set_entity_handle(smoke_entity, EntityHandle(smoke));
@@ -246,7 +254,9 @@ pub fn update_visual_effects(game_world: &mut GameWorld, world: &mut World, delt
                                 0.15 * scale_factor,
                                 0.15 * scale_factor,
                             );
-                            world.core.set_local_transform_dirty(handle.0, LocalTransformDirty);
+                            world
+                                .core
+                                .set_local_transform_dirty(handle.0, LocalTransformDirty);
                         }
 
                         if let Some(material_ref) = world.core.get_material_ref(handle.0).cloned()
@@ -262,7 +272,9 @@ pub fn update_visual_effects(game_world: &mut GameWorld, world: &mut World, delt
                     EffectType::PoisonBubble => {
                         if let Some(transform) = world.core.get_local_transform_mut(handle.0) {
                             transform.translation.y += delta_time * 0.5;
-                            world.core.set_local_transform_dirty(handle.0, LocalTransformDirty);
+                            world
+                                .core
+                                .set_local_transform_dirty(handle.0, LocalTransformDirty);
                         }
 
                         if let Some(material_ref) = world.core.get_material_ref(handle.0).cloned()

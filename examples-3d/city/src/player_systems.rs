@@ -220,7 +220,8 @@ pub fn crouch_camera_system(demo: &CityDemo, world: &mut World) {
     };
 
     let is_crouching = world
-        .core.get_character_controller(player_entity)
+        .core
+        .get_character_controller(player_entity)
         .map(|cc| cc.is_crouching)
         .unwrap_or(false);
 
@@ -269,8 +270,12 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.core.set_global_transform(entity, GlobalTransform::default());
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }

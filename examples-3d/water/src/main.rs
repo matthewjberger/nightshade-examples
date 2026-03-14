@@ -848,7 +848,9 @@ fn register_material(world: &mut World, name: &str, material: Material) {
 fn spawn_infinite_ocean(world: &mut World) -> Entity {
     let entity = world.spawn_entities(WATER | NAME, 1)[0];
 
-    world.core.set_name(entity, Name("Infinite Ocean".to_string()));
+    world
+        .core
+        .set_name(entity, Name("Infinite Ocean".to_string()));
     world.core.set_water(entity, Water::default());
 
     entity
@@ -882,8 +884,12 @@ fn spawn_water(
             scale,
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_render_mesh(entity, RenderMesh::new(mesh));
     world.core.set_water(entity, water);
 
@@ -915,8 +921,12 @@ fn spawn_volumetric_waterfall(
             scale: vec3(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_water(entity, water);
 
     entity
@@ -950,10 +960,16 @@ fn spawn_terrain(
             scale,
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_render_mesh(entity, RenderMesh::new("Cube"));
-    world.core.set_material_ref(entity, MaterialRef::new(material));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material));
 
     if let Some(&index) = world
         .resources
@@ -1004,8 +1020,12 @@ fn spawn_sun(world: &mut World) {
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(sun_entity, LocalTransformDirty);
-    world.core.set_global_transform(sun_entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(sun_entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(sun_entity, GlobalTransform::default());
     world.core.set_light(
         sun_entity,
         Light {

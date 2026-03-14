@@ -250,7 +250,9 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(left_paddle, MaterialRef::new(left_paddle_material));
+        world
+            .core
+            .set_material_ref(left_paddle, MaterialRef::new(left_paddle_material));
         self.left_paddle_entity = Some(left_paddle);
 
         let right_paddle = spawn_mesh(
@@ -281,7 +283,9 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(right_paddle, MaterialRef::new(right_paddle_material));
+        world
+            .core
+            .set_material_ref(right_paddle, MaterialRef::new(right_paddle_material));
         self.right_paddle_entity = Some(right_paddle);
 
         let ball = spawn_mesh(
@@ -312,7 +316,9 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(ball, MaterialRef::new(ball_material));
+        world
+            .core
+            .set_material_ref(ball, MaterialRef::new(ball_material));
         self.ball_entity = Some(ball);
 
         let top_wall = spawn_mesh(
@@ -343,7 +349,9 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(top_wall, MaterialRef::new(top_wall_material));
+        world
+            .core
+            .set_material_ref(top_wall, MaterialRef::new(top_wall_material));
 
         let bottom_wall = spawn_mesh(
             world,
@@ -373,7 +381,9 @@ impl PongGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(bottom_wall, MaterialRef::new(bottom_wall_material));
+        world
+            .core
+            .set_material_ref(bottom_wall, MaterialRef::new(bottom_wall_material));
 
         let left_score_text = spawn_3d_billboard_text_with_properties(
             world,

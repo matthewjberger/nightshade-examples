@@ -572,7 +572,10 @@ impl GfxShowcase {
         let core_index = self.galaxy_particles.len();
         if core_index < self.scene_entities.len() {
             let pulse = 0.9 + 0.1 * (self.time * 0.5).sin();
-            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[core_index]) {
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[core_index])
+            {
                 sprite.size = Vec2::new(100.0 * pulse, 55.0 * pulse);
                 sprite.color[3] = 0.25 + 0.1 * (self.time * 0.3).sin();
             }
@@ -868,7 +871,9 @@ impl GfxShowcase {
                 secondary_emitter.burst_count = 64;
 
                 let secondary_entity = world.spawn();
-                world.sprite2d.set_sprite_particle_emitter(secondary_entity, secondary_emitter);
+                world
+                    .sprite2d
+                    .set_sprite_particle_emitter(secondary_entity, secondary_emitter);
                 self.scene_emitters.push(secondary_entity);
             }
 
@@ -969,7 +974,10 @@ impl GfxShowcase {
                         .fract();
                 let (red, green, blue) = hue_to_rgb(hue);
 
-                if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index]) {
+                if let Some(sprite) = world
+                    .sprite2d
+                    .get_sprite_mut(self.scene_entities[entity_index])
+                {
                     sprite.position = position;
                     sprite.color = [red, green, blue, 0.65];
                     sprite.rotation = angle;
@@ -1045,7 +1053,10 @@ impl GfxShowcase {
                 let (red, green, blue) = hue_to_rgb(hue);
 
                 let entity_index = source_index * rings_per_source + ring_index;
-                if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index]) {
+                if let Some(sprite) = world
+                    .sprite2d
+                    .get_sprite_mut(self.scene_entities[entity_index])
+                {
                     sprite.position = source.position;
                     sprite.size = Vec2::new(radius * 2.0, radius * 2.0);
                     sprite.color = [red, green, blue, alpha];
@@ -1284,8 +1295,9 @@ impl GfxShowcase {
             let alpha1 = 0.5 + 0.5 * (depth1 * 0.5 + 0.5);
             let color_shift = (self.time * 0.3 + nucleotide_index as f32 * 0.05).sin() * 0.15;
 
-            if let Some(sprite) =
-                world.sprite2d.get_sprite_mut(self.scene_entities[strand1_start + nucleotide_index])
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[strand1_start + nucleotide_index])
             {
                 sprite.position = Vec2::new(strand1_x, axis_y);
                 sprite.size = Vec2::new(size1 * 2.0, size1 * 2.0);
@@ -1299,8 +1311,9 @@ impl GfxShowcase {
             let size2 = base_size * (1.0 + depth2 * 0.4);
             let alpha2 = 0.5 + 0.5 * (depth2 * 0.5 + 0.5);
 
-            if let Some(sprite) =
-                world.sprite2d.get_sprite_mut(self.scene_entities[strand2_start + nucleotide_index])
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[strand2_start + nucleotide_index])
             {
                 sprite.position = Vec2::new(strand2_x, axis_y);
                 sprite.size = Vec2::new(size2 * 2.0, size2 * 2.0);
@@ -1308,8 +1321,9 @@ impl GfxShowcase {
                 sprite.depth = 5.0 + depth2;
             }
 
-            if let Some(sprite) =
-                world.sprite2d.get_sprite_mut(self.scene_entities[rung_start + nucleotide_index])
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[rung_start + nucleotide_index])
             {
                 sprite.position = Vec2::new((strand1_x + strand2_x) / 2.0, axis_y);
                 let rung_length = (strand2_x - strand1_x).abs();
@@ -1334,8 +1348,9 @@ impl GfxShowcase {
             let length = (dx * dx + dy * dy).sqrt();
             let angle = dy.atan2(dx);
 
-            if let Some(sprite) =
-                world.sprite2d.get_sprite_mut(self.scene_entities[backbone1_start + nucleotide_index])
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[backbone1_start + nucleotide_index])
             {
                 sprite.position = Vec2::new(mid_x, mid_y);
                 sprite.size = Vec2::new(length, 1.0);
@@ -1353,8 +1368,9 @@ impl GfxShowcase {
             let length_b = (dx_b * dx_b + dy_b * dy_b).sqrt();
             let angle_b = dy_b.atan2(dx_b);
 
-            if let Some(sprite) =
-                world.sprite2d.get_sprite_mut(self.scene_entities[backbone2_start + nucleotide_index])
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[backbone2_start + nucleotide_index])
             {
                 sprite.position = Vec2::new(mid_x_b, mid_y_b);
                 sprite.size = Vec2::new(length_b, 1.0);
@@ -1557,7 +1573,10 @@ impl GfxShowcase {
             );
 
             let entity_index = orbit_ring_start + planet_index * planet_stride + 1;
-            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index]) {
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[entity_index])
+            {
                 sprite.position = position;
             }
         }
@@ -1577,8 +1596,9 @@ impl GfxShowcase {
                     moon.orbit_radius * moon.angle.sin(),
                 );
 
-            if let Some(sprite) =
-                world.sprite2d.get_sprite_mut(self.scene_entities[moon_entity_start + moon_index])
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[moon_entity_start + moon_index])
             {
                 sprite.position = moon_position;
             }
@@ -1703,7 +1723,10 @@ impl GfxShowcase {
                 let pulse = 0.85 + 0.15 * (self.time * 1.5 + type_index as f32 * 0.8).sin();
                 let base_size = 40.0 + type_index as f32 * 8.0;
 
-                if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index]) {
+                if let Some(sprite) = world
+                    .sprite2d
+                    .get_sprite_mut(self.scene_entities[entity_index])
+                {
                     sprite.position = Vec2::new(position_x, position_y);
                     sprite.rotation = shape.angle * 0.5;
                     sprite.size = Vec2::new(base_size * pulse, base_size * pulse);
@@ -1806,10 +1829,16 @@ impl GfxShowcase {
             let mask_entity_index = self.stencil_stripe_count + index * 2;
             let border_entity_index = mask_entity_index + 1;
 
-            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[mask_entity_index]) {
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[mask_entity_index])
+            {
                 sprite.position = position;
             }
-            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[border_entity_index]) {
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[border_entity_index])
+            {
                 sprite.position = position;
             }
         }
@@ -1944,7 +1973,10 @@ impl GfxShowcase {
             let mut shape_position = Vec2::zeros();
             let mut shape_size = Vec2::zeros();
 
-            if let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[shape_index]) {
+            if let Some(sprite) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[shape_index])
+            {
                 sprite.position += item
                     .velocity
                     .component_mul(&Vec2::new(delta_time, delta_time));
@@ -1971,7 +2003,10 @@ impl GfxShowcase {
                 shape_size = sprite.size;
             }
 
-            if let Some(shadow) = world.sprite2d.get_sprite_mut(self.scene_entities[shadow_index]) {
+            if let Some(shadow) = world
+                .sprite2d
+                .get_sprite_mut(self.scene_entities[shadow_index])
+            {
                 shadow.position = shape_position + Vec2::new(6.0, -6.0);
                 shadow.size = shape_size * 1.3;
             }
@@ -1981,7 +2016,9 @@ impl GfxShowcase {
         for glow_index in 0..4 {
             let entity_index = glow_start + glow_index;
             if entity_index < self.scene_entities.len()
-                && let Some(sprite) = world.sprite2d.get_sprite_mut(self.scene_entities[entity_index])
+                && let Some(sprite) = world
+                    .sprite2d
+                    .get_sprite_mut(self.scene_entities[entity_index])
             {
                 let pulse = 0.6 + 0.4 * (self.time * 0.8 + glow_index as f32 * 1.2).sin();
                 sprite.color[3] = 0.3 * pulse;

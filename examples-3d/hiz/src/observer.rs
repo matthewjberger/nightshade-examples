@@ -67,7 +67,9 @@ impl ObserverCamera {
             LINES | VISIBILITY | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM,
             1,
         )[0];
-        world.core.set_lines(frustum_lines_entity, Lines::new(Vec::new()));
+        world
+            .core
+            .set_lines(frustum_lines_entity, Lines::new(Vec::new()));
 
         Self {
             enabled: false,

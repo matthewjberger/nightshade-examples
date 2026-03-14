@@ -9,9 +9,7 @@ use nightshade::ecs::physics::joints::{
 use nightshade::ecs::physics::*;
 use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
 use nightshade::ecs::text::commands::spawn_ui_text;
-use nightshade::ecs::text::components::{
-    TextAlignment, TextProperties, VerticalAlignment,
-};
+use nightshade::ecs::text::components::{TextAlignment, TextProperties, VerticalAlignment};
 use nightshade::ecs::transform::components::Parent;
 use nightshade::ecs::world::commands::spawn_3d_billboard_text_with_properties;
 use nightshade::ecs::world::resources::MouseState;
@@ -378,18 +376,13 @@ impl State for PhysicsDemo {
         self.spawn_environment(world);
         self.spawn_exhibits(world);
 
-        let prompt_entity =
-            spawn_ui_text(world, "", nalgebra_glm::Vec2::zeros());
+        let prompt_entity = spawn_ui_text(world, "", nalgebra_glm::Vec2::zeros());
         if let Some(hud_text) = world.core.get_text(prompt_entity) {
             self.interaction_prompt_text_index = Some(hud_text.text_index);
         }
         self.interaction_prompt_entity = Some(prompt_entity);
 
-        let input_mode_entity = spawn_ui_text(
-            world,
-            "Mouse/Keyboard",
-            nalgebra_glm::Vec2::zeros(),
-        );
+        let input_mode_entity = spawn_ui_text(world, "Mouse/Keyboard", nalgebra_glm::Vec2::zeros());
         if let Some(hud_text) = world.core.get_text(input_mode_entity) {
             self.input_mode_text_index = Some(hud_text.text_index);
         }
@@ -691,7 +684,9 @@ impl PhysicsDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(door_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(door_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(door_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
@@ -895,7 +890,9 @@ impl PhysicsDemo {
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(front_entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(front_entity, MaterialRef::new(material_name));
 
             if let Some(bv) = world.core.get_bounding_volume_mut(front_entity) {
                 *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
@@ -1046,7 +1043,9 @@ impl PhysicsDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(arm_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(arm_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(arm_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
@@ -1109,7 +1108,9 @@ impl PhysicsDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(handle_visual_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(handle_visual_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(handle_visual_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");
@@ -1272,7 +1273,9 @@ impl PhysicsDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(wheel_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(wheel_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(wheel_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
@@ -1347,7 +1350,9 @@ impl PhysicsDemo {
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(spoke_entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(spoke_entity, MaterialRef::new(material_name));
 
             if let Some(bv) = world.core.get_bounding_volume_mut(spoke_entity) {
                 *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
@@ -1494,7 +1499,9 @@ impl PhysicsDemo {
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
 
             if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
                 *bv =
@@ -1618,7 +1625,9 @@ impl PhysicsDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(lantern_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(lantern_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(lantern_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
@@ -1767,7 +1776,9 @@ impl PhysicsDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
@@ -1832,7 +1843,9 @@ impl PhysicsDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");
@@ -2045,7 +2058,9 @@ impl PhysicsDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(note_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(note_entity, MaterialRef::new(material_name));
 
         if let Some(bounding_volume) = world.core.get_bounding_volume_mut(note_entity) {
             *bounding_volume =
@@ -2248,7 +2263,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(rod_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(rod_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(rod_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
@@ -2357,7 +2374,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(rope_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(rope_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(rope_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
@@ -2467,7 +2486,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(coil_entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(coil_entity, MaterialRef::new(material_name));
 
             if let Some(bv) = world.core.get_bounding_volume_mut(coil_entity) {
                 *bv =
@@ -2581,11 +2602,13 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     fn update_joint_visuals(&self, world: &mut World) {
         for visual in &self.spherical_joint_visuals {
             let anchor_pos = world
-                .core.get_global_transform(visual.anchor_entity)
+                .core
+                .get_global_transform(visual.anchor_entity)
                 .map(|t| t.translation())
                 .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
             let ball_pos = world
-                .core.get_global_transform(visual.ball_entity)
+                .core
+                .get_global_transform(visual.ball_entity)
                 .map(|t| t.translation())
                 .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
 
@@ -2612,11 +2635,13 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
 
         for visual in &self.rope_joint_visuals {
             let anchor_pos = world
-                .core.get_global_transform(visual.anchor_entity)
+                .core
+                .get_global_transform(visual.anchor_entity)
                 .map(|t| t.translation())
                 .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
             let ball_pos = world
-                .core.get_global_transform(visual.ball_entity)
+                .core
+                .get_global_transform(visual.ball_entity)
                 .map(|t| t.translation())
                 .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
 
@@ -2642,11 +2667,13 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
 
         for visual in &self.spring_joint_visuals {
             let anchor_pos = world
-                .core.get_global_transform(visual.anchor_entity)
+                .core
+                .get_global_transform(visual.anchor_entity)
                 .map(|t| t.translation())
                 .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
             let object_pos = world
-                .core.get_global_transform(visual.object_entity)
+                .core
+                .get_global_transform(visual.object_entity)
                 .map(|t| t.translation())
                 .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, 0.0));
 
@@ -2971,7 +2998,8 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
 
     fn update_coulomb_friction_joints(&mut self, world: &mut World) {
         for joint_state in &self.coulomb_friction_joints {
-            let Some(rigid_body_component) = world.core.get_rigid_body(joint_state.arm_entity) else {
+            let Some(rigid_body_component) = world.core.get_rigid_body(joint_state.arm_entity)
+            else {
                 continue;
             };
             let Some(handle) = rigid_body_component.handle else {
@@ -3006,7 +3034,8 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             if joint_state.initialized {
                 continue;
             }
-            let Some(rigid_body_component) = world.core.get_rigid_body(joint_state.arm_entity) else {
+            let Some(rigid_body_component) = world.core.get_rigid_body(joint_state.arm_entity)
+            else {
                 continue;
             };
             let Some(handle) = rigid_body_component.handle else {
@@ -3234,7 +3263,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 0.5,
                 gold_material.clone(),
             );
-            world.core.set_name(entity, Name(format!("Gold Gem {}", index + 1)));
+            world
+                .core
+                .set_name(entity, Name(format!("Gold Gem {}", index + 1)));
             self.physics_objects.push(entity);
         }
 
@@ -3247,7 +3278,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             0.8,
             crystal_material,
         );
-        world.core.set_name(crystal_entity, Name("Crystal Orb".to_string()));
+        world
+            .core
+            .set_name(crystal_entity, Name("Crystal Orb".to_string()));
         self.physics_objects.push(crystal_entity);
 
         let trinket_material =
@@ -3265,7 +3298,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 0.8,
                 trinket_material.clone(),
             );
-            world.core.set_name(entity, Name(format!("Trinket Box {}", index + 1)));
+            world
+                .core
+                .set_name(entity, Name(format!("Trinket Box {}", index + 1)));
             self.physics_objects.push(entity);
         }
 
@@ -3278,7 +3313,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             1.0,
             vase_material,
         );
-        world.core.set_name(vase_entity, Name("Ceramic Vase".to_string()));
+        world
+            .core
+            .set_name(vase_entity, Name("Ceramic Vase".to_string()));
         self.physics_objects.push(vase_entity);
 
         let emerald_material =
@@ -3290,7 +3327,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             0.3,
             emerald_material,
         );
-        world.core.set_name(emerald_entity, Name("Emerald".to_string()));
+        world
+            .core
+            .set_name(emerald_entity, Name("Emerald".to_string()));
         self.physics_objects.push(emerald_entity);
     }
 
@@ -3397,7 +3436,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 2.0,
                 metal_material.clone(),
             );
-            world.core.set_name(entity, Name(format!("Metal Part {}", index + 1)));
+            world
+                .core
+                .set_name(entity, Name(format!("Metal Part {}", index + 1)));
             self.physics_objects.push(entity);
         }
 
@@ -3416,7 +3457,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 3.0,
                 brick_material.clone(),
             );
-            world.core.set_name(entity, Name(format!("Brick {}", index + 1)));
+            world
+                .core
+                .set_name(entity, Name(format!("Brick {}", index + 1)));
             self.physics_objects.push(entity);
         }
 
@@ -3428,7 +3471,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             1.0,
             orb_material,
         );
-        world.core.set_name(orb_entity, Name("Green Orb".to_string()));
+        world
+            .core
+            .set_name(orb_entity, Name("Green Orb".to_string()));
         self.physics_objects.push(orb_entity);
 
         let gear_material = create_textured_material(nalgebra_glm::vec3(0.6, 0.55, 0.5), 0.25, 0.9);
@@ -3440,7 +3485,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             1.5,
             gear_material,
         );
-        world.core.set_name(gear_entity, Name("Brass Gear".to_string()));
+        world
+            .core
+            .set_name(gear_entity, Name("Brass Gear".to_string()));
         self.physics_objects.push(gear_entity);
 
         let bolt_material = create_textured_material(nalgebra_glm::vec3(0.4, 0.4, 0.45), 0.2, 0.9);
@@ -3456,7 +3503,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 0.5,
                 bolt_material.clone(),
             );
-            world.core.set_name(entity, Name(format!("Bolt {}", index + 1)));
+            world
+                .core
+                .set_name(entity, Name(format!("Bolt {}", index + 1)));
             self.physics_objects.push(entity);
         }
     }
@@ -3529,7 +3578,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(button_entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(button_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(button_entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
@@ -3629,7 +3680,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");
@@ -3813,7 +3866,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
@@ -4011,7 +4066,8 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         };
 
         let is_crouching = world
-            .core.get_character_controller(player_entity)
+            .core
+            .get_character_controller(player_entity)
             .map(|cc| cc.is_crouching)
             .unwrap_or(false);
 
@@ -5068,14 +5124,19 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             let flashlight_transform = LocalTransform {
                 translation: offset_position,
                 rotation: world
-                    .core.get_local_transform(camera)
+                    .core
+                    .get_local_transform(camera)
                     .map(|t| t.rotation)
                     .unwrap_or(Quat::identity()),
                 scale: Vec3::new(1.0, 1.0, 1.0),
             };
 
-            world.core.set_local_transform(flashlight_entity, flashlight_transform);
-            world.core.set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform(flashlight_entity, flashlight_transform);
+            world
+                .core
+                .set_local_transform_dirty(flashlight_entity, LocalTransformDirty);
         }
     }
 
@@ -5445,7 +5506,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
@@ -5551,7 +5614,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
 
             self.bauble_gun_entities.push(entity);
         }
@@ -5583,7 +5648,8 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 [0.2, 0.6, 0.9, 1.0]
             };
             let left_mat_name = world
-                .core.get_material_ref(left_hand_entity)
+                .core
+                .get_material_ref(left_hand_entity)
                 .map(|r| r.name.clone());
             if let Some(name) = left_mat_name
                 && let Some(mat) = registry_entry_by_name_mut(
@@ -5615,7 +5681,8 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 [0.9, 0.6, 0.2, 1.0]
             };
             let right_mat_name = world
-                .core.get_material_ref(right_hand_entity)
+                .core
+                .get_material_ref(right_hand_entity)
                 .map(|r| r.name.clone());
             if let Some(name) = right_mat_name
                 && let Some(mat) = registry_entry_by_name_mut(
@@ -5658,8 +5725,12 @@ fn spawn_flashlight(world: &mut World) -> Entity {
         },
     );
 
-    world.core.set_global_transform(entity, GlobalTransform::default());
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }
@@ -5675,7 +5746,9 @@ fn spawn_sun_overhead(world: &mut World) -> Entity {
         1,
     )[0];
 
-    world.core.set_name(entity, components::Name("Sun".to_string()));
+    world
+        .core
+        .set_name(entity, components::Name("Sun".to_string()));
     world.core.set_local_transform(
         entity,
         components::LocalTransform {
@@ -5690,8 +5763,12 @@ fn spawn_sun_overhead(world: &mut World) -> Entity {
             scale: nalgebra_glm::Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(entity, components::LocalTransformDirty);
-    world.core.set_global_transform(entity, components::GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, components::LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, components::GlobalTransform::default());
     world.core.set_light(
         entity,
         Light {

@@ -102,7 +102,9 @@ fn spawn_textured_cube(world: &mut World, position: Vec3, texture_name: &str) {
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
@@ -124,7 +126,9 @@ fn spawn_textured_sphere(world: &mut World, position: Vec3, texture_name: &str) 
         1,
     )[0];
 
-    world.core.set_render_mesh(entity, RenderMesh::new("Sphere"));
+    world
+        .core
+        .set_render_mesh(entity, RenderMesh::new("Sphere"));
 
     let material_name = format!("TexturedSphere_{}_{}", texture_name, entity.id);
     texture_cache_add_reference(&mut world.resources.texture_cache, texture_name);
@@ -150,7 +154,9 @@ fn spawn_textured_sphere(world: &mut World, position: Vec3, texture_name: &str) 
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;
@@ -199,7 +205,9 @@ fn spawn_textured_plane(world: &mut World, position: Vec3, texture_name: &str) {
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation = position;

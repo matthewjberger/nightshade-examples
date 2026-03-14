@@ -54,8 +54,12 @@ impl State for TowerDefenseECS {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(main_camera, LocalTransformDirty);
-        world.core.set_global_transform(main_camera, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(main_camera, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(main_camera, GlobalTransform::default());
         world.core.set_camera(
             main_camera,
             Camera {
@@ -270,7 +274,9 @@ impl State for TowerDefenseECS {
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(bg_entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(bg_entity, MaterialRef::new(material_name));
         }
 
         let total_hp = (self.game_world.resources.lives - 1) * self.game_world.resources.max_hp
@@ -309,7 +315,9 @@ impl State for TowerDefenseECS {
                     .registry
                     .add_reference(index);
             }
-            world.core.set_material_ref(bar_entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(bar_entity, MaterialRef::new(material_name));
         }
 
         self.game_world.resources.ui_handles = ui_handles;

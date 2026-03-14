@@ -274,7 +274,9 @@ impl SsrDemoState {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(ground, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(ground, MaterialRef::new(material_name));
         world.core.set_casts_shadow(ground, CastsShadow);
     }
 
@@ -361,7 +363,9 @@ impl SsrDemoState {
                     scale: nalgebra_glm::vec3(0.5, 0.5, 0.5),
                 },
             );
-            world.core.set_render_mesh(entity, RenderMesh::new("Sphere"));
+            world
+                .core
+                .set_render_mesh(entity, RenderMesh::new("Sphere"));
 
             let material_name = format!("Sphere_{}_{}", index, entity.id);
             material_registry_insert(
@@ -387,7 +391,9 @@ impl SsrDemoState {
                     .registry
                     .add_reference(mat_index);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
             world.core.set_casts_shadow(entity, CastsShadow);
         }
 
@@ -415,7 +421,9 @@ impl SsrDemoState {
                     scale: nalgebra_glm::vec3(0.3, 0.3, 0.3),
                 },
             );
-            world.core.set_render_mesh(entity, RenderMesh::new("Sphere"));
+            world
+                .core
+                .set_render_mesh(entity, RenderMesh::new("Sphere"));
 
             let material_name = format!("Emissive_{}_{}", index, entity.id);
             material_registry_insert(
@@ -442,7 +450,9 @@ impl SsrDemoState {
                     .registry
                     .add_reference(mat_index);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
             world.core.set_casts_shadow(entity, CastsShadow);
         }
 
@@ -495,7 +505,9 @@ impl SsrDemoState {
                     .registry
                     .add_reference(mat_index);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
             world.core.set_casts_shadow(entity, CastsShadow);
         }
     }

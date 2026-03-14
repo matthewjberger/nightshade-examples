@@ -75,12 +75,7 @@ fn spawn_rsvp_text(world: &mut World, word: &str) -> Entity {
         ..Default::default()
     };
 
-    let entity = spawn_ui_text_with_properties(
-        world,
-        word,
-            nalgebra_glm::Vec2::zeros(),
-        props,
-    );
+    let entity = spawn_ui_text_with_properties(world, word, nalgebra_glm::Vec2::zeros(), props);
 
     let colors = create_orp_colors(word, orp_index);
     world.core.set_text_character_colors(

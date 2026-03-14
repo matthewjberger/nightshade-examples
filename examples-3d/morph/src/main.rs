@@ -337,7 +337,8 @@ impl State for MorphState {
 
                 for mesh_name in fox_mesh_names {
                     let morph_entities: Vec<Entity> = world
-                        .core.query_entities(RENDER_MESH)
+                        .core
+                        .query_entities(RENDER_MESH)
                         .filter(|entity| {
                             if let Some(render_mesh) = world.core.get_render_mesh(*entity) {
                                 render_mesh.name == mesh_name
@@ -541,7 +542,8 @@ impl MorphState {
         _id_suffix: &str,
     ) {
         let entities_with_morphs: Vec<Entity> = world
-            .core.query_entities(MORPH_WEIGHTS)
+            .core
+            .query_entities(MORPH_WEIGHTS)
             .filter(|entity| Self::is_descendant_of(world, *entity, root_entity))
             .collect();
 

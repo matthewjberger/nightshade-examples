@@ -422,7 +422,9 @@ impl LatticeState {
                 },
             );
 
-            world.core.set_render_mesh(entity, RenderMesh::new(mesh_name.clone()));
+            world
+                .core
+                .set_render_mesh(entity, RenderMesh::new(mesh_name.clone()));
 
             let material_name = format!("lattice_material_{}", self.primitives.len());
             material_registry_insert(
@@ -450,7 +452,9 @@ impl LatticeState {
                     .add_reference(mat_index);
             }
 
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
             world.core.set_casts_shadow(entity, CastsShadow);
 
             register_entity_for_lattice_deformation(world, entity, lattice_entity);
@@ -565,7 +569,9 @@ impl LatticeState {
 
     fn set_tube_mode_visibility(&mut self, world: &mut World, visible: bool) {
         for primitive in &self.primitives {
-            world.core.set_visibility(primitive.entity, Visibility { visible });
+            world
+                .core
+                .set_visibility(primitive.entity, Visibility { visible });
         }
 
         if let Some(helmet_entity) = self.helmet_entity {
@@ -600,7 +606,9 @@ impl LatticeState {
             },
         );
 
-        world.core.set_render_mesh(entity, RenderMesh::new("dinner_plate"));
+        world
+            .core
+            .set_render_mesh(entity, RenderMesh::new("dinner_plate"));
 
         material_registry_insert(
             &mut world.resources.material_registry,
@@ -627,7 +635,9 @@ impl LatticeState {
                 .add_reference(mat_index);
         }
 
-        world.core.set_material_ref(entity, MaterialRef::new("plate_material"));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new("plate_material"));
         world.core.set_casts_shadow(entity, CastsShadow);
 
         self.plate_entity = Some(entity);
@@ -857,10 +867,12 @@ fn register_helmet_meshes(world: &mut World, entity: Entity, lattice_entity: Ent
     }
 
     let children: Vec<Entity> = world
-        .core.query_entities(PARENT)
+        .core
+        .query_entities(PARENT)
         .filter(|e| {
             world
-                .core.get_parent(*e)
+                .core
+                .get_parent(*e)
                 .map(|p| p.0 == Some(entity))
                 .unwrap_or(false)
         })
@@ -875,10 +887,12 @@ fn set_visibility_recursive(world: &mut World, entity: Entity, visible: bool) {
     world.core.set_visibility(entity, Visibility { visible });
 
     let children: Vec<Entity> = world
-        .core.query_entities(PARENT)
+        .core
+        .query_entities(PARENT)
         .filter(|e| {
             world
-                .core.get_parent(*e)
+                .core
+                .get_parent(*e)
                 .map(|p| p.0 == Some(entity))
                 .unwrap_or(false)
         })

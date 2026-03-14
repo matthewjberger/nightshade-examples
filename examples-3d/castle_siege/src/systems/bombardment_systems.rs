@@ -86,7 +86,9 @@ pub fn boulder_physics_system(game: &mut GameWorld, world: &mut World) {
             if let Some(transform) = world.core.get_local_transform_mut(render_entity) {
                 transform.translation = final_position;
             }
-            world.core.set_local_transform_dirty(render_entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(render_entity, LocalTransformDirty);
         }
 
         let trail_index = TRAIL_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -153,7 +155,9 @@ fn apply_impact(game: &mut GameWorld, world: &mut World, impact_pos: Vec3) {
                         transform.scale.y = 0.3;
                         transform.translation.y = 0.15;
                     }
-                    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+                    world
+                        .core
+                        .set_local_transform_dirty(entity, LocalTransformDirty);
                 }
                 return;
             }
@@ -191,7 +195,9 @@ fn apply_impact(game: &mut GameWorld, world: &mut World, impact_pos: Vec3) {
                     transform.scale.y = 0.3;
                     transform.translation.y = 0.15;
                 }
-                world.core.set_local_transform_dirty(segment.entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(segment.entity, LocalTransformDirty);
             }
         }
     }

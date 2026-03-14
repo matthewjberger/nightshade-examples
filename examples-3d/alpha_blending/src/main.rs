@@ -54,7 +54,9 @@ impl State for AlphaBlendingDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(background_cube, MaterialRef::new(bg_cube_mat));
+        world
+            .core
+            .set_material_ref(background_cube, MaterialRef::new(bg_cube_mat));
 
         let opaque_sphere = spawn_mesh(
             world,
@@ -86,7 +88,9 @@ impl State for AlphaBlendingDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(opaque_sphere, MaterialRef::new(opaque_mat));
+        world
+            .core
+            .set_material_ref(opaque_sphere, MaterialRef::new(opaque_mat));
 
         let mask_sphere = spawn_mesh(
             world,
@@ -118,7 +122,9 @@ impl State for AlphaBlendingDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(mask_sphere, MaterialRef::new(mask_mat));
+        world
+            .core
+            .set_material_ref(mask_sphere, MaterialRef::new(mask_mat));
 
         let blend_sphere_1 = spawn_mesh(
             world,
@@ -150,7 +156,9 @@ impl State for AlphaBlendingDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(blend_sphere_1, MaterialRef::new(blend1_mat));
+        world
+            .core
+            .set_material_ref(blend_sphere_1, MaterialRef::new(blend1_mat));
 
         let blend_sphere_2 = spawn_mesh(
             world,
@@ -182,7 +190,9 @@ impl State for AlphaBlendingDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(blend_sphere_2, MaterialRef::new(blend2_mat));
+        world
+            .core
+            .set_material_ref(blend_sphere_2, MaterialRef::new(blend2_mat));
 
         let blend_sphere_3 = spawn_mesh(
             world,
@@ -214,7 +224,9 @@ impl State for AlphaBlendingDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(blend_sphere_3, MaterialRef::new(blend3_mat));
+        world
+            .core
+            .set_material_ref(blend_sphere_3, MaterialRef::new(blend3_mat));
 
         let blend_cube = spawn_mesh(
             world,
@@ -246,7 +258,9 @@ impl State for AlphaBlendingDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(blend_cube, MaterialRef::new(blend_cube_mat));
+        world
+            .core
+            .set_material_ref(blend_cube, MaterialRef::new(blend_cube_mat));
     }
 
     fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {

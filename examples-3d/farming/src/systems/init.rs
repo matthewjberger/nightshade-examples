@@ -542,7 +542,9 @@ fn apply_material(world: &mut World, entity: Entity, name: &str) {
             .registry
             .add_reference(idx);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(name.to_string()));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(name.to_string()));
 }
 
 fn create_materials(world: &mut World) {

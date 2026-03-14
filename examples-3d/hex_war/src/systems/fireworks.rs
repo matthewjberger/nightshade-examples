@@ -154,7 +154,9 @@ pub fn update_firework_shells(shells: &mut Vec<FireworkShell>, world: &mut World
         let glitter_count = particle_count / 2;
         let mut glitter_emitter = ParticleEmitter::firework_glitter(pos, glitter_count);
         scale_emitter(&mut glitter_emitter);
-        world.core.set_particle_emitter(glitter_entity, glitter_emitter);
+        world
+            .core
+            .set_particle_emitter(glitter_entity, glitter_emitter);
 
         if is_capital {
             for ring_index in 0..6 {

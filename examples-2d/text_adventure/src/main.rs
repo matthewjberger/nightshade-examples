@@ -708,12 +708,8 @@ impl State for TextAdventureState {
             ..Default::default()
         };
 
-        let terminal_entity = spawn_ui_text_with_properties(
-            world,
-            "",
-            Vec2::zeros(),
-            terminal_props,
-        );
+        let terminal_entity =
+            spawn_ui_text_with_properties(world, "", Vec2::zeros(), terminal_props);
         self.terminal_entities.push(terminal_entity);
 
         let prompt_props = TextProperties {

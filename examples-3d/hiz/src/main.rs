@@ -199,7 +199,9 @@ impl HizDemo {
                         4 => "Magenta",
                         _ => "Cyan",
                     };
-                    world.core.set_material_ref(cube, MaterialRef::new(material));
+                    world
+                        .core
+                        .set_material_ref(cube, MaterialRef::new(material));
 
                     entities.push(cube);
                     self.total_cubes += 1;

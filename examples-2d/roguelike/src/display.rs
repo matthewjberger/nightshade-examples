@@ -33,12 +33,7 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         ..Default::default()
     };
 
-    let map_entity = spawn_ui_text_with_properties(
-        world,
-        "",
-        Vec2::zeros(),
-        map_props,
-    );
+    let map_entity = spawn_ui_text_with_properties(world, "", Vec2::zeros(), map_props);
 
     world.core.add_components(map_entity, TEXT_CHARACTER_COLORS);
 
@@ -49,12 +44,7 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         ..Default::default()
     };
 
-    spawn_ui_text_with_properties(
-        world,
-        "ROGUELIKE DUNGEON",
-        Vec2::zeros(),
-        title_props,
-    );
+    spawn_ui_text_with_properties(world, "ROGUELIKE DUNGEON", Vec2::zeros(), title_props);
 
     let stats_props = TextProperties {
         font_size: 16.0,
@@ -63,12 +53,7 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         ..Default::default()
     };
 
-    let stats_entity = spawn_ui_text_with_properties(
-        world,
-        "",
-        Vec2::zeros(),
-        stats_props,
-    );
+    let stats_entity = spawn_ui_text_with_properties(world, "", Vec2::zeros(), stats_props);
 
     let messages_props = TextProperties {
         font_size: 14.0,
@@ -78,12 +63,7 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         ..Default::default()
     };
 
-    let messages_entity = spawn_ui_text_with_properties(
-        world,
-        "",
-        Vec2::zeros(),
-        messages_props,
-    );
+    let messages_entity = spawn_ui_text_with_properties(world, "", Vec2::zeros(), messages_props);
 
     DisplayState {
         map_text_entity: Some(map_entity),

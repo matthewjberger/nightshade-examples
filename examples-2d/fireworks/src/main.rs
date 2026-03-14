@@ -147,8 +147,12 @@ impl State for FireworksDemo {
                 scale: Vec3::new(1.0, 1.0, 1.0),
             },
         );
-        world.core.set_local_transform_dirty(camera, LocalTransformDirty);
-        world.core.set_global_transform(camera, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(camera, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(camera, GlobalTransform::default());
         world.core.set_camera(
             camera,
             Camera {
@@ -544,7 +548,8 @@ impl State for FireworksDemo {
                         .iter()
                         .filter(|effect| {
                             world
-                                .core.get_particle_emitter(effect.entity)
+                                .core
+                                .get_particle_emitter(effect.entity)
                                 .is_some_and(|emitter| emitter.enabled)
                         })
                         .count()

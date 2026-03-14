@@ -222,7 +222,9 @@ impl State for DanceState {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(ground, MaterialRef::new(ground_material));
+        world
+            .core
+            .set_material_ref(ground, MaterialRef::new(ground_material));
         world.core.set_casts_shadow(ground, CastsShadow);
 
         self.home_focus = Vec3::new(0.0, 1.0, 0.0);
@@ -359,7 +361,8 @@ impl State for DanceState {
 
         if let Some(dancer_count_entity) = self.dancer_count_hud_text {
             let text_index = world
-                .core.get_text(dancer_count_entity)
+                .core
+                .get_text(dancer_count_entity)
                 .map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
@@ -882,7 +885,9 @@ impl DanceState {
             if let Some(transform) = world.core.get_local_transform_mut(*entity) {
                 transform.translation = *position;
             }
-            world.core.set_local_transform_dirty(*entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(*entity, LocalTransformDirty);
         }
     }
 

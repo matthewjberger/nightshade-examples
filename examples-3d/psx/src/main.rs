@@ -123,7 +123,9 @@ impl State for PsxDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(ground, MaterialRef::new(ground_material));
+        world
+            .core
+            .set_material_ref(ground, MaterialRef::new(ground_material));
 
         let cube = spawn_mesh(
             world,
@@ -164,7 +166,9 @@ impl State for PsxDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(cube, MaterialRef::new(cube_material));
+        world
+            .core
+            .set_material_ref(cube, MaterialRef::new(cube_material));
 
         let sphere = spawn_mesh(
             world,
@@ -205,7 +209,9 @@ impl State for PsxDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(sphere, MaterialRef::new(sphere_material));
+        world
+            .core
+            .set_material_ref(sphere, MaterialRef::new(sphere_material));
 
         let torus = spawn_mesh(
             world,
@@ -246,7 +252,9 @@ impl State for PsxDemo {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(torus, MaterialRef::new(torus_material));
+        world
+            .core
+            .set_material_ref(torus, MaterialRef::new(torus_material));
 
         for index in 0..8 {
             let angle = (index as f32 / 8.0) * std::f32::consts::TAU;
@@ -294,7 +302,9 @@ impl State for PsxDemo {
                     .registry
                     .add_reference(mat_index);
             }
-            world.core.set_material_ref(pillar, MaterialRef::new(pillar_material));
+            world
+                .core
+                .set_material_ref(pillar, MaterialRef::new(pillar_material));
         }
 
         let load_result = nightshade::ecs::prefab::import_gltf_from_bytes(DANCE_MODEL);
@@ -347,7 +357,8 @@ impl State for PsxDemo {
         let rotation = nalgebra_glm::quat_angle_axis(angle, &Vec3::y());
 
         let entities: Vec<_> = world
-            .core.query_entities(RENDER_MESH | LOCAL_TRANSFORM)
+            .core
+            .query_entities(RENDER_MESH | LOCAL_TRANSFORM)
             .collect();
         for entity in entities {
             if Some(entity) == self.player_entity

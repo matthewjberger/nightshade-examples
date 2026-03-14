@@ -20,7 +20,9 @@ pub fn replan_flash_system(game: &mut GameWorld, world: &mut World) {
             if let Some(transform) = world.core.get_local_transform_mut(ring.entity) {
                 transform.scale = nalgebra_glm::vec3(scale, 0.02, scale);
             }
-            world.core.set_local_transform_dirty(ring.entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(ring.entity, LocalTransformDirty);
 
             if ring.timer >= ring.max_time {
                 to_remove.push((ring_entity, ring.entity));
@@ -64,7 +66,9 @@ pub fn fire_flicker_system(game: &mut GameWorld, world: &mut World) {
                     transform.translation.y =
                         fire.position.y + 0.2 + (sphere_index as f32) * 0.15 + y_jitter;
                 }
-                world.core.set_local_transform_dirty(sphere_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(sphere_entity, LocalTransformDirty);
             }
 
             if let Some(smoke_entity) = fire.smoke_entity {
@@ -73,7 +77,9 @@ pub fn fire_flicker_system(game: &mut GameWorld, world: &mut World) {
                     transform.translation =
                         fire.position + nalgebra_glm::vec3(smoke_sway, 2.0, smoke_sway * 0.5);
                 }
-                world.core.set_local_transform_dirty(smoke_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(smoke_entity, LocalTransformDirty);
             }
         }
     }
@@ -93,7 +99,9 @@ pub fn impact_flash_system(game: &mut GameWorld, world: &mut World) {
             transform.scale = nalgebra_glm::vec3(scale, scale * 0.5, scale);
             transform.scale *= fade;
         }
-        world.core.set_local_transform_dirty(flash.entity, LocalTransformDirty);
+        world
+            .core
+            .set_local_transform_dirty(flash.entity, LocalTransformDirty);
 
         if flash.timer >= flash.max_time {
             to_remove.push(index);
@@ -123,7 +131,9 @@ pub fn trail_particle_system(game: &mut GameWorld, world: &mut World) {
         if let Some(transform) = world.core.get_local_transform_mut(particle.entity) {
             transform.scale = nalgebra_glm::vec3(scale, scale, scale);
         }
-        world.core.set_local_transform_dirty(particle.entity, LocalTransformDirty);
+        world
+            .core
+            .set_local_transform_dirty(particle.entity, LocalTransformDirty);
 
         if particle.timer >= particle.max_time {
             to_remove.push(index);
@@ -196,7 +206,9 @@ pub fn failure_system(game: &mut GameWorld, world: &mut World) {
             if let Some(transform) = world.core.get_local_transform_mut(invader.entity) {
                 transform.translation = invader.position;
             }
-            world.core.set_local_transform_dirty(invader.entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(invader.entity, LocalTransformDirty);
 
             game.set_enemy_invader(invader_entity, invader);
         }

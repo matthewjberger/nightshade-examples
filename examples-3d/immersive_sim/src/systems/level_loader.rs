@@ -82,8 +82,12 @@ fn spawn_point_light(
         },
     );
 
-    world.core.set_global_transform(entity, GlobalTransform::default());
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }
@@ -129,14 +133,20 @@ fn spawn_spot_light(world: &mut World, params: SpotLightParams) -> Entity {
         },
     );
 
-    world.core.set_global_transform(entity, GlobalTransform::default());
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 
     entity
 }
 
 fn mark_local_transform_dirty(world: &mut World, entity: Entity) {
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 }
 
 pub fn load_level(world: &mut World, level_id: LevelId) -> LoadedLevel {
@@ -230,7 +240,9 @@ fn spawn_level_geometry(world: &mut World, level_def: &LevelDefinition) -> Vec<E
                 .registry
                 .add_reference(mat_index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(mat_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(mat_name));
 
         if geo.rotation != 0.0 {
             if let Some(transform) = world.core.get_local_transform_mut(entity) {
@@ -314,7 +326,9 @@ fn spawn_portals(world: &mut World, level_def: &LevelDefinition) -> Vec<(Entity,
                 .registry
                 .add_reference(mat_index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(mat_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(mat_name));
 
         let _light_entity = spawn_point_light(
             world,
@@ -367,7 +381,9 @@ fn spawn_items(world: &mut World, level_def: &LevelDefinition) -> Vec<WorldItem>
                     .registry
                     .add_reference(mat_index);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(mat_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(mat_name));
 
             items.push(WorldItem {
                 entity,
@@ -419,7 +435,9 @@ fn spawn_enemies(world: &mut World, level_def: &LevelDefinition) -> Vec<Enemy> {
                     .registry
                     .add_reference(mat_index);
             }
-            world.core.set_material_ref(entity, MaterialRef::new(mat_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(mat_name));
 
             enemies.push(Enemy::new(
                 entity,
@@ -440,7 +458,8 @@ pub fn check_portal_collision(
 ) -> Option<LevelId> {
     for (entity, portal) in &loaded_level.portal_entities {
         let portal_pos = world
-            .core.get_local_transform(*entity)
+            .core
+            .get_local_transform(*entity)
             .map(|t| t.translation)
             .unwrap_or(portal.position);
 
@@ -467,7 +486,8 @@ pub fn check_item_pickup(
 
     for (index, item) in loaded_level.item_entities.iter().enumerate() {
         let item_pos = world
-            .core.get_local_transform(item.entity)
+            .core
+            .get_local_transform(item.entity)
             .map(|t| t.translation)
             .unwrap_or(Vec3::zeros());
 
@@ -539,7 +559,9 @@ pub fn spawn_loot_item(
                 .registry
                 .add_reference(mat_index);
         }
-        world.core.set_material_ref(entity, MaterialRef::new(mat_name));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(mat_name));
 
         loaded_level.item_entities.push(WorldItem {
             entity,

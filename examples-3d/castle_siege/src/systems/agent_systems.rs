@@ -170,7 +170,9 @@ pub fn agent_movement_system(game: &mut GameWorld, world: &mut World) {
             if let Some(transform) = world.core.get_local_transform_mut(carried_entity) {
                 transform.translation = agent.position + nalgebra_glm::vec3(0.35, 0.85, 0.0);
             }
-            world.core.set_local_transform_dirty(carried_entity, LocalTransformDirty);
+            world
+                .core
+                .set_local_transform_dirty(carried_entity, LocalTransformDirty);
         }
 
         if agent.state != AgentState::Moving {
@@ -707,12 +709,15 @@ fn apply_action_effects(
                                 crate::castle::WALL_SEGMENT_WIDTH,
                             ),
                         };
-                        if let Some(transform) = world.core.get_local_transform_mut(segment.entity) {
+                        if let Some(transform) = world.core.get_local_transform_mut(segment.entity)
+                        {
                             transform.scale =
                                 nalgebra_glm::vec3(scale_x, crate::castle::WALL_HEIGHT, scale_z);
                             transform.translation.y = segment.position.y;
                         }
-                        world.core.set_local_transform_dirty(segment.entity, LocalTransformDirty);
+                        world
+                            .core
+                            .set_local_transform_dirty(segment.entity, LocalTransformDirty);
                         return;
                     }
                 }
@@ -841,7 +846,9 @@ fn apply_action_effects(
                     );
                     transform.translation.y = segment_y;
                 }
-                world.core.set_local_transform_dirty(segment_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(segment_entity, LocalTransformDirty);
             }
 
             let has_blocking_rubble = game.resources.rubble_list.iter().any(|&rubble_entity| {

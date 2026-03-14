@@ -157,7 +157,9 @@ impl State for DecalsDemo {
             preview_entity,
             nightshade::ecs::world::components::Visibility { visible: true },
         );
-        world.core.set_global_transform(preview_entity, GlobalTransform::default());
+        world
+            .core
+            .set_global_transform(preview_entity, GlobalTransform::default());
         self.preview_lines_entity = Some(preview_entity);
 
         spawn_ui_text_with_properties(
@@ -788,9 +790,15 @@ fn spawn_decal_at(
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
-    world.core.set_name(entity, Name(format!("Decal_{}", entity.id)));
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_name(entity, Name(format!("Decal_{}", entity.id)));
 
     let color = if texture_override.is_some() {
         [1.0, 1.0, 1.0, 1.0]
@@ -863,6 +871,8 @@ fn spawn_mesh_with_material(
             .registry
             .add_reference(index);
     };
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
     entity
 }

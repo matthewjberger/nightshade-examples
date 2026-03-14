@@ -700,13 +700,15 @@ fn run_fly_camera_systems(demo: &mut CityDemo, world: &mut World) {
         }
 
         let camera_pos = world
-            .core.get_local_transform(camera)
+            .core
+            .get_local_transform(camera)
             .map(|t| t.translation)
             .unwrap_or(Vec3::zeros());
 
         if let Some(streamer) = &mut demo.chunk_streamer {
             let camera_forward = world
-                .core.get_local_transform(camera)
+                .core
+                .get_local_transform(camera)
                 .map(|t| nalgebra_glm::quat_rotate_vec3(&t.rotation, &Vec3::new(0.0, 0.0, -1.0)))
                 .unwrap_or(Vec3::new(0.0, 0.0, -1.0));
             streamer.update(world, camera_pos, camera_forward);

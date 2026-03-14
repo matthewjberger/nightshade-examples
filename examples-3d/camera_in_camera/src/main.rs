@@ -271,9 +271,13 @@ fn spawn_shadow_entity(world: &mut World, desc: ShadowEntityDesc) -> Entity {
             scale: desc.scale,
         },
     );
-    world.core.set_render_mesh(entity, RenderMesh::new(desc.mesh));
+    world
+        .core
+        .set_render_mesh(entity, RenderMesh::new(desc.mesh));
     register_material(world, desc.material_name, desc.material);
-    world.core.set_material_ref(entity, MaterialRef::new(desc.material_name.to_string()));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(desc.material_name.to_string()));
     world.core.set_casts_shadow(entity, CastsShadow);
     entity
 }
@@ -307,7 +311,9 @@ fn spawn_movie_screen(world: &mut World) {
             | MATERIAL_REF,
         1,
     )[0];
-    world.core.set_name(screen, Name("Movie Screen".to_string()));
+    world
+        .core
+        .set_name(screen, Name("Movie Screen".to_string()));
 
     let rotation =
         nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::new(1.0, 0.0, 0.0));
@@ -334,7 +340,9 @@ fn spawn_movie_screen(world: &mut World) {
             ..Default::default()
         },
     );
-    world.core.set_material_ref(screen, MaterialRef::new("ScreenMaterial".to_string()));
+    world
+        .core
+        .set_material_ref(screen, MaterialRef::new("ScreenMaterial".to_string()));
 }
 
 fn spawn_screen_posts(world: &mut World) {
@@ -743,8 +751,12 @@ fn spawn_secondary_scene(world: &mut World) -> Vec<Entity> {
         Vec3::new(0.0, -0.5, 0.0),
         Vec3::new(12.0, 1.0, 12.0),
     );
-    world.core.set_name(floor, Name("Secondary Floor".to_string()));
-    world.core.set_material_ref(floor, MaterialRef::new("White".to_string()));
+    world
+        .core
+        .set_name(floor, Name("Secondary Floor".to_string()));
+    world
+        .core
+        .set_material_ref(floor, MaterialRef::new("White".to_string()));
 
     let mut cube_entities = Vec::new();
 
@@ -757,8 +769,12 @@ fn spawn_secondary_scene(world: &mut World) -> Vec<Entity> {
         let position = Vec3::new(angle.cos() * radius, 0.5, angle.sin() * radius);
 
         let entity = spawn_mesh(world, "Cube", position, Vec3::new(0.8, 0.8, 0.8));
-        world.core.set_name(entity, Name(format!("Orbiting Cube {}", index)));
-        world.core.set_material_ref(entity, MaterialRef::new(color.to_string()));
+        world
+            .core
+            .set_name(entity, Name(format!("Orbiting Cube {}", index)));
+        world
+            .core
+            .set_material_ref(entity, MaterialRef::new(color.to_string()));
         cube_entities.push(entity);
     }
 
@@ -768,7 +784,9 @@ fn spawn_secondary_scene(world: &mut World) -> Vec<Entity> {
         Vec3::new(0.0, 1.5, 0.0),
         Vec3::new(1.0, 1.0, 1.0),
     );
-    world.core.set_name(center_sphere, Name("Center Sphere".to_string()));
+    world
+        .core
+        .set_name(center_sphere, Name("Center Sphere".to_string()));
 
     material_registry_insert(
         &mut world.resources.material_registry,
@@ -780,7 +798,9 @@ fn spawn_secondary_scene(world: &mut World) -> Vec<Entity> {
             ..Default::default()
         },
     );
-    world.core.set_material_ref(center_sphere, MaterialRef::new("GlowingSphere".to_string()));
+    world
+        .core
+        .set_material_ref(center_sphere, MaterialRef::new("GlowingSphere".to_string()));
 
     cube_entities
 }
@@ -798,6 +818,8 @@ fn animate_secondary_cubes(world: &mut World, cube_entities: &[Entity], total_ti
             transform.rotation =
                 nalgebra_glm::quat_angle_axis(total_time * 2.0 + index as f32, &Vec3::y());
         }
-        world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+        world
+            .core
+            .set_local_transform_dirty(entity, LocalTransformDirty);
     }
 }

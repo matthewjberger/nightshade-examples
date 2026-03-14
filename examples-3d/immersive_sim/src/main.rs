@@ -309,7 +309,8 @@ fn generate_colliders_from_entity(world: &mut World, entity: Entity) {
         };
 
         let global_transform = world
-            .core.get_global_transform(current_entity)
+            .core
+            .get_global_transform(current_entity)
             .map(|t| t.0)
             .unwrap_or_else(nalgebra_glm::Mat4::identity);
 
@@ -386,7 +387,8 @@ fn generate_navmesh_from_entity(world: &mut World, entity: Entity) {
         };
 
         let global_transform = world
-            .core.get_global_transform(current_entity)
+            .core
+            .get_global_transform(current_entity)
             .map(|t| t.0)
             .unwrap_or_else(nalgebra_glm::Mat4::identity);
 
@@ -791,7 +793,8 @@ fn handle_enemy_deaths(game: &mut ImmersiveSim, world: &mut World) {
     for enemy in &mut game.loaded_level.enemies {
         if enemy.is_dead() && enemy.entity.id != 0 {
             let enemy_pos = world
-                .core.get_local_transform(enemy.entity)
+                .core
+                .get_local_transform(enemy.entity)
                 .map(|t| t.translation)
                 .unwrap_or(enemy.home_position);
 
@@ -920,7 +923,10 @@ fn transition_to_level(
         }
         world.mark_local_transform_dirty(player_entity);
 
-        let rigid_body_handle = world.core.get_rigid_body(player_entity).and_then(|rb| rb.handle);
+        let rigid_body_handle = world
+            .core
+            .get_rigid_body(player_entity)
+            .and_then(|rb| rb.handle);
         if let Some(handle) = rigid_body_handle
             && let Some(rigid_body) = world
                 .resources
@@ -950,7 +956,8 @@ fn teleport_player_to_camera(game: &ImmersiveSim, world: &mut World) {
     };
 
     let camera_global_pos = world
-        .core.get_global_transform(camera_entity)
+        .core
+        .get_global_transform(camera_entity)
         .map(|t| t.translation())
         .unwrap_or(Vec3::zeros());
 
@@ -959,7 +966,10 @@ fn teleport_player_to_camera(game: &ImmersiveSim, world: &mut World) {
     }
     world.mark_local_transform_dirty(player_entity);
 
-    let rigid_body_handle = world.core.get_rigid_body(player_entity).and_then(|rb| rb.handle);
+    let rigid_body_handle = world
+        .core
+        .get_rigid_body(player_entity)
+        .and_then(|rb| rb.handle);
 
     if let Some(handle) = rigid_body_handle
         && let Some(rigid_body) = world
@@ -1010,7 +1020,10 @@ fn respawn_player(game: &mut ImmersiveSim, world: &mut World) {
         }
         world.mark_local_transform_dirty(player_entity);
 
-        let rigid_body_handle = world.core.get_rigid_body(player_entity).and_then(|rb| rb.handle);
+        let rigid_body_handle = world
+            .core
+            .get_rigid_body(player_entity)
+            .and_then(|rb| rb.handle);
         if let Some(handle) = rigid_body_handle
             && let Some(rigid_body) = world
                 .resources

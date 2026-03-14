@@ -1454,7 +1454,8 @@ fn update_picking(world: &mut World, selected_entities: &mut Vec<Entity>) {
             let camera_entity = world.resources.active_camera;
 
             let found_entity = world
-                .core.query_entities(nightshade::ecs::RENDER_MESH | nightshade::ecs::GLOBAL_TRANSFORM)
+                .core
+                .query_entities(nightshade::ecs::RENDER_MESH | nightshade::ecs::GLOBAL_TRANSFORM)
                 .find(|entity| {
                     if entity.id != entity_id {
                         return false;
@@ -1742,7 +1743,8 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .core.set_name(entity, Name(format!("Dancer_{}", counter)));
+            .core
+            .set_name(entity, Name(format!("Dancer_{}", counter)));
 
         if let Some(player) = instance.world.core.get_animation_player_mut(entity) {
             player.play(0);
@@ -1787,7 +1789,8 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .core.set_name(entity, Name(format!("Helmet_{}", counter)));
+            .core
+            .set_name(entity, Name(format!("Helmet_{}", counter)));
 
         instance.dirty = true;
         tracing::info!("Spawned helmet {} in {}", counter, instance.name);
@@ -1827,7 +1830,8 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .core.set_name(entity, Name(format!("PointLight_{}", counter)));
+            .core
+            .set_name(entity, Name(format!("PointLight_{}", counter)));
 
         let sphere_entity = spawn_mesh(
             &mut instance.world,
@@ -1837,7 +1841,8 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .core.set_name(sphere_entity, Name(format!("LightBulb_{}", counter)));
+            .core
+            .set_name(sphere_entity, Name(format!("LightBulb_{}", counter)));
 
         let mat_name = format!("EmissiveLight_{}", counter);
         let mat = Material {
@@ -1853,7 +1858,8 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .core.set_material_ref(sphere_entity, MaterialRef::new(mat_name));
+            .core
+            .set_material_ref(sphere_entity, MaterialRef::new(mat_name));
 
         instance.dirty = true;
         tracing::info!("Spawned point light {} in {}", counter, instance.name);
@@ -1898,7 +1904,8 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .core.set_name(entity, Name(format!("SpotLight_{}", counter)));
+            .core
+            .set_name(entity, Name(format!("SpotLight_{}", counter)));
 
         let cone_entity = spawn_mesh(
             &mut instance.world,
@@ -1908,7 +1915,8 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .core.set_name(cone_entity, Name(format!("SpotLightCone_{}", counter)));
+            .core
+            .set_name(cone_entity, Name(format!("SpotLightCone_{}", counter)));
 
         let mat_name = format!("EmissiveSpot_{}", counter);
         let mat = Material {
@@ -1924,7 +1932,8 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .core.set_material_ref(cone_entity, MaterialRef::new(mat_name));
+            .core
+            .set_material_ref(cone_entity, MaterialRef::new(mat_name));
 
         instance.dirty = true;
         tracing::info!("Spawned spot light {} in {}", counter, instance.name);
@@ -1958,13 +1967,15 @@ impl MultiWorldDemo {
         let entity = spawn_3d_text_at(&mut instance.world, text, position, 0.4);
         instance
             .world
-            .core.set_name(entity, Name(format!("Text_{}", counter)));
+            .core
+            .set_name(entity, Name(format!("Text_{}", counter)));
 
         let colors = ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"];
         let color = colors[counter as usize % colors.len()];
         instance
             .world
-            .core.set_material_ref(entity, MaterialRef::new(color.to_string()));
+            .core
+            .set_material_ref(entity, MaterialRef::new(color.to_string()));
 
         instance.dirty = true;
         tracing::info!("Spawned text '{}' ({}) in {}", text, counter, instance.name);
@@ -1992,7 +2003,8 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .core.set_name(entity, Name(format!("Cube_{}", counter)));
+            .core
+            .set_name(entity, Name(format!("Cube_{}", counter)));
 
         let colors = [
             "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange", "White",
@@ -2000,7 +2012,8 @@ impl MultiWorldDemo {
         let color = colors[counter as usize % colors.len()];
         instance
             .world
-            .core.set_material_ref(entity, MaterialRef::new(color.to_string()));
+            .core
+            .set_material_ref(entity, MaterialRef::new(color.to_string()));
 
         let animated = AnimatedEntity {
             entity,
@@ -2042,7 +2055,8 @@ impl MultiWorldDemo {
         );
         instance
             .world
-            .core.set_name(entity, Name(format!("Sphere_{}", counter)));
+            .core
+            .set_name(entity, Name(format!("Sphere_{}", counter)));
 
         let colors = [
             "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange", "White",
@@ -2050,7 +2064,8 @@ impl MultiWorldDemo {
         let color = colors[counter as usize % colors.len()];
         instance
             .world
-            .core.set_material_ref(entity, MaterialRef::new(color.to_string()));
+            .core
+            .set_material_ref(entity, MaterialRef::new(color.to_string()));
 
         let animated = AnimatedEntity {
             entity,
@@ -2104,7 +2119,8 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .core.set_name(entity, Name(format!("TVScreen_{}", counter)));
+            .core
+            .set_name(entity, Name(format!("TVScreen_{}", counter)));
 
         let texture_name = if let Some(target_id) = target_world_id {
             format!("world_{}_render", target_id)
@@ -2129,7 +2145,8 @@ impl MultiWorldDemo {
 
         instance
             .world
-            .core.set_material_ref(entity, MaterialRef::new(material_name));
+            .core
+            .set_material_ref(entity, MaterialRef::new(material_name));
 
         instance.dirty = true;
         if let Some(target_id) = target_world_id {
@@ -2333,7 +2350,9 @@ fn spawn_floor(world: &mut World) {
         Vec3::new(20.0, 1.0, 20.0),
     );
     world.core.set_name(entity, Name("Floor".to_string()));
-    world.core.set_material_ref(entity, MaterialRef::new("White".to_string()));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new("White".to_string()));
 }
 
 fn spawn_scaled_cube(world: &mut World, position: Vec3, scale: Vec3, name: String) -> Entity {
@@ -2345,7 +2364,9 @@ fn spawn_scaled_cube(world: &mut World, position: Vec3, scale: Vec3, name: Strin
         "Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "Orange",
     ];
     let color_index = (entity.id as usize + name_len) % colors.len();
-    world.core.set_material_ref(entity, MaterialRef::new(colors[color_index].to_string()));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(colors[color_index].to_string()));
 
     entity
 }
@@ -2374,8 +2395,12 @@ fn spawn_point_light(
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_light(
         entity,
         Light {
@@ -2423,8 +2448,12 @@ fn spawn_spotlight(world: &mut World, params: SpotlightParams) -> Entity {
             scale: Vec3::new(1.0, 1.0, 1.0),
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_light(
         entity,
         Light {
@@ -2465,10 +2494,16 @@ fn spawn_3d_text_at(world: &mut World, text_str: &str, position: Vec3, size: f32
             scale: Vec3::new(size, size, size),
         },
     );
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
-    world.core.set_global_transform(entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_text(entity, Text::new(text_index));
-    world.core.set_visibility(entity, Visibility { visible: true });
+    world
+        .core
+        .set_visibility(entity, Visibility { visible: true });
 
     entity
 }
@@ -2524,7 +2559,9 @@ fn animate_objects_fixed(world: &mut World, total_time: f32, animated_entities: 
             }
         }
 
-        world.core.set_local_transform_dirty(anim.entity, LocalTransformDirty);
+        world
+            .core
+            .set_local_transform_dirty(anim.entity, LocalTransformDirty);
     }
 }
 

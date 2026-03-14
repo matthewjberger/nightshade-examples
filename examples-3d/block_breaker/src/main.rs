@@ -72,7 +72,9 @@ fn spawn_paddle(game_world: &mut GameWorld, world: &mut World, z_offset: f32) ->
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | POSITION | PADDLE, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(engine_entity));
@@ -112,7 +114,9 @@ fn spawn_ball(game_world: &mut GameWorld, world: &mut World, z_offset: f32) -> f
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | POSITION | VELOCITY | BALL, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(engine_entity));
@@ -154,7 +158,9 @@ fn spawn_brick(
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity = game_world.spawn_entities(ENTITY_HANDLE | POSITION | BRICK, 1)[0];
     game_world.set_entity_handle(game_entity, EntityHandle(engine_entity));
@@ -201,7 +207,9 @@ fn spawn_particle(
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(engine_entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(engine_entity, MaterialRef::new(material_name));
 
     let game_entity =
         game_world.spawn_entities(ENTITY_HANDLE | POSITION | VELOCITY | PARTICLE, 1)[0];
@@ -651,7 +659,9 @@ impl State for BlockBreakerGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(bottom, MaterialRef::new(bottom_mat_name));
+        world
+            .core
+            .set_material_ref(bottom, MaterialRef::new(bottom_mat_name));
 
         let top = spawn_mesh(
             world,
@@ -678,7 +688,9 @@ impl State for BlockBreakerGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(top, MaterialRef::new(top_mat_name));
+        world
+            .core
+            .set_material_ref(top, MaterialRef::new(top_mat_name));
 
         let left = spawn_mesh(
             world,
@@ -705,7 +717,9 @@ impl State for BlockBreakerGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(left, MaterialRef::new(left_mat_name));
+        world
+            .core
+            .set_material_ref(left, MaterialRef::new(left_mat_name));
 
         let right = spawn_mesh(
             world,
@@ -732,7 +746,9 @@ impl State for BlockBreakerGame {
                 .registry
                 .add_reference(index);
         }
-        world.core.set_material_ref(right, MaterialRef::new(right_mat_name));
+        world
+            .core
+            .set_material_ref(right, MaterialRef::new(right_mat_name));
 
         self.game_world.resources.score = 0;
         self.game_world.resources.lives = 3;

@@ -190,7 +190,9 @@ impl State for PickingDemoState {
                     .registry
                     .add_reference(index);
             };
-            world.core.set_material_ref(entity, MaterialRef::new(material_name));
+            world
+                .core
+                .set_material_ref(entity, MaterialRef::new(material_name));
 
             self.original_scales
                 .insert(entity, nalgebra_glm::vec3(1.0, 1.0, 1.0));
@@ -216,7 +218,9 @@ impl State for PickingDemoState {
                 1,
             )[0];
 
-            world.core.set_name(debug_entity, Name(format!("{} Debug Volume", name)));
+            world
+                .core
+                .set_name(debug_entity, Name(format!("{} Debug Volume", name)));
             world.core.set_local_transform(
                 debug_entity,
                 LocalTransform {
@@ -225,10 +229,16 @@ impl State for PickingDemoState {
                     ..Default::default()
                 },
             );
-            world.core.set_global_transform(debug_entity, GlobalTransform::default());
-            world.core.set_local_transform_dirty(debug_entity, LocalTransformDirty);
+            world
+                .core
+                .set_global_transform(debug_entity, GlobalTransform::default());
+            world
+                .core
+                .set_local_transform_dirty(debug_entity, LocalTransformDirty);
             world.core.set_lines(debug_entity, Lines::new(sphere_lines));
-            world.core.set_visibility(debug_entity, Visibility { visible: true });
+            world
+                .core
+                .set_visibility(debug_entity, Visibility { visible: true });
 
             self.debug_volumes.push(debug_entity);
 
@@ -253,17 +263,29 @@ impl State for PickingDemoState {
                     1,
                 )[0];
 
-                world.core.set_name(obb_entity, Name(format!("{} OBB Debug", name)));
-                world.core.set_local_transform(obb_entity, LocalTransform::default());
-                world.core.set_global_transform(obb_entity, GlobalTransform::default());
-                world.core.set_local_transform_dirty(obb_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_name(obb_entity, Name(format!("{} OBB Debug", name)));
+                world
+                    .core
+                    .set_local_transform(obb_entity, LocalTransform::default());
+                world
+                    .core
+                    .set_global_transform(obb_entity, GlobalTransform::default());
+                world
+                    .core
+                    .set_local_transform_dirty(obb_entity, LocalTransformDirty);
                 world.core.set_lines(obb_entity, Lines::new(obb_lines));
-                world.core.set_visibility(obb_entity, Visibility { visible: true });
+                world
+                    .core
+                    .set_visibility(obb_entity, Visibility { visible: true });
 
                 obb_entity
             } else {
                 let obb_entity = world.spawn_entities(NAME, 1)[0];
-                world.core.set_name(obb_entity, Name(format!("{} OBB Debug", name)));
+                world
+                    .core
+                    .set_name(obb_entity, Name(format!("{} OBB Debug", name)));
                 obb_entity
             };
 
@@ -342,24 +364,30 @@ impl State for PickingDemoState {
                     &nalgebra_glm::vec3(0.0, 1.0, 0.0),
                 );
                 transform.rotation = rotation * transform.rotation;
-                world.core.set_local_transform_dirty(*entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(*entity, LocalTransformDirty);
             }
 
             if i < self.debug_volumes.len() {
-                let mesh_position = if let Some(mesh_global) = world.core.get_global_transform(*entity) {
-                    nalgebra_glm::vec3(
-                        mesh_global.0[(0, 3)],
-                        mesh_global.0[(1, 3)],
-                        mesh_global.0[(2, 3)],
-                    )
-                } else {
-                    nalgebra_glm::vec3(0.0, 0.0, 0.0)
-                };
+                let mesh_position =
+                    if let Some(mesh_global) = world.core.get_global_transform(*entity) {
+                        nalgebra_glm::vec3(
+                            mesh_global.0[(0, 3)],
+                            mesh_global.0[(1, 3)],
+                            mesh_global.0[(2, 3)],
+                        )
+                    } else {
+                        nalgebra_glm::vec3(0.0, 0.0, 0.0)
+                    };
 
-                if let Some(debug_transform) = world.core.get_local_transform_mut(self.debug_volumes[i])
+                if let Some(debug_transform) =
+                    world.core.get_local_transform_mut(self.debug_volumes[i])
                 {
                     debug_transform.translation = mesh_position;
-                    world.core.set_local_transform_dirty(self.debug_volumes[i], LocalTransformDirty);
+                    world
+                        .core
+                        .set_local_transform_dirty(self.debug_volumes[i], LocalTransformDirty);
                 }
             }
         }
@@ -396,7 +424,9 @@ impl State for PickingDemoState {
         {
             if let Some(transform) = world.core.get_local_transform_mut(prev_hovered) {
                 transform.scale = self.original_scales[&prev_hovered];
-                world.core.set_local_transform_dirty(prev_hovered, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(prev_hovered, LocalTransformDirty);
             }
             if let Some(material_ref) = world.core.get_material_ref(prev_hovered) {
                 let name = material_ref.name.clone();
@@ -414,7 +444,9 @@ impl State for PickingDemoState {
         if let Some(hovered) = self.hovered_entity {
             if let Some(transform) = world.core.get_local_transform_mut(hovered) {
                 transform.scale = self.original_scales[&hovered] * 1.2;
-                world.core.set_local_transform_dirty(hovered, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(hovered, LocalTransformDirty);
             }
             if let Some(material_ref) = world.core.get_material_ref(hovered) {
                 let name = material_ref.name.clone();

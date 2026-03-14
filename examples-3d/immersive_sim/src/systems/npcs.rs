@@ -41,7 +41,9 @@ fn spawn_mesh(world: &mut World, mesh_name: &str, position: Vec3, scale: Vec3) -
 }
 
 fn mark_local_transform_dirty(world: &mut World, entity: Entity) {
-    world.core.set_local_transform_dirty(entity, LocalTransformDirty);
+    world
+        .core
+        .set_local_transform_dirty(entity, LocalTransformDirty);
 }
 
 pub fn sample_lowest_navmesh_height(world: &World, x: f32, z: f32) -> Option<f32> {
@@ -146,7 +148,9 @@ pub fn spawn_npcs(game: &mut ImmersiveSim, world: &mut World) {
                 .registry
                 .add_reference(mat_index);
         }
-        world.core.set_material_ref(visual, MaterialRef::new(mat_name));
+        world
+            .core
+            .set_material_ref(visual, MaterialRef::new(mat_name));
 
         game.npc_entities.push(visual);
     }
@@ -156,11 +160,13 @@ pub fn get_looked_at_npc(game: &ImmersiveSim, world: &World) -> Option<usize> {
     let camera_entity = game.camera_entity?;
 
     let camera_pos = world
-        .core.get_global_transform(camera_entity)
+        .core
+        .get_global_transform(camera_entity)
         .map(|t| t.translation())?;
 
     let camera_forward = world
-        .core.get_global_transform(camera_entity)
+        .core
+        .get_global_transform(camera_entity)
         .map(|t| t.forward_vector())?;
 
     let mut looked_at_npc: Option<usize> = None;
@@ -168,7 +174,8 @@ pub fn get_looked_at_npc(game: &ImmersiveSim, world: &World) -> Option<usize> {
 
     for (index, &npc_entity) in game.npc_entities.iter().enumerate() {
         let npc_pos = world
-            .core.get_local_transform(npc_entity)
+            .core
+            .get_local_transform(npc_entity)
             .map(|t| t.translation)
             .unwrap_or(Vec3::zeros());
 

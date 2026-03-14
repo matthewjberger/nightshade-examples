@@ -174,7 +174,9 @@ impl State for BloomDemo {
                 1,
             )[0];
 
-            world.core.set_name(light_entity, Name(format!("Moving Light {}", light_index)));
+            world
+                .core
+                .set_name(light_entity, Name(format!("Moving Light {}", light_index)));
             world.core.set_local_transform(
                 light_entity,
                 LocalTransform {
@@ -183,8 +185,12 @@ impl State for BloomDemo {
                     scale: Vec3::new(1.0, 1.0, 1.0),
                 },
             );
-            world.core.set_local_transform_dirty(light_entity, LocalTransformDirty);
-            world.core.set_global_transform(light_entity, GlobalTransform::default());
+            world
+                .core
+                .set_local_transform_dirty(light_entity, LocalTransformDirty);
+            world
+                .core
+                .set_global_transform(light_entity, GlobalTransform::default());
             world.core.set_light(
                 light_entity,
                 Light {
@@ -290,7 +296,9 @@ impl State for BloomDemo {
                 let mut new_transform = *transform;
                 new_transform.translation = new_position;
                 world.core.set_local_transform(light_entity, new_transform);
-                world.core.set_local_transform_dirty(light_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(light_entity, LocalTransformDirty);
             }
 
             if let Some(&sphere_entity) = self.light_spheres.get(light_index)
@@ -299,7 +307,9 @@ impl State for BloomDemo {
                 let mut new_transform = *transform;
                 new_transform.translation = new_position;
                 world.core.set_local_transform(sphere_entity, new_transform);
-                world.core.set_local_transform_dirty(sphere_entity, LocalTransformDirty);
+                world
+                    .core
+                    .set_local_transform_dirty(sphere_entity, LocalTransformDirty);
             }
         }
     }
@@ -380,7 +390,9 @@ fn spawn_mesh_with_material(
             .registry
             .add_reference(index);
     };
-    world.core.set_material_ref(entity, MaterialRef::new(material_name));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
     entity
 }
 

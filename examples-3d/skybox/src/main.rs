@@ -29,7 +29,9 @@ impl State for SkyboxDemo {
             1,
         )[0];
 
-        world.core.set_name(camera_entity, Name("Main Camera".to_string()));
+        world
+            .core
+            .set_name(camera_entity, Name("Main Camera".to_string()));
         world.core.set_local_transform(
             camera_entity,
             LocalTransform {
@@ -38,8 +40,12 @@ impl State for SkyboxDemo {
                 ..Default::default()
             },
         );
-        world.core.set_global_transform(camera_entity, GlobalTransform::default());
-        world.core.set_local_transform_dirty(camera_entity, LocalTransformDirty);
+        world
+            .core
+            .set_global_transform(camera_entity, GlobalTransform::default());
+        world
+            .core
+            .set_local_transform_dirty(camera_entity, LocalTransformDirty);
         world.core.set_camera(
             camera_entity,
             Camera {

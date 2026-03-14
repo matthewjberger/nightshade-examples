@@ -201,7 +201,9 @@ fn spawn_trees(game_world: &mut GameWorld, world: &mut World) {
                     .registry
                     .add_reference(mat_index);
             }
-            world.core.set_material_ref(cone, MaterialRef::new(cone_material_name));
+            world
+                .core
+                .set_material_ref(cone, MaterialRef::new(cone_material_name));
             world.core.set_casts_shadow(cone, CastsShadow);
         }
 
@@ -279,11 +281,21 @@ fn spawn_trees(game_world: &mut GameWorld, world: &mut World) {
         LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | LINES | VISIBILITY,
         1,
     )[0];
-    world.core.set_local_transform(string_lights_entity, LocalTransform::default());
-    world.core.set_global_transform(string_lights_entity, GlobalTransform::default());
-    world.core.set_local_transform_dirty(string_lights_entity, LocalTransformDirty);
-    world.core.set_lines(string_lights_entity, Lines::new(all_string_lights));
-    world.core.set_visibility(string_lights_entity, Visibility { visible: true });
+    world
+        .core
+        .set_local_transform(string_lights_entity, LocalTransform::default());
+    world
+        .core
+        .set_global_transform(string_lights_entity, GlobalTransform::default());
+    world
+        .core
+        .set_local_transform_dirty(string_lights_entity, LocalTransformDirty);
+    world
+        .core
+        .set_lines(string_lights_entity, Lines::new(all_string_lights));
+    world
+        .core
+        .set_visibility(string_lights_entity, Visibility { visible: true });
     game_world.resources.string_lights_entity = Some(freecs::Entity {
         id: string_lights_entity.id,
         generation: string_lights_entity.generation,
@@ -316,7 +328,9 @@ fn spawn_bauble(
             scale: Vec3::new(size, size, size),
         },
     );
-    world.core.set_render_mesh(bauble, RenderMesh::new("Sphere"));
+    world
+        .core
+        .set_render_mesh(bauble, RenderMesh::new("Sphere"));
 
     let bauble_material_name = format!("Bauble_{}_{}_{}", tree_index, tier, bauble_index);
     material_registry_insert(
@@ -343,7 +357,9 @@ fn spawn_bauble(
             .registry
             .add_reference(mat_index);
     }
-    world.core.set_material_ref(bauble, MaterialRef::new(bauble_material_name));
+    world
+        .core
+        .set_material_ref(bauble, MaterialRef::new(bauble_material_name));
     world.core.set_casts_shadow(bauble, CastsShadow);
 
     let sparkle_gradient = ColorGradient {
@@ -453,7 +469,9 @@ fn spawn_tree_star(
             .registry
             .add_reference(mat_index);
     }
-    world.core.set_material_ref(star, MaterialRef::new(star_material_name));
+    world
+        .core
+        .set_material_ref(star, MaterialRef::new(star_material_name));
     world.core.set_casts_shadow(star, CastsShadow);
 }
 
@@ -526,7 +544,9 @@ fn spawn_rocks(game_world: &GameWorld, world: &mut World) {
                 .registry
                 .add_reference(mat_index);
         }
-        world.core.set_material_ref(rock, MaterialRef::new(material_name));
+        world
+            .core
+            .set_material_ref(rock, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(rock) {
             *bv = BoundingVolume::from_mesh_type("Sphere");
@@ -544,7 +564,9 @@ fn spawn_rocks(game_world: &GameWorld, world: &mut World) {
         }
 
         world.core.set_casts_shadow(rock, CastsShadow);
-        world.core.set_visibility(rock, Visibility { visible: true });
+        world
+            .core
+            .set_visibility(rock, Visibility { visible: true });
     }
 }
 
@@ -626,7 +648,9 @@ fn spawn_campfire_logs(world: &mut World, campfire_x: f32, campfire_z: f32, terr
                 .registry
                 .add_reference(mat_index);
         }
-        world.core.set_material_ref(log, MaterialRef::new(log_material_name));
+        world
+            .core
+            .set_material_ref(log, MaterialRef::new(log_material_name));
         world.core.set_casts_shadow(log, CastsShadow);
     }
 }

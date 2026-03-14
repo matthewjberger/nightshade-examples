@@ -19,7 +19,9 @@ pub fn spawn_city_mesh(world: &mut World, mesh_name: &str, position: Vec3, scale
         transform.scale = scale;
     }
 
-    world.core.set_render_mesh(entity, RenderMesh::new(mesh_name));
+    world
+        .core
+        .set_render_mesh(entity, RenderMesh::new(mesh_name));
     mark_local_transform_dirty(world, entity);
 
     if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
@@ -249,5 +251,7 @@ pub fn apply_material(world: &mut World, entity: Entity, name: &str) {
             .registry
             .add_reference(index);
     }
-    world.core.set_material_ref(entity, MaterialRef::new(name.to_string()));
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(name.to_string()));
 }

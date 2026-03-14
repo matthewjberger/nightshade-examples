@@ -74,11 +74,10 @@ fn spawn_fps_display(world: &mut World) -> Entity {
         outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
         ..Default::default()
     };
-    spawn_hud_text_with_properties(
+    spawn_ui_text_with_properties(
         world,
         "",
-        HudAnchor::TopRight,
-        nalgebra_glm::vec2(-10.0, 10.0),
+            nalgebra_glm::Vec2::zeros(),
         props,
     )
 }
@@ -87,7 +86,7 @@ fn fps_display_system(world: &mut World, entity: Entity, visible: bool) {
     if !visible {
         return;
     }
-    let Some(text_index) = world.core.get_hud_text(entity).map(|t| t.text_index) else {
+    let Some(text_index) = world.core.get_text(entity).map(|t| t.text_index) else {
         return;
     };
     let fps = world.resources.window.timing.frames_per_second;
@@ -95,13 +94,13 @@ fn fps_display_system(world: &mut World, entity: Entity, visible: bool) {
         .resources
         .text_cache
         .set_text(text_index, format!("FPS: {:.0}", fps));
-    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+    if let Some(hud_text) = world.core.get_text_mut(entity) {
         hud_text.dirty = true;
     }
 }
 
 fn toggle_fps_display(world: &mut World, entity: Entity, visible: bool) {
-    let Some(text_index) = world.core.get_hud_text(entity).map(|t| t.text_index) else {
+    let Some(text_index) = world.core.get_text(entity).map(|t| t.text_index) else {
         return;
     };
     if visible {
@@ -113,7 +112,7 @@ fn toggle_fps_display(world: &mut World, entity: Entity, visible: bool) {
     } else {
         world.resources.text_cache.set_text(text_index, "");
     }
-    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+    if let Some(hud_text) = world.core.get_text_mut(entity) {
         hud_text.dirty = true;
     }
 }

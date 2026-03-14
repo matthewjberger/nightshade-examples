@@ -200,11 +200,10 @@ impl State for FireworksDemo {
         Self::load_all_particle_textures(world);
         self.spawn_all_sprite_effects(world);
 
-        spawn_hud_text_with_properties(
+        spawn_ui_text_with_properties(
             world,
             "GPU Particle System - Fireworks Demo\nMouse: Orbit | Scroll: Zoom | Space: Launch | 1-4: Salvo | ESC: Exit",
-            HudAnchor::TopCenter,
-            Vec2::new(0.0, 20.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 18.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 0.9),

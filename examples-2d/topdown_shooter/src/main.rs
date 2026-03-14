@@ -678,26 +678,26 @@ impl TopdownShooter {
 
     fn update_hud(&self, world: &mut World) {
         if let Some(score_entity) = self.score_hud {
-            let text_index = world.core.get_hud_text(score_entity).map(|text| text.text_index);
+            let text_index = world.core.get_text(score_entity).map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
                     format!("Score: {}  Kills: {}", self.score, self.kills),
                 );
-                if let Some(hud_text) = world.core.get_hud_text_mut(score_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(score_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(wave_entity) = self.wave_hud {
-            let text_index = world.core.get_hud_text(wave_entity).map(|text| text.text_index);
+            let text_index = world.core.get_text(wave_entity).map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("Wave {}", self.wave));
-                if let Some(hud_text) = world.core.get_hud_text_mut(wave_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(wave_entity) {
                     hud_text.dirty = true;
                 }
             }
@@ -705,7 +705,7 @@ impl TopdownShooter {
 
         if let Some(message_entity) = self.message_hud {
             let text_index = world
-                .core.get_hud_text(message_entity)
+                .core.get_text(message_entity)
                 .map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 let message = match self.phase {
@@ -713,7 +713,7 @@ impl TopdownShooter {
                     GamePhase::GameOver => "GAME OVER - Press R to restart".to_string(),
                 };
                 world.resources.text_cache.set_text(text_index, message);
-                if let Some(hud_text) = world.core.get_hud_text_mut(message_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(message_entity) {
                     hud_text.dirty = true;
                 }
             }
@@ -768,11 +768,10 @@ impl State for TopdownShooter {
             self.initialized = true;
             self.build_arena(world);
 
-            self.score_hud = Some(spawn_hud_text_with_properties(
+            self.score_hud = Some(spawn_ui_text_with_properties(
                 world,
                 "Score: 0  Kills: 0",
-                HudAnchor::TopLeft,
-                Vec2::new(10.0, 10.0),
+                Vec2::zeros(),
                 TextProperties {
                     font_size: 28.0,
                     color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -780,11 +779,10 @@ impl State for TopdownShooter {
                 },
             ));
 
-            self.wave_hud = Some(spawn_hud_text_with_properties(
+            self.wave_hud = Some(spawn_ui_text_with_properties(
                 world,
                 "Wave 1",
-                HudAnchor::TopRight,
-                Vec2::new(-10.0, 10.0),
+                Vec2::zeros(),
                 TextProperties {
                     font_size: 32.0,
                     color: Vec4::new(1.0, 0.3, 0.3, 1.0),
@@ -792,11 +790,10 @@ impl State for TopdownShooter {
                 },
             ));
 
-            self.message_hud = Some(spawn_hud_text_with_properties(
+            self.message_hud = Some(spawn_ui_text_with_properties(
                 world,
                 "WASD: Move  Mouse: Aim  Click: Shoot",
-                HudAnchor::BottomLeft,
-                Vec2::new(10.0, -10.0),
+                Vec2::zeros(),
                 TextProperties {
                     font_size: 22.0,
                     color: Vec4::new(0.8, 0.8, 0.8, 1.0),

@@ -146,7 +146,7 @@ pub fn update_tower_selection_hud(game_world: &mut GameWorld, world: &mut World)
                 nalgebra_glm::vec4(base_color.x, base_color.y, base_color.z, 0.7)
             };
 
-            if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+            if let Some(hud_text) = world.core.get_text_mut(entity) {
                 hud_text.properties.color = text_color;
                 hud_text.dirty = true;
             }

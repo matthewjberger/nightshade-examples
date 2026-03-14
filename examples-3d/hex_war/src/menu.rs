@@ -1,6 +1,11 @@
 use crate::ecs::{Difficulty, Faction, faction_color, faction_name};
 use nightshade::prelude::*;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Anchor {
+    Center,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum MenuState {
     #[default]
@@ -42,7 +47,7 @@ pub enum MenuAction {
 pub struct MenuButton {
     pub entity: Entity,
     pub position: nalgebra_glm::Vec2,
-    pub anchor: HudAnchor,
+    pub anchor: Anchor,
     pub width: f32,
     pub height: f32,
     pub base_color: nalgebra_glm::Vec4,
@@ -88,11 +93,10 @@ pub fn setup_main_menu(menu: &mut MenuData, world: &mut World) {
         ..Default::default()
     };
 
-    menu.title_entity = Some(spawn_hud_text_with_properties(
+    menu.title_entity = Some(spawn_ui_text_with_properties(
         world,
         "HEX WAR",
-        HudAnchor::Center,
-        nalgebra_glm::vec2(0.0, -100.0),
+        nalgebra_glm::Vec2::zeros(),
         title_props,
     ));
 
@@ -100,14 +104,14 @@ pub fn setup_main_menu(menu: &mut MenuData, world: &mut World) {
         world,
         "NEW GAME",
         nalgebra_glm::vec2(0.0, 0.0),
-        HudAnchor::Center,
+        Anchor::Center,
         48.0,
     ));
     menu.main_menu_buttons.push(create_button(
         world,
         "QUIT",
         nalgebra_glm::vec2(0.0, 60.0),
-        HudAnchor::Center,
+        Anchor::Center,
         48.0,
     ));
 }
@@ -124,11 +128,10 @@ pub fn setup_pause_menu(menu: &mut MenuData, world: &mut World) {
         ..Default::default()
     };
 
-    menu.title_entity = Some(spawn_hud_text_with_properties(
+    menu.title_entity = Some(spawn_ui_text_with_properties(
         world,
         "PAUSED",
-        HudAnchor::Center,
-        nalgebra_glm::vec2(0.0, -100.0),
+        nalgebra_glm::Vec2::zeros(),
         title_props,
     ));
 
@@ -136,14 +139,14 @@ pub fn setup_pause_menu(menu: &mut MenuData, world: &mut World) {
         world,
         "RESUME",
         nalgebra_glm::vec2(0.0, -20.0),
-        HudAnchor::Center,
+        Anchor::Center,
         40.0,
     ));
     menu.pause_menu_buttons.push(create_button(
         world,
         "MAIN MENU",
         nalgebra_glm::vec2(0.0, 40.0),
-        HudAnchor::Center,
+        Anchor::Center,
         40.0,
     ));
 }
@@ -196,11 +199,10 @@ pub fn setup_map_setup_menu(menu: &mut MenuData, world: &mut World) {
         ..Default::default()
     };
 
-    menu.title_entity = Some(spawn_hud_text_with_properties(
+    menu.title_entity = Some(spawn_ui_text_with_properties(
         world,
         "MAP SETUP",
-        HudAnchor::Center,
-        nalgebra_glm::vec2(0.0, -150.0),
+        nalgebra_glm::Vec2::zeros(),
         title_props,
     ));
 
@@ -213,11 +215,10 @@ pub fn setup_map_setup_menu(menu: &mut MenuData, world: &mut World) {
         ..Default::default()
     };
 
-    menu.difficulty_label_entity = Some(spawn_hud_text_with_properties(
+    menu.difficulty_label_entity = Some(spawn_ui_text_with_properties(
         world,
         "DIFFICULTY",
-        HudAnchor::Center,
-        nalgebra_glm::vec2(0.0, -100.0),
+        nalgebra_glm::Vec2::zeros(),
         difficulty_label_props,
     ));
 
@@ -225,7 +226,7 @@ pub fn setup_map_setup_menu(menu: &mut MenuData, world: &mut World) {
         world,
         "EASY",
         nalgebra_glm::vec2(-120.0, -60.0),
-        HudAnchor::Center,
+        Anchor::Center,
         32.0,
         menu.selected_difficulty == Difficulty::Easy,
     ));
@@ -233,7 +234,7 @@ pub fn setup_map_setup_menu(menu: &mut MenuData, world: &mut World) {
         world,
         "NORMAL",
         nalgebra_glm::vec2(0.0, -60.0),
-        HudAnchor::Center,
+        Anchor::Center,
         32.0,
         menu.selected_difficulty == Difficulty::Normal,
     ));
@@ -241,7 +242,7 @@ pub fn setup_map_setup_menu(menu: &mut MenuData, world: &mut World) {
         world,
         "HARD",
         nalgebra_glm::vec2(120.0, -60.0),
-        HudAnchor::Center,
+        Anchor::Center,
         32.0,
         menu.selected_difficulty == Difficulty::Hard,
     ));
@@ -250,21 +251,21 @@ pub fn setup_map_setup_menu(menu: &mut MenuData, world: &mut World) {
         world,
         "NEW MAP",
         nalgebra_glm::vec2(0.0, 0.0),
-        HudAnchor::Center,
+        Anchor::Center,
         48.0,
     ));
     menu.map_setup_buttons.push(create_button(
         world,
         "START GAME",
         nalgebra_glm::vec2(0.0, 60.0),
-        HudAnchor::Center,
+        Anchor::Center,
         48.0,
     ));
     menu.map_setup_buttons.push(create_button(
         world,
         "BACK",
         nalgebra_glm::vec2(0.0, 120.0),
-        HudAnchor::Center,
+        Anchor::Center,
         40.0,
     ));
 }
@@ -368,7 +369,7 @@ fn create_button(
     world: &mut World,
     label: &str,
     position: nalgebra_glm::Vec2,
-    anchor: HudAnchor,
+    anchor: Anchor,
     font_size: f32,
 ) -> MenuButton {
     let base_color = nalgebra_glm::vec4(0.8, 0.8, 0.8, 1.0);
@@ -383,7 +384,7 @@ fn create_button(
         ..Default::default()
     };
 
-    let entity = spawn_hud_text_with_properties(world, label, anchor, position, props);
+    let entity = spawn_ui_text_with_properties(world, label, nalgebra_glm::Vec2::zeros(), props);
 
     let char_width = font_size * 0.55;
     let width = label.len() as f32 * char_width;
@@ -404,7 +405,7 @@ fn create_difficulty_button(
     world: &mut World,
     label: &str,
     position: nalgebra_glm::Vec2,
-    anchor: HudAnchor,
+    anchor: Anchor,
     font_size: f32,
     selected: bool,
 ) -> MenuButton {
@@ -424,7 +425,7 @@ fn create_difficulty_button(
         ..Default::default()
     };
 
-    let entity = spawn_hud_text_with_properties(world, label, anchor, position, props);
+    let entity = spawn_ui_text_with_properties(world, label, nalgebra_glm::Vec2::zeros(), props);
 
     let char_width = font_size * 0.55;
     let width = label.len() as f32 * char_width;
@@ -462,7 +463,7 @@ fn update_buttons_hover(
     if current_hovered != previous_hovered {
         if let Some(prev_index) = previous_hovered
             && let Some(button) = buttons.get(prev_index)
-            && let Some(hud_text) = world.core.get_hud_text_mut(button.entity)
+            && let Some(hud_text) = world.core.get_text_mut(button.entity)
         {
             hud_text.properties.color = button.base_color;
             hud_text.dirty = true;
@@ -470,7 +471,7 @@ fn update_buttons_hover(
 
         if let Some(curr_index) = current_hovered
             && let Some(button) = buttons.get(curr_index)
-            && let Some(hud_text) = world.core.get_hud_text_mut(button.entity)
+            && let Some(hud_text) = world.core.get_text_mut(button.entity)
         {
             hud_text.properties.color = button.hover_color;
             hud_text.dirty = true;
@@ -488,15 +489,11 @@ fn is_point_in_bounds(
     screen_height: f32,
 ) -> bool {
     let base_x = match button.anchor {
-        HudAnchor::TopLeft | HudAnchor::CenterLeft | HudAnchor::BottomLeft => 0.0,
-        HudAnchor::TopCenter | HudAnchor::Center | HudAnchor::BottomCenter => screen_width * 0.5,
-        HudAnchor::TopRight | HudAnchor::CenterRight | HudAnchor::BottomRight => screen_width,
+        Anchor::Center => screen_width * 0.5,
     };
 
     let base_y = match button.anchor {
-        HudAnchor::TopLeft | HudAnchor::TopCenter | HudAnchor::TopRight => 0.0,
-        HudAnchor::CenterLeft | HudAnchor::Center | HudAnchor::CenterRight => screen_height * 0.5,
-        HudAnchor::BottomLeft | HudAnchor::BottomCenter | HudAnchor::BottomRight => screen_height,
+        Anchor::Center => screen_height * 0.5,
     };
 
     let screen_x = base_x + button.position.x;
@@ -534,11 +531,10 @@ pub fn setup_game_over_menu(
         ..Default::default()
     };
 
-    menu.title_entity = Some(spawn_hud_text_with_properties(
+    menu.title_entity = Some(spawn_ui_text_with_properties(
         world,
         title_text,
-        HudAnchor::Center,
-        nalgebra_glm::vec2(0.0, -120.0),
+        nalgebra_glm::Vec2::zeros(),
         title_props,
     ));
 
@@ -560,11 +556,10 @@ pub fn setup_game_over_menu(
         ..Default::default()
     };
 
-    menu.subtitle_entity = Some(spawn_hud_text_with_properties(
+    menu.subtitle_entity = Some(spawn_ui_text_with_properties(
         world,
         &subtitle_text,
-        HudAnchor::Center,
-        nalgebra_glm::vec2(0.0, -60.0),
+        nalgebra_glm::Vec2::zeros(),
         subtitle_props,
     ));
 
@@ -572,14 +567,14 @@ pub fn setup_game_over_menu(
         world,
         "NEW GAME",
         nalgebra_glm::vec2(0.0, 20.0),
-        HudAnchor::Center,
+        Anchor::Center,
         48.0,
     ));
     menu.game_over_buttons.push(create_button(
         world,
         "MAIN MENU",
         nalgebra_glm::vec2(0.0, 80.0),
-        HudAnchor::Center,
+        Anchor::Center,
         40.0,
     ));
 }

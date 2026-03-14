@@ -1,4 +1,5 @@
 use nightshade::ecs::input::resources::mouse::MouseState;
+use nightshade::ecs::text::components::TextProperties;
 use nightshade::ecs::world::commands::WorldCommand;
 use nightshade::prelude::*;
 use nightshade::render::{
@@ -1676,16 +1677,16 @@ impl GfxDemo {
     }
 
     fn build_labels(&mut self, world: &mut World) {
-        let title = spawn_sprite_text(
+        spawn_ui_text_with_properties(
             world,
             "2D Graphics Primitives",
             Vec2::new(-130.0, 300.0),
-            22.0,
+            TextProperties {
+                font_size: 22.0,
+                color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+                ..Default::default()
+            },
         );
-        if let Some(text) = world.sprite2d.get_sprite_text_mut(title) {
-            text.color = [1.0, 1.0, 1.0, 1.0];
-            text.depth = 1.0;
-        }
 
         let row_1_label_y = ROW_1_Y + 55.0;
         let row_1_labels: &[(&str, f32)] = &[
@@ -1699,16 +1700,16 @@ impl GfxDemo {
 
         for &(label, center_x) in row_1_labels {
             let offset_x = label.len() as f32 * -3.5;
-            let entity = spawn_sprite_text(
+            spawn_ui_text_with_properties(
                 world,
                 label,
                 Vec2::new(center_x + offset_x, row_1_label_y),
-                11.0,
+                TextProperties {
+                    font_size: 11.0,
+                    color: Vec4::new(0.6, 0.6, 0.6, 1.0),
+                    ..Default::default()
+                },
             );
-            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
-                text.color = [0.6, 0.6, 0.6, 1.0];
-                text.depth = 1.0;
-            }
         }
 
         let row_2_label_y = ROW_2_Y + 55.0;
@@ -1723,16 +1724,16 @@ impl GfxDemo {
 
         for &(label, center_x) in row_2_labels {
             let offset_x = label.len() as f32 * -3.5;
-            let entity = spawn_sprite_text(
+            spawn_ui_text_with_properties(
                 world,
                 label,
                 Vec2::new(center_x + offset_x, row_2_label_y),
-                11.0,
+                TextProperties {
+                    font_size: 11.0,
+                    color: Vec4::new(0.6, 0.6, 0.6, 1.0),
+                    ..Default::default()
+                },
             );
-            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
-                text.color = [0.6, 0.6, 0.6, 1.0];
-                text.depth = 1.0;
-            }
         }
 
         let row_3_label_y = ROW_3_Y + 55.0;
@@ -1747,16 +1748,16 @@ impl GfxDemo {
 
         for &(label, center_x) in row_3_labels {
             let offset_x = label.len() as f32 * -3.5;
-            let entity = spawn_sprite_text(
+            spawn_ui_text_with_properties(
                 world,
                 label,
                 Vec2::new(center_x + offset_x, row_3_label_y),
-                11.0,
+                TextProperties {
+                    font_size: 11.0,
+                    color: Vec4::new(0.6, 0.6, 0.6, 1.0),
+                    ..Default::default()
+                },
             );
-            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
-                text.color = [0.6, 0.6, 0.6, 1.0];
-                text.depth = 1.0;
-            }
         }
 
         let row_4_label_y = ROW_4_Y + 55.0;
@@ -1770,16 +1771,16 @@ impl GfxDemo {
 
         for &(label, center_x) in row_4_labels {
             let offset_x = label.len() as f32 * -3.5;
-            let entity = spawn_sprite_text(
+            spawn_ui_text_with_properties(
                 world,
                 label,
                 Vec2::new(center_x + offset_x, row_4_label_y),
-                11.0,
+                TextProperties {
+                    font_size: 11.0,
+                    color: Vec4::new(0.6, 0.6, 0.6, 1.0),
+                    ..Default::default()
+                },
             );
-            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
-                text.color = [0.6, 0.6, 0.6, 1.0];
-                text.depth = 1.0;
-            }
         }
 
         let row_5_label_y = ROW_5_Y + 55.0;
@@ -1794,28 +1795,28 @@ impl GfxDemo {
 
         for &(label, center_x) in row_5_labels {
             let offset_x = label.len() as f32 * -3.5;
-            let entity = spawn_sprite_text(
+            spawn_ui_text_with_properties(
                 world,
                 label,
                 Vec2::new(center_x + offset_x, row_5_label_y),
-                11.0,
+                TextProperties {
+                    font_size: 11.0,
+                    color: Vec4::new(0.6, 0.6, 0.6, 1.0),
+                    ..Default::default()
+                },
             );
-            if let Some(text) = world.sprite2d.get_sprite_text_mut(entity) {
-                text.color = [0.6, 0.6, 0.6, 1.0];
-                text.depth = 1.0;
-            }
         }
 
-        let instructions = spawn_sprite_text(
+        spawn_ui_text_with_properties(
             world,
             "Click to spawn | Scroll: switch shape | Shift+Scroll: zoom | C: clear",
             Vec2::new(-270.0, -560.0),
-            11.0,
+            TextProperties {
+                font_size: 11.0,
+                color: Vec4::new(0.5, 0.5, 0.5, 1.0),
+                ..Default::default()
+            },
         );
-        if let Some(text) = world.sprite2d.get_sprite_text_mut(instructions) {
-            text.color = [0.5, 0.5, 0.5, 1.0];
-            text.depth = 1.0;
-        }
     }
 
     fn apply_tweens(&self, world: &mut World) {

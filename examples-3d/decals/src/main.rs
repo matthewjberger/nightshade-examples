@@ -160,11 +160,10 @@ impl State for DecalsDemo {
         world.core.set_global_transform(preview_entity, GlobalTransform::default());
         self.preview_lines_entity = Some(preview_entity);
 
-        spawn_hud_text_with_properties(
+        spawn_ui_text_with_properties(
             world,
             "Left Click: Place Decal | Tab: Cycle Type | R: Random | C: Clear | H: Help",
-            HudAnchor::BottomCenter,
-            Vec2::new(0.0, -20.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 18.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 1.0),

@@ -222,11 +222,10 @@ impl AudioDemo {
             Mouse - Look around\n\
             (Red sphere has reverb like a cave)";
 
-        let text_entity = spawn_hud_text_with_properties(
+        let text_entity = spawn_ui_text_with_properties(
             world,
             instructions,
-            HudAnchor::TopLeft,
-            Vec2::new(10.0, 10.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 20.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 1.0),

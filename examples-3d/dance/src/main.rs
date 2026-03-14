@@ -241,11 +241,10 @@ impl State for DanceState {
         world.resources.active_camera = Some(camera_entity);
         self.camera_entity = Some(camera_entity);
 
-        let fps_text = spawn_hud_text_with_properties(
+        let fps_text = spawn_ui_text_with_properties(
             world,
             "FPS: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 10.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 48.0,
                 color: Vec4::new(0.0, 1.0, 0.0, 1.0),
@@ -254,11 +253,10 @@ impl State for DanceState {
         );
         self.fps_hud_text = Some(fps_text);
 
-        let dancer_count_text = spawn_hud_text_with_properties(
+        let dancer_count_text = spawn_ui_text_with_properties(
             world,
             "Dancers: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 70.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 32.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -267,11 +265,10 @@ impl State for DanceState {
         );
         self.dancer_count_hud_text = Some(dancer_count_text);
 
-        let target_fps_text = spawn_hud_text_with_properties(
+        let target_fps_text = spawn_ui_text_with_properties(
             world,
             "Target FPS: 30",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 115.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 28.0,
                 color: Vec4::new(0.8, 0.8, 0.8, 1.0),
@@ -347,13 +344,13 @@ impl State for DanceState {
                 Vec4::new(1.0, 0.65, 0.0, 1.0)
             };
 
-            let text_index = world.core.get_hud_text(fps_text_entity).map(|t| t.text_index);
+            let text_index = world.core.get_text(fps_text_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("FPS: {:.0}", fps));
-                if let Some(hud_text) = world.core.get_hud_text_mut(fps_text_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(fps_text_entity) {
                     hud_text.properties.color = fps_color;
                     hud_text.dirty = true;
                 }
@@ -362,7 +359,7 @@ impl State for DanceState {
 
         if let Some(dancer_count_entity) = self.dancer_count_hud_text {
             let text_index = world
-                .core.get_hud_text(dancer_count_entity)
+                .core.get_text(dancer_count_entity)
                 .map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
@@ -372,20 +369,20 @@ impl State for DanceState {
                         format_number_with_commas(self.dancer_entities.len())
                     ),
                 );
-                if let Some(hud_text) = world.core.get_hud_text_mut(dancer_count_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(dancer_count_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(target_fps_entity) = self.target_fps_hud_text {
-            let text_index = world.core.get_hud_text(target_fps_entity).map(|t| t.text_index);
+            let text_index = world.core.get_text(target_fps_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("Target FPS: {:.0}", self.target_fps));
-                if let Some(hud_text) = world.core.get_hud_text_mut(target_fps_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(target_fps_entity) {
                     hud_text.dirty = true;
                 }
             }

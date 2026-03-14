@@ -1,4 +1,5 @@
 use nightshade::ecs::input::resources::mouse::MouseState;
+use nightshade::ecs::text::components::TextProperties;
 use nightshade::prelude::*;
 
 const SLOT_CIRCLE: u32 = 0;
@@ -227,11 +228,16 @@ impl SpriteShowcase {
                 sprite.color = [red, green, blue, 1.0];
             }
 
-            let label = spawn_sprite_text(world, name, Vec2::new(label_x, position_y - 5.0), 14.0);
-            if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
-                text.color = [red, green, blue, 1.0];
-                text.depth = 10.0;
-            }
+            spawn_ui_text_with_properties(
+                world,
+                name,
+                Vec2::new(label_x, position_y - 5.0),
+                TextProperties {
+                    font_size: 14.0,
+                    color: Vec4::new(red, green, blue, 1.0),
+                    ..Default::default()
+                },
+            );
 
             world.core.add_components(entity, TWEEN);
             let mut tween = Tween::new();

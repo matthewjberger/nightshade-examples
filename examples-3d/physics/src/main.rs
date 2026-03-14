@@ -8,9 +8,9 @@ use nightshade::ecs::physics::joints::{
 };
 use nightshade::ecs::physics::*;
 use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
-use nightshade::ecs::text::commands::spawn_hud_text;
+use nightshade::ecs::text::commands::spawn_ui_text;
 use nightshade::ecs::text::components::{
-    HudAnchor, TextAlignment, TextProperties, VerticalAlignment,
+    TextAlignment, TextProperties, VerticalAlignment,
 };
 use nightshade::ecs::transform::components::Parent;
 use nightshade::ecs::world::commands::spawn_3d_billboard_text_with_properties;
@@ -379,19 +379,18 @@ impl State for PhysicsDemo {
         self.spawn_exhibits(world);
 
         let prompt_entity =
-            spawn_hud_text(world, "", HudAnchor::TopLeft, nalgebra_glm::vec2(0.0, 0.0));
-        if let Some(hud_text) = world.core.get_hud_text(prompt_entity) {
+            spawn_ui_text(world, "", nalgebra_glm::Vec2::zeros());
+        if let Some(hud_text) = world.core.get_text(prompt_entity) {
             self.interaction_prompt_text_index = Some(hud_text.text_index);
         }
         self.interaction_prompt_entity = Some(prompt_entity);
 
-        let input_mode_entity = spawn_hud_text(
+        let input_mode_entity = spawn_ui_text(
             world,
             "Mouse/Keyboard",
-            HudAnchor::BottomRight,
-            nalgebra_glm::vec2(-20.0, -20.0),
+            nalgebra_glm::Vec2::zeros(),
         );
-        if let Some(hud_text) = world.core.get_hud_text(input_mode_entity) {
+        if let Some(hud_text) = world.core.get_text(input_mode_entity) {
             self.input_mode_text_index = Some(hud_text.text_index);
         }
         self.input_mode_text_entity = Some(input_mode_entity);
@@ -3889,7 +3888,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 };
                 world.resources.text_cache.set_text(text_index, text);
                 if let Some(entity) = self.input_mode_text_entity
-                    && let Some(hud_text) = world.core.get_hud_text_mut(entity)
+                    && let Some(hud_text) = world.core.get_text_mut(entity)
                 {
                     hud_text.dirty = true;
                 }
@@ -5191,7 +5190,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             || self.reading_note.is_some()
         {
             world.resources.text_cache.set_text(text_index, "");
-            if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
+            if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
                 hud_text.dirty = true;
             }
             return;
@@ -5292,18 +5291,8 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             ""
         };
 
-        let prompt_position = if self.input_mode == InputMode::Gamepad {
-            nalgebra_glm::vec2(
-                viewport_size.0 as f32 / 2.0 + 20.0,
-                viewport_size.1 as f32 / 2.0,
-            )
-        } else {
-            nalgebra_glm::vec2(mouse_pos.x + 15.0, mouse_pos.y + 15.0)
-        };
-
         world.resources.text_cache.set_text(text_index, prompt_text);
-        if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
-            hud_text.set_position(prompt_position);
+        if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
             hud_text.dirty = true;
         }
     }

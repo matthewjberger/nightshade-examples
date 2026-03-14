@@ -2871,11 +2871,10 @@ impl State for DemoSceneState {
         );
         self.title_text = Some(title);
 
-        spawn_hud_text_with_properties(
+        spawn_ui_text_with_properties(
             world,
             "DEMOSCENE\nWASD: Move | Mouse: Look | 1-5: Phase | Space: Next | ESC: Exit",
-            HudAnchor::TopCenter,
-            Vec2::new(0.0, 20.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 18.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 0.9),

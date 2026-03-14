@@ -218,11 +218,11 @@ fn texture_size_from_list(sizes: &[(f32, f32)], slot: u32) -> nalgebra_glm::Vec2
 
 fn update_hud_entity(world: &mut World, entity: Option<freecs::Entity>, text: &str) {
     if let Some(entity) = entity {
-        let text_index = world.core.get_hud_text(entity).map(|hud| hud.text_index);
+        let text_index = world.core.get_text(entity).map(|hud| hud.text_index);
         if let Some(text_index) = text_index {
             world.resources.text_cache.set_text(text_index, text);
-            if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
-                hud_text.dirty = true;
+            if let Some(text_component) = world.core.get_text_mut(entity) {
+                text_component.dirty = true;
             }
         }
     }
@@ -1289,59 +1289,52 @@ impl BulletHell {
             ..Default::default()
         };
 
-        self.score_hud = Some(spawn_hud_text_with_properties(
+        self.score_hud = Some(spawn_ui_text_with_properties(
             world,
             format!("Score: {}", self.score),
-            HudAnchor::TopLeft,
-            nalgebra_glm::Vec2::new(10.0, 10.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props.clone(),
         ));
 
-        self.lives_bombs_hud = Some(spawn_hud_text_with_properties(
+        self.lives_bombs_hud = Some(spawn_ui_text_with_properties(
             world,
             format!("Lives: {}  Bombs: {}", self.lives, self.bombs),
-            HudAnchor::TopLeft,
-            nalgebra_glm::Vec2::new(10.0, 36.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props.clone(),
         ));
 
-        self.power_hud = Some(spawn_hud_text_with_properties(
+        self.power_hud = Some(spawn_ui_text_with_properties(
             world,
             format!("Power: {}", self.power_level),
-            HudAnchor::TopLeft,
-            nalgebra_glm::Vec2::new(10.0, 62.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props.clone(),
         ));
 
-        self.wave_hud = Some(spawn_hud_text_with_properties(
+        self.wave_hud = Some(spawn_ui_text_with_properties(
             world,
             format!("Wave: {}", self.wave_number),
-            HudAnchor::TopLeft,
-            nalgebra_glm::Vec2::new(10.0, 88.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props.clone(),
         ));
 
-        self.fps_hud = Some(spawn_hud_text_with_properties(
+        self.fps_hud = Some(spawn_ui_text_with_properties(
             world,
             "FPS: 0",
-            HudAnchor::TopRight,
-            nalgebra_glm::Vec2::new(-10.0, 10.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props.clone(),
         ));
 
-        self.graze_hud = Some(spawn_hud_text_with_properties(
+        self.graze_hud = Some(spawn_ui_text_with_properties(
             world,
             format!("Graze: {}", self.graze_count),
-            HudAnchor::TopRight,
-            nalgebra_glm::Vec2::new(-10.0, 36.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props.clone(),
         ));
 
-        self.multiplier_hud = Some(spawn_hud_text_with_properties(
+        self.multiplier_hud = Some(spawn_ui_text_with_properties(
             world,
             format!("x{:.2}", self.multiplier),
-            HudAnchor::TopRight,
-            nalgebra_glm::Vec2::new(-10.0, 62.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props,
         ));
 
@@ -1352,11 +1345,10 @@ impl BulletHell {
             ..Default::default()
         };
 
-        self.center_text_hud = Some(spawn_hud_text_with_properties(
+        self.center_text_hud = Some(spawn_ui_text_with_properties(
             world,
             format!("WAVE {}", self.wave_number),
-            HudAnchor::Center,
-            nalgebra_glm::Vec2::new(0.0, 0.0),
+            nalgebra_glm::Vec2::zeros(),
             center_props,
         ));
     }

@@ -1688,11 +1688,10 @@ impl State for SdfDemo {
             }
         }
 
-        spawn_hud_text_with_properties(
+        spawn_ui_text_with_properties(
             world,
             "SDF Sculpt Demo\nWASD: Move | Right-Drag: Look | Left-Click: Sculpt | ESC: Exit",
-            HudAnchor::TopCenter,
-            Vec2::new(0.0, 20.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 18.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 0.9),
@@ -1703,11 +1702,10 @@ impl State for SdfDemo {
             },
         );
 
-        let fps_text = spawn_hud_text_with_properties(
+        let fps_text = spawn_ui_text_with_properties(
             world,
             "FPS: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 10.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 48.0,
                 color: Vec4::new(0.0, 1.0, 0.0, 1.0),
@@ -1724,13 +1722,13 @@ impl State for SdfDemo {
 
         if let Some(fps_text_entity) = self.fps_hud_text {
             let fps = world.resources.window.timing.frames_per_second;
-            let text_index = world.core.get_hud_text(fps_text_entity).map(|t| t.text_index);
+            let text_index = world.core.get_text(fps_text_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("FPS: {:.0}", fps));
-                if let Some(hud_text) = world.core.get_hud_text_mut(fps_text_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(fps_text_entity) {
                     hud_text.properties.color = if fps >= 56.0 {
                         Vec4::new(0.0, 1.0, 0.0, 1.0)
                     } else if fps >= 30.0 {

@@ -49,11 +49,10 @@ impl State for ImmersiveSim {
 
         spawn_sun_without_shadows(world);
 
-        let fps_text = spawn_hud_text_with_properties(
+        let fps_text = spawn_ui_text_with_properties(
             world,
             "FPS: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 10.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 48.0,
                 color: Vec4::new(0.0, 1.0, 0.0, 1.0),
@@ -225,13 +224,13 @@ impl State for ImmersiveSim {
 fn update_fps_text(game: &ImmersiveSim, world: &mut World) {
     if let Some(fps_text_entity) = game.fps_hud_text {
         let fps = world.resources.window.timing.frames_per_second;
-        let text_index = world.core.get_hud_text(fps_text_entity).map(|t| t.text_index);
+        let text_index = world.core.get_text(fps_text_entity).map(|t| t.text_index);
         if let Some(text_index) = text_index {
             world
                 .resources
                 .text_cache
                 .set_text(text_index, format!("FPS: {:.0}", fps));
-            if let Some(hud_text) = world.core.get_hud_text_mut(fps_text_entity) {
+            if let Some(hud_text) = world.core.get_text_mut(fps_text_entity) {
                 hud_text.dirty = true;
             }
         }

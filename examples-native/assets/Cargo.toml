@@ -6,6 +6,7 @@ edition = "2024"
 
 [dependencies]
 nightshade = { workspace = true, features = ["egui", "tracing", "fbx"] }
+egui_tiles = "0.14"
 image = "0.25"
 serde_json = "1"
 gltf-json = "1.4"

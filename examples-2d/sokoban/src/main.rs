@@ -670,26 +670,26 @@ impl Sokoban {
 
     fn update_hud(&self, world: &mut World) {
         if let Some(score_entity) = self.score_hud {
-            let text_index = world.core.get_hud_text(score_entity).map(|text| text.text_index);
+            let text_index = world.core.get_text(score_entity).map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
                     format!("Moves: {}  Pushes: {}", self.moves, self.pushes),
                 );
-                if let Some(hud_text) = world.core.get_hud_text_mut(score_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(score_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(level_entity) = self.level_hud {
-            let text_index = world.core.get_hud_text(level_entity).map(|text| text.text_index);
+            let text_index = world.core.get_text(level_entity).map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
                     format!("Level {}/{}", self.current_level + 1, LEVELS.len()),
                 );
-                if let Some(hud_text) = world.core.get_hud_text_mut(level_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(level_entity) {
                     hud_text.dirty = true;
                 }
             }
@@ -697,7 +697,7 @@ impl Sokoban {
 
         if let Some(message_entity) = self.message_hud {
             let text_index = world
-                .core.get_hud_text(message_entity)
+                .core.get_text(message_entity)
                 .map(|text| text.text_index);
             if let Some(text_index) = text_index {
                 let message = if self.level_complete {
@@ -710,7 +710,7 @@ impl Sokoban {
                     "Arrows: Move  Z: Undo  R: Restart  N: Next".to_string()
                 };
                 world.resources.text_cache.set_text(text_index, message);
-                if let Some(hud_text) = world.core.get_hud_text_mut(message_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(message_entity) {
                     hud_text.dirty = true;
                 }
             }
@@ -740,11 +740,10 @@ impl State for Sokoban {
             self.initialized = true;
             self.load_level(world);
 
-            self.score_hud = Some(spawn_hud_text_with_properties(
+            self.score_hud = Some(spawn_ui_text_with_properties(
                 world,
                 "Moves: 0  Pushes: 0",
-                HudAnchor::TopLeft,
-                Vec2::new(10.0, 10.0),
+                Vec2::zeros(),
                 TextProperties {
                     font_size: 28.0,
                     color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -752,11 +751,10 @@ impl State for Sokoban {
                 },
             ));
 
-            self.level_hud = Some(spawn_hud_text_with_properties(
+            self.level_hud = Some(spawn_ui_text_with_properties(
                 world,
                 "Level 1/5",
-                HudAnchor::TopRight,
-                Vec2::new(-10.0, 10.0),
+                Vec2::zeros(),
                 TextProperties {
                     font_size: 28.0,
                     color: Vec4::new(1.0, 1.0, 0.5, 1.0),
@@ -764,11 +762,10 @@ impl State for Sokoban {
                 },
             ));
 
-            self.message_hud = Some(spawn_hud_text_with_properties(
+            self.message_hud = Some(spawn_ui_text_with_properties(
                 world,
                 "Arrows: Move  Z: Undo  R: Restart  N: Next",
-                HudAnchor::BottomLeft,
-                Vec2::new(10.0, -10.0),
+                Vec2::zeros(),
                 TextProperties {
                     font_size: 22.0,
                     color: Vec4::new(0.8, 0.8, 0.8, 1.0),

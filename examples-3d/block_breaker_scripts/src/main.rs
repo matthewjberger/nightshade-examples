@@ -5,8 +5,8 @@ use nightshade::ecs::scene::{
     SceneMeshInstance, save_scene, spawn_scene,
 };
 use nightshade::ecs::script::components::{Script, ScriptSource};
-use nightshade::ecs::text::commands::spawn_hud_text_with_properties;
-use nightshade::ecs::text::components::{HudAnchor, TextAlignment, TextProperties};
+use nightshade::ecs::text::commands::spawn_ui_text_with_properties;
+use nightshade::ecs::text::components::{TextAlignment, TextProperties};
 use nightshade::ecs::transform::LocalTransform;
 use nightshade::prelude::*;
 use std::path::Path;
@@ -515,19 +515,17 @@ impl State for BlockBreakerScripts {
             ..Default::default()
         };
 
-        self.score_text = Some(spawn_hud_text_with_properties(
+        self.score_text = Some(spawn_ui_text_with_properties(
             world,
             "Score: 0",
-            HudAnchor::TopLeft,
-            nalgebra_glm::vec2(20.0, 20.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props.clone(),
         ));
 
-        self.lives_text = Some(spawn_hud_text_with_properties(
+        self.lives_text = Some(spawn_ui_text_with_properties(
             world,
             "Lives: 3",
-            HudAnchor::TopRight,
-            nalgebra_glm::vec2(-20.0, 20.0),
+            nalgebra_glm::Vec2::zeros(),
             hud_props.clone(),
         ));
 
@@ -540,11 +538,10 @@ impl State for BlockBreakerScripts {
             ..Default::default()
         };
 
-        self.message_text = Some(spawn_hud_text_with_properties(
+        self.message_text = Some(spawn_ui_text_with_properties(
             world,
             "",
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, 0.0),
+            nalgebra_glm::Vec2::zeros(),
             message_props,
         ));
 
@@ -557,11 +554,10 @@ impl State for BlockBreakerScripts {
             ..Default::default()
         };
 
-        self.start_text = Some(spawn_hud_text_with_properties(
+        self.start_text = Some(spawn_ui_text_with_properties(
             world,
             "Press W to start",
-            HudAnchor::BottomCenter,
-            nalgebra_glm::vec2(0.0, -40.0),
+            nalgebra_glm::Vec2::zeros(),
             start_props,
         ));
 
@@ -574,11 +570,10 @@ impl State for BlockBreakerScripts {
             ..Default::default()
         };
 
-        self.combo_text = Some(spawn_hud_text_with_properties(
+        self.combo_text = Some(spawn_ui_text_with_properties(
             world,
             "",
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -100.0),
+            nalgebra_glm::Vec2::zeros(),
             combo_props,
         ));
     }
@@ -597,33 +592,33 @@ impl State for BlockBreakerScripts {
         world.resources.script_runtime = runtime;
 
         if let Some(score_entity) = self.score_text
-            && let Some(hud_text) = world.core.get_hud_text(score_entity)
+            && let Some(hud_text) = world.core.get_text(score_entity)
         {
             let text_index = hud_text.text_index;
             world
                 .resources
                 .text_cache
                 .set_text(text_index, format!("Score: {}", score));
-            if let Some(hud_text) = world.core.get_hud_text_mut(score_entity) {
+            if let Some(hud_text) = world.core.get_text_mut(score_entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(lives_entity) = self.lives_text
-            && let Some(hud_text) = world.core.get_hud_text(lives_entity)
+            && let Some(hud_text) = world.core.get_text(lives_entity)
         {
             let text_index = hud_text.text_index;
             world
                 .resources
                 .text_cache
                 .set_text(text_index, format!("Lives: {}", lives.max(0)));
-            if let Some(hud_text) = world.core.get_hud_text_mut(lives_entity) {
+            if let Some(hud_text) = world.core.get_text_mut(lives_entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(combo_entity) = self.combo_text
-            && let Some(hud_text) = world.core.get_hud_text(combo_entity)
+            && let Some(hud_text) = world.core.get_text(combo_entity)
         {
             let text_index = hud_text.text_index;
             if combo > 1 {
@@ -634,13 +629,13 @@ impl State for BlockBreakerScripts {
             } else {
                 world.resources.text_cache.set_text(text_index, "");
             }
-            if let Some(hud_text) = world.core.get_hud_text_mut(combo_entity) {
+            if let Some(hud_text) = world.core.get_text_mut(combo_entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(message_entity) = self.message_text
-            && let Some(hud_text) = world.core.get_hud_text(message_entity)
+            && let Some(hud_text) = world.core.get_text(message_entity)
         {
             let text_index = hud_text.text_index;
             let message = if current_game_state > 1.5 && current_game_state < 2.5 {
@@ -651,13 +646,13 @@ impl State for BlockBreakerScripts {
                 ""
             };
             world.resources.text_cache.set_text(text_index, message);
-            if let Some(hud_text) = world.core.get_hud_text_mut(message_entity) {
+            if let Some(hud_text) = world.core.get_text_mut(message_entity) {
                 hud_text.dirty = true;
             }
         }
 
         if let Some(start_entity) = self.start_text
-            && let Some(hud_text) = world.core.get_hud_text(start_entity)
+            && let Some(hud_text) = world.core.get_text(start_entity)
         {
             let text_index = hud_text.text_index;
             let start_message = if current_game_state < 0.5 {
@@ -669,7 +664,7 @@ impl State for BlockBreakerScripts {
                 .resources
                 .text_cache
                 .set_text(text_index, start_message);
-            if let Some(hud_text) = world.core.get_hud_text_mut(start_entity) {
+            if let Some(hud_text) = world.core.get_text_mut(start_entity) {
                 hud_text.dirty = true;
             }
         }

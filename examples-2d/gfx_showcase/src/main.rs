@@ -1,3 +1,4 @@
+use nightshade::ecs::text::components::TextProperties;
 use nightshade::ecs::world::commands::WorldCommand;
 use nightshade::prelude::*;
 use nightshade::render::{
@@ -1676,16 +1677,16 @@ impl GfxShowcase {
             });
         }
 
-        let label = spawn_sprite_text(
+        let label = spawn_ui_text_with_properties(
             world,
             "Union / Subtract / Intersect",
             Vec2::new(-130.0, 240.0),
-            13.0,
+            TextProperties {
+                font_size: 13.0,
+                color: Vec4::new(0.6, 0.6, 0.7, 0.8),
+                ..Default::default()
+            },
         );
-        if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
-            text.color = [0.6, 0.6, 0.7, 0.8];
-            text.depth = 1.0;
-        }
         self.scene_entities.push(label);
     }
 
@@ -1772,11 +1773,16 @@ impl GfxShowcase {
             });
         }
 
-        let label = spawn_sprite_text(world, "GPU Stencil Masking", Vec2::new(-100.0, 240.0), 13.0);
-        if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
-            text.color = [0.6, 0.6, 0.7, 0.8];
-            text.depth = 1.0;
-        }
+        let label = spawn_ui_text_with_properties(
+            world,
+            "GPU Stencil Masking",
+            Vec2::new(-100.0, 240.0),
+            TextProperties {
+                font_size: 13.0,
+                color: Vec4::new(0.6, 0.6, 0.7, 0.8),
+                ..Default::default()
+            },
+        );
         self.scene_entities.push(label);
     }
 
@@ -1917,16 +1923,16 @@ impl GfxShowcase {
             self.scene_entities.push(glow_entity);
         }
 
-        let label = spawn_sprite_text(
+        let label = spawn_ui_text_with_properties(
             world,
             "CPU Blur Shadows + Glow",
             Vec2::new(-120.0, 240.0),
-            13.0,
+            TextProperties {
+                font_size: 13.0,
+                color: Vec4::new(0.6, 0.6, 0.7, 0.8),
+                ..Default::default()
+            },
         );
-        if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
-            text.color = [0.6, 0.6, 0.7, 0.8];
-            text.depth = 1.0;
-        }
         self.scene_entities.push(label);
     }
 
@@ -2050,11 +2056,16 @@ impl GfxShowcase {
             self.scene_entities.push(entity);
         }
 
-        let label = spawn_sprite_text(world, "Filled Path Shapes", Vec2::new(-95.0, 240.0), 13.0);
-        if let Some(text) = world.sprite2d.get_sprite_text_mut(label) {
-            text.color = [0.6, 0.6, 0.7, 0.8];
-            text.depth = 1.0;
-        }
+        let label = spawn_ui_text_with_properties(
+            world,
+            "Filled Path Shapes",
+            Vec2::new(-95.0, 240.0),
+            TextProperties {
+                font_size: 13.0,
+                color: Vec4::new(0.6, 0.6, 0.7, 0.8),
+                ..Default::default()
+            },
+        );
         self.scene_entities.push(label);
     }
 

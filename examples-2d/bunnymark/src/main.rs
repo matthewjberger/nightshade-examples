@@ -103,11 +103,10 @@ fn load_sprite_texture(world: &mut World) {
 }
 
 fn setup_hud(world: &mut World, bunny_world: &mut BunnyWorld) {
-    bunny_world.resources.fps_text = Some(spawn_hud_text_with_properties(
+    bunny_world.resources.fps_text = Some(spawn_ui_text_with_properties(
         world,
         "FPS: 0",
-        HudAnchor::TopRight,
-        Vec2::new(-10.0, 10.0),
+        Vec2::zeros(),
         TextProperties {
             font_size: 48.0,
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -115,11 +114,10 @@ fn setup_hud(world: &mut World, bunny_world: &mut BunnyWorld) {
         },
     ));
 
-    bunny_world.resources.count_text = Some(spawn_hud_text_with_properties(
+    bunny_world.resources.count_text = Some(spawn_ui_text_with_properties(
         world,
         "Bunnies: 0",
-        HudAnchor::TopRight,
-        Vec2::new(-10.0, 70.0),
+        Vec2::zeros(),
         TextProperties {
             font_size: 36.0,
             color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -127,11 +125,10 @@ fn setup_hud(world: &mut World, bunny_world: &mut BunnyWorld) {
         },
     ));
 
-    bunny_world.resources.status_text = Some(spawn_hud_text_with_properties(
+    bunny_world.resources.status_text = Some(spawn_ui_text_with_properties(
         world,
         "Spawning...",
-        HudAnchor::TopRight,
-        Vec2::new(-10.0, 115.0),
+        Vec2::zeros(),
         TextProperties {
             font_size: 28.0,
             color: Vec4::new(0.5, 1.0, 0.5, 1.0),
@@ -262,7 +259,7 @@ fn update_hud(world: &mut World, bunny_world: &BunnyWorld) {
     let count = bunny_world.resources.engine_entities.len();
 
     if let Some(fps_entity) = bunny_world.resources.fps_text
-        && let Some(text_index) = world.core.get_hud_text(fps_entity).map(|text| text.text_index)
+        && let Some(text_index) = world.core.get_text(fps_entity).map(|text| text.text_index)
     {
         world
             .resources
@@ -274,27 +271,27 @@ fn update_hud(world: &mut World, bunny_world: &BunnyWorld) {
         } else {
             Vec4::new(1.0, 0.3, 0.3, 1.0)
         };
-        if let Some(hud) = world.core.get_hud_text_mut(fps_entity) {
+        if let Some(hud) = world.core.get_text_mut(fps_entity) {
             hud.properties.color = color;
             hud.dirty = true;
         }
     }
 
     if let Some(count_entity) = bunny_world.resources.count_text
-        && let Some(text_index) = world.core.get_hud_text(count_entity).map(|text| text.text_index)
+        && let Some(text_index) = world.core.get_text(count_entity).map(|text| text.text_index)
     {
         world.resources.text_cache.set_text(
             text_index,
             format!("Bunnies: {}", format_number_with_commas(count)),
         );
-        if let Some(hud) = world.core.get_hud_text_mut(count_entity) {
+        if let Some(hud) = world.core.get_text_mut(count_entity) {
             hud.dirty = true;
         }
     }
 
     if let Some(status_entity) = bunny_world.resources.status_text
         && let Some(text_index) = world
-            .core.get_hud_text(status_entity)
+            .core.get_text(status_entity)
             .map(|text| text.text_index)
     {
         let (text, color) = if bunny_world.resources.done {
@@ -310,7 +307,7 @@ fn update_hud(world: &mut World, bunny_world: &BunnyWorld) {
             ("Spawning...".to_string(), Vec4::new(0.5, 1.0, 0.5, 1.0))
         };
         world.resources.text_cache.set_text(text_index, text);
-        if let Some(hud) = world.core.get_hud_text_mut(status_entity) {
+        if let Some(hud) = world.core.get_text_mut(status_entity) {
             hud.properties.color = color;
             hud.dirty = true;
         }

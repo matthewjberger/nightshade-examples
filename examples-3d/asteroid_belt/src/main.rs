@@ -204,11 +204,10 @@ impl State for AsteroidBeltWorld {
         }
         world.core.set_material_ref(atmosphere, MaterialRef::new("Atmosphere".to_string()));
 
-        self.fps_text = Some(spawn_hud_text_with_properties(
+        self.fps_text = Some(spawn_ui_text_with_properties(
             world,
             "FPS: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 10.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 32.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -216,11 +215,10 @@ impl State for AsteroidBeltWorld {
             },
         ));
 
-        spawn_hud_text_with_properties(
+        spawn_ui_text_with_properties(
             world,
             format!("Asteroids: {}", format_number(ASTEROID_COUNT)),
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 50.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 24.0,
                 color: Vec4::new(0.8, 0.8, 0.8, 1.0),
@@ -245,13 +243,13 @@ impl State for AsteroidBeltWorld {
 
         if let Some(fps_entity) = self.fps_text {
             let fps = world.resources.window.timing.frames_per_second;
-            if let Some(hud_text) = world.core.get_hud_text(fps_entity) {
+            if let Some(hud_text) = world.core.get_text(fps_entity) {
                 let text_index = hud_text.text_index;
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("FPS: {:.0}", fps));
-                if let Some(hud_text) = world.core.get_hud_text_mut(fps_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(fps_entity) {
                     hud_text.dirty = true;
                 }
             }

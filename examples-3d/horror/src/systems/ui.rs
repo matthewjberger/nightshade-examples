@@ -2,16 +2,15 @@ use crate::constants::{GRAB_RANGE, INTERACT_CONE_RADIUS, INTERACT_RANGE};
 use crate::state::{HorrorDemo, InputMode};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
-use nightshade::ecs::text::commands::spawn_hud_text_with_properties;
-use nightshade::ecs::text::components::{HudAnchor, TextProperties};
+use nightshade::ecs::text::commands::spawn_ui_text_with_properties;
+use nightshade::ecs::text::components::TextProperties;
 use nightshade::prelude::*;
 
 pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
-    let prompt_entity = spawn_hud_text_with_properties(
+    let prompt_entity = spawn_ui_text_with_properties(
         world,
         "",
-        HudAnchor::BottomCenter,
-        Vec2::new(0.0, -100.0),
+            Vec2::zeros(),
         TextProperties {
             font_size: 18.0,
             color: Vec4::new(1.0, 1.0, 1.0, 0.9),
@@ -19,15 +18,14 @@ pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
         },
     );
     demo.interaction_prompt_entity = Some(prompt_entity);
-    if let Some(hud_text) = world.core.get_hud_text(prompt_entity) {
+    if let Some(hud_text) = world.core.get_text(prompt_entity) {
         demo.interaction_prompt_text_index = Some(hud_text.text_index);
     }
 
-    let objective_entity = spawn_hud_text_with_properties(
+    let objective_entity = spawn_ui_text_with_properties(
         world,
         "Find the generator and restore power",
-        HudAnchor::TopLeft,
-        Vec2::new(20.0, 20.0),
+            Vec2::zeros(),
         TextProperties {
             font_size: 20.0,
             color: Vec4::new(0.8, 0.8, 0.6, 0.9),
@@ -35,7 +33,7 @@ pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
         },
     );
     demo.objective_text_entity = Some(objective_entity);
-    if let Some(hud_text) = world.core.get_hud_text(objective_entity) {
+    if let Some(hud_text) = world.core.get_text(objective_entity) {
         demo.objective_text_index = Some(hud_text.text_index);
     }
 }
@@ -62,7 +60,7 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
         || demo.reading_note.is_some()
     {
         world.resources.text_cache.set_text(text_index, "");
-        if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
+        if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
             hud_text.dirty = true;
         }
         return;
@@ -134,18 +132,8 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
         }
     }
 
-    let prompt_position = if demo.input_mode == InputMode::Gamepad {
-        nalgebra_glm::vec2(
-            viewport_size.0 as f32 / 2.0 + 20.0,
-            viewport_size.1 as f32 / 2.0,
-        )
-    } else {
-        nalgebra_glm::vec2(mouse_pos.x + 15.0, mouse_pos.y + 15.0)
-    };
-
     world.resources.text_cache.set_text(text_index, prompt_text);
-    if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
-        hud_text.set_position(prompt_position);
+    if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
         hud_text.dirty = true;
     }
 }
@@ -209,7 +197,7 @@ pub fn update_objective(demo: &HorrorDemo, world: &mut World) {
     };
 
     world.resources.text_cache.set_text(text_index, objective);
-    if let Some(hud_text) = world.core.get_hud_text_mut(objective_entity) {
+    if let Some(hud_text) = world.core.get_text_mut(objective_entity) {
         hud_text.dirty = true;
     }
 }

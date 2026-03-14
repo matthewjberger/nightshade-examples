@@ -84,11 +84,10 @@ impl State for NeonLightsDemo {
         spawn_backdrop(world);
         self.spawn_showcase(world);
 
-        spawn_hud_text_with_properties(
+        spawn_ui_text_with_properties(
             world,
             "WASD to move, Mouse to look",
-            HudAnchor::BottomCenter,
-            Vec2::new(0.0, -20.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 18.0,
                 color: Vec4::new(0.6, 0.6, 0.6, 0.8),

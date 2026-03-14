@@ -1,6 +1,11 @@
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::prelude::*;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Anchor {
+    Center,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(MenuDemoState::default())
 }
@@ -44,7 +49,7 @@ const TRANSITION_DURATION: f32 = 0.25;
 struct Button {
     entity: Entity,
     position: nalgebra_glm::Vec2,
-    anchor: HudAnchor,
+    anchor: Anchor,
     width: f32,
     height: f32,
     base_color: nalgebra_glm::Vec4,
@@ -59,7 +64,7 @@ struct Toggle {
     value_entity: Entity,
     value_text_index: usize,
     position: nalgebra_glm::Vec2,
-    anchor: HudAnchor,
+    anchor: Anchor,
     value: bool,
     height: f32,
     is_hovered: bool,
@@ -76,7 +81,7 @@ struct Slider {
     value_entity: Entity,
     value_text_index: usize,
     position: nalgebra_glm::Vec2,
-    anchor: HudAnchor,
+    anchor: Anchor,
     value: f32,
     min_value: f32,
     max_value: f32,
@@ -90,7 +95,7 @@ struct Dropdown {
     value_entity: Entity,
     value_text_index: usize,
     position: nalgebra_glm::Vec2,
-    anchor: HudAnchor,
+    anchor: Anchor,
     options: Vec<String>,
     selected_index: usize,
     height: f32,
@@ -176,22 +181,18 @@ struct MenuDemoState {
 
 fn get_element_screen_bounds(
     position: nalgebra_glm::Vec2,
-    anchor: HudAnchor,
+    anchor: Anchor,
     width: f32,
     height: f32,
     screen_width: f32,
     screen_height: f32,
 ) -> (f32, f32, f32, f32) {
     let base_x = match anchor {
-        HudAnchor::TopLeft | HudAnchor::CenterLeft | HudAnchor::BottomLeft => 0.0,
-        HudAnchor::TopCenter | HudAnchor::Center | HudAnchor::BottomCenter => screen_width * 0.5,
-        HudAnchor::TopRight | HudAnchor::CenterRight | HudAnchor::BottomRight => screen_width,
+        Anchor::Center => screen_width * 0.5,
     };
 
     let base_y = match anchor {
-        HudAnchor::TopLeft | HudAnchor::TopCenter | HudAnchor::TopRight => 0.0,
-        HudAnchor::CenterLeft | HudAnchor::Center | HudAnchor::CenterRight => screen_height * 0.5,
-        HudAnchor::BottomLeft | HudAnchor::BottomCenter | HudAnchor::BottomRight => screen_height,
+        Anchor::Center => screen_height * 0.5,
     };
 
     let screen_x = base_x + position.x;
@@ -207,7 +208,7 @@ fn get_element_screen_bounds(
 
 fn is_point_in_bounds(
     position: nalgebra_glm::Vec2,
-    anchor: HudAnchor,
+    anchor: Anchor,
     width: f32,
     height: f32,
     mouse_pos: nalgebra_glm::Vec2,
@@ -237,7 +238,7 @@ fn update_button_visuals(world: &mut World, button: &Button, global_alpha: f32) 
         button.base_color
     };
 
-    if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
+    if let Some(hud_text) = world.core.get_text_mut(button.entity) {
         hud_text.properties.color = apply_alpha(color, global_alpha);
         hud_text.dirty = true;
     }
@@ -250,7 +251,7 @@ fn update_toggle_visuals(world: &mut World, toggle: &Toggle, global_alpha: f32) 
         nalgebra_glm::vec4(0.7, 0.7, 0.7, 1.0)
     };
 
-    if let Some(hud_text) = world.core.get_hud_text_mut(toggle.label_entity) {
+    if let Some(hud_text) = world.core.get_text_mut(toggle.label_entity) {
         hud_text.properties.color = apply_alpha(label_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -261,7 +262,7 @@ fn update_toggle_visuals(world: &mut World, toggle: &Toggle, global_alpha: f32) 
         nalgebra_glm::vec4(0.6, 0.6, 0.6, 1.0)
     };
 
-    if let Some(hud_text) = world.core.get_hud_text_mut(toggle.value_entity) {
+    if let Some(hud_text) = world.core.get_text_mut(toggle.value_entity) {
         hud_text.properties.color = apply_alpha(value_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -274,7 +275,7 @@ fn update_slider_visuals(world: &mut World, slider: &Slider, global_alpha: f32) 
         nalgebra_glm::vec4(0.7, 0.7, 0.7, 1.0)
     };
 
-    if let Some(hud_text) = world.core.get_hud_text_mut(slider.label_entity) {
+    if let Some(hud_text) = world.core.get_text_mut(slider.label_entity) {
         hud_text.properties.color = apply_alpha(label_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -285,7 +286,7 @@ fn update_slider_visuals(world: &mut World, slider: &Slider, global_alpha: f32) 
         nalgebra_glm::vec4(0.5, 0.8, 1.0, 1.0)
     };
 
-    if let Some(hud_text) = world.core.get_hud_text_mut(slider.value_entity) {
+    if let Some(hud_text) = world.core.get_text_mut(slider.value_entity) {
         hud_text.properties.color = apply_alpha(value_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -298,7 +299,7 @@ fn update_dropdown_visuals(world: &mut World, dropdown: &Dropdown, global_alpha:
         nalgebra_glm::vec4(0.7, 0.7, 0.7, 1.0)
     };
 
-    if let Some(hud_text) = world.core.get_hud_text_mut(dropdown.label_entity) {
+    if let Some(hud_text) = world.core.get_text_mut(dropdown.label_entity) {
         hud_text.properties.color = apply_alpha(label_color, global_alpha);
         hud_text.dirty = true;
     }
@@ -324,7 +325,7 @@ impl MenuDemoState {
         world: &mut World,
         label: &str,
         position: nalgebra_glm::Vec2,
-        anchor: HudAnchor,
+        anchor: Anchor,
         font_size: f32,
     ) -> Button {
         let base_color = nalgebra_glm::vec4(0.8, 0.8, 0.8, 1.0);
@@ -340,7 +341,7 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        let entity = spawn_hud_text_with_properties(world, label, anchor, position, props);
+        let entity = spawn_ui_text_with_properties(world, label, nalgebra_glm::Vec2::zeros(), props);
 
         let char_width = font_size * 0.55;
         let width = label.len() as f32 * char_width;
@@ -365,7 +366,7 @@ impl MenuDemoState {
         world: &mut World,
         label: &str,
         position: nalgebra_glm::Vec2,
-        anchor: HudAnchor,
+        anchor: Anchor,
         initial_value: bool,
     ) -> Toggle {
         let label_props = TextProperties {
@@ -378,7 +379,7 @@ impl MenuDemoState {
         };
 
         let label_entity =
-            spawn_hud_text_with_properties(world, label, anchor, position, label_props);
+            spawn_ui_text_with_properties(world, label, nalgebra_glm::Vec2::zeros(), label_props);
 
         let value_color = if initial_value {
             nalgebra_glm::vec4(0.3, 1.0, 0.3, 1.0)
@@ -396,13 +397,11 @@ impl MenuDemoState {
         };
 
         let value_text = if initial_value { "[ON]" } else { "[OFF]" };
-        let value_position = nalgebra_glm::vec2(position.x + 280.0, position.y);
-
         let value_entity =
-            spawn_hud_text_with_properties(world, value_text, anchor, value_position, value_props);
+            spawn_ui_text_with_properties(world, value_text, nalgebra_glm::Vec2::zeros(), value_props);
 
         let value_text_index = world
-            .core.get_hud_text(value_entity)
+            .core.get_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -423,7 +422,7 @@ impl MenuDemoState {
         world: &mut World,
         label: &str,
         position: nalgebra_glm::Vec2,
-        anchor: HudAnchor,
+        anchor: Anchor,
         range: SliderRange,
     ) -> Slider {
         let label_props = TextProperties {
@@ -436,7 +435,7 @@ impl MenuDemoState {
         };
 
         let label_entity =
-            spawn_hud_text_with_properties(world, label, anchor, position, label_props);
+            spawn_ui_text_with_properties(world, label, nalgebra_glm::Vec2::zeros(), label_props);
 
         let value_props = TextProperties {
             font_size: 24.0,
@@ -449,13 +448,11 @@ impl MenuDemoState {
 
         let percentage = ((range.initial - range.min) / (range.max - range.min) * 100.0) as i32;
         let bar = create_slider_bar(percentage);
-        let value_position = nalgebra_glm::vec2(position.x + 280.0, position.y);
-
         let value_entity =
-            spawn_hud_text_with_properties(world, &bar, anchor, value_position, value_props);
+            spawn_ui_text_with_properties(world, &bar, nalgebra_glm::Vec2::zeros(), value_props);
 
         let value_text_index = world
-            .core.get_hud_text(value_entity)
+            .core.get_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -479,7 +476,7 @@ impl MenuDemoState {
         world: &mut World,
         label: &str,
         position: nalgebra_glm::Vec2,
-        anchor: HudAnchor,
+        anchor: Anchor,
         options: Vec<String>,
         selected_index: usize,
     ) -> Dropdown {
@@ -493,7 +490,7 @@ impl MenuDemoState {
         };
 
         let label_entity =
-            spawn_hud_text_with_properties(world, label, anchor, position, label_props);
+            spawn_ui_text_with_properties(world, label, nalgebra_glm::Vec2::zeros(), label_props);
 
         let value_props = TextProperties {
             font_size: 24.0,
@@ -505,13 +502,12 @@ impl MenuDemoState {
         };
 
         let value_text = format!("< {} >", &options[selected_index]);
-        let value_position = nalgebra_glm::vec2(position.x + 280.0, position.y);
 
         let value_entity =
-            spawn_hud_text_with_properties(world, &value_text, anchor, value_position, value_props);
+            spawn_ui_text_with_properties(world, &value_text, nalgebra_glm::Vec2::zeros(), value_props);
 
         let value_text_index = world
-            .core.get_hud_text(value_entity)
+            .core.get_text(value_entity)
             .map(|t| t.text_index)
             .unwrap_or(0);
 
@@ -544,11 +540,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        let title_entity = spawn_hud_text_with_properties(
+        let title_entity = spawn_ui_text_with_properties(
             world,
             title,
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -60.0),
+            nalgebra_glm::Vec2::zeros(),
             title_props,
         );
 
@@ -561,11 +556,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        let message_entity = spawn_hud_text_with_properties(
+        let message_entity = spawn_ui_text_with_properties(
             world,
             message,
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -10.0),
+            nalgebra_glm::Vec2::zeros(),
             message_props,
         );
 
@@ -573,7 +567,7 @@ impl MenuDemoState {
             world,
             "YES",
             nalgebra_glm::vec2(-60.0, 50.0),
-            HudAnchor::Center,
+            Anchor::Center,
             32.0,
         );
 
@@ -581,7 +575,7 @@ impl MenuDemoState {
             world,
             "NO",
             nalgebra_glm::vec2(60.0, 50.0),
-            HudAnchor::Center,
+            Anchor::Center,
             32.0,
         );
 
@@ -610,35 +604,35 @@ impl MenuDemoState {
 
     fn set_background_ui_alpha(&self, world: &mut World, alpha: f32) {
         if let Some(entity) = self.title_entity
-            && let Some(hud_text) = world.core.get_hud_text_mut(entity)
+            && let Some(hud_text) = world.core.get_text_mut(entity)
         {
             hud_text.properties.color.w = alpha;
             hud_text.properties.outline_color.w = alpha;
             hud_text.dirty = true;
         }
         if let Some(entity) = self.subtitle_entity
-            && let Some(hud_text) = world.core.get_hud_text_mut(entity)
+            && let Some(hud_text) = world.core.get_text_mut(entity)
         {
             hud_text.properties.color.w = alpha;
             hud_text.properties.outline_color.w = alpha;
             hud_text.dirty = true;
         }
         if let Some(entity) = self.paused_text_entity
-            && let Some(hud_text) = world.core.get_hud_text_mut(entity)
+            && let Some(hud_text) = world.core.get_text_mut(entity)
         {
             hud_text.properties.color.w = alpha;
             hud_text.properties.outline_color.w = alpha;
             hud_text.dirty = true;
         }
         for button in &self.main_menu_buttons {
-            if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
+            if let Some(hud_text) = world.core.get_text_mut(button.entity) {
                 hud_text.properties.color.w = alpha;
                 hud_text.properties.outline_color.w = alpha;
                 hud_text.dirty = true;
             }
         }
         for button in &self.pause_buttons {
-            if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
+            if let Some(hud_text) = world.core.get_text_mut(button.entity) {
                 hud_text.properties.color.w = alpha;
                 hud_text.properties.outline_color.w = alpha;
                 hud_text.dirty = true;
@@ -719,11 +713,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        self.title_entity = Some(spawn_hud_text_with_properties(
+        self.title_entity = Some(spawn_ui_text_with_properties(
             world,
             "NIGHTSHADE",
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -150.0),
+            nalgebra_glm::Vec2::zeros(),
             title_props,
         ));
 
@@ -736,11 +729,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        self.subtitle_entity = Some(spawn_hud_text_with_properties(
+        self.subtitle_entity = Some(spawn_ui_text_with_properties(
             world,
             "Menu Demo",
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -90.0),
+            nalgebra_glm::Vec2::zeros(),
             subtitle_props,
         ));
 
@@ -748,7 +740,7 @@ impl MenuDemoState {
             world,
             "PLAY",
             nalgebra_glm::vec2(0.0, 0.0),
-            HudAnchor::Center,
+            Anchor::Center,
             48.0,
         ));
 
@@ -756,7 +748,7 @@ impl MenuDemoState {
             world,
             "SETTINGS",
             nalgebra_glm::vec2(0.0, 60.0),
-            HudAnchor::Center,
+            Anchor::Center,
             48.0,
         ));
 
@@ -764,7 +756,7 @@ impl MenuDemoState {
             world,
             "QUIT",
             nalgebra_glm::vec2(0.0, 120.0),
-            HudAnchor::Center,
+            Anchor::Center,
             48.0,
         ));
     }
@@ -781,11 +773,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        self.title_entity = Some(spawn_hud_text_with_properties(
+        self.title_entity = Some(spawn_ui_text_with_properties(
             world,
             "SETTINGS",
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -150.0),
+            nalgebra_glm::Vec2::zeros(),
             title_props,
         ));
 
@@ -793,7 +784,7 @@ impl MenuDemoState {
             world,
             "GRAPHICS",
             nalgebra_glm::vec2(0.0, -50.0),
-            HudAnchor::Center,
+            Anchor::Center,
             40.0,
         ));
 
@@ -801,7 +792,7 @@ impl MenuDemoState {
             world,
             "AUDIO",
             nalgebra_glm::vec2(0.0, 10.0),
-            HudAnchor::Center,
+            Anchor::Center,
             40.0,
         ));
 
@@ -809,7 +800,7 @@ impl MenuDemoState {
             world,
             "BACK",
             nalgebra_glm::vec2(0.0, 100.0),
-            HudAnchor::Center,
+            Anchor::Center,
             32.0,
         ));
     }
@@ -826,11 +817,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        self.title_entity = Some(spawn_hud_text_with_properties(
+        self.title_entity = Some(spawn_ui_text_with_properties(
             world,
             "GRAPHICS",
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -180.0),
+            nalgebra_glm::Vec2::zeros(),
             title_props,
         ));
 
@@ -846,7 +836,7 @@ impl MenuDemoState {
             world,
             "Resolution",
             nalgebra_glm::vec2(-140.0, -120.0),
-            HudAnchor::Center,
+            Anchor::Center,
             resolutions,
             self.settings.resolution_index,
         ));
@@ -862,7 +852,7 @@ impl MenuDemoState {
             world,
             "Quality",
             nalgebra_glm::vec2(-140.0, -70.0),
-            HudAnchor::Center,
+            Anchor::Center,
             qualities,
             self.settings.quality_index,
         ));
@@ -871,7 +861,7 @@ impl MenuDemoState {
             world,
             "Fullscreen",
             nalgebra_glm::vec2(-140.0, -20.0),
-            HudAnchor::Center,
+            Anchor::Center,
             self.settings.fullscreen,
         ));
 
@@ -879,7 +869,7 @@ impl MenuDemoState {
             world,
             "V-Sync",
             nalgebra_glm::vec2(-140.0, 30.0),
-            HudAnchor::Center,
+            Anchor::Center,
             self.settings.vsync,
         ));
 
@@ -887,7 +877,7 @@ impl MenuDemoState {
             world,
             "BACK",
             nalgebra_glm::vec2(0.0, 120.0),
-            HudAnchor::Center,
+            Anchor::Center,
             32.0,
         ));
     }
@@ -904,11 +894,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        self.title_entity = Some(spawn_hud_text_with_properties(
+        self.title_entity = Some(spawn_ui_text_with_properties(
             world,
             "AUDIO",
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -180.0),
+            nalgebra_glm::Vec2::zeros(),
             title_props,
         ));
 
@@ -916,7 +905,7 @@ impl MenuDemoState {
             world,
             "Master Volume",
             nalgebra_glm::vec2(-140.0, -120.0),
-            HudAnchor::Center,
+            Anchor::Center,
             SliderRange {
                 initial: self.settings.master_volume,
                 min: 0.0,
@@ -928,7 +917,7 @@ impl MenuDemoState {
             world,
             "Music Volume",
             nalgebra_glm::vec2(-140.0, -70.0),
-            HudAnchor::Center,
+            Anchor::Center,
             SliderRange {
                 initial: self.settings.music_volume,
                 min: 0.0,
@@ -940,7 +929,7 @@ impl MenuDemoState {
             world,
             "SFX Volume",
             nalgebra_glm::vec2(-140.0, -20.0),
-            HudAnchor::Center,
+            Anchor::Center,
             SliderRange {
                 initial: self.settings.sfx_volume,
                 min: 0.0,
@@ -952,7 +941,7 @@ impl MenuDemoState {
             world,
             "Sound Enabled",
             nalgebra_glm::vec2(-140.0, 30.0),
-            HudAnchor::Center,
+            Anchor::Center,
             self.settings.sound_enabled,
         ));
 
@@ -960,7 +949,7 @@ impl MenuDemoState {
             world,
             "Music Enabled",
             nalgebra_glm::vec2(-140.0, 80.0),
-            HudAnchor::Center,
+            Anchor::Center,
             self.settings.music_enabled,
         ));
 
@@ -968,7 +957,7 @@ impl MenuDemoState {
             world,
             "BACK",
             nalgebra_glm::vec2(0.0, 150.0),
-            HudAnchor::Center,
+            Anchor::Center,
             32.0,
         ));
     }
@@ -1043,11 +1032,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        self.subtitle_entity = Some(spawn_hud_text_with_properties(
+        self.subtitle_entity = Some(spawn_ui_text_with_properties(
             world,
             "Press P to pause",
-            HudAnchor::TopCenter,
-            nalgebra_glm::vec2(0.0, 20.0),
+            nalgebra_glm::Vec2::zeros(),
             hint_props,
         ));
     }
@@ -1064,11 +1052,10 @@ impl MenuDemoState {
             ..Default::default()
         };
 
-        self.paused_text_entity = Some(spawn_hud_text_with_properties(
+        self.paused_text_entity = Some(spawn_ui_text_with_properties(
             world,
             "PAUSED",
-            HudAnchor::Center,
-            nalgebra_glm::vec2(0.0, -120.0),
+            nalgebra_glm::Vec2::zeros(),
             title_props,
         ));
 
@@ -1076,7 +1063,7 @@ impl MenuDemoState {
             world,
             "RESUME",
             nalgebra_glm::vec2(0.0, -40.0),
-            HudAnchor::Center,
+            Anchor::Center,
             40.0,
         ));
 
@@ -1084,7 +1071,7 @@ impl MenuDemoState {
             world,
             "SETTINGS",
             nalgebra_glm::vec2(0.0, 20.0),
-            HudAnchor::Center,
+            Anchor::Center,
             40.0,
         ));
 
@@ -1092,7 +1079,7 @@ impl MenuDemoState {
             world,
             "MAIN MENU",
             nalgebra_glm::vec2(0.0, 80.0),
-            HudAnchor::Center,
+            Anchor::Center,
             40.0,
         ));
     }
@@ -1174,49 +1161,49 @@ impl MenuDemoState {
 
         if !dialog_active {
             if let Some(entity) = self.title_entity
-                && let Some(hud_text) = world.core.get_hud_text_mut(entity)
+                && let Some(hud_text) = world.core.get_text_mut(entity)
             {
                 hud_text.properties.color.w = self.global_alpha;
                 hud_text.properties.outline_color.w = self.global_alpha;
                 hud_text.dirty = true;
             }
             if let Some(entity) = self.subtitle_entity
-                && let Some(hud_text) = world.core.get_hud_text_mut(entity)
+                && let Some(hud_text) = world.core.get_text_mut(entity)
             {
                 hud_text.properties.color.w = self.global_alpha;
                 hud_text.properties.outline_color.w = self.global_alpha;
                 hud_text.dirty = true;
             }
             if let Some(entity) = self.paused_text_entity
-                && let Some(hud_text) = world.core.get_hud_text_mut(entity)
+                && let Some(hud_text) = world.core.get_text_mut(entity)
             {
                 hud_text.properties.color.w = self.global_alpha;
                 hud_text.properties.outline_color.w = self.global_alpha;
                 hud_text.dirty = true;
             }
             for button in &self.main_menu_buttons {
-                if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
+                if let Some(hud_text) = world.core.get_text_mut(button.entity) {
                     hud_text.properties.color.w = self.global_alpha;
                     hud_text.properties.outline_color.w = self.global_alpha;
                     hud_text.dirty = true;
                 }
             }
             for button in &self.settings_buttons {
-                if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
+                if let Some(hud_text) = world.core.get_text_mut(button.entity) {
                     hud_text.properties.color.w = self.global_alpha;
                     hud_text.properties.outline_color.w = self.global_alpha;
                     hud_text.dirty = true;
                 }
             }
             for button in &self.pause_buttons {
-                if let Some(hud_text) = world.core.get_hud_text_mut(button.entity) {
+                if let Some(hud_text) = world.core.get_text_mut(button.entity) {
                     hud_text.properties.color.w = self.global_alpha;
                     hud_text.properties.outline_color.w = self.global_alpha;
                     hud_text.dirty = true;
                 }
             }
             if let Some(ref button) = self.back_button
-                && let Some(hud_text) = world.core.get_hud_text_mut(button.entity)
+                && let Some(hud_text) = world.core.get_text_mut(button.entity)
             {
                 hud_text.properties.color.w = self.global_alpha;
                 hud_text.properties.outline_color.w = self.global_alpha;
@@ -1224,7 +1211,7 @@ impl MenuDemoState {
             }
             for toggle in &self.graphics_toggles {
                 for entity in [toggle.label_entity, toggle.value_entity] {
-                    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+                    if let Some(hud_text) = world.core.get_text_mut(entity) {
                         hud_text.properties.color.w = self.global_alpha;
                         hud_text.properties.outline_color.w = self.global_alpha;
                         hud_text.dirty = true;
@@ -1233,7 +1220,7 @@ impl MenuDemoState {
             }
             for toggle in &self.audio_toggles {
                 for entity in [toggle.label_entity, toggle.value_entity] {
-                    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+                    if let Some(hud_text) = world.core.get_text_mut(entity) {
                         hud_text.properties.color.w = self.global_alpha;
                         hud_text.properties.outline_color.w = self.global_alpha;
                         hud_text.dirty = true;
@@ -1242,7 +1229,7 @@ impl MenuDemoState {
             }
             for slider in &self.audio_sliders {
                 for entity in [slider.label_entity, slider.value_entity] {
-                    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+                    if let Some(hud_text) = world.core.get_text_mut(entity) {
                         hud_text.properties.color.w = self.global_alpha;
                         hud_text.properties.outline_color.w = self.global_alpha;
                         hud_text.dirty = true;
@@ -1251,7 +1238,7 @@ impl MenuDemoState {
             }
             for dropdown in &self.graphics_dropdowns {
                 for entity in [dropdown.label_entity, dropdown.value_entity] {
-                    if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+                    if let Some(hud_text) = world.core.get_text_mut(entity) {
                         hud_text.properties.color.w = self.global_alpha;
                         hud_text.properties.outline_color.w = self.global_alpha;
                         hud_text.dirty = true;
@@ -1266,7 +1253,7 @@ impl MenuDemoState {
                 dialog.yes_button.entity,
                 dialog.no_button.entity,
             ] {
-                if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+                if let Some(hud_text) = world.core.get_text_mut(entity) {
                     hud_text.properties.color.w = self.global_alpha;
                     hud_text.properties.outline_color.w = self.global_alpha;
                     hud_text.dirty = true;
@@ -1566,7 +1553,7 @@ impl MenuDemoState {
                     .resources
                     .text_cache
                     .set_text(dropdown.value_text_index, value_text);
-                if let Some(hud_text) = world.core.get_hud_text_mut(dropdown.value_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(dropdown.value_entity) {
                     hud_text.dirty = true;
                 }
 
@@ -1715,7 +1702,7 @@ impl MenuDemoState {
                     .resources
                     .text_cache
                     .set_text(slider.value_text_index, bar);
-                if let Some(hud_text) = world.core.get_hud_text_mut(slider.value_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(slider.value_entity) {
                     hud_text.dirty = true;
                 }
                 update_slider_visuals(world, slider, self.global_alpha);

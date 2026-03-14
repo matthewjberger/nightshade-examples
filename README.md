@@ -69,7 +69,7 @@ Examples are organized into four directories:
 | Sprites | `sprites`, `gfx`, `gfx_showcase` |
 | Games | `bunnymark`, `chip8`, `roguelike`, `sokoban`, `space_shooter`, `topdown_shooter` |
 | Effects | `fireworks` |
-| UI | `hud_text`, `ui`, `text_adventure` |
+| UI | `ui`, `text_adventure` |
 
 ### 3D (`examples-3d/`)
 

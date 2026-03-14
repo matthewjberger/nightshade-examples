@@ -212,11 +212,10 @@ impl State for TowerDefenseECS {
                 tower_type.cost()
             );
 
-            let entity = spawn_hud_text_with_properties(
+            let entity = spawn_ui_text_with_properties(
                 world,
                 &text,
-                HudAnchor::TopLeft,
-                nalgebra_glm::vec2(15.0, 15.0 + (index as f32 * 28.0)),
+                nalgebra_glm::Vec2::zeros(),
                 TextProperties {
                     font_size: 22.0,
                     color: text_color,

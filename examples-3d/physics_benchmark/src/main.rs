@@ -110,11 +110,10 @@ impl State for PhysicsBenchmark {
         world.resources.active_camera = Some(camera_entity);
         self.camera_entity = Some(camera_entity);
 
-        let fps_text = spawn_hud_text_with_properties(
+        let fps_text = spawn_ui_text_with_properties(
             world,
             "FPS: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 10.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 48.0,
                 color: Vec4::new(0.0, 1.0, 0.0, 1.0),
@@ -123,11 +122,10 @@ impl State for PhysicsBenchmark {
         );
         self.fps_hud_text = Some(fps_text);
 
-        let ball_count_text = spawn_hud_text_with_properties(
+        let ball_count_text = spawn_ui_text_with_properties(
             world,
             "Balls: 0",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 70.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 32.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -136,11 +134,10 @@ impl State for PhysicsBenchmark {
         );
         self.ball_count_hud_text = Some(ball_count_text);
 
-        let target_fps_text = spawn_hud_text_with_properties(
+        let target_fps_text = spawn_ui_text_with_properties(
             world,
             "Target FPS: 60",
-            HudAnchor::TopRight,
-            Vec2::new(-10.0, 115.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 28.0,
                 color: Vec4::new(0.8, 0.8, 0.8, 1.0),
@@ -182,13 +179,13 @@ impl State for PhysicsBenchmark {
                 Vec4::new(1.0, 0.65, 0.0, 1.0)
             };
 
-            let text_index = world.core.get_hud_text(fps_text_entity).map(|t| t.text_index);
+            let text_index = world.core.get_text(fps_text_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("FPS: {:.0}", fps));
-                if let Some(hud_text) = world.core.get_hud_text_mut(fps_text_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(fps_text_entity) {
                     hud_text.properties.color = fps_color;
                     hud_text.dirty = true;
                 }
@@ -196,7 +193,7 @@ impl State for PhysicsBenchmark {
         }
 
         if let Some(ball_count_entity) = self.ball_count_hud_text {
-            let text_index = world.core.get_hud_text(ball_count_entity).map(|t| t.text_index);
+            let text_index = world.core.get_text(ball_count_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world.resources.text_cache.set_text(
                     text_index,
@@ -205,20 +202,20 @@ impl State for PhysicsBenchmark {
                         format_number_with_commas(self.ball_entities.len())
                     ),
                 );
-                if let Some(hud_text) = world.core.get_hud_text_mut(ball_count_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(ball_count_entity) {
                     hud_text.dirty = true;
                 }
             }
         }
 
         if let Some(target_fps_entity) = self.target_fps_hud_text {
-            let text_index = world.core.get_hud_text(target_fps_entity).map(|t| t.text_index);
+            let text_index = world.core.get_text(target_fps_entity).map(|t| t.text_index);
             if let Some(text_index) = text_index {
                 world
                     .resources
                     .text_cache
                     .set_text(text_index, format!("Target FPS: {:.0}", self.target_fps));
-                if let Some(hud_text) = world.core.get_hud_text_mut(target_fps_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(target_fps_entity) {
                     hud_text.dirty = true;
                 }
             }

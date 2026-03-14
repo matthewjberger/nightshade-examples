@@ -68,11 +68,10 @@ impl State for ShellDemo {
         self.spawned_entities.push(sphere);
         self.spawned_entities.push(cylinder);
 
-        spawn_hud_text_with_properties(
+        spawn_ui_text_with_properties(
             world,
             "Alt+C: Console | Alt+Click: Select object",
-            HudAnchor::BottomCenter,
-            Vec2::new(0.0, -20.0),
+            Vec2::zeros(),
             TextProperties {
                 font_size: 20.0,
                 color: Vec4::new(1.0, 1.0, 1.0, 1.0),
@@ -84,8 +83,8 @@ impl State for ShellDemo {
         );
 
         let hover_prompt_entity =
-            spawn_hud_text(world, "", HudAnchor::TopLeft, Vec2::new(0.0, 0.0));
-        if let Some(hud_text) = world.core.get_hud_text(hover_prompt_entity) {
+            spawn_ui_text(world, "", Vec2::zeros());
+        if let Some(hud_text) = world.core.get_text(hover_prompt_entity) {
             self.hover_prompt_text_index = Some(hud_text.text_index);
         }
         self.hover_prompt_entity = Some(hover_prompt_entity);
@@ -169,7 +168,7 @@ impl ShellDemo {
 
         if !alt_pressed {
             world.resources.text_cache.set_text(text_index, "");
-            if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
+            if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
                 hud_text.dirty = true;
             }
             return;
@@ -181,7 +180,7 @@ impl ShellDemo {
             let shell_height = self.shell.height * self.shell.animation_progress;
             if mouse_pos.y < shell_height {
                 world.resources.text_cache.set_text(text_index, "");
-                if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
+                if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
                     hud_text.dirty = true;
                 }
                 return;
@@ -194,14 +193,11 @@ impl ShellDemo {
             String::new()
         };
 
-        let prompt_position = Vec2::new(mouse_pos.x + 15.0, mouse_pos.y + 15.0);
-
         world
             .resources
             .text_cache
             .set_text(text_index, &prompt_text);
-        if let Some(hud_text) = world.core.get_hud_text_mut(prompt_entity) {
-            hud_text.set_position(prompt_position);
+        if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
             hud_text.dirty = true;
         }
     }

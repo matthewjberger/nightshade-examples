@@ -33,11 +33,10 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         ..Default::default()
     };
 
-    let map_entity = spawn_hud_text_with_properties(
+    let map_entity = spawn_ui_text_with_properties(
         world,
         "",
-        HudAnchor::TopLeft,
-        Vec2::new(20.0, 40.0),
+        Vec2::zeros(),
         map_props,
     );
 
@@ -50,11 +49,10 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         ..Default::default()
     };
 
-    spawn_hud_text_with_properties(
+    spawn_ui_text_with_properties(
         world,
         "ROGUELIKE DUNGEON",
-        HudAnchor::TopLeft,
-        Vec2::new(20.0, 10.0),
+        Vec2::zeros(),
         title_props,
     );
 
@@ -65,11 +63,10 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         ..Default::default()
     };
 
-    let stats_entity = spawn_hud_text_with_properties(
+    let stats_entity = spawn_ui_text_with_properties(
         world,
         "",
-        HudAnchor::BottomLeft,
-        Vec2::new(20.0, -80.0),
+        Vec2::zeros(),
         stats_props,
     );
 
@@ -81,11 +78,10 @@ pub fn spawn_display(world: &mut World) -> DisplayState {
         ..Default::default()
     };
 
-    let messages_entity = spawn_hud_text_with_properties(
+    let messages_entity = spawn_ui_text_with_properties(
         world,
         "",
-        HudAnchor::BottomLeft,
-        Vec2::new(20.0, -20.0),
+        Vec2::zeros(),
         messages_props,
     );
 
@@ -228,10 +224,10 @@ fn update_map_display(display: &DisplayState, game_world: &GameWorld, world: &mu
     text.push('+');
     colors.push(Some(border_color));
 
-    if let Some(hud_text) = world.core.get_hud_text(entity) {
+    if let Some(hud_text) = world.core.get_text(entity) {
         let text_index = hud_text.text_index;
         world.resources.text_cache.set_text(text_index, &text);
-        if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+        if let Some(hud_text) = world.core.get_text_mut(entity) {
             hud_text.dirty = true;
         }
     }
@@ -290,10 +286,10 @@ fn update_stats_display(display: &DisplayState, game_world: &GameWorld, world: &
         }
     }
 
-    if let Some(hud_text) = world.core.get_hud_text(entity) {
+    if let Some(hud_text) = world.core.get_text(entity) {
         let text_index = hud_text.text_index;
         world.resources.text_cache.set_text(text_index, &stats_text);
-        if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+        if let Some(hud_text) = world.core.get_text_mut(entity) {
             hud_text.dirty = true;
         }
     }
@@ -310,13 +306,13 @@ fn update_messages_display(display: &DisplayState, game_world: &GameWorld, world
 
     let messages_text: String = messages[start..].to_vec().join("\n");
 
-    if let Some(hud_text) = world.core.get_hud_text(entity) {
+    if let Some(hud_text) = world.core.get_text(entity) {
         let text_index = hud_text.text_index;
         world
             .resources
             .text_cache
             .set_text(text_index, &messages_text);
-        if let Some(hud_text) = world.core.get_hud_text_mut(entity) {
+        if let Some(hud_text) = world.core.get_text_mut(entity) {
             hud_text.dirty = true;
         }
     }

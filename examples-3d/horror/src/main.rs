@@ -4,8 +4,6 @@ mod ecs;
 mod state;
 mod systems;
 
-use std::path::Path;
-
 use constants::STANDING_CAMERA_HEIGHT;
 use discovery::{
     discover_buttons, discover_chain_light, discover_doors, discover_levers, discover_notes,
@@ -15,7 +13,7 @@ use ecs::GameWorld;
 use nightshade::ecs::audio::systems::load_sound_from_bytes;
 use nightshade::ecs::camera::components::Projection;
 use nightshade::ecs::physics::spawn_first_person_player;
-use nightshade::ecs::scene::{load_scene, spawn_scene};
+use nightshade::ecs::scene::{SceneLoadStatus, spawn_scene};
 use nightshade::ecs::texture_loader::set_asset_search_paths;
 use nightshade::prelude::*;
 use state::HorrorGame;
@@ -111,90 +109,110 @@ impl State for HorrorGame {
 
         load_textures(world);
 
-        let scene = load_scene(Path::new("examples-3d/horror/horror_level.bin"))
-            .expect("Failed to load horror_level.bin");
+        #[cfg(target_arch = "wasm32")]
+        self.scene_loader.load_from_url("horror_level.bin");
 
-        if let Err(error) = spawn_scene(world, &scene, None) {
-            tracing::error!("Failed to spawn horror scene: {}", error);
-        }
-
-        discover_doors(&mut self.game_world, world);
-        discover_levers(&mut self.game_world, world);
-        discover_notes(&mut self.game_world, world);
-        discover_physics_props(&mut self.game_world, world);
-        discover_buttons(&mut self.game_world, world);
-        discover_chain_light(&mut self.game_world, world);
-        discover_overhead_lights(&mut self.game_world, world);
-
-        spawn_ui(&mut self.game_world, world);
-
-        load_audio_assets(world);
-
-        let ambient_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world.core.set_audio_source(
-            ambient_audio,
-            AudioSource::new("atmosphere")
-                .with_volume(0.4)
-                .with_looping(true),
-        );
-        self.game_world.resources.ambient_audio_entity = Some(ambient_audio);
-
-        let generator_audio = world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
-        world.core.set_local_transform(
-            generator_audio,
-            LocalTransform {
-                translation: nalgebra_glm::vec3(-8.0, 1.0, -14.5),
-                ..Default::default()
-            },
-        );
-        world.core.set_audio_source(
-            generator_audio,
-            AudioSource::new("generator").with_spatial(true),
-        );
-        self.game_world.resources.generator_audio_entity = Some(generator_audio);
-
-        let rubble_audio = world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
-        world.core.set_local_transform(
-            rubble_audio,
-            LocalTransform {
-                translation: nalgebra_glm::vec3(-4.5, 1.5, -16.0),
-                ..Default::default()
-            },
-        );
-        world.core.set_audio_source(
-            rubble_audio,
-            AudioSource::new("rubble")
-                .with_spatial(true)
-                .with_reverb(true),
-        );
-        self.game_world.resources.rubble_audio_entity = Some(rubble_audio);
-
-        let monster_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world.core.set_audio_source(
-            monster_audio,
-            AudioSource::new("monster")
-                .with_volume(0.6)
-                .with_looping(true),
-        );
-        self.game_world.resources.monster_audio_entity = Some(monster_audio);
-
-        let footstep_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world.core.set_audio_source(
-            footstep_audio,
-            AudioSource::new("footsteps")
-                .with_volume(0.4)
-                .with_looping(true),
-        );
-        self.game_world.resources.footstep_audio_entity = Some(footstep_audio);
-
-        let door_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
-        world
-            .core
-            .set_audio_source(door_audio, AudioSource::new("door_creak").with_volume(0.6));
-        self.game_world.resources.door_audio_entity = Some(door_audio);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.scene_loader
+            .load_from_url("examples-3d/horror/horror_level.bin");
     }
 
     fn run_systems(&mut self, world: &mut World) {
+        if !self.scene_loaded {
+            match self.scene_loader.take_result() {
+                SceneLoadStatus::Ready(scene) => {
+                    if let Err(error) = spawn_scene(world, &scene, None) {
+                        tracing::error!("Failed to spawn horror scene: {}", error);
+                    }
+
+                    discover_doors(&mut self.game_world, world);
+                    discover_levers(&mut self.game_world, world);
+                    discover_notes(&mut self.game_world, world);
+                    discover_physics_props(&mut self.game_world, world);
+                    discover_buttons(&mut self.game_world, world);
+                    discover_chain_light(&mut self.game_world, world);
+                    discover_overhead_lights(&mut self.game_world, world);
+
+                    spawn_ui(&mut self.game_world, world);
+
+                    load_audio_assets(world);
+
+                    let ambient_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
+                    world.core.set_audio_source(
+                        ambient_audio,
+                        AudioSource::new("atmosphere")
+                            .with_volume(0.4)
+                            .with_looping(true),
+                    );
+                    self.game_world.resources.ambient_audio_entity = Some(ambient_audio);
+
+                    let generator_audio =
+                        world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
+                    world.core.set_local_transform(
+                        generator_audio,
+                        LocalTransform {
+                            translation: nalgebra_glm::vec3(-8.0, 1.0, -14.5),
+                            ..Default::default()
+                        },
+                    );
+                    world.core.set_audio_source(
+                        generator_audio,
+                        AudioSource::new("generator").with_spatial(true),
+                    );
+                    self.game_world.resources.generator_audio_entity = Some(generator_audio);
+
+                    let rubble_audio =
+                        world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
+                    world.core.set_local_transform(
+                        rubble_audio,
+                        LocalTransform {
+                            translation: nalgebra_glm::vec3(-4.5, 1.5, -16.0),
+                            ..Default::default()
+                        },
+                    );
+                    world.core.set_audio_source(
+                        rubble_audio,
+                        AudioSource::new("rubble")
+                            .with_spatial(true)
+                            .with_reverb(true),
+                    );
+                    self.game_world.resources.rubble_audio_entity = Some(rubble_audio);
+
+                    let monster_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
+                    world.core.set_audio_source(
+                        monster_audio,
+                        AudioSource::new("monster")
+                            .with_volume(0.6)
+                            .with_looping(true),
+                    );
+                    self.game_world.resources.monster_audio_entity = Some(monster_audio);
+
+                    let footstep_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
+                    world.core.set_audio_source(
+                        footstep_audio,
+                        AudioSource::new("footsteps")
+                            .with_volume(0.4)
+                            .with_looping(true),
+                    );
+                    self.game_world.resources.footstep_audio_entity = Some(footstep_audio);
+
+                    let door_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
+                    world.core.set_audio_source(
+                        door_audio,
+                        AudioSource::new("door_creak").with_volume(0.6),
+                    );
+                    self.game_world.resources.door_audio_entity = Some(door_audio);
+
+                    self.scene_loaded = true;
+                }
+                SceneLoadStatus::Failed(error) => {
+                    tracing::error!("Failed to load scene: {}", error);
+                    self.scene_loaded = true;
+                }
+                _ => return,
+            }
+        }
+
         update_overlays(&mut self.game_world, world);
 
         if !self.game_world.resources.audio_started

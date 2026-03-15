@@ -16,7 +16,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
 
     let left_clicked = mouse.state.contains(MouseState::LEFT_CLICKED);
     let left_just_pressed = mouse.state.contains(MouseState::LEFT_JUST_PRESSED);
-    let f_pressed = keyboard.is_key_pressed(KeyCode::KeyF);
+    let e_pressed = keyboard.is_key_pressed(KeyCode::KeyE);
 
     let gamepad_rt_pressed = if let Some(gamepad) = query_active_gamepad(world) {
         let rt_axis = gamepad.value(gilrs::Axis::RightZ);
@@ -30,7 +30,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         gamepad_rt_pressed && !game_world.resources.interaction.gamepad_rt_was_pressed;
     game_world.resources.interaction.gamepad_rt_was_pressed = gamepad_rt_pressed;
 
-    let interact_pressed = left_clicked || f_pressed || gamepad_rt_pressed;
+    let interact_pressed = left_clicked || e_pressed || gamepad_rt_pressed;
     let interact_just_pressed = left_just_pressed || gamepad_rt_just_pressed;
 
     if game_world.resources.interaction.require_interact_release {

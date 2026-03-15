@@ -91,7 +91,16 @@ pub fn update_flashlight(game_world: &mut GameWorld, world: &mut World) {
 
     let f_pressed = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyF);
 
-    if f_pressed && !game_world.resources.flashlight_key_was_pressed {
+    let gamepad_flashlight_pressed =
+        if let Some(gamepad) = nightshade::ecs::input::queries::query_active_gamepad(world) {
+            gamepad.is_pressed(gilrs::Button::LeftTrigger)
+        } else {
+            false
+        };
+
+    let flashlight_input = f_pressed || gamepad_flashlight_pressed;
+
+    if flashlight_input && !game_world.resources.flashlight_key_was_pressed {
         game_world.resources.flashlight_on = !game_world.resources.flashlight_on;
         if let Some(light) = world.core.get_light_mut(flashlight_entity) {
             light.intensity = if game_world.resources.flashlight_on {
@@ -101,7 +110,7 @@ pub fn update_flashlight(game_world: &mut GameWorld, world: &mut World) {
             };
         }
     }
-    game_world.resources.flashlight_key_was_pressed = f_pressed;
+    game_world.resources.flashlight_key_was_pressed = flashlight_input;
 
     if let Some(camera_transform) = world.core.get_global_transform(camera).cloned() {
         let camera_position = camera_transform.translation();

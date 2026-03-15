@@ -1,6 +1,70 @@
 use crate::ecs::{Entity, GameWorld, HEX_POSITION, TILE, TileType, UNIT};
-use crate::hex::{HexCoord, hex_neighbors, hex_to_world_position};
-use std::collections::{HashMap, HashSet, VecDeque};
+use crate::hex::{HexCoord, hex_distance, hex_neighbors};
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
+
+#[derive(Eq, PartialEq)]
+struct AStarNode {
+    coord: HexCoord,
+    f_score: i32,
+}
+
+impl Ord for AStarNode {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.f_score.cmp(&self.f_score)
+    }
+}
+
+impl PartialOrd for AStarNode {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn astar(from: HexCoord, to: HexCoord, passable: &HashSet<HexCoord>) -> Option<Vec<HexCoord>> {
+    let mut g_score: HashMap<HexCoord, i32> = HashMap::new();
+    let mut came_from: HashMap<HexCoord, HexCoord> = HashMap::new();
+    let mut open = BinaryHeap::new();
+
+    g_score.insert(from, 0);
+    open.push(AStarNode {
+        coord: from,
+        f_score: hex_distance(from, to),
+    });
+
+    while let Some(AStarNode { coord: current, .. }) = open.pop() {
+        if current == to {
+            let mut path = vec![to];
+            let mut node = to;
+            while let Some(&pred) = came_from.get(&node) {
+                path.push(pred);
+                node = pred;
+            }
+            path.reverse();
+            return Some(path);
+        }
+
+        let current_g = g_score[&current];
+
+        for neighbor in hex_neighbors(current) {
+            if !passable.contains(&neighbor) {
+                continue;
+            }
+
+            let tentative_g = current_g + 1;
+
+            if tentative_g < *g_score.get(&neighbor).unwrap_or(&i32::MAX) {
+                came_from.insert(neighbor, current);
+                g_score.insert(neighbor, tentative_g);
+                open.push(AStarNode {
+                    coord: neighbor,
+                    f_score: tentative_g + hex_distance(neighbor, to),
+                });
+            }
+        }
+    }
+
+    None
+}
 
 fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option<Vec<HexCoord>> {
     let sea_tiles: HashSet<HexCoord> = game_world
@@ -16,110 +80,17 @@ fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
         })
         .collect();
 
-    let sea_neighbors_of_from: Vec<HexCoord> = hex_neighbors(from)
-        .into_iter()
-        .filter(|coord| sea_tiles.contains(coord))
-        .collect();
+    let mut waypoints = sea_tiles.clone();
+    waypoints.insert(from);
+    waypoints.insert(to);
 
-    let sea_neighbors_of_to: Vec<HexCoord> = hex_neighbors(to)
-        .into_iter()
-        .filter(|coord| sea_tiles.contains(coord))
-        .collect();
-
-    if sea_neighbors_of_from.is_empty() || sea_neighbors_of_to.is_empty() {
-        return Some(vec![from, to]);
-    }
-
-    let mut best_path: Option<Vec<HexCoord>> = None;
-    let mut best_length = i32::MAX;
-
-    for &start_sea in &sea_neighbors_of_from {
-        for &end_sea in &sea_neighbors_of_to {
-            let mut predecessors: HashMap<HexCoord, HexCoord> = HashMap::new();
-            let mut distances: HashMap<HexCoord, i32> = HashMap::new();
-            let mut queue: VecDeque<HexCoord> = VecDeque::new();
-
-            distances.insert(start_sea, 0);
-            queue.push_back(start_sea);
-
-            while let Some(current) = queue.pop_front() {
-                if current == end_sea {
-                    break;
-                }
-
-                let current_dist = distances[&current];
-
-                for neighbor in hex_neighbors(current) {
-                    if !sea_tiles.contains(&neighbor) {
-                        continue;
-                    }
-                    if distances.contains_key(&neighbor) {
-                        continue;
-                    }
-                    distances.insert(neighbor, current_dist + 1);
-                    predecessors.insert(neighbor, current);
-                    queue.push_back(neighbor);
-                }
-            }
-
-            if let Some(&dist) = distances.get(&end_sea)
-                && dist < best_length
-            {
-                let mut sea_path = vec![end_sea];
-                let mut current = end_sea;
-                while let Some(&pred) = predecessors.get(&current) {
-                    sea_path.push(pred);
-                    current = pred;
-                }
-                sea_path.reverse();
-
-                let mut full_path = vec![from];
-                full_path.extend(sea_path);
-                full_path.push(to);
-
-                best_length = dist;
-                best_path = Some(full_path);
-            }
-        }
-    }
-
-    best_path.or_else(|| Some(vec![from, to]))
-}
-
-fn direction_alignment(
-    from_coord: HexCoord,
-    to_coord: HexCoord,
-    goal_coord: HexCoord,
-    hex_width: f32,
-    hex_depth: f32,
-) -> i32 {
-    let from_world = hex_to_world_position(from_coord.column, from_coord.row, hex_width, hex_depth);
-    let to_world = hex_to_world_position(to_coord.column, to_coord.row, hex_width, hex_depth);
-    let goal_world = hex_to_world_position(goal_coord.column, goal_coord.row, hex_width, hex_depth);
-
-    let step_x = to_world.x - from_world.x;
-    let step_z = to_world.z - from_world.z;
-    let goal_x = goal_world.x - from_world.x;
-    let goal_z = goal_world.z - from_world.z;
-
-    let step_len = (step_x * step_x + step_z * step_z).sqrt();
-    let goal_len = (goal_x * goal_x + goal_z * goal_z).sqrt();
-
-    if step_len < 0.001 || goal_len < 0.001 {
-        return 0;
-    }
-
-    let dot = (step_x * goal_x + step_z * goal_z) / (step_len * goal_len);
-    (dot * 10000.0) as i32
+    astar(from, to, &waypoints).or_else(|| Some(vec![from, to]))
 }
 
 pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option<Vec<HexCoord>> {
     if from == to {
         return Some(vec![from]);
     }
-
-    let hex_width = game_world.resources.hex_width;
-    let hex_depth = game_world.resources.hex_depth;
 
     let passable_tiles: HashSet<HexCoord> = game_world
         .query_entities(HEX_POSITION | TILE)
@@ -166,87 +137,7 @@ pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
         return find_sea_path(game_world, from, to);
     }
 
-    let mut predecessors: HashMap<HexCoord, Vec<HexCoord>> = HashMap::new();
-    let mut distances: HashMap<HexCoord, i32> = HashMap::new();
-    let mut queue: VecDeque<HexCoord> = VecDeque::new();
-
-    distances.insert(from, 0);
-    queue.push_back(from);
-
-    while let Some(current) = queue.pop_front() {
-        let current_dist = distances[&current];
-
-        for neighbor in hex_neighbors(current) {
-            if !passable_tiles.contains(&neighbor) {
-                continue;
-            }
-
-            let new_dist = current_dist + 1;
-
-            match distances.get(&neighbor) {
-                None => {
-                    distances.insert(neighbor, new_dist);
-                    predecessors.insert(neighbor, vec![current]);
-                    queue.push_back(neighbor);
-                }
-                Some(&existing_dist) if existing_dist == new_dist => {
-                    predecessors.get_mut(&neighbor).unwrap().push(current);
-                }
-                _ => {}
-            }
-        }
-    }
-
-    if !distances.contains_key(&to) {
-        return None;
-    }
-
-    let mut path = vec![to];
-    let mut current = to;
-
-    while current != from {
-        let preds = predecessors.get(&current).unwrap();
-
-        let best_pred = if preds.len() == 1 {
-            preds[0]
-        } else {
-            let next_in_path = if path.len() >= 2 {
-                Some(path[path.len() - 2])
-            } else {
-                None
-            };
-
-            *preds
-                .iter()
-                .max_by_key(|&&pred| {
-                    let alignment_to_goal =
-                        direction_alignment(pred, current, to, hex_width, hex_depth);
-
-                    let alignment_to_next = if let Some(next) = next_in_path {
-                        let prev_step_x = current.column - next.column;
-                        let prev_step_z = current.row - next.row;
-                        let this_step_x = current.column - pred.column;
-                        let this_step_z = current.row - pred.row;
-                        if prev_step_x == this_step_x && prev_step_z == this_step_z {
-                            10000
-                        } else {
-                            0
-                        }
-                    } else {
-                        0
-                    };
-
-                    alignment_to_goal + alignment_to_next
-                })
-                .unwrap()
-        };
-
-        path.push(best_pred);
-        current = best_pred;
-    }
-
-    path.reverse();
-    Some(path)
+    astar(from, to, &passable_tiles)
 }
 
 pub fn calculate_valid_moves(

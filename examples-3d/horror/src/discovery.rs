@@ -234,25 +234,7 @@ pub fn discover_buttons(game_world: &mut GameWorld, world: &mut World) {
             .with_friction(0.5);
     }
 
-    let rigid_body_comp = world.core.get_rigid_body(entity).cloned().unwrap();
-    let collider_comp = world.core.get_collider(entity).cloned();
-    let rapier_body = rigid_body_comp.to_rapier_rigid_body();
-    let rb_handle = world.resources.physics.add_rigid_body(rapier_body);
-    if let Some(collider_comp) = collider_comp {
-        let rapier_collider = collider_comp.to_rapier_collider();
-        world
-            .resources
-            .physics
-            .add_collider(rapier_collider, rb_handle);
-    }
-    if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(entity) {
-        rigid_body_mut.handle = Some(rb_handle.into());
-    }
-    world
-        .resources
-        .physics
-        .handle_to_entity
-        .insert(rb_handle, entity);
+    world.spawn_physics_body(entity);
 
     let game_entity = game_world.spawn_entities(ENGINE_ENTITY | BUTTON | INTERACTABLE, 1)[0];
     game_world.set_engine_entity(game_entity, EngineEntity(entity));

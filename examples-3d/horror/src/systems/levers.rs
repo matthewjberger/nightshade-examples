@@ -78,20 +78,13 @@ pub fn init_lever(
             .with_friction(0.5);
     }
 
-    let collider_rb_handle = {
-        let rigid_body_comp = world.core.get_rigid_body(collider_entity).cloned().unwrap();
-        let collider_comp = world.core.get_collider(collider_entity).cloned();
-        let rigid_body = rigid_body_comp.to_rapier_rigid_body();
-        let rb_handle = world.resources.physics.add_rigid_body(rigid_body);
-        if let Some(collider_comp) = collider_comp {
-            let collider = collider_comp.to_rapier_collider();
-            world.resources.physics.add_collider(collider, rb_handle);
-        }
-        if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(collider_entity) {
-            rigid_body_mut.handle = Some(rb_handle.into());
-        }
-        rb_handle
-    };
+    world.spawn_physics_body(collider_entity);
+    let collider_rb_handle = world
+        .core
+        .get_rigid_body(collider_entity)
+        .and_then(|rb| rb.handle)
+        .expect("Lever collider missing physics handle after spawn")
+        .into();
 
     world.core.add_components(light_entity, LIGHT);
     if let Some(light) = world.core.get_light_mut(light_entity) {

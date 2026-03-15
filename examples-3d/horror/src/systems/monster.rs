@@ -3,7 +3,6 @@ use crate::ecs::{
     MonsterPartRole,
 };
 use crate::systems::doors::slam_door_closed;
-use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::physics::*;
 use nightshade::prelude::*;
 
@@ -665,33 +664,11 @@ fn spawn_monster_part(
     }
 
     let material_name = format!("MonsterPart_{}", entity.id);
-    material_registry_insert(
-        &mut world.resources.material_registry,
-        material_name.clone(),
-        material,
-    );
-    if let Some(&index) = world
-        .resources
-        .material_registry
-        .registry
-        .name_to_index
-        .get(&material_name)
-    {
-        world
-            .resources
-            .material_registry
-            .registry
-            .add_reference(index);
-    }
-    world
-        .core
-        .set_material_ref(entity, MaterialRef::new(material_name));
+    world.register_material(entity, material_name, material);
 
     if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
         *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
     }
-
-    world.resources.mesh_render_state.mark_entity_added(entity);
 
     let game_entity = game_world.spawn_entities(ENGINE_ENTITY | MONSTER_PART, 1)[0];
     game_world.set_engine_entity(game_entity, EngineEntity(entity));

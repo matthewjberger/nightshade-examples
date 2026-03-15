@@ -212,15 +212,8 @@ impl State for HorrorGame {
             }
         }
 
-        if let Some(window_handle) = &world.resources.window.handle {
-            if window_handle
-                .set_cursor_grab(winit::window::CursorGrabMode::Locked)
-                .is_err()
-            {
-                let _ = window_handle.set_cursor_grab(winit::window::CursorGrabMode::Confined);
-            }
-            window_handle.set_cursor_visible(false);
-        }
+        world.set_cursor_locked(true);
+        world.set_cursor_visible(false);
 
         update_overlays(&mut self.game_world, world);
 

@@ -1,7 +1,6 @@
 use crate::ecs::{
     ENGINE_ENTITY, EngineEntity, GameWorld, OVERHEAD_LIGHT, SPARK_PARTICLE, SparkParticle,
 };
-use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::prelude::*;
 
 pub fn update_overhead_lights(game_world: &mut GameWorld, world: &mut World) {
@@ -103,25 +102,6 @@ fn spawn_spark_particles(game_world: &mut GameWorld, world: &mut World, fixture_
         .unwrap_or(Vec3::zeros());
 
     let material_name = "spark_shared".to_string();
-    if !world
-        .resources
-        .material_registry
-        .registry
-        .name_to_index
-        .contains_key(&material_name)
-    {
-        material_registry_insert(
-            &mut world.resources.material_registry,
-            material_name.clone(),
-            Material {
-                base_color: [1.0, 0.7, 0.2, 1.0],
-                emissive_factor: [2.0, 1.0, 0.3],
-                roughness: 0.1,
-                metallic: 0.9,
-                ..Default::default()
-            },
-        );
-    }
 
     for spark_index in 0..8 {
         let entity = world.spawn_entities(
@@ -152,22 +132,17 @@ fn spawn_spark_particles(game_world: &mut GameWorld, world: &mut World, fixture_
             mesh.name = "Sphere".to_string();
         }
 
-        if let Some(&mat_index) = world
-            .resources
-            .material_registry
-            .registry
-            .name_to_index
-            .get(&material_name)
-        {
-            world
-                .resources
-                .material_registry
-                .registry
-                .add_reference(mat_index);
-        }
-        world
-            .core
-            .set_material_ref(entity, MaterialRef::new(material_name.clone()));
+        world.register_material(
+            entity,
+            material_name.clone(),
+            Material {
+                base_color: [1.0, 0.7, 0.2, 1.0],
+                emissive_factor: [2.0, 1.0, 0.3],
+                roughness: 0.1,
+                metallic: 0.9,
+                ..Default::default()
+            },
+        );
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");

@@ -3,15 +3,8 @@ use crate::hex::world_to_hex;
 use nightshade::prelude::*;
 
 pub fn hover_system(game_world: &mut GameWorld, world: &mut World) {
-    let mouse_pos = world.resources.input.mouse.position;
-
     let hex_width = game_world.resources.hex_width;
     let hex_depth = game_world.resources.hex_depth;
-
-    world
-        .resources
-        .gpu_picking
-        .request_pick(mouse_pos.x as u32, mouse_pos.y as u32);
 
     if let Some(result) = world.resources.gpu_picking.take_result() {
         if result.entity_id.is_some() {
@@ -33,4 +26,10 @@ pub fn hover_system(game_world: &mut GameWorld, world: &mut World) {
             game_world.resources.hovered_tile = None;
         }
     }
+
+    let mouse_pos = world.resources.input.mouse.position;
+    world
+        .resources
+        .gpu_picking
+        .request_pick(mouse_pos.x as u32, mouse_pos.y as u32);
 }

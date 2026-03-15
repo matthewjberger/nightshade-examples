@@ -12,6 +12,8 @@ pub fn update_overhead_lights(game_world: &mut GameWorld, world: &mut World) {
         .query_entities(OVERHEAD_LIGHT | ENGINE_ENTITY)
         .collect();
 
+    let mut spark_spawns: Vec<Entity> = Vec::new();
+
     for game_entity in light_entities {
         let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
             continue;
@@ -24,34 +26,29 @@ pub fn update_overhead_lights(game_world: &mut GameWorld, world: &mut World) {
 
         light_state.spark_timer += dt;
 
+        let light_entity = light_state.light_entity;
+        let base_intensity = light_state.base_intensity;
+
         if light_state.is_sparking {
             let spark_progress = light_state.spark_timer;
 
             if spark_progress < 0.5 {
                 let flicker = ((spark_progress * 50.0).sin() * 0.5 + 0.5).powi(2);
-                let intensity = light_state.base_intensity * flicker * 3.0;
-                let light_entity = light_state.light_entity;
-
                 if let Some(light) = world.core.get_light_mut(light_entity) {
-                    light.intensity = intensity;
+                    light.intensity = base_intensity * flicker * 3.0;
                     light.color = nalgebra_glm::vec3(1.0, 0.6 + flicker * 0.3, 0.3);
                 }
             } else {
                 light_state.is_sparking = false;
                 light_state.spark_timer = 0.0;
                 light_state.next_spark_time = 3.0 + (total_time * 7.0).sin().abs() * 8.0;
-                let base_intensity = light_state.base_intensity;
-                let light_entity = light_state.light_entity;
-
                 if let Some(light) = world.core.get_light_mut(light_entity) {
                     light.intensity = base_intensity;
                     light.color = nalgebra_glm::vec3(1.0, 0.9, 0.7);
                 }
             }
         } else {
-            let base_intensity = light_state.base_intensity;
             let subtle_flicker = 1.0 + (total_time * 3.0 + base_intensity * 10.0).sin() * 0.05;
-            let light_entity = light_state.light_entity;
             let should_spark = light_state.spark_timer >= light_state.next_spark_time;
 
             if let Some(light) = world.core.get_light_mut(light_entity) {
@@ -59,13 +56,15 @@ pub fn update_overhead_lights(game_world: &mut GameWorld, world: &mut World) {
             }
 
             if should_spark {
-                let light_state = game_world.get_overhead_light_mut(game_entity).unwrap();
                 light_state.is_sparking = true;
                 light_state.spark_timer = 0.0;
-
-                spawn_spark_particles(game_world, world, fixture_entity);
+                spark_spawns.push(fixture_entity);
             }
         }
+    }
+
+    for fixture_entity in spark_spawns {
+        spawn_spark_particles(game_world, world, fixture_entity);
     }
 }
 
@@ -108,13 +107,26 @@ fn spawn_spark_particles(
         .map(|t| t.translation)
         .unwrap_or(Vec3::zeros());
 
-    let spark_material = Material {
-        base_color: [1.0, 0.7, 0.2, 1.0],
-        emissive_factor: [2.0, 1.0, 0.3],
-        roughness: 0.1,
-        metallic: 0.9,
-        ..Default::default()
-    };
+    let material_name = "spark_shared".to_string();
+    if !world
+        .resources
+        .material_registry
+        .registry
+        .name_to_index
+        .contains_key(&material_name)
+    {
+        material_registry_insert(
+            &mut world.resources.material_registry,
+            material_name.clone(),
+            Material {
+                base_color: [1.0, 0.7, 0.2, 1.0],
+                emissive_factor: [2.0, 1.0, 0.3],
+                roughness: 0.1,
+                metallic: 0.9,
+                ..Default::default()
+            },
+        );
+    }
 
     for spark_index in 0..8 {
         let entity = world.spawn_entities(
@@ -145,12 +157,6 @@ fn spawn_spark_particles(
             mesh.name = "Sphere".to_string();
         }
 
-        let material_name = format!("Spark_{}", entity.id);
-        material_registry_insert(
-            &mut world.resources.material_registry,
-            material_name.clone(),
-            spark_material.clone(),
-        );
         if let Some(&mat_index) = world
             .resources
             .material_registry
@@ -166,7 +172,7 @@ fn spawn_spark_particles(
         }
         world
             .core
-            .set_material_ref(entity, MaterialRef::new(material_name));
+            .set_material_ref(entity, MaterialRef::new(material_name.clone()));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");

@@ -24,7 +24,8 @@ use systems::{
     detect_input_mode, interaction_system, lean_system, load_textures, monster_chase_system,
     note_reading_system, spawn_ambient_light, spawn_flashlight, spawn_ui, update_doors_momentum,
     update_flashlight, update_interaction_prompt, update_lantern_light, update_levers_momentum,
-    update_objective, update_overhead_lights, update_overlays, update_temporary_message,
+    update_objective, update_overhead_lights, update_overlays, update_spark_particles,
+    update_temporary_message,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -231,6 +232,7 @@ impl State for HorrorGame {
         update_lantern_light(&self.game_world, world);
         update_flashlight(&mut self.game_world, world);
         update_overhead_lights(&mut self.game_world, world);
+        update_spark_particles(&mut self.game_world, world);
         update_interaction_prompt(&self.game_world, world);
         update_objective(&self.game_world, world);
         update_temporary_message(&mut self.game_world, world);

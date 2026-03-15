@@ -1,4 +1,6 @@
-use crate::ecs::{ENGINE_ENTITY, GameWorld, OVERHEAD_LIGHT};
+use crate::ecs::{
+    ENGINE_ENTITY, EngineEntity, GameWorld, OVERHEAD_LIGHT, SPARK_PARTICLE, SparkParticle,
+};
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::prelude::*;
 
@@ -61,13 +63,45 @@ pub fn update_overhead_lights(game_world: &mut GameWorld, world: &mut World) {
                 light_state.is_sparking = true;
                 light_state.spark_timer = 0.0;
 
-                spawn_spark_particles(world, fixture_entity);
+                spawn_spark_particles(game_world, world, fixture_entity);
             }
         }
     }
 }
 
-fn spawn_spark_particles(world: &mut World, fixture_entity: Entity) {
+pub fn update_spark_particles(game_world: &mut GameWorld, world: &mut World) {
+    let dt = world.resources.window.timing.delta_time;
+
+    let expired: Vec<freecs::Entity> = game_world
+        .query_entities(SPARK_PARTICLE | ENGINE_ENTITY)
+        .filter(|&game_entity| {
+            game_world
+                .get_spark_particle(game_entity)
+                .is_some_and(|spark| spark.lifetime <= 0.0)
+        })
+        .collect();
+
+    for game_entity in &expired {
+        if let Some(engine_entity) = game_world.get_engine_entity(*game_entity) {
+            world.queue_despawn_entity(engine_entity.0);
+        }
+    }
+    game_world.despawn_entities(&expired);
+
+    let active_sparks: Vec<freecs::Entity> =
+        game_world.query_entities(SPARK_PARTICLE).collect();
+    for game_entity in active_sparks {
+        if let Some(spark) = game_world.get_spark_particle_mut(game_entity) {
+            spark.lifetime -= dt;
+        }
+    }
+}
+
+fn spawn_spark_particles(
+    game_world: &mut GameWorld,
+    world: &mut World,
+    fixture_entity: Entity,
+) {
     let fixture_pos = world
         .core
         .get_local_transform(fixture_entity)
@@ -137,5 +171,9 @@ fn spawn_spark_particles(world: &mut World, fixture_entity: Entity) {
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
             *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");
         }
+
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | SPARK_PARTICLE, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.set_spark_particle(game_entity, SparkParticle { lifetime: 0.5 });
     }
 }

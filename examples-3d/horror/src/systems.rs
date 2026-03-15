@@ -19,7 +19,7 @@ pub use flashlight::{
 pub use input::detect_input_mode;
 pub use interaction::interaction_system;
 pub use levers::update_levers_momentum;
-pub use lights::update_overhead_lights;
+pub use lights::{update_overhead_lights, update_spark_particles};
 pub use monster::{cutscene_system, monster_chase_system};
 pub use puzzle::check_puzzle_state;
 pub use ui::{

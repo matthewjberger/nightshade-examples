@@ -84,13 +84,15 @@ pub fn update_manipulated_door(
     let Some(door_game_entity) = game_world.resources.interaction.manipulated_door else {
         return;
     };
-    let Some(door) = game_world.get_door_mut(door_game_entity) else {
+
+    let Some(hinge_position) = game_world
+        .get_door(door_game_entity)
+        .map(|door| door.hinge_position)
+    else {
         return;
     };
 
-    let distance_to_hinge = nalgebra_glm::distance(&camera_position, &door.hinge_position);
-
-    if distance_to_hinge > INTERACT_RANGE * 3.0 {
+    if nalgebra_glm::distance(&camera_position, &hinge_position) > INTERACT_RANGE * 3.0 {
         game_world.resources.interaction.manipulated_door = None;
         return;
     }
@@ -122,7 +124,9 @@ pub fn update_manipulated_door(
     let torque = mouse_input + gamepad_input;
     let friction = 6.0;
 
-    let door = game_world.get_door_mut(door_game_entity).unwrap();
+    let Some(door) = game_world.get_door_mut(door_game_entity) else {
+        return;
+    };
     door.angular_velocity += torque * dt;
     door.angular_velocity -= door.angular_velocity * friction * dt;
 

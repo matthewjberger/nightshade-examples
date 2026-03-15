@@ -60,6 +60,28 @@ pub struct Button {
 }
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MonsterPartRole {
+    #[default]
+    Torso,
+    Chest,
+    Ribcage,
+    Head,
+    Arm,
+    Leg,
+    Spine,
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct MonsterPart {
+    pub role: MonsterPartRole,
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct SparkParticle {
+    pub lifetime: f32,
+}
+
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LeverAction {
     #[default]
     RestorePower,
@@ -124,7 +146,6 @@ pub enum CutscenePhase {
 
 #[derive(Default)]
 pub struct MonsterState {
-    pub entity: Option<Entity>,
     pub active: bool,
     pub speed: f32,
     pub pause_timer: f32,
@@ -139,10 +160,12 @@ freecs::ecs! {
         note: Note => NOTE,
         overhead_light: OverheadLight => OVERHEAD_LIGHT,
         button: Button => BUTTON,
+        monster_part: MonsterPart => MONSTER_PART,
+        spark_particle: SparkParticle => SPARK_PARTICLE,
     }
     Tags {
         physics_prop => PHYSICS_PROP,
-        monster_part => MONSTER_PART,
+        exit_door => EXIT_DOOR,
     }
     Resources {
         player_entity: Option<Entity>,

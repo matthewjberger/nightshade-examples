@@ -1,5 +1,5 @@
-use crate::constants::{GRAB_RANGE, INTERACT_CONE_RADIUS, INTERACT_RANGE};
-use crate::ecs::{BUTTON, DOOR, ENGINE_ENTITY, GameWorld, InputMode, LEVER, NOTE};
+use crate::constants::{GRAB_RANGE, INTERACT_CONE_RADIUS};
+use crate::ecs::{GameWorld, INTERACTABLE, InputMode, InteractionKind};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
 use nightshade::ecs::text::commands::spawn_ui_text_with_properties;
@@ -367,56 +367,41 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
 
     let mut prompt_text = "";
 
-    'outer: for result in &pick_results {
-        for physics_game_entity in game_world.query_physics_prop() {
-            if let Some(engine_entity) = game_world.get_engine_entity(physics_game_entity)
-                && engine_entity.0 == result.entity
-            {
-                prompt_text = "Grab";
-                break 'outer;
-            }
-        }
+    for result in &pick_results {
+        let matched = game_world
+            .query_entities(INTERACTABLE)
+            .find(|&game_entity| {
+                game_world
+                    .get_interactable(game_entity)
+                    .is_some_and(|interactable| {
+                        interactable.match_entity == result.entity
+                            && (interactable.range == 0.0 || result.distance <= interactable.range)
+                    })
+            });
 
-        for game_entity in game_world.query_entities(DOOR | ENGINE_ENTITY) {
-            if let Some(engine_entity) = game_world.get_engine_entity(game_entity)
-                && engine_entity.0 == result.entity
-                && result.distance <= INTERACT_RANGE
-            {
-                if let Some(door) = game_world.get_door(game_entity) {
-                    prompt_text = if door.locked { "Locked" } else { "Open" };
+        if let Some(game_entity) = matched {
+            let kind = game_world
+                .get_interactable(game_entity)
+                .map(|interactable| interactable.kind)
+                .unwrap_or_default();
+
+            prompt_text = match kind {
+                InteractionKind::Grab => "Grab",
+                InteractionKind::Door => {
+                    if game_world
+                        .get_door(game_entity)
+                        .is_some_and(|door| door.locked)
+                    {
+                        "Locked"
+                    } else {
+                        "Open"
+                    }
                 }
-                break 'outer;
-            }
-        }
-
-        for game_entity in game_world.query_entities(LEVER | ENGINE_ENTITY) {
-            if let Some(lever) = game_world.get_lever(game_entity)
-                && lever.collider_entity == result.entity
-                && result.distance <= INTERACT_RANGE
-            {
-                prompt_text = "Interact";
-                break 'outer;
-            }
-        }
-
-        for game_entity in game_world.query_entities(BUTTON | ENGINE_ENTITY) {
-            if let Some(engine_entity) = game_world.get_engine_entity(game_entity)
-                && engine_entity.0 == result.entity
-                && result.distance <= INTERACT_RANGE
-            {
-                prompt_text = "Press";
-                break 'outer;
-            }
-        }
-
-        for game_entity in game_world.query_entities(NOTE | ENGINE_ENTITY) {
-            if let Some(engine_entity) = game_world.get_engine_entity(game_entity)
-                && engine_entity.0 == result.entity
-                && result.distance <= INTERACT_RANGE
-            {
-                prompt_text = "Read";
-                break 'outer;
-            }
+                InteractionKind::Lever => "Interact",
+                InteractionKind::Button => "Press",
+                InteractionKind::Note => "Read",
+            };
+            break;
         }
     }
 

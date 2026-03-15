@@ -1,5 +1,8 @@
 use crate::constants::INTERACT_RANGE;
-use crate::ecs::{ENGINE_ENTITY, EngineEntity, GameWorld, InputMode, LEVER, Lever, LeverAction};
+use crate::ecs::{
+    ENGINE_ENTITY, EngineEntity, GameWorld, InputMode, Interactable, InteractionKind, LEVER, Lever,
+    LeverAction,
+};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::light::components::{Light, LightType};
 use nightshade::ecs::physics::*;
@@ -134,6 +137,15 @@ pub fn init_lever(
             light_entity,
             light_material_name,
             activated: false,
+        },
+    );
+
+    game_world.set_interactable(
+        game_entity,
+        Interactable {
+            kind: InteractionKind::Lever,
+            match_entity: collider_entity,
+            range: crate::constants::INTERACT_RANGE,
         },
     );
 

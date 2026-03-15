@@ -1,6 +1,7 @@
+use crate::constants::INTERACT_RANGE;
 use crate::ecs::{
-    DOOR, ENGINE_ENTITY, EngineEntity, GameWorld, LEVER, LeverAction, NOTE, Note, OVERHEAD_LIGHT,
-    OverheadLight,
+    BUTTON, Button, DOOR, ENGINE_ENTITY, EngineEntity, GameWorld, INTERACTABLE, Interactable,
+    InteractionKind, LEVER, LeverAction, NOTE, Note, OVERHEAD_LIGHT, OverheadLight,
 };
 use crate::systems::levers::init_lever;
 use nightshade::ecs::world::commands::find_entity_by_name;
@@ -24,8 +25,16 @@ pub fn discover_doors(game_world: &mut GameWorld, world: &mut World) {
             .map(|transform| transform.translation)
             .unwrap_or(Vec3::zeros());
 
-        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | DOOR, 1)[0];
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | DOOR | INTERACTABLE, 1)[0];
         game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.set_interactable(
+            game_entity,
+            Interactable {
+                kind: InteractionKind::Door,
+                match_entity: entity,
+                range: INTERACT_RANGE,
+            },
+        );
 
         crate::systems::doors::init_door(
             game_world,
@@ -69,7 +78,7 @@ pub fn discover_levers(game_world: &mut GameWorld, world: &mut World) {
             .map(|transform| transform.translation)
             .unwrap_or(Vec3::zeros());
 
-        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | LEVER, 1)[0];
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | LEVER | INTERACTABLE, 1)[0];
 
         init_lever(game_world, world, game_entity, name, position, *action);
     }
@@ -120,8 +129,16 @@ pub fn discover_notes(game_world: &mut GameWorld, world: &mut World) {
         let entity = find_entity_by_name(world, name)
             .unwrap_or_else(|| panic!("Note entity '{}' not found", name));
 
-        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | NOTE, 1)[0];
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | NOTE | INTERACTABLE, 1)[0];
         game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.set_interactable(
+            game_entity,
+            Interactable {
+                kind: InteractionKind::Note,
+                match_entity: entity,
+                range: INTERACT_RANGE,
+            },
+        );
         game_world.set_note(
             game_entity,
             Note {
@@ -139,9 +156,7 @@ pub fn discover_physics_props(game_world: &mut GameWorld, world: &mut World) {
         let Some(entity) = find_entity_by_name(world, &name) else {
             break;
         };
-        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
-        game_world.set_engine_entity(game_entity, EngineEntity(entity));
-        game_world.add_physics_prop(game_entity);
+        spawn_physics_prop(game_world, entity);
         prop_index += 1;
     }
 
@@ -151,17 +166,126 @@ pub fn discover_physics_props(game_world: &mut GameWorld, world: &mut World) {
         let Some(entity) = find_entity_by_name(world, &name) else {
             break;
         };
-        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
-        game_world.set_engine_entity(game_entity, EngineEntity(entity));
-        game_world.add_physics_prop(game_entity);
+        spawn_physics_prop(game_world, entity);
         link_index += 1;
     }
 
     if let Some(entity) = find_entity_by_name(world, "Lantern") {
-        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
-        game_world.set_engine_entity(game_entity, EngineEntity(entity));
-        game_world.add_physics_prop(game_entity);
+        spawn_physics_prop(game_world, entity);
     }
+}
+
+pub fn discover_buttons(game_world: &mut GameWorld, world: &mut World) {
+    let button_position = nalgebra_glm::vec3(-7.2, 1.0, -14.0);
+
+    let entity = world.spawn_entities(
+        nightshade::prelude::NAME
+            | nightshade::prelude::LOCAL_TRANSFORM
+            | nightshade::prelude::GLOBAL_TRANSFORM
+            | nightshade::prelude::LOCAL_TRANSFORM_DIRTY
+            | nightshade::prelude::RENDER_MESH
+            | nightshade::prelude::MATERIAL_REF
+            | nightshade::prelude::BOUNDING_VOLUME
+            | nightshade::prelude::CASTS_SHADOW
+            | nightshade::prelude::VISIBILITY
+            | nightshade::ecs::world::RIGID_BODY
+            | nightshade::ecs::world::COLLIDER,
+        1,
+    )[0];
+
+    if let Some(name) = world.core.get_name_mut(entity) {
+        name.0 = "Generator Button".to_string();
+    }
+
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
+        transform.translation = button_position;
+        transform.scale = nalgebra_glm::vec3(0.12, 0.06, 0.12);
+    }
+
+    if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
+        mesh.name = "Cylinder".to_string();
+    }
+
+    let material = nightshade::prelude::Material {
+        base_color: [0.8, 0.15, 0.1, 1.0],
+        roughness: 0.4,
+        metallic: 0.6,
+        ..Default::default()
+    };
+    nightshade::ecs::world::commands::spawn_material(
+        world,
+        entity,
+        "generator_button".to_string(),
+        material,
+    );
+
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
+        *bounding_volume =
+            nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+    }
+
+    if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
+        *rigid_body = nightshade::ecs::physics::RigidBodyComponent::new_kinematic()
+            .with_translation(button_position.x, button_position.y, button_position.z);
+    }
+
+    if let Some(collider) = world.core.get_collider_mut(entity) {
+        *collider = nightshade::ecs::physics::ColliderComponent::new_cylinder(0.03, 0.06)
+            .with_friction(0.5);
+    }
+
+    let rigid_body_comp = world.core.get_rigid_body(entity).cloned().unwrap();
+    let collider_comp = world.core.get_collider(entity).cloned();
+    let rapier_body = rigid_body_comp.to_rapier_rigid_body();
+    let rb_handle = world.resources.physics.add_rigid_body(rapier_body);
+    if let Some(collider_comp) = collider_comp {
+        let rapier_collider = collider_comp.to_rapier_collider();
+        world
+            .resources
+            .physics
+            .add_collider(rapier_collider, rb_handle);
+    }
+    if let Some(rigid_body_mut) = world.core.get_rigid_body_mut(entity) {
+        rigid_body_mut.handle = Some(rb_handle.into());
+    }
+    world
+        .resources
+        .physics
+        .handle_to_entity
+        .insert(rb_handle, entity);
+
+    let game_entity = game_world.spawn_entities(ENGINE_ENTITY | BUTTON | INTERACTABLE, 1)[0];
+    game_world.set_engine_entity(game_entity, EngineEntity(entity));
+    game_world.set_button(
+        game_entity,
+        Button {
+            base_position: button_position,
+            current_press: 0.0,
+            is_pressed: false,
+        },
+    );
+    game_world.set_interactable(
+        game_entity,
+        Interactable {
+            kind: InteractionKind::Button,
+            match_entity: entity,
+            range: INTERACT_RANGE,
+        },
+    );
+}
+
+fn spawn_physics_prop(game_world: &mut GameWorld, engine_entity: Entity) {
+    let game_entity = game_world.spawn_entities(ENGINE_ENTITY | INTERACTABLE, 1)[0];
+    game_world.set_engine_entity(game_entity, EngineEntity(engine_entity));
+    game_world.set_interactable(
+        game_entity,
+        Interactable {
+            kind: InteractionKind::Grab,
+            match_entity: engine_entity,
+            range: 0.0,
+        },
+    );
+    game_world.add_physics_prop(game_entity);
 }
 
 pub fn discover_chain_light(game_world: &mut GameWorld, world: &mut World) {

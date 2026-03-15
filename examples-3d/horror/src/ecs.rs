@@ -82,6 +82,23 @@ pub struct SparkParticle {
 }
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InteractionKind {
+    #[default]
+    Grab,
+    Door,
+    Lever,
+    Button,
+    Note,
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct Interactable {
+    pub kind: InteractionKind,
+    pub match_entity: Entity,
+    pub range: f32,
+}
+
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LeverAction {
     #[default]
     RestorePower,
@@ -160,6 +177,7 @@ freecs::ecs! {
         note: Note => NOTE,
         overhead_light: OverheadLight => OVERHEAD_LIGHT,
         button: Button => BUTTON,
+        interactable: Interactable => INTERACTABLE,
         monster_part: MonsterPart => MONSTER_PART,
         spark_particle: SparkParticle => SPARK_PARTICLE,
     }

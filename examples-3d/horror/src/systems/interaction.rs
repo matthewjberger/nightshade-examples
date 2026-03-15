@@ -1,9 +1,8 @@
 use crate::constants::{
     ANGULAR_DAMPING, GRAB_DAMPING_RATIO, GRAB_RANGE, GRAB_STIFFNESS, INTERACT_CONE_RADIUS,
-    INTERACT_RANGE, MAX_GRAB_DISTANCE, MAX_GRAB_FORCE, MIN_GRAB_DISTANCE, SCROLL_DISTANCE_SPEED,
-    THROW_STRENGTH,
+    MAX_GRAB_DISTANCE, MAX_GRAB_FORCE, MIN_GRAB_DISTANCE, SCROLL_DISTANCE_SPEED, THROW_STRENGTH,
 };
-use crate::ecs::{BUTTON, DOOR, ENGINE_ENTITY, GameWorld, InputMode, LEVER, LeverAction, NOTE};
+use crate::ecs::{GameWorld, INTERACTABLE, InputMode, InteractionKind, LeverAction};
 use crate::systems::ui::pick_entities_cone;
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::input::resources::MouseState;
@@ -129,37 +128,46 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     try_start_interaction(game_world, world, &pick_results);
 }
 
+fn find_interactable(
+    game_world: &GameWorld,
+    picked_entity: Entity,
+    distance: f32,
+) -> Option<(freecs::Entity, InteractionKind)> {
+    for game_entity in game_world.query_entities(INTERACTABLE) {
+        let Some(interactable) = game_world.get_interactable(game_entity) else {
+            continue;
+        };
+        if interactable.match_entity == picked_entity
+            && (interactable.range == 0.0 || distance <= interactable.range)
+        {
+            return Some((game_entity, interactable.kind));
+        }
+    }
+    None
+}
+
 fn try_start_interaction(
     game_world: &mut GameWorld,
     world: &mut World,
     pick_results: &[PickingResult],
 ) {
     for result in pick_results {
-        let mut found_physics_prop = false;
-        for physics_game_entity in game_world.query_physics_prop() {
-            if let Some(engine_entity) = game_world.get_engine_entity(physics_game_entity)
-                && engine_entity.0 == result.entity
-            {
-                found_physics_prop = true;
-                break;
-            }
-        }
-        if found_physics_prop {
-            game_world.resources.interaction.grabbed_entity = Some(result.entity);
-            game_world.resources.interaction.grab_distance = result.distance.min(MAX_GRAB_DISTANCE);
-            return;
-        }
+        let Some((game_entity, kind)) =
+            find_interactable(game_world, result.entity, result.distance)
+        else {
+            continue;
+        };
 
-        let mut found_door = false;
-        for game_entity in game_world.query_entities(DOOR | ENGINE_ENTITY) {
-            let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
-                continue;
-            };
-            if engine_entity.0 == result.entity && result.distance <= INTERACT_RANGE {
-                let Some(door) = game_world.get_door(game_entity) else {
-                    continue;
-                };
-                if !door.locked {
+        match kind {
+            InteractionKind::Grab => {
+                game_world.resources.interaction.grabbed_entity = Some(result.entity);
+                game_world.resources.interaction.grab_distance =
+                    result.distance.min(MAX_GRAB_DISTANCE);
+            }
+            InteractionKind::Door => {
+                if let Some(door) = game_world.get_door(game_entity)
+                    && !door.locked
+                {
                     game_world.resources.interaction.manipulated_door = Some(game_entity);
                     if let Some(door_audio_entity) = game_world.resources.door_audio_entity {
                         world.resources.audio.stop_sound(door_audio_entity);
@@ -168,21 +176,10 @@ fn try_start_interaction(
                         }
                     }
                 }
-                found_door = true;
-                break;
             }
-        }
-        if found_door {
-            return;
-        }
-
-        let mut found_lever = false;
-        for game_entity in game_world.query_entities(LEVER | ENGINE_ENTITY) {
-            let Some(lever) = game_world.get_lever(game_entity) else {
-                continue;
-            };
-            if lever.collider_entity == result.entity && result.distance <= INTERACT_RANGE {
-                if matches!(lever.action, LeverAction::UnlockExit)
+            InteractionKind::Lever => {
+                if let Some(lever) = game_world.get_lever(game_entity)
+                    && matches!(lever.action, LeverAction::UnlockExit)
                     && !game_world.resources.power_restored
                 {
                     game_world.resources.temporary_message =
@@ -192,45 +189,17 @@ fn try_start_interaction(
                     return;
                 }
                 game_world.resources.interaction.manipulated_lever = Some(game_entity);
-                found_lever = true;
-                break;
             }
-        }
-        if found_lever {
-            return;
-        }
-
-        let mut found_button = false;
-        for game_entity in game_world.query_entities(BUTTON | ENGINE_ENTITY) {
-            let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
-                continue;
-            };
-            if engine_entity.0 == result.entity && result.distance <= INTERACT_RANGE {
+            InteractionKind::Button => {
                 game_world.resources.interaction.manipulated_button = Some(game_entity);
-                found_button = true;
-                break;
             }
-        }
-        if found_button {
-            return;
-        }
-
-        let mut found_note = false;
-        for game_entity in game_world.query_entities(NOTE | ENGINE_ENTITY) {
-            let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
-                continue;
-            };
-            if engine_entity.0 == result.entity && result.distance <= INTERACT_RANGE {
+            InteractionKind::Note => {
                 game_world.resources.reading_note = Some(game_entity);
                 game_world.resources.note_close_key_released = false;
                 game_world.resources.interaction.require_interact_release = true;
-                found_note = true;
-                break;
             }
         }
-        if found_note {
-            return;
-        }
+        return;
     }
 }
 

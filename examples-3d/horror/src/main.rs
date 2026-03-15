@@ -8,7 +8,7 @@ use std::path::Path;
 
 use constants::STANDING_CAMERA_HEIGHT;
 use discovery::{
-    discover_chain_light, discover_doors, discover_levers, discover_notes,
+    discover_buttons, discover_chain_light, discover_doors, discover_levers, discover_notes,
     discover_overhead_lights, discover_physics_props,
 };
 use ecs::GameWorld;
@@ -122,6 +122,7 @@ impl State for HorrorGame {
         discover_levers(&mut self.game_world, world);
         discover_notes(&mut self.game_world, world);
         discover_physics_props(&mut self.game_world, world);
+        discover_buttons(&mut self.game_world, world);
         discover_chain_light(&mut self.game_world, world);
         discover_overhead_lights(&mut self.game_world, world);
 

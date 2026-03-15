@@ -23,8 +23,8 @@ struct GpuUniforms {
     tile_count: u32,
     hex_width: f32,
     hex_depth: f32,
+    is_flat_top: u32,
     pad0: f32,
-    pad1: f32,
 }
 
 pub struct OverlayData {
@@ -248,8 +248,8 @@ impl PassNode<World> for HexOverlayPass {
             tile_count: tile_count as u32,
             hex_width: data.hex_width,
             hex_depth: data.hex_depth,
+            is_flat_top: u32::from(data.hex_width > data.hex_depth),
             pad0: 0.0,
-            pad1: 0.0,
         };
 
         context

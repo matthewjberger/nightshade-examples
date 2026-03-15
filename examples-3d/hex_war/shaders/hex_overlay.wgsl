@@ -10,8 +10,8 @@ struct Uniforms {
     tile_count: u32,
     hex_width: f32,
     hex_depth: f32,
-    _pad0: f32,
-    _pad1: f32,
+    is_flat_top: u32,
+    _pad: f32,
 };
 
 struct TilePositions {
@@ -51,31 +51,40 @@ fn world_from_depth(uv: vec2<f32>, depth: f32) -> vec3<f32> {
     return world.xyz / world.w;
 }
 
-fn point_in_flat_top_hex(px: f32, pz: f32, cx: f32, cz: f32) -> f32 {
-    let inset = 0.92;
-    let half_w = uniforms.hex_width * 0.5 * inset;
-    let half_h = uniforms.hex_depth * 0.5 * inset;
-    let quarter_w = uniforms.hex_width * 0.25 * inset;
-
+fn hex_distance(px: f32, pz: f32, cx: f32, cz: f32) -> f32 {
+    let inset = 0.90;
+    let hw = uniforms.hex_width * 0.5 * inset;
+    let hd = uniforms.hex_depth * 0.5 * inset;
     let dx = abs(px - cx);
     let dz = abs(pz - cz);
 
-    if dx > half_w || dz > half_h {
-        return -1.0;
+    if uniforms.is_flat_top == 1u {
+        let qw = hw * 0.5;
+        if dx > hw || dz > hd {
+            return -1.0;
+        }
+        if dx <= qw {
+            return min(hw - dx, hd - dz) / hw;
+        }
+        let max_dz = hd * (hw - dx) / (hw - qw);
+        if dz > max_dz {
+            return -1.0;
+        }
+        return (max_dz - dz) / hd;
+    } else {
+        let qd = hd * 0.5;
+        if dx > hw || dz > hd {
+            return -1.0;
+        }
+        if dz <= qd {
+            return min(hw - dx, hd - dz) / hd;
+        }
+        let max_dx = hw * (hd - dz) / (hd - qd);
+        if dx > max_dx {
+            return -1.0;
+        }
+        return (max_dx - dx) / hw;
     }
-
-    if dx <= quarter_w {
-        let edge_dist = min(half_w - dx, half_h - dz);
-        return edge_dist / half_w;
-    }
-
-    let max_dz = half_h * (half_w - dx) / (half_w - quarter_w);
-    if dz > max_dz {
-        return -1.0;
-    }
-
-    let edge_dist = max_dz - dz;
-    return edge_dist / half_h;
 }
 
 @fragment
@@ -98,7 +107,7 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var best_dist: f32 = -1.0;
     for (var index = 0u; index < uniforms.tile_count; index++) {
         let tile = tiles.data[index];
-        let dist = point_in_flat_top_hex(world_pos.x, world_pos.z, tile.x, tile.z);
+        let dist = hex_distance(world_pos.x, world_pos.z, tile.x, tile.z);
         if dist > best_dist {
             best_dist = dist;
         }
@@ -109,10 +118,10 @@ fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     let pulse = sin(uniforms.time * 3.0) * 0.5 + 0.5;
-    let edge_fade = smoothstep(0.0, 0.15, best_dist);
-    let strength = (0.12 + 0.06 * pulse) * edge_fade;
+    let edge_fade = smoothstep(0.0, 0.12, best_dist);
+    let strength = (0.10 + 0.05 * pulse) * edge_fade;
 
-    let tint = vec3<f32>(0.6, 0.85, 1.0);
+    let tint = vec3<f32>(0.5, 0.8, 1.0);
     let tinted = scene_color.rgb + tint * strength;
 
     return vec4<f32>(tinted, scene_color.a);

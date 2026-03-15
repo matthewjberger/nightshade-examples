@@ -1,4 +1,4 @@
-use crate::state::{CutscenePhase, HorrorDemo};
+use crate::ecs::{CutscenePhase, ENGINE_ENTITY, EngineEntity, GameWorld};
 use crate::systems::doors::slam_door_closed;
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::physics::*;
@@ -13,25 +13,26 @@ const CUTSCENE_DOOR_SLAM_DURATION: f32 = 0.3;
 const CUTSCENE_LOOK_AT_DOOR_DURATION: f32 = 2.0;
 const EXIT_AREA_Z_THRESHOLD: f32 = -27.0;
 
-pub fn start_cutscene(demo: &mut HorrorDemo, world: &mut World) {
-    demo.cutscene.active = true;
-    demo.cutscene.phase = CutscenePhase::LookAtWall;
-    demo.cutscene.timer = 0.0;
+pub fn start_cutscene(game_world: &mut GameWorld, world: &mut World) {
+    game_world.resources.cutscene.active = true;
+    game_world.resources.cutscene.phase = CutscenePhase::LookAtWall;
+    game_world.resources.cutscene.timer = 0.0;
 
-    demo.cutscene.saved_base_rotation = demo.lean_state.base_rotation;
+    game_world.resources.cutscene.saved_base_rotation =
+        game_world.resources.lean_state.base_rotation;
 
     world.resources.graphics.letterbox_target = 1.0;
 
-    if let Some(ambient_entity) = demo.ambient_audio_entity
+    if let Some(ambient_entity) = game_world.resources.ambient_audio_entity
         && let Some(source) = world.core.get_audio_source_mut(ambient_entity)
     {
         source.playing = false;
     }
 
     let wall_break_pos = nalgebra_glm::vec3(-4.5, 1.5, -16.0);
-    demo.cutscene.wall_break_position = wall_break_pos;
+    game_world.resources.cutscene.wall_break_position = wall_break_pos;
 
-    if let Some(camera_entity) = demo.camera_entity
+    if let Some(camera_entity) = game_world.resources.camera_entity
         && let Some(camera_transform) = world.core.get_global_transform(camera_entity)
     {
         let camera_pos = camera_transform.translation();
@@ -43,36 +44,36 @@ pub fn start_cutscene(demo: &mut HorrorDemo, world: &mut World) {
 
         let yaw_quat = nalgebra_glm::quat_angle_axis(yaw, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
         let pitch_quat = nalgebra_glm::quat_angle_axis(-pitch, &nalgebra_glm::vec3(1.0, 0.0, 0.0));
-        demo.cutscene.target_rotation = yaw_quat * pitch_quat;
+        game_world.resources.cutscene.target_rotation = yaw_quat * pitch_quat;
     }
 }
 
-pub fn cutscene_system(demo: &mut HorrorDemo, world: &mut World) {
-    if !demo.cutscene.active {
+pub fn cutscene_system(game_world: &mut GameWorld, world: &mut World) {
+    if !game_world.resources.cutscene.active {
         return;
     }
 
     let dt = world.resources.window.timing.delta_time;
-    demo.cutscene.timer += dt;
+    game_world.resources.cutscene.timer += dt;
 
-    match demo.cutscene.phase {
+    match game_world.resources.cutscene.phase {
         CutscenePhase::None => {}
         CutscenePhase::LookAtWall => {
-            let progress = (demo.cutscene.timer / CUTSCENE_LOOK_DURATION).min(1.0);
+            let progress = (game_world.resources.cutscene.timer / CUTSCENE_LOOK_DURATION).min(1.0);
             let smoothed = smooth_step(progress);
 
-            demo.lean_state.base_rotation = nalgebra_glm::quat_slerp(
-                &demo.cutscene.saved_base_rotation,
-                &demo.cutscene.target_rotation,
+            game_world.resources.lean_state.base_rotation = nalgebra_glm::quat_slerp(
+                &game_world.resources.cutscene.saved_base_rotation,
+                &game_world.resources.cutscene.target_rotation,
                 smoothed,
             );
 
-            if demo.cutscene.timer >= CUTSCENE_LOOK_DURATION {
-                demo.cutscene.phase = CutscenePhase::WallBreaks;
-                demo.cutscene.timer = 0.0;
-                spawn_wall_destruction(demo, world);
+            if game_world.resources.cutscene.timer >= CUTSCENE_LOOK_DURATION {
+                game_world.resources.cutscene.phase = CutscenePhase::WallBreaks;
+                game_world.resources.cutscene.timer = 0.0;
+                spawn_wall_destruction(game_world, world);
 
-                if let Some(rubble_entity) = demo.rubble_audio_entity
+                if let Some(rubble_entity) = game_world.resources.rubble_audio_entity
                     && let Some(source) = world.core.get_audio_source_mut(rubble_entity)
                 {
                     source.playing = true;
@@ -80,19 +81,19 @@ pub fn cutscene_system(demo: &mut HorrorDemo, world: &mut World) {
             }
         }
         CutscenePhase::WallBreaks => {
-            if demo.cutscene.timer >= CUTSCENE_WALL_BREAK_DURATION {
-                demo.cutscene.phase = CutscenePhase::MonsterEmerges;
-                demo.cutscene.timer = 0.0;
-                spawn_monster(demo, world);
+            if game_world.resources.cutscene.timer >= CUTSCENE_WALL_BREAK_DURATION {
+                game_world.resources.cutscene.phase = CutscenePhase::MonsterEmerges;
+                game_world.resources.cutscene.timer = 0.0;
+                spawn_monster(game_world, world);
             }
         }
         CutscenePhase::MonsterEmerges => {
-            if demo.cutscene.timer >= CUTSCENE_EMERGE_DURATION {
-                demo.cutscene.phase = CutscenePhase::ReturnControl;
-                demo.cutscene.timer = 0.0;
-                demo.monster.active = true;
+            if game_world.resources.cutscene.timer >= CUTSCENE_EMERGE_DURATION {
+                game_world.resources.cutscene.phase = CutscenePhase::ReturnControl;
+                game_world.resources.cutscene.timer = 0.0;
+                game_world.resources.monster.active = true;
 
-                if let Some(monster_audio_entity) = demo.monster_audio_entity
+                if let Some(monster_audio_entity) = game_world.resources.monster_audio_entity
                     && let Some(source) = world.core.get_audio_source_mut(monster_audio_entity)
                 {
                     source.playing = true;
@@ -101,18 +102,19 @@ pub fn cutscene_system(demo: &mut HorrorDemo, world: &mut World) {
         }
         CutscenePhase::ReturnControl => {
             world.resources.graphics.letterbox_target = 0.0;
-            if demo.cutscene.timer >= CUTSCENE_RETURN_DURATION {
-                demo.cutscene.active = false;
-                demo.cutscene.phase = CutscenePhase::None;
+            if game_world.resources.cutscene.timer >= CUTSCENE_RETURN_DURATION {
+                game_world.resources.cutscene.active = false;
+                game_world.resources.cutscene.phase = CutscenePhase::None;
             }
         }
         CutscenePhase::DoorSlam => {
-            if demo.cutscene.timer >= CUTSCENE_DOOR_SLAM_DURATION {
-                demo.cutscene.phase = CutscenePhase::LookAtDoor;
-                demo.cutscene.timer = 0.0;
+            if game_world.resources.cutscene.timer >= CUTSCENE_DOOR_SLAM_DURATION {
+                game_world.resources.cutscene.phase = CutscenePhase::LookAtDoor;
+                game_world.resources.cutscene.timer = 0.0;
 
-                if let Some(camera_entity) = demo.camera_entity
-                    && let Some(exit_door) = demo.doors.get(demo.exit_door_index)
+                if let Some(camera_entity) = game_world.resources.camera_entity
+                    && let Some(exit_door_game_entity) = game_world.resources.exit_door
+                    && let Some(exit_door) = game_world.get_door(exit_door_game_entity)
                     && let Some(camera_transform) = world.core.get_global_transform(camera_entity)
                 {
                     let door_pos = exit_door.hinge_position;
@@ -127,25 +129,26 @@ pub fn cutscene_system(demo: &mut HorrorDemo, world: &mut World) {
                         nalgebra_glm::quat_angle_axis(yaw, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
                     let pitch_quat =
                         nalgebra_glm::quat_angle_axis(-pitch, &nalgebra_glm::vec3(1.0, 0.0, 0.0));
-                    demo.cutscene.target_rotation = yaw_quat * pitch_quat;
+                    game_world.resources.cutscene.target_rotation = yaw_quat * pitch_quat;
                 }
             }
         }
         CutscenePhase::LookAtDoor => {
-            let progress = (demo.cutscene.timer / CUTSCENE_LOOK_AT_DOOR_DURATION).min(1.0);
+            let progress =
+                (game_world.resources.cutscene.timer / CUTSCENE_LOOK_AT_DOOR_DURATION).min(1.0);
             let smoothed = smooth_step(progress);
 
-            demo.lean_state.base_rotation = nalgebra_glm::quat_slerp(
-                &demo.cutscene.saved_base_rotation,
-                &demo.cutscene.target_rotation,
+            game_world.resources.lean_state.base_rotation = nalgebra_glm::quat_slerp(
+                &game_world.resources.cutscene.saved_base_rotation,
+                &game_world.resources.cutscene.target_rotation,
                 smoothed,
             );
 
-            if demo.cutscene.timer >= CUTSCENE_LOOK_AT_DOOR_DURATION {
-                demo.fade_target = 1.0;
-                demo.cutscene.active = false;
-                demo.cutscene.phase = CutscenePhase::None;
-                demo.game_won = true;
+            if game_world.resources.cutscene.timer >= CUTSCENE_LOOK_AT_DOOR_DURATION {
+                game_world.resources.fade_target = 1.0;
+                game_world.resources.cutscene.active = false;
+                game_world.resources.cutscene.phase = CutscenePhase::None;
+                game_world.resources.game_won = true;
             }
         }
     }
@@ -155,8 +158,8 @@ fn smooth_step(t: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
-fn spawn_wall_destruction(demo: &mut HorrorDemo, world: &mut World) {
-    let break_pos = demo.cutscene.wall_break_position;
+fn spawn_wall_destruction(game_world: &mut GameWorld, world: &mut World) {
+    let break_pos = game_world.resources.cutscene.wall_break_position;
 
     let rubble_material = create_textured_material(nalgebra_glm::vec3(0.35, 0.35, 0.38), 0.9, 0.1);
 
@@ -201,13 +204,15 @@ fn spawn_wall_destruction(demo: &mut HorrorDemo, world: &mut World) {
             );
         }
 
-        demo.physics_objects.push(entity);
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.add_physics_prop(game_entity);
     }
 
-    spawn_dust_particles(demo, world, break_pos);
+    spawn_dust_particles(game_world, world, break_pos);
 }
 
-fn spawn_dust_particles(demo: &mut HorrorDemo, world: &mut World, position: Vec3) {
+fn spawn_dust_particles(game_world: &mut GameWorld, world: &mut World, position: Vec3) {
     let dust_material = create_textured_material(nalgebra_glm::vec3(0.6, 0.55, 0.5), 0.95, 0.0);
 
     for index in 0..15 {
@@ -247,12 +252,14 @@ fn spawn_dust_particles(demo: &mut HorrorDemo, world: &mut World, position: Vec3
             rb.apply_impulse(nalgebra_glm::vec3(impulse_x, impulse_y, impulse_z), true);
         }
 
-        demo.physics_objects.push(entity);
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.add_physics_prop(game_entity);
     }
 }
 
-fn spawn_monster(demo: &mut HorrorDemo, world: &mut World) {
-    let break_pos = demo.cutscene.wall_break_position;
+fn spawn_monster(game_world: &mut GameWorld, world: &mut World) {
+    let break_pos = game_world.resources.cutscene.wall_break_position;
     let monster_pos = nalgebra_glm::vec3(break_pos.x - 0.5, 0.0, break_pos.z);
 
     let flesh_material = create_textured_material(nalgebra_glm::vec3(0.45, 0.08, 0.08), 0.85, 0.15);
@@ -263,153 +270,156 @@ fn spawn_monster(demo: &mut HorrorDemo, world: &mut World) {
     let inner_glow = create_emissive_material(nalgebra_glm::vec3(0.8, 0.1, 0.0), 2.0);
 
     let torso = spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 1.4, -0.1),
         nalgebra_glm::vec3(0.7, 0.9, 0.5),
         "Cube",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(torso);
 
     let chest_detail = spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 1.5, 0.2),
         nalgebra_glm::vec3(0.5, 0.6, 0.15),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(chest_detail);
+    let _ = chest_detail;
 
     let ribcage_glow = spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 1.35, 0.15),
         nalgebra_glm::vec3(0.3, 0.25, 0.1),
         "Sphere",
         inner_glow.clone(),
     );
-    demo.monster.body_parts.push(ribcage_glow);
+    let _ = ribcage_glow;
 
     for rib_index in 0..4 {
         let y_offset = 1.2 + rib_index as f32 * 0.15;
-        let rib_left = spawn_monster_part(
+        spawn_monster_part(
+            game_world,
             world,
             monster_pos + nalgebra_glm::vec3(-0.3, y_offset, 0.1),
             nalgebra_glm::vec3(0.12, 0.04, 0.2),
             "Cube",
             bone_material.clone(),
         );
-        demo.monster.body_parts.push(rib_left);
-        let rib_right = spawn_monster_part(
+        spawn_monster_part(
+            game_world,
             world,
             monster_pos + nalgebra_glm::vec3(0.3, y_offset, 0.1),
             nalgebra_glm::vec3(0.12, 0.04, 0.2),
             "Cube",
             bone_material.clone(),
         );
-        demo.monster.body_parts.push(rib_right);
     }
 
-    let neck = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 1.95, 0.0),
         nalgebra_glm::vec3(0.2, 0.2, 0.2),
         "Cylinder",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(neck);
 
-    let head = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 2.2, 0.15),
         nalgebra_glm::vec3(0.35, 0.4, 0.4),
         "Cube",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(head);
 
-    let skull_ridge = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 2.45, 0.0),
         nalgebra_glm::vec3(0.25, 0.12, 0.35),
         "Cube",
         bone_material.clone(),
     );
-    demo.monster.body_parts.push(skull_ridge);
 
-    let jaw = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 2.0, 0.3),
         nalgebra_glm::vec3(0.28, 0.15, 0.2),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(jaw);
 
-    let left_eye = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.12, 2.25, 0.35),
         nalgebra_glm::vec3(0.1, 0.1, 0.1),
         "Sphere",
         eye_material.clone(),
     );
-    demo.monster.body_parts.push(left_eye);
 
-    let right_eye = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.12, 2.25, 0.35),
         nalgebra_glm::vec3(0.1, 0.1, 0.1),
         "Sphere",
         eye_material.clone(),
     );
-    demo.monster.body_parts.push(right_eye);
 
-    let third_eye = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 2.35, 0.38),
         nalgebra_glm::vec3(0.06, 0.06, 0.06),
         "Sphere",
         eye_material,
     );
-    demo.monster.body_parts.push(third_eye);
 
-    let left_shoulder = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.5, 1.7, 0.0),
         nalgebra_glm::vec3(0.25, 0.2, 0.25),
         "Sphere",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(left_shoulder);
 
-    let left_upper_arm = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.65, 1.4, 0.1),
         nalgebra_glm::vec3(0.12, 0.5, 0.12),
         "Cube",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(left_upper_arm);
 
-    let left_lower_arm = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.7, 0.95, 0.2),
         nalgebra_glm::vec3(0.1, 0.45, 0.1),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(left_lower_arm);
 
-    let left_hand = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.72, 0.6, 0.25),
         nalgebra_glm::vec3(0.15, 0.2, 0.08),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(left_hand);
 
     for finger_index in 0..4 {
-        let finger = spawn_monster_part(
+        spawn_monster_part(
+            game_world,
             world,
             monster_pos
                 + nalgebra_glm::vec3(
@@ -421,47 +431,47 @@ fn spawn_monster(demo: &mut HorrorDemo, world: &mut World) {
             "Cube",
             bone_material.clone(),
         );
-        demo.monster.body_parts.push(finger);
     }
 
-    let right_shoulder = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.5, 1.7, 0.0),
         nalgebra_glm::vec3(0.25, 0.2, 0.25),
         "Sphere",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(right_shoulder);
 
-    let right_upper_arm = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.65, 1.4, 0.1),
         nalgebra_glm::vec3(0.12, 0.5, 0.12),
         "Cube",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(right_upper_arm);
 
-    let right_lower_arm = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.7, 0.95, 0.2),
         nalgebra_glm::vec3(0.1, 0.45, 0.1),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(right_lower_arm);
 
-    let right_hand = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.72, 0.6, 0.25),
         nalgebra_glm::vec3(0.15, 0.2, 0.08),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(right_hand);
 
     for finger_index in 0..4 {
-        let finger = spawn_monster_part(
+        spawn_monster_part(
+            game_world,
             world,
             monster_pos
                 + nalgebra_glm::vec3(
@@ -473,75 +483,75 @@ fn spawn_monster(demo: &mut HorrorDemo, world: &mut World) {
             "Cube",
             bone_material.clone(),
         );
-        demo.monster.body_parts.push(finger);
     }
 
-    let extra_arm_shoulder = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.35, 1.3, -0.2),
         nalgebra_glm::vec3(0.15, 0.12, 0.15),
         "Sphere",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(extra_arm_shoulder);
 
-    let extra_arm = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.45, 1.0, -0.15),
         nalgebra_glm::vec3(0.08, 0.4, 0.08),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(extra_arm);
 
-    let pelvis = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.0, 0.85, -0.05),
         nalgebra_glm::vec3(0.55, 0.35, 0.4),
         "Cube",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(pelvis);
 
-    let left_thigh = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.22, 0.5, 0.0),
         nalgebra_glm::vec3(0.18, 0.45, 0.18),
         "Cube",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(left_thigh);
 
-    let left_shin = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(-0.22, 0.15, 0.05),
         nalgebra_glm::vec3(0.12, 0.35, 0.12),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(left_shin);
 
-    let right_thigh = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.22, 0.5, 0.0),
         nalgebra_glm::vec3(0.18, 0.45, 0.18),
         "Cube",
         flesh_material.clone(),
     );
-    demo.monster.body_parts.push(right_thigh);
 
-    let right_shin = spawn_monster_part(
+    spawn_monster_part(
+        game_world,
         world,
         monster_pos + nalgebra_glm::vec3(0.22, 0.15, 0.05),
         nalgebra_glm::vec3(0.12, 0.35, 0.12),
         "Cube",
         dark_flesh.clone(),
     );
-    demo.monster.body_parts.push(right_shin);
 
     for spine_index in 0..6 {
         let size = 0.08 + (spine_index as f32 * 0.015);
-        let spine = spawn_monster_part(
+        spawn_monster_part(
+            game_world,
             world,
             monster_pos
                 + nalgebra_glm::vec3(
@@ -553,12 +563,12 @@ fn spawn_monster(demo: &mut HorrorDemo, world: &mut World) {
             "Cube",
             bone_material.clone(),
         );
-        demo.monster.body_parts.push(spine);
     }
 
     for vein_index in 0..5 {
         let angle = vein_index as f32 * 1.2;
-        let vein = spawn_monster_part(
+        spawn_monster_part(
+            game_world,
             world,
             monster_pos
                 + nalgebra_glm::vec3(
@@ -570,26 +580,26 @@ fn spawn_monster(demo: &mut HorrorDemo, world: &mut World) {
             "Cylinder",
             vein_material.clone(),
         );
-        demo.monster.body_parts.push(vein);
     }
 
     for tendril_index in 0..3 {
         let x_offset = (tendril_index as f32 - 1.0) * 0.2;
-        let tendril = spawn_monster_part(
+        spawn_monster_part(
+            game_world,
             world,
             monster_pos + nalgebra_glm::vec3(x_offset, 0.6, -0.35),
             nalgebra_glm::vec3(0.04, 0.5, 0.04),
             "Cylinder",
             dark_flesh.clone(),
         );
-        demo.monster.body_parts.push(tendril);
     }
 
-    demo.monster.entity = Some(torso);
-    demo.monster.speed = 2.0;
+    game_world.resources.monster.entity = Some(torso);
+    game_world.resources.monster.speed = 2.0;
 }
 
 fn spawn_monster_part(
+    game_world: &mut GameWorld,
     world: &mut World,
     position: Vec3,
     scale: Vec3,
@@ -650,19 +660,23 @@ fn spawn_monster_part(
 
     world.resources.mesh_render_state.mark_entity_added(entity);
 
+    let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
+    game_world.set_engine_entity(game_entity, EngineEntity(entity));
+    game_world.add_monster_part(game_entity);
+
     entity
 }
 
-pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
-    if !demo.monster.active {
+pub fn monster_chase_system(game_world: &mut GameWorld, world: &mut World) {
+    if !game_world.resources.monster.active {
         return;
     }
 
-    let Some(player_entity) = demo.player_entity else {
+    let Some(player_entity) = game_world.resources.player_entity else {
         return;
     };
 
-    let Some(monster_entity) = demo.monster.entity else {
+    let Some(monster_entity) = game_world.resources.monster.entity else {
         return;
     };
 
@@ -674,16 +688,16 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
         .map(|t| t.translation())
         .unwrap_or(Vec3::zeros());
 
-    if player_pos.z < EXIT_AREA_Z_THRESHOLD && !demo.game_won {
-        start_exit_cutscene(demo, world);
-        despawn_monster(demo, world);
+    if player_pos.z < EXIT_AREA_Z_THRESHOLD && !game_world.resources.game_won {
+        start_exit_cutscene(game_world, world);
+        despawn_monster(game_world, world);
         return;
     }
 
-    if !demo.monster.chasing {
-        demo.monster.pause_timer += dt;
-        if demo.monster.pause_timer >= MONSTER_PAUSE_DURATION {
-            demo.monster.chasing = true;
+    if !game_world.resources.monster.chasing {
+        game_world.resources.monster.pause_timer += dt;
+        if game_world.resources.monster.pause_timer >= MONSTER_PAUSE_DURATION {
+            game_world.resources.monster.chasing = true;
         }
         return;
     }
@@ -703,7 +717,7 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
     }
 
     let normalized_dir = nalgebra_glm::normalize(&horizontal_dir);
-    let movement = normalized_dir * demo.monster.speed * dt;
+    let movement = normalized_dir * game_world.resources.monster.speed * dt;
 
     let angle = (-normalized_dir.x).atan2(-normalized_dir.z);
     let target_rotation = nalgebra_glm::quat_angle_axis(angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
@@ -712,12 +726,21 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
 
     let walk_cycle = total_time * 3.5;
     let body_bob = (walk_cycle * 2.0).sin() * 0.015;
-    let body_sway = (walk_cycle).sin() * 0.008;
-    let arm_swing = (walk_cycle).sin() * 0.04;
+    let body_sway = walk_cycle.sin() * 0.008;
+    let arm_swing = walk_cycle.sin() * 0.04;
     let head_bob = (walk_cycle * 2.0).sin() * 0.008;
     let breathing = (total_time * 1.5).sin() * 0.006;
 
-    for (part_index, &part_entity) in demo.monster.body_parts.iter().enumerate() {
+    let monster_parts: Vec<(freecs::Entity, Entity)> = game_world
+        .query_monster_part()
+        .filter_map(|game_entity| {
+            game_world
+                .get_engine_entity(game_entity)
+                .map(|engine_entity| (game_entity, engine_entity.0))
+        })
+        .collect();
+
+    for (part_index, &(_game_entity, part_entity)) in monster_parts.iter().enumerate() {
         if let Some(transform) = world.core.get_local_transform_mut(part_entity) {
             transform.translation += movement;
 
@@ -765,32 +788,40 @@ pub fn monster_chase_system(demo: &mut HorrorDemo, world: &mut World) {
         world.mark_local_transform_dirty(part_entity);
     }
 
-    if distance < 1.2 && !demo.game_won {
-        demo.game_won = true;
+    if distance < 1.2 && !game_world.resources.game_won {
+        game_world.resources.game_won = true;
     }
 }
 
-fn start_exit_cutscene(demo: &mut HorrorDemo, world: &mut World) {
-    demo.cutscene.active = true;
-    demo.cutscene.phase = CutscenePhase::DoorSlam;
-    demo.cutscene.timer = 0.0;
-    demo.cutscene.saved_base_rotation = demo.lean_state.base_rotation;
+fn start_exit_cutscene(game_world: &mut GameWorld, world: &mut World) {
+    game_world.resources.cutscene.active = true;
+    game_world.resources.cutscene.phase = CutscenePhase::DoorSlam;
+    game_world.resources.cutscene.timer = 0.0;
+    game_world.resources.cutscene.saved_base_rotation =
+        game_world.resources.lean_state.base_rotation;
 
     world.resources.graphics.letterbox_target = 1.0;
 
-    slam_door_closed(demo, world, demo.exit_door_index);
+    if let Some(exit_door_game_entity) = game_world.resources.exit_door {
+        slam_door_closed(game_world, world, exit_door_game_entity);
+    }
 }
 
-fn despawn_monster(demo: &mut HorrorDemo, world: &mut World) {
-    for &part_entity in &demo.monster.body_parts {
-        world.queue_despawn_entity(part_entity);
-    }
-    demo.monster.body_parts.clear();
-    demo.monster.entity = None;
-    demo.monster.active = false;
-    demo.monster.chasing = false;
+fn despawn_monster(game_world: &mut GameWorld, world: &mut World) {
+    let monster_parts: Vec<freecs::Entity> = game_world.query_monster_part().collect();
 
-    if let Some(monster_audio_entity) = demo.monster_audio_entity
+    for game_entity in &monster_parts {
+        if let Some(engine_entity) = game_world.get_engine_entity(*game_entity) {
+            world.queue_despawn_entity(engine_entity.0);
+        }
+    }
+    game_world.despawn_entities(&monster_parts);
+
+    game_world.resources.monster.entity = None;
+    game_world.resources.monster.active = false;
+    game_world.resources.monster.chasing = false;
+
+    if let Some(monster_audio_entity) = game_world.resources.monster_audio_entity
         && let Some(source) = world.core.get_audio_source_mut(monster_audio_entity)
     {
         source.playing = false;

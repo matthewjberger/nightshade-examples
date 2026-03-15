@@ -1,5 +1,6 @@
 mod constants;
 mod discovery;
+mod ecs;
 mod state;
 mod systems;
 
@@ -10,13 +11,14 @@ use discovery::{
     discover_chain_light, discover_doors, discover_levers, discover_notes,
     discover_overhead_lights, discover_physics_props,
 };
+use ecs::GameWorld;
 use nightshade::ecs::audio::systems::load_sound_from_bytes;
 use nightshade::ecs::camera::components::Projection;
 use nightshade::ecs::physics::spawn_first_person_player;
 use nightshade::ecs::scene::{load_scene, spawn_scene};
 use nightshade::ecs::texture_loader::set_asset_search_paths;
 use nightshade::prelude::*;
-use state::HorrorDemo;
+use state::HorrorGame;
 use systems::{
     camera_look_system, check_puzzle_state, crouch_camera_system, cutscene_system,
     detect_input_mode, interaction_system, lean_system, load_textures, monster_chase_system,
@@ -27,7 +29,7 @@ use systems::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     set_asset_search_paths(vec!["".to_string()]);
-    launch(HorrorDemo::default())
+    launch(HorrorGame::default())
 }
 
 fn load_audio_assets(world: &mut World) {
@@ -65,7 +67,7 @@ fn load_audio_assets(world: &mut World) {
     }
 }
 
-impl State for HorrorDemo {
+impl State for HorrorGame {
     fn title(&self) -> &str {
         "Horror Demo - Nightshade"
     }
@@ -77,9 +79,9 @@ impl State for HorrorDemo {
         world.resources.graphics.use_fullscreen = true;
         world.resources.graphics.clear_color = [0.0, 0.0, 0.0, 1.0];
 
-        self.power_restored = false;
-        self.exit_unlocked = false;
-        self.game_won = false;
+        self.game_world.resources.power_restored = false;
+        self.game_world.resources.exit_unlocked = false;
+        self.game_world.resources.game_won = false;
 
         let player_position = nalgebra_glm::vec3(0.0, 1.2, 4.0);
         let (player_entity, camera_entity) = spawn_first_person_player(world, player_position);
@@ -94,16 +96,16 @@ impl State for HorrorDemo {
             perspective.y_fov_rad = 75.0_f32.to_radians();
         }
 
-        self.player_entity = Some(player_entity);
-        self.camera_entity = Some(camera_entity);
+        self.game_world.resources.player_entity = Some(player_entity);
+        self.game_world.resources.camera_entity = Some(camera_entity);
         world.resources.active_camera = Some(camera_entity);
 
         world.core.add_components(camera_entity, AUDIO_LISTENER);
         world.core.set_audio_listener(camera_entity, AudioListener);
 
         let flashlight = spawn_flashlight(world);
-        self.flashlight_entity = Some(flashlight);
-        self.flashlight_on = true;
+        self.game_world.resources.flashlight_entity = Some(flashlight);
+        self.game_world.resources.flashlight_on = true;
 
         spawn_ambient_light(world);
 
@@ -116,14 +118,14 @@ impl State for HorrorDemo {
             tracing::error!("Failed to spawn horror scene: {}", error);
         }
 
-        discover_doors(self, world);
-        discover_levers(self, world);
-        discover_notes(self, world);
-        discover_physics_props(self, world);
-        discover_chain_light(self, world);
-        discover_overhead_lights(self, world);
+        discover_doors(&mut self.game_world, world);
+        discover_levers(&mut self.game_world, world);
+        discover_notes(&mut self.game_world, world);
+        discover_physics_props(&mut self.game_world, world);
+        discover_chain_light(&mut self.game_world, world);
+        discover_overhead_lights(&mut self.game_world, world);
 
-        spawn_ui(self, world);
+        spawn_ui(&mut self.game_world, world);
 
         load_audio_assets(world);
 
@@ -134,7 +136,7 @@ impl State for HorrorDemo {
                 .with_volume(0.4)
                 .with_looping(true),
         );
-        self.ambient_audio_entity = Some(ambient_audio);
+        self.game_world.resources.ambient_audio_entity = Some(ambient_audio);
 
         let generator_audio = world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
         world.core.set_local_transform(
@@ -148,7 +150,7 @@ impl State for HorrorDemo {
             generator_audio,
             AudioSource::new("generator").with_spatial(true),
         );
-        self.generator_audio_entity = Some(generator_audio);
+        self.game_world.resources.generator_audio_entity = Some(generator_audio);
 
         let rubble_audio = world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
         world.core.set_local_transform(
@@ -164,7 +166,7 @@ impl State for HorrorDemo {
                 .with_spatial(true)
                 .with_reverb(true),
         );
-        self.rubble_audio_entity = Some(rubble_audio);
+        self.game_world.resources.rubble_audio_entity = Some(rubble_audio);
 
         let monster_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
         world.core.set_audio_source(
@@ -173,7 +175,7 @@ impl State for HorrorDemo {
                 .with_volume(0.6)
                 .with_looping(true),
         );
-        self.monster_audio_entity = Some(monster_audio);
+        self.game_world.resources.monster_audio_entity = Some(monster_audio);
 
         let footstep_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
         world.core.set_audio_source(
@@ -182,60 +184,60 @@ impl State for HorrorDemo {
                 .with_volume(0.4)
                 .with_looping(true),
         );
-        self.footstep_audio_entity = Some(footstep_audio);
+        self.game_world.resources.footstep_audio_entity = Some(footstep_audio);
 
         let door_audio = world.spawn_entities(AUDIO_SOURCE, 1)[0];
         world
             .core
             .set_audio_source(door_audio, AudioSource::new("door_creak").with_volume(0.6));
-        self.door_audio_entity = Some(door_audio);
+        self.game_world.resources.door_audio_entity = Some(door_audio);
     }
 
     fn run_systems(&mut self, world: &mut World) {
-        update_overlays(self, world);
+        update_overlays(&mut self.game_world, world);
 
-        if !self.audio_started
+        if !self.game_world.resources.audio_started
             && world.resources.audio.is_initialized()
-            && let Some(entity) = self.ambient_audio_entity
+            && let Some(entity) = self.game_world.resources.ambient_audio_entity
             && let Some(source) = world.core.get_audio_source_mut(entity)
         {
             source.playing = true;
-            self.audio_started = true;
+            self.game_world.resources.audio_started = true;
         }
 
-        if self.reading_note.is_some() {
-            note_reading_system(self, world);
+        if self.game_world.resources.reading_note.is_some() {
+            note_reading_system(&mut self.game_world, world);
         }
 
         escape_key_exit_system(world);
-        detect_input_mode(self, world);
+        detect_input_mode(&mut self.game_world, world);
 
-        if !self.cutscene.active {
+        if !self.game_world.resources.cutscene.active {
             nightshade::ecs::physics::character_controller::character_controller_input_system(
                 world,
             );
-            camera_look_system(self, world);
+            camera_look_system(&mut self.game_world, world);
         }
 
-        cutscene_system(self, world);
-        monster_chase_system(self, world);
+        cutscene_system(&mut self.game_world, world);
+        monster_chase_system(&mut self.game_world, world);
 
-        lean_system(self, world);
-        crouch_camera_system(self, world);
+        lean_system(&mut self.game_world, world);
+        crouch_camera_system(&self.game_world, world);
 
-        interaction_system(self, world);
-        update_doors_momentum(self, world);
-        update_levers_momentum(self, world);
-        update_lantern_light(self, world);
-        update_flashlight(self, world);
-        update_overhead_lights(self, world);
-        update_interaction_prompt(self, world);
-        update_objective(self, world);
-        update_temporary_message(self, world);
+        interaction_system(&mut self.game_world, world);
+        update_doors_momentum(&mut self.game_world, world);
+        update_levers_momentum(&mut self.game_world, world);
+        update_lantern_light(&self.game_world, world);
+        update_flashlight(&mut self.game_world, world);
+        update_overhead_lights(&mut self.game_world, world);
+        update_interaction_prompt(&self.game_world, world);
+        update_objective(&self.game_world, world);
+        update_temporary_message(&mut self.game_world, world);
 
-        check_puzzle_state(self, world);
+        check_puzzle_state(&mut self.game_world, world);
 
-        update_footstep_audio(self, world);
+        update_footstep_audio(&mut self.game_world, world);
 
         let dt = world.resources.window.timing.delta_time;
         let letterbox_speed = 3.0;
@@ -245,8 +247,9 @@ impl State for HorrorDemo {
         world.resources.graphics.letterbox_amount += diff * (letterbox_speed * dt).min(1.0);
 
         let fade_speed = 1.5;
-        let fade_diff = self.fade_target - self.fade_amount;
-        self.fade_amount += fade_diff * (fade_speed * dt).min(1.0);
+        let fade_diff =
+            self.game_world.resources.fade_target - self.game_world.resources.fade_amount;
+        self.game_world.resources.fade_amount += fade_diff * (fade_speed * dt).min(1.0);
     }
 
     fn on_keyboard_input(&mut self, world: &mut World, _key_code: KeyCode, _key_state: KeyState) {
@@ -270,11 +273,11 @@ impl State for HorrorDemo {
     }
 }
 
-fn update_footstep_audio(demo: &mut HorrorDemo, world: &mut World) {
-    let Some(player_entity) = demo.player_entity else {
+fn update_footstep_audio(game_world: &mut GameWorld, world: &mut World) {
+    let Some(player_entity) = game_world.resources.player_entity else {
         return;
     };
-    let Some(footstep_entity) = demo.footstep_audio_entity else {
+    let Some(footstep_entity) = game_world.resources.footstep_audio_entity else {
         return;
     };
 
@@ -291,18 +294,18 @@ fn update_footstep_audio(demo: &mut HorrorDemo, world: &mut World) {
         .map(|cc| cc.grounded)
         .unwrap_or(false);
 
-    let is_moving = movement_keys_pressed && is_grounded && !demo.cutscene.active;
+    let is_moving = movement_keys_pressed && is_grounded && !game_world.resources.cutscene.active;
 
-    if is_moving && !demo.was_moving {
+    if is_moving && !game_world.resources.was_moving {
         if let Some(source) = world.core.get_audio_source_mut(footstep_entity) {
             source.playing = true;
         }
     } else if !is_moving
-        && demo.was_moving
+        && game_world.resources.was_moving
         && let Some(source) = world.core.get_audio_source_mut(footstep_entity)
     {
         source.playing = false;
     }
 
-    demo.was_moving = is_moving;
+    game_world.resources.was_moving = is_moving;
 }

@@ -3,14 +3,14 @@ use crate::constants::{
     INTERACT_RANGE, MAX_GRAB_DISTANCE, MAX_GRAB_FORCE, MIN_GRAB_DISTANCE, SCROLL_DISTANCE_SPEED,
     THROW_STRENGTH,
 };
-use crate::state::{HorrorDemo, InputMode, LeverAction};
+use crate::ecs::{BUTTON, DOOR, ENGINE_ENTITY, GameWorld, InputMode, LEVER, LeverAction, NOTE};
 use crate::systems::ui::pick_entities_cone;
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::input::resources::MouseState;
 use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
 use nightshade::prelude::*;
 
-pub fn interaction_system(demo: &mut HorrorDemo, world: &mut World) {
+pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     let mouse = &world.resources.input.mouse;
     let keyboard = &world.resources.input.keyboard;
     let mouse_pos = mouse.position;
@@ -27,20 +27,21 @@ pub fn interaction_system(demo: &mut HorrorDemo, world: &mut World) {
         false
     };
 
-    let gamepad_rt_just_pressed = gamepad_rt_pressed && !demo.interaction.gamepad_rt_was_pressed;
-    demo.interaction.gamepad_rt_was_pressed = gamepad_rt_pressed;
+    let gamepad_rt_just_pressed =
+        gamepad_rt_pressed && !game_world.resources.interaction.gamepad_rt_was_pressed;
+    game_world.resources.interaction.gamepad_rt_was_pressed = gamepad_rt_pressed;
 
     let interact_pressed = left_clicked || f_pressed || gamepad_rt_pressed;
     let interact_just_pressed = left_just_pressed || gamepad_rt_just_pressed;
 
-    if demo.interaction.require_interact_release {
+    if game_world.resources.interaction.require_interact_release {
         if !interact_pressed {
-            demo.interaction.require_interact_release = false;
+            game_world.resources.interaction.require_interact_release = false;
         }
         return;
     }
 
-    let Some(camera_entity) = demo.camera_entity else {
+    let Some(camera_entity) = game_world.resources.camera_entity else {
         return;
     };
     let Some(camera_transform) = world.core.get_global_transform(camera_entity).cloned() else {
@@ -50,47 +51,53 @@ pub fn interaction_system(demo: &mut HorrorDemo, world: &mut World) {
     let camera_forward = camera_transform.forward_vector();
 
     if !interact_pressed {
-        if let Some(grabbed_entity) = demo.interaction.grabbed_entity {
-            throw_grabbed_object(demo, world, camera_forward);
+        if let Some(grabbed_entity) = game_world.resources.interaction.grabbed_entity {
+            throw_grabbed_object(game_world, world, camera_forward);
             let _ = grabbed_entity;
         }
-        demo.interaction.grabbed_entity = None;
+        game_world.resources.interaction.grabbed_entity = None;
 
-        if demo.interaction.manipulated_door_index.is_some()
-            && let Some(door_audio_entity) = demo.door_audio_entity
+        if game_world.resources.interaction.manipulated_door.is_some()
+            && let Some(door_audio_entity) = game_world.resources.door_audio_entity
             && let Some(source) = world.core.get_audio_source_mut(door_audio_entity)
         {
             source.playing = false;
         }
-        demo.interaction.manipulated_door_index = None;
-        demo.interaction.manipulated_lever_index = None;
+        game_world.resources.interaction.manipulated_door = None;
+        game_world.resources.interaction.manipulated_lever = None;
 
-        if let Some(button_index) = demo.interaction.manipulated_button_index {
-            release_button(demo, world, button_index);
+        if let Some(button_game_entity) = game_world.resources.interaction.manipulated_button {
+            release_button(game_world, world, button_game_entity);
         }
-        demo.interaction.manipulated_button_index = None;
+        game_world.resources.interaction.manipulated_button = None;
 
         return;
     }
 
-    if demo.interaction.grabbed_entity.is_some() {
+    if game_world.resources.interaction.grabbed_entity.is_some() {
         let scroll_delta = world.resources.input.mouse.wheel_delta.y;
-        update_grabbed_object(demo, world, camera_position, camera_forward, scroll_delta);
+        update_grabbed_object(
+            game_world,
+            world,
+            camera_position,
+            camera_forward,
+            scroll_delta,
+        );
         return;
     }
 
-    if demo.interaction.manipulated_door_index.is_some() {
-        crate::systems::doors::update_manipulated_door(demo, world, camera_position);
+    if game_world.resources.interaction.manipulated_door.is_some() {
+        crate::systems::doors::update_manipulated_door(game_world, world, camera_position);
         return;
     }
 
-    if demo.interaction.manipulated_lever_index.is_some() {
-        crate::systems::levers::update_manipulated_lever(demo, world, camera_position);
+    if game_world.resources.interaction.manipulated_lever.is_some() {
+        crate::systems::levers::update_manipulated_lever(game_world, world, camera_position);
         return;
     }
 
-    if let Some(button_index) = demo.interaction.manipulated_button_index {
-        update_pressed_button(demo, world, button_index);
+    if let Some(button_game_entity) = game_world.resources.interaction.manipulated_button {
+        update_pressed_button(game_world, world, button_game_entity);
         return;
     }
 
@@ -98,7 +105,7 @@ pub fn interaction_system(demo: &mut HorrorDemo, world: &mut World) {
         return;
     }
 
-    let screen_pos = if demo.input_mode == InputMode::Gamepad {
+    let screen_pos = if game_world.resources.input_mode == InputMode::Gamepad {
         let viewport_size = world
             .resources
             .window
@@ -114,88 +121,135 @@ pub fn interaction_system(demo: &mut HorrorDemo, world: &mut World) {
         ignore_invisible: true,
     };
 
-    let pick_results = if demo.input_mode == InputMode::Gamepad {
-        pick_entities_cone(demo, world, screen_pos, INTERACT_CONE_RADIUS, options)
+    let pick_results = if game_world.resources.input_mode == InputMode::Gamepad {
+        pick_entities_cone(world, screen_pos, INTERACT_CONE_RADIUS, options)
     } else {
         pick_entities(world, screen_pos, options)
     };
 
-    try_start_interaction(demo, world, &pick_results);
+    try_start_interaction(game_world, world, &pick_results);
 }
 
-pub fn try_start_interaction(
-    demo: &mut HorrorDemo,
+fn try_start_interaction(
+    game_world: &mut GameWorld,
     world: &mut World,
     pick_results: &[PickingResult],
 ) {
     for result in pick_results {
-        if demo.physics_objects.contains(&result.entity) {
-            demo.interaction.grabbed_entity = Some(result.entity);
-            demo.interaction.grab_distance = result.distance.min(MAX_GRAB_DISTANCE);
+        let mut found_physics_prop = false;
+        for physics_game_entity in game_world.query_physics_prop() {
+            if let Some(engine_entity) = game_world.get_engine_entity(physics_game_entity)
+                && engine_entity.0 == result.entity
+            {
+                found_physics_prop = true;
+                break;
+            }
+        }
+        if found_physics_prop {
+            game_world.resources.interaction.grabbed_entity = Some(result.entity);
+            game_world.resources.interaction.grab_distance = result.distance.min(MAX_GRAB_DISTANCE);
             return;
         }
 
-        for (index, door) in demo.doors.iter().enumerate() {
-            if result.entity == door.entity && result.distance <= INTERACT_RANGE {
+        let mut found_door = false;
+        for game_entity in game_world.query_entities(DOOR | ENGINE_ENTITY) {
+            let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
+                continue;
+            };
+            if engine_entity.0 == result.entity && result.distance <= INTERACT_RANGE {
+                let Some(door) = game_world.get_door(game_entity) else {
+                    continue;
+                };
                 if !door.locked {
-                    demo.interaction.manipulated_door_index = Some(index);
-                    if let Some(door_audio_entity) = demo.door_audio_entity {
+                    game_world.resources.interaction.manipulated_door = Some(game_entity);
+                    if let Some(door_audio_entity) = game_world.resources.door_audio_entity {
                         world.resources.audio.stop_sound(door_audio_entity);
                         if let Some(source) = world.core.get_audio_source_mut(door_audio_entity) {
                             source.playing = true;
                         }
                     }
                 }
-                return;
+                found_door = true;
+                break;
             }
         }
+        if found_door {
+            return;
+        }
 
-        for (index, lever) in demo.levers.iter().enumerate() {
-            if result.entity == lever.collider_entity && result.distance <= INTERACT_RANGE {
-                if matches!(lever.action, LeverAction::UnlockExit) && !demo.power_restored {
-                    demo.temporary_message =
+        let mut found_lever = false;
+        for game_entity in game_world.query_entities(LEVER | ENGINE_ENTITY) {
+            let Some(lever) = game_world.get_lever(game_entity) else {
+                continue;
+            };
+            if lever.collider_entity == result.entity && result.distance <= INTERACT_RANGE {
+                if matches!(lever.action, LeverAction::UnlockExit)
+                    && !game_world.resources.power_restored
+                {
+                    game_world.resources.temporary_message =
                         Some("The lever won't budge. Find the power switch first.".to_string());
-                    demo.temporary_message_timer = 3.0;
-                    demo.interaction.require_interact_release = true;
+                    game_world.resources.temporary_message_timer = 3.0;
+                    game_world.resources.interaction.require_interact_release = true;
                     return;
                 }
-                demo.interaction.manipulated_lever_index = Some(index);
-                return;
+                game_world.resources.interaction.manipulated_lever = Some(game_entity);
+                found_lever = true;
+                break;
             }
         }
-
-        for (index, button) in demo.buttons.iter().enumerate() {
-            if result.entity == button.entity && result.distance <= INTERACT_RANGE {
-                demo.interaction.manipulated_button_index = Some(index);
-                return;
-            }
+        if found_lever {
+            return;
         }
 
-        for (index, note) in demo.notes.iter().enumerate() {
-            if result.entity == note.entity && result.distance <= INTERACT_RANGE {
-                demo.reading_note = Some(index);
-                demo.note_close_key_released = false;
-                demo.interaction.require_interact_release = true;
-                return;
+        let mut found_button = false;
+        for game_entity in game_world.query_entities(BUTTON | ENGINE_ENTITY) {
+            let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
+                continue;
+            };
+            if engine_entity.0 == result.entity && result.distance <= INTERACT_RANGE {
+                game_world.resources.interaction.manipulated_button = Some(game_entity);
+                found_button = true;
+                break;
             }
+        }
+        if found_button {
+            return;
+        }
+
+        let mut found_note = false;
+        for game_entity in game_world.query_entities(NOTE | ENGINE_ENTITY) {
+            let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
+                continue;
+            };
+            if engine_entity.0 == result.entity && result.distance <= INTERACT_RANGE {
+                game_world.resources.reading_note = Some(game_entity);
+                game_world.resources.note_close_key_released = false;
+                game_world.resources.interaction.require_interact_release = true;
+                found_note = true;
+                break;
+            }
+        }
+        if found_note {
+            return;
         }
     }
 }
 
-pub fn update_grabbed_object(
-    demo: &mut HorrorDemo,
+fn update_grabbed_object(
+    game_world: &mut GameWorld,
     world: &mut World,
     camera_position: Vec3,
     camera_forward: Vec3,
     scroll_delta: f32,
 ) {
-    demo.interaction.grab_distance = (demo.interaction.grab_distance
-        + scroll_delta * SCROLL_DISTANCE_SPEED)
-        .clamp(MIN_GRAB_DISTANCE, MAX_GRAB_DISTANCE);
+    game_world.resources.interaction.grab_distance =
+        (game_world.resources.interaction.grab_distance + scroll_delta * SCROLL_DISTANCE_SPEED)
+            .clamp(MIN_GRAB_DISTANCE, MAX_GRAB_DISTANCE);
 
-    let target_position = camera_position + camera_forward * demo.interaction.grab_distance;
+    let target_position =
+        camera_position + camera_forward * game_world.resources.interaction.grab_distance;
 
-    let Some(grabbed_entity) = demo.interaction.grabbed_entity else {
+    let Some(grabbed_entity) = game_world.resources.interaction.grabbed_entity else {
         return;
     };
 
@@ -250,8 +304,8 @@ pub fn update_grabbed_object(
     rigid_body.set_angvel(current_angvel * angular_decay, true);
 }
 
-pub fn throw_grabbed_object(demo: &mut HorrorDemo, world: &mut World, camera_forward: Vec3) {
-    let Some(grabbed_entity) = demo.interaction.grabbed_entity else {
+fn throw_grabbed_object(game_world: &mut GameWorld, world: &mut World, camera_forward: Vec3) {
+    let Some(grabbed_entity) = game_world.resources.interaction.grabbed_entity else {
         return;
     };
 
@@ -276,60 +330,89 @@ pub fn throw_grabbed_object(demo: &mut HorrorDemo, world: &mut World, camera_for
         true,
     );
 
-    demo.interaction.grabbed_entity = None;
+    game_world.resources.interaction.grabbed_entity = None;
 }
 
-pub fn update_pressed_button(demo: &mut HorrorDemo, world: &mut World, button_index: usize) {
+fn update_pressed_button(
+    game_world: &mut GameWorld,
+    world: &mut World,
+    button_game_entity: freecs::Entity,
+) {
+    let Some(engine_entity) = game_world.get_engine_entity(button_game_entity) else {
+        return;
+    };
+    let entity = engine_entity.0;
     let delta_time = world.resources.window.timing.delta_time;
     let press_speed = 8.0;
     let max_press = 0.03;
 
-    let button = &mut demo.buttons[button_index];
+    let Some(button) = game_world.get_button_mut(button_game_entity) else {
+        return;
+    };
     button.current_press = (button.current_press + press_speed * delta_time).min(max_press);
 
     let pressed_y = button.base_position.y - button.current_press;
-    if let Some(transform) = world.core.get_local_transform_mut(button.entity) {
+    let current_press = button.current_press;
+    let is_pressed = button.is_pressed;
+    let base_position = button.base_position;
+
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation.y = pressed_y;
     }
-    world.mark_local_transform_dirty(button.entity);
+    world.mark_local_transform_dirty(entity);
 
-    if let Some(rb) = world.core.get_rigid_body_mut(button.entity)
+    if let Some(rb) = world.core.get_rigid_body_mut(entity)
         && let Some(handle) = rb.handle
     {
         let physics = &mut world.resources.physics;
         if let Some(rigid_body) = physics.rigid_body_set.get_mut(handle.into()) {
             rigid_body.set_next_kinematic_translation(rapier3d::prelude::Vector::new(
-                button.base_position.x,
+                base_position.x,
                 pressed_y,
-                button.base_position.z,
+                base_position.z,
             ));
         }
     }
 
-    if button.current_press >= max_press && !button.is_pressed {
+    if current_press >= max_press
+        && !is_pressed
+        && let Some(button) = game_world.get_button_mut(button_game_entity)
+    {
         button.is_pressed = true;
     }
 }
 
-pub fn release_button(demo: &mut HorrorDemo, world: &mut World, button_index: usize) {
-    let button = &mut demo.buttons[button_index];
+fn release_button(
+    game_world: &mut GameWorld,
+    world: &mut World,
+    button_game_entity: freecs::Entity,
+) {
+    let Some(engine_entity) = game_world.get_engine_entity(button_game_entity) else {
+        return;
+    };
+    let entity = engine_entity.0;
+
+    let Some(button) = game_world.get_button_mut(button_game_entity) else {
+        return;
+    };
     button.current_press = 0.0;
     button.is_pressed = false;
+    let base_position = button.base_position;
 
-    if let Some(transform) = world.core.get_local_transform_mut(button.entity) {
-        transform.translation.y = button.base_position.y;
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
+        transform.translation.y = base_position.y;
     }
-    world.mark_local_transform_dirty(button.entity);
+    world.mark_local_transform_dirty(entity);
 
-    if let Some(rb) = world.core.get_rigid_body_mut(button.entity)
+    if let Some(rb) = world.core.get_rigid_body_mut(entity)
         && let Some(handle) = rb.handle
     {
         let physics = &mut world.resources.physics;
         if let Some(rigid_body) = physics.rigid_body_set.get_mut(handle.into()) {
             rigid_body.set_next_kinematic_translation(rapier3d::prelude::Vector::new(
-                button.base_position.x,
-                button.base_position.y,
-                button.base_position.z,
+                base_position.x,
+                base_position.y,
+                base_position.z,
             ));
         }
     }

@@ -1,12 +1,12 @@
 use crate::constants::{GRAB_RANGE, INTERACT_CONE_RADIUS, INTERACT_RANGE};
-use crate::state::{HorrorDemo, InputMode};
+use crate::ecs::{BUTTON, DOOR, ENGINE_ENTITY, GameWorld, InputMode, LEVER, NOTE};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
 use nightshade::ecs::text::commands::spawn_ui_text_with_properties;
 use nightshade::ecs::text::components::TextProperties;
 use nightshade::prelude::*;
 
-pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
+pub fn spawn_ui(game_world: &mut GameWorld, world: &mut World) {
     world.resources.retained_ui.enabled = true;
 
     let prompt_entity = spawn_ui_text_with_properties(
@@ -19,9 +19,9 @@ pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
             ..Default::default()
         },
     );
-    demo.interaction_prompt_entity = Some(prompt_entity);
+    game_world.resources.interaction_prompt_entity = Some(prompt_entity);
     if let Some(hud_text) = world.core.get_text(prompt_entity) {
-        demo.interaction_prompt_text_index = Some(hud_text.text_index);
+        game_world.resources.interaction_prompt_text_index = Some(hud_text.text_index);
     }
 
     let objective_entity = spawn_ui_text_with_properties(
@@ -34,18 +34,18 @@ pub fn spawn_ui(demo: &mut HorrorDemo, world: &mut World) {
             ..Default::default()
         },
     );
-    demo.objective_text_entity = Some(objective_entity);
+    game_world.resources.objective_text_entity = Some(objective_entity);
     if let Some(hud_text) = world.core.get_text(objective_entity) {
-        demo.objective_text_index = Some(hud_text.text_index);
+        game_world.resources.objective_text_index = Some(hud_text.text_index);
     }
 
-    build_death_overlay(demo, world);
-    build_temporary_message_overlay(demo, world);
-    build_note_overlay(demo, world);
-    build_win_overlay(demo, world);
+    build_death_overlay(game_world, world);
+    build_temporary_message_overlay(game_world, world);
+    build_note_overlay(game_world, world);
+    build_win_overlay(game_world, world);
 }
 
-fn build_death_overlay(demo: &mut HorrorDemo, world: &mut World) {
+fn build_death_overlay(game_world: &mut GameWorld, world: &mut World) {
     let mut tree = UiTreeBuilder::new(world);
 
     let overlay = tree
@@ -75,10 +75,10 @@ fn build_death_overlay(demo: &mut HorrorDemo, world: &mut World) {
     tree.pop_parent();
     tree.finish();
 
-    demo.death_overlay_entity = Some(overlay);
+    game_world.resources.death_overlay_entity = Some(overlay);
 }
 
-fn build_temporary_message_overlay(demo: &mut HorrorDemo, world: &mut World) {
+fn build_temporary_message_overlay(game_world: &mut GameWorld, world: &mut World) {
     let mut tree = UiTreeBuilder::new(world);
 
     let overlay = tree
@@ -111,11 +111,11 @@ fn build_temporary_message_overlay(demo: &mut HorrorDemo, world: &mut World) {
     tree.pop_parent();
     tree.finish();
 
-    demo.temporary_message_overlay_entity = Some(overlay);
-    demo.temporary_message_text_entity = Some(text_entity);
+    game_world.resources.temporary_message_overlay_entity = Some(overlay);
+    game_world.resources.temporary_message_text_entity = Some(text_entity);
 }
 
-fn build_note_overlay(demo: &mut HorrorDemo, world: &mut World) {
+fn build_note_overlay(game_world: &mut GameWorld, world: &mut World) {
     let mut tree = UiTreeBuilder::new(world);
 
     let panel_width = 500.0;
@@ -182,12 +182,12 @@ fn build_note_overlay(demo: &mut HorrorDemo, world: &mut World) {
     tree.pop_parent();
     tree.finish();
 
-    demo.note_overlay_entity = Some(overlay);
-    demo.note_title_text_entity = Some(title_entity);
-    demo.note_content_text_entity = Some(content_entity);
+    game_world.resources.note_overlay_entity = Some(overlay);
+    game_world.resources.note_title_text_entity = Some(title_entity);
+    game_world.resources.note_content_text_entity = Some(content_entity);
 }
 
-fn build_win_overlay(demo: &mut HorrorDemo, world: &mut World) {
+fn build_win_overlay(game_world: &mut GameWorld, world: &mut World) {
     let mut tree = UiTreeBuilder::new(world);
 
     let overlay = tree
@@ -219,88 +219,93 @@ fn build_win_overlay(demo: &mut HorrorDemo, world: &mut World) {
     tree.pop_parent();
     tree.finish();
 
-    demo.win_overlay_entity = Some(overlay);
-    demo.win_text_entity = Some(text_entity);
+    game_world.resources.win_overlay_entity = Some(overlay);
+    game_world.resources.win_text_entity = Some(text_entity);
 }
 
-pub fn update_overlays(demo: &mut HorrorDemo, world: &mut World) {
-    update_death_overlay(demo, world);
-    update_temporary_message_overlay(demo, world);
-    update_note_overlay(demo, world);
-    update_win_overlay(demo, world);
+pub fn update_overlays(game_world: &mut GameWorld, world: &mut World) {
+    update_death_overlay(game_world, world);
+    update_temporary_message_overlay(game_world, world);
+    update_note_overlay(game_world, world);
+    update_win_overlay(game_world, world);
 }
 
-fn update_death_overlay(demo: &HorrorDemo, world: &mut World) {
-    let Some(entity) = demo.death_overlay_entity else {
+fn update_death_overlay(game_world: &GameWorld, world: &mut World) {
+    let Some(entity) = game_world.resources.death_overlay_entity else {
         return;
     };
-    let should_show = demo.monster.active && demo.game_won;
+    let should_show = game_world.resources.monster.active && game_world.resources.game_won;
     world.ui_set_visible(entity, should_show);
 }
 
-fn update_temporary_message_overlay(demo: &mut HorrorDemo, world: &mut World) {
-    let Some(overlay) = demo.temporary_message_overlay_entity else {
+fn update_temporary_message_overlay(game_world: &mut GameWorld, world: &mut World) {
+    let Some(overlay) = game_world.resources.temporary_message_overlay_entity else {
         return;
     };
 
-    if let Some(message) = &demo.temporary_message {
+    if let Some(message) = &game_world.resources.temporary_message {
         world.ui_set_visible(overlay, true);
-        if demo.last_shown_message.as_deref() != Some(message) {
-            if let Some(text_entity) = demo.temporary_message_text_entity {
+        if game_world.resources.last_shown_message.as_deref() != Some(message) {
+            if let Some(text_entity) = game_world.resources.temporary_message_text_entity {
                 world.ui_set_text(text_entity, message);
             }
-            demo.last_shown_message = Some(message.clone());
+            game_world.resources.last_shown_message = Some(message.clone());
         }
     } else {
         world.ui_set_visible(overlay, false);
-        if demo.last_shown_message.is_some() {
-            demo.last_shown_message = None;
+        if game_world.resources.last_shown_message.is_some() {
+            game_world.resources.last_shown_message = None;
         }
     }
 }
 
-fn update_note_overlay(demo: &mut HorrorDemo, world: &mut World) {
-    let Some(overlay) = demo.note_overlay_entity else {
+fn update_note_overlay(game_world: &mut GameWorld, world: &mut World) {
+    let Some(overlay) = game_world.resources.note_overlay_entity else {
         return;
     };
 
-    if let Some(note_index) = demo.reading_note {
+    if let Some(note_game_entity) = game_world.resources.reading_note {
         world.ui_set_visible(overlay, true);
-        if demo.last_shown_note != Some(note_index) {
-            let note = &demo.notes[note_index];
-            if let Some(title_entity) = demo.note_title_text_entity {
-                world.ui_set_text(title_entity, &note.title);
+        if game_world.resources.last_shown_note != Some(note_game_entity) {
+            if let Some(note) = game_world.get_note(note_game_entity) {
+                let title = note.title.clone();
+                let content = note.content.clone();
+                if let Some(title_entity) = game_world.resources.note_title_text_entity {
+                    world.ui_set_text(title_entity, &title);
+                }
+                if let Some(content_entity) = game_world.resources.note_content_text_entity {
+                    world.ui_set_text(content_entity, &content);
+                }
             }
-            if let Some(content_entity) = demo.note_content_text_entity {
-                world.ui_set_text(content_entity, &note.content);
-            }
-            demo.last_shown_note = Some(note_index);
+            game_world.resources.last_shown_note = Some(note_game_entity);
         }
     } else {
         world.ui_set_visible(overlay, false);
-        if demo.last_shown_note.is_some() {
-            demo.last_shown_note = None;
+        if game_world.resources.last_shown_note.is_some() {
+            game_world.resources.last_shown_note = None;
         }
     }
 }
 
-fn update_win_overlay(demo: &HorrorDemo, world: &mut World) {
-    let Some(overlay) = demo.win_overlay_entity else {
+fn update_win_overlay(game_world: &GameWorld, world: &mut World) {
+    let Some(overlay) = game_world.resources.win_overlay_entity else {
         return;
     };
 
-    let should_show = demo.game_won && !demo.monster.active && demo.fade_amount > 0.01;
+    let should_show = game_world.resources.game_won
+        && !game_world.resources.monster.active
+        && game_world.resources.fade_amount > 0.01;
     world.ui_set_visible(overlay, should_show);
 
     if should_show {
-        let fade_alpha = demo.fade_amount;
+        let fade_alpha = game_world.resources.fade_amount;
         if let Some(color) = world.ui.get_ui_node_color_mut(overlay) {
             color.computed_color = nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, fade_alpha);
         }
 
-        if let Some(text_entity) = demo.win_text_entity {
-            let text_alpha = if demo.fade_amount > 0.8 {
-                ((demo.fade_amount - 0.8) / 0.2).min(1.0)
+        if let Some(text_entity) = game_world.resources.win_text_entity {
+            let text_alpha = if game_world.resources.fade_amount > 0.8 {
+                ((game_world.resources.fade_amount - 0.8) / 0.2).min(1.0)
             } else {
                 0.0
             };
@@ -311,21 +316,25 @@ fn update_win_overlay(demo: &HorrorDemo, world: &mut World) {
     }
 }
 
-pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
-    let Some(text_index) = demo.interaction_prompt_text_index else {
+pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
+    let Some(text_index) = game_world.resources.interaction_prompt_text_index else {
         return;
     };
-    let Some(prompt_entity) = demo.interaction_prompt_entity else {
+    let Some(prompt_entity) = game_world.resources.interaction_prompt_entity else {
         return;
     };
 
     let mouse_pos = world.resources.input.mouse.position;
 
-    if demo.interaction.grabbed_entity.is_some()
-        || demo.interaction.manipulated_door_index.is_some()
-        || demo.interaction.manipulated_lever_index.is_some()
-        || demo.interaction.manipulated_button_index.is_some()
-        || demo.reading_note.is_some()
+    if game_world.resources.interaction.grabbed_entity.is_some()
+        || game_world.resources.interaction.manipulated_door.is_some()
+        || game_world.resources.interaction.manipulated_lever.is_some()
+        || game_world
+            .resources
+            .interaction
+            .manipulated_button
+            .is_some()
+        || game_world.resources.reading_note.is_some()
     {
         world.resources.text_cache.set_text(text_index, "");
         if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
@@ -334,7 +343,7 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
         return;
     }
 
-    let screen_pos = if demo.input_mode == InputMode::Gamepad {
+    let screen_pos = if game_world.resources.input_mode == InputMode::Gamepad {
         let viewport_size = world
             .resources
             .window
@@ -350,58 +359,64 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
         ignore_invisible: true,
     };
 
-    let pick_results = if demo.input_mode == InputMode::Gamepad {
-        pick_entities_cone(demo, world, screen_pos, INTERACT_CONE_RADIUS, options)
+    let pick_results = if game_world.resources.input_mode == InputMode::Gamepad {
+        pick_entities_cone(world, screen_pos, INTERACT_CONE_RADIUS, options)
     } else {
         pick_entities(world, screen_pos, options)
     };
 
     let mut prompt_text = "";
 
-    for result in &pick_results {
-        if demo.physics_objects.contains(&result.entity) {
-            prompt_text = "Grab";
-            break;
-        }
-
-        for door in &demo.doors {
-            if result.entity == door.entity && result.distance <= INTERACT_RANGE {
-                prompt_text = if door.locked { "Locked" } else { "Open" };
-                break;
+    'outer: for result in &pick_results {
+        for physics_game_entity in game_world.query_physics_prop() {
+            if let Some(engine_entity) = game_world.get_engine_entity(physics_game_entity)
+                && engine_entity.0 == result.entity
+            {
+                prompt_text = "Grab";
+                break 'outer;
             }
         }
-        if !prompt_text.is_empty() {
-            break;
+
+        for game_entity in game_world.query_entities(DOOR | ENGINE_ENTITY) {
+            if let Some(engine_entity) = game_world.get_engine_entity(game_entity)
+                && engine_entity.0 == result.entity
+                && result.distance <= INTERACT_RANGE
+            {
+                if let Some(door) = game_world.get_door(game_entity) {
+                    prompt_text = if door.locked { "Locked" } else { "Open" };
+                }
+                break 'outer;
+            }
         }
 
-        for lever in &demo.levers {
-            if result.entity == lever.collider_entity && result.distance <= INTERACT_RANGE {
+        for game_entity in game_world.query_entities(LEVER | ENGINE_ENTITY) {
+            if let Some(lever) = game_world.get_lever(game_entity)
+                && lever.collider_entity == result.entity
+                && result.distance <= INTERACT_RANGE
+            {
                 prompt_text = "Interact";
-                break;
+                break 'outer;
             }
         }
-        if !prompt_text.is_empty() {
-            break;
-        }
 
-        for button in &demo.buttons {
-            if result.entity == button.entity && result.distance <= INTERACT_RANGE {
+        for game_entity in game_world.query_entities(BUTTON | ENGINE_ENTITY) {
+            if let Some(engine_entity) = game_world.get_engine_entity(game_entity)
+                && engine_entity.0 == result.entity
+                && result.distance <= INTERACT_RANGE
+            {
                 prompt_text = "Press";
-                break;
+                break 'outer;
             }
-        }
-        if !prompt_text.is_empty() {
-            break;
         }
 
-        for note in &demo.notes {
-            if result.entity == note.entity && result.distance <= INTERACT_RANGE {
+        for game_entity in game_world.query_entities(NOTE | ENGINE_ENTITY) {
+            if let Some(engine_entity) = game_world.get_engine_entity(game_entity)
+                && engine_entity.0 == result.entity
+                && result.distance <= INTERACT_RANGE
+            {
                 prompt_text = "Read";
-                break;
+                break 'outer;
             }
-        }
-        if !prompt_text.is_empty() {
-            break;
         }
     }
 
@@ -412,7 +427,6 @@ pub fn update_interaction_prompt(demo: &HorrorDemo, world: &mut World) {
 }
 
 pub fn pick_entities_cone(
-    demo: &HorrorDemo,
     world: &World,
     center: Vec2,
     radius: f32,
@@ -433,8 +447,6 @@ pub fn pick_entities_cone(
         (-0.707, -0.707),
     ];
 
-    let _ = demo;
-
     for (offset_x, offset_y) in offsets {
         let screen_pos =
             nalgebra_glm::vec2(center.x + offset_x * radius, center.y + offset_y * radius);
@@ -451,19 +463,19 @@ pub fn pick_entities_cone(
     all_results
 }
 
-pub fn update_objective(demo: &HorrorDemo, world: &mut World) {
-    let Some(text_index) = demo.objective_text_index else {
+pub fn update_objective(game_world: &GameWorld, world: &mut World) {
+    let Some(text_index) = game_world.resources.objective_text_index else {
         return;
     };
-    let Some(objective_entity) = demo.objective_text_entity else {
+    let Some(objective_entity) = game_world.resources.objective_text_entity else {
         return;
     };
 
-    let objective = if demo.game_won {
+    let objective = if game_world.resources.game_won {
         ""
-    } else if demo.exit_unlocked {
+    } else if game_world.resources.exit_unlocked {
         "Exit through the door"
-    } else if demo.power_restored {
+    } else if game_world.resources.power_restored {
         "Return to main hall and pull the exit lever"
     } else {
         "Find the generator and restore power"
@@ -475,20 +487,20 @@ pub fn update_objective(demo: &HorrorDemo, world: &mut World) {
     }
 }
 
-pub fn update_temporary_message(demo: &mut HorrorDemo, world: &mut World) {
-    if demo.temporary_message.is_none() {
+pub fn update_temporary_message(game_world: &mut GameWorld, world: &mut World) {
+    if game_world.resources.temporary_message.is_none() {
         return;
     }
 
     let dt = world.resources.window.timing.delta_time;
-    demo.temporary_message_timer -= dt;
+    game_world.resources.temporary_message_timer -= dt;
 
-    if demo.temporary_message_timer <= 0.0 {
-        demo.temporary_message = None;
+    if game_world.resources.temporary_message_timer <= 0.0 {
+        game_world.resources.temporary_message = None;
     }
 }
 
-pub fn note_reading_system(demo: &mut HorrorDemo, world: &mut World) {
+pub fn note_reading_system(game_world: &mut GameWorld, world: &mut World) {
     let keyboard = &world.resources.input.keyboard;
     let f_pressed = keyboard.is_key_pressed(KeyCode::KeyF);
     let e_pressed = keyboard.is_key_pressed(KeyCode::KeyE);
@@ -504,11 +516,11 @@ pub fn note_reading_system(demo: &mut HorrorDemo, world: &mut World) {
 
     let interact_pressed = f_pressed || e_pressed || gamepad_rt_pressed || esc_pressed;
 
-    if !demo.note_close_key_released && !interact_pressed {
-        demo.note_close_key_released = true;
+    if !game_world.resources.note_close_key_released && !interact_pressed {
+        game_world.resources.note_close_key_released = true;
     }
 
-    if demo.note_close_key_released && interact_pressed {
-        demo.reading_note = None;
+    if game_world.resources.note_close_key_released && interact_pressed {
+        game_world.resources.reading_note = None;
     }
 }

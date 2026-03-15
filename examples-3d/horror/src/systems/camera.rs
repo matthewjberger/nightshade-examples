@@ -1,22 +1,23 @@
 use crate::constants::{
     CROUCHING_CAMERA_HEIGHT, LEAN_AMOUNT, LEAN_ANGLE, LEAN_SPEED, STANDING_CAMERA_HEIGHT,
 };
-use crate::state::{HorrorDemo, InputMode};
+use crate::ecs::{GameWorld, InputMode};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::world::resources::MouseState;
 use nightshade::prelude::*;
 
-pub fn camera_look_system(demo: &mut HorrorDemo, world: &mut World) {
-    let Some(camera_entity) = demo.camera_entity else {
+pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
+    let Some(camera_entity) = game_world.resources.camera_entity else {
         return;
     };
 
-    let is_manipulating = demo.interaction.manipulated_door_index.is_some()
-        || demo.interaction.manipulated_lever_index.is_some();
+    let is_manipulating = game_world.resources.interaction.manipulated_door.is_some()
+        || game_world.resources.interaction.manipulated_lever.is_some();
 
-    let is_interacting = demo.interaction.grabbed_entity.is_some() || is_manipulating;
+    let is_interacting =
+        game_world.resources.interaction.grabbed_entity.is_some() || is_manipulating;
 
-    let right_clicked = if demo.input_mode == InputMode::MouseKeyboard {
+    let right_clicked = if game_world.resources.input_mode == InputMode::MouseKeyboard {
         world
             .resources
             .input
@@ -28,7 +29,7 @@ pub fn camera_look_system(demo: &mut HorrorDemo, world: &mut World) {
     };
 
     let (gamepad_right_stick_x, gamepad_right_stick_y) =
-        if demo.input_mode == InputMode::Gamepad && !is_manipulating {
+        if game_world.resources.input_mode == InputMode::Gamepad && !is_manipulating {
             if let Some(gamepad) = query_active_gamepad(world) {
                 let deadzone = 0.15;
                 let raw_x = gamepad.value(gilrs::Axis::RightStickX);
@@ -69,7 +70,7 @@ pub fn camera_look_system(demo: &mut HorrorDemo, world: &mut World) {
         window_handle.set_cursor_visible(true);
     }
 
-    let can_look_mouse = right_clicked || demo.interaction.grabbed_entity.is_some();
+    let can_look_mouse = right_clicked || game_world.resources.interaction.grabbed_entity.is_some();
 
     if !can_look_mouse && !has_gamepad_input {
         return;
@@ -77,13 +78,13 @@ pub fn camera_look_system(demo: &mut HorrorDemo, world: &mut World) {
 
     let dt = world.resources.window.timing.delta_time;
 
-    let delta = if demo.input_mode == InputMode::Gamepad && has_gamepad_input {
+    let delta = if game_world.resources.input_mode == InputMode::Gamepad && has_gamepad_input {
         let gamepad_sensitivity = 1.2;
         nalgebra_glm::vec2(
             gamepad_right_stick_x * gamepad_sensitivity * dt,
             -gamepad_right_stick_y * gamepad_sensitivity * dt,
         )
-    } else if demo.input_mode == InputMode::MouseKeyboard {
+    } else if game_world.resources.input_mode == InputMode::MouseKeyboard {
         let raw_delta = world.resources.input.mouse.raw_mouse_delta;
         let mouse_sensitivity = 0.002;
         raw_delta * mouse_sensitivity
@@ -92,10 +93,11 @@ pub fn camera_look_system(demo: &mut HorrorDemo, world: &mut World) {
     };
 
     let yaw = nalgebra_glm::quat_angle_axis(-delta.x, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
-    demo.lean_state.base_rotation = yaw * demo.lean_state.base_rotation;
+    game_world.resources.lean_state.base_rotation =
+        yaw * game_world.resources.lean_state.base_rotation;
 
     let forward = nalgebra_glm::quat_rotate_vec3(
-        &demo.lean_state.base_rotation,
+        &game_world.resources.lean_state.base_rotation,
         &nalgebra_glm::vec3(0.0, 0.0, -1.0),
     );
     let current_pitch = forward.y.asin();
@@ -103,14 +105,14 @@ pub fn camera_look_system(demo: &mut HorrorDemo, world: &mut World) {
 
     if new_pitch.abs() <= 85_f32.to_radians() {
         let pitch = nalgebra_glm::quat_angle_axis(-delta.y, &nalgebra_glm::vec3(1.0, 0.0, 0.0));
-        demo.lean_state.base_rotation *= pitch;
+        game_world.resources.lean_state.base_rotation *= pitch;
     }
 
     nightshade::ecs::transform::commands::mark_local_transform_dirty(world, camera_entity);
 }
 
-pub fn lean_system(demo: &mut HorrorDemo, world: &mut World) {
-    let Some(camera_entity) = demo.camera_entity else {
+pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
+    let Some(camera_entity) = game_world.resources.camera_entity else {
         return;
     };
 
@@ -118,7 +120,7 @@ pub fn lean_system(demo: &mut HorrorDemo, world: &mut World) {
     let lean_left = keyboard.is_key_pressed(KeyCode::KeyQ);
     let lean_right = keyboard.is_key_pressed(KeyCode::KeyE);
 
-    demo.lean_state.target_lean = if lean_left && !lean_right {
+    game_world.resources.lean_state.target_lean = if lean_left && !lean_right {
         -1.0
     } else if lean_right && !lean_left {
         1.0
@@ -127,22 +129,24 @@ pub fn lean_system(demo: &mut HorrorDemo, world: &mut World) {
     };
 
     let dt = world.resources.window.timing.delta_time;
-    let lean_diff = demo.lean_state.target_lean - demo.lean_state.current_lean;
-    demo.lean_state.current_lean += lean_diff * (LEAN_SPEED * dt).min(1.0);
+    let lean_diff =
+        game_world.resources.lean_state.target_lean - game_world.resources.lean_state.current_lean;
+    game_world.resources.lean_state.current_lean += lean_diff * (LEAN_SPEED * dt).min(1.0);
 
     let right_vector = nalgebra_glm::quat_rotate_vec3(
-        &demo.lean_state.base_rotation,
+        &game_world.resources.lean_state.base_rotation,
         &nalgebra_glm::vec3(1.0, 0.0, 0.0),
     );
     let horizontal_right =
         nalgebra_glm::normalize(&nalgebra_glm::vec3(right_vector.x, 0.0, right_vector.z));
 
-    let lean_offset = horizontal_right * (demo.lean_state.current_lean * LEAN_AMOUNT);
+    let lean_offset =
+        horizontal_right * (game_world.resources.lean_state.current_lean * LEAN_AMOUNT);
 
-    let lean_roll = -demo.lean_state.current_lean * LEAN_ANGLE;
+    let lean_roll = -game_world.resources.lean_state.current_lean * LEAN_ANGLE;
     let roll_quat = nalgebra_glm::quat_angle_axis(lean_roll, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
 
-    let final_rotation = demo.lean_state.base_rotation * roll_quat;
+    let final_rotation = game_world.resources.lean_state.base_rotation * roll_quat;
 
     let Some(camera_transform) = world.core.get_local_transform_mut(camera_entity) else {
         return;
@@ -155,11 +159,11 @@ pub fn lean_system(demo: &mut HorrorDemo, world: &mut World) {
     nightshade::ecs::transform::commands::mark_local_transform_dirty(world, camera_entity);
 }
 
-pub fn crouch_camera_system(demo: &HorrorDemo, world: &mut World) {
-    let Some(player_entity) = demo.player_entity else {
+pub fn crouch_camera_system(game_world: &GameWorld, world: &mut World) {
+    let Some(player_entity) = game_world.resources.player_entity else {
         return;
     };
-    let Some(camera_entity) = demo.camera_entity else {
+    let Some(camera_entity) = game_world.resources.camera_entity else {
         return;
     };
 

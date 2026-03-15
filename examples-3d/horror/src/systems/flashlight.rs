@@ -1,4 +1,4 @@
-use crate::state::HorrorDemo;
+use crate::ecs::GameWorld;
 use nightshade::ecs::light::components::{Light, LightType};
 use nightshade::prelude::*;
 
@@ -81,23 +81,27 @@ pub fn spawn_ambient_light(world: &mut World) {
         .set_local_transform_dirty(entity, LocalTransformDirty);
 }
 
-pub fn update_flashlight(demo: &mut HorrorDemo, world: &mut World) {
-    let Some(flashlight_entity) = demo.flashlight_entity else {
+pub fn update_flashlight(game_world: &mut GameWorld, world: &mut World) {
+    let Some(flashlight_entity) = game_world.resources.flashlight_entity else {
         return;
     };
-    let Some(camera) = demo.camera_entity else {
+    let Some(camera) = game_world.resources.camera_entity else {
         return;
     };
 
     let f_pressed = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyF);
 
-    if f_pressed && !demo.flashlight_key_was_pressed {
-        demo.flashlight_on = !demo.flashlight_on;
+    if f_pressed && !game_world.resources.flashlight_key_was_pressed {
+        game_world.resources.flashlight_on = !game_world.resources.flashlight_on;
         if let Some(light) = world.core.get_light_mut(flashlight_entity) {
-            light.intensity = if demo.flashlight_on { 30.0 } else { 0.0 };
+            light.intensity = if game_world.resources.flashlight_on {
+                30.0
+            } else {
+                0.0
+            };
         }
     }
-    demo.flashlight_key_was_pressed = f_pressed;
+    game_world.resources.flashlight_key_was_pressed = f_pressed;
 
     if let Some(camera_transform) = world.core.get_global_transform(camera).cloned() {
         let camera_position = camera_transform.translation();
@@ -124,11 +128,11 @@ pub fn update_flashlight(demo: &mut HorrorDemo, world: &mut World) {
     }
 }
 
-pub fn update_lantern_light(demo: &HorrorDemo, world: &mut World) {
-    let Some(lantern_entity) = demo.lantern_entity else {
+pub fn update_lantern_light(game_world: &GameWorld, world: &mut World) {
+    let Some(lantern_entity) = game_world.resources.lantern_entity else {
         return;
     };
-    let Some(light_entity) = demo.lantern_light_entity else {
+    let Some(light_entity) = game_world.resources.lantern_light_entity else {
         return;
     };
 

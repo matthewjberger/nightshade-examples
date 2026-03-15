@@ -1,9 +1,12 @@
-use crate::state::{HorrorDemo, LeverAction, NoteState, OverheadLightState};
+use crate::ecs::{
+    DOOR, ENGINE_ENTITY, EngineEntity, GameWorld, LEVER, LeverAction, NOTE, Note, OVERHEAD_LIGHT,
+    OverheadLight,
+};
 use crate::systems::levers::init_lever;
 use nightshade::ecs::world::commands::find_entity_by_name;
 use nightshade::prelude::*;
 
-pub fn discover_doors(demo: &mut HorrorDemo, world: &mut World) {
+pub fn discover_doors(game_world: &mut GameWorld, world: &mut World) {
     let door_configs: &[(&str, bool, bool, bool)] = &[
         ("Door_Entry", false, false, false),
         ("Door_Storage", false, true, false),
@@ -21,21 +24,30 @@ pub fn discover_doors(demo: &mut HorrorDemo, world: &mut World) {
             .map(|transform| transform.translation)
             .unwrap_or(Vec3::zeros());
 
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | DOOR, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+
         crate::systems::doors::init_door(
-            demo,
+            game_world,
             world,
-            name,
-            position,
-            locked,
-            side_door,
-            swing_reversed,
+            game_entity,
+            &crate::systems::doors::DoorConfig {
+                name,
+                position,
+                locked,
+                side_door,
+                swing_reversed,
+            },
         );
     }
 
-    demo.exit_door_index = demo.doors.len() - 1;
+    let door_entities: Vec<freecs::Entity> = game_world.query_entities(DOOR).collect();
+    if let Some(&last_door) = door_entities.last() {
+        game_world.resources.exit_door = Some(last_door);
+    }
 }
 
-pub fn discover_levers(demo: &mut HorrorDemo, world: &mut World) {
+pub fn discover_levers(game_world: &mut GameWorld, world: &mut World) {
     let lever_configs: &[(&str, LeverAction)] = &[
         ("Lever_RestorePower", LeverAction::RestorePower),
         ("Lever_UnlockExit", LeverAction::UnlockExit),
@@ -52,11 +64,13 @@ pub fn discover_levers(demo: &mut HorrorDemo, world: &mut World) {
             .map(|transform| transform.translation)
             .unwrap_or(Vec3::zeros());
 
-        init_lever(demo, world, name, position, action.clone());
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | LEVER, 1)[0];
+
+        init_lever(game_world, world, game_entity, name, position, *action);
     }
 }
 
-pub fn discover_notes(demo: &mut HorrorDemo, world: &mut World) {
+pub fn discover_notes(game_world: &mut GameWorld, world: &mut World) {
     let note_data: &[(&str, &str, &str)] = &[
         (
             "Note_0",
@@ -101,22 +115,28 @@ pub fn discover_notes(demo: &mut HorrorDemo, world: &mut World) {
         let entity = find_entity_by_name(world, name)
             .unwrap_or_else(|| panic!("Note entity '{}' not found", name));
 
-        demo.notes.push(NoteState {
-            entity,
-            title: title.to_string(),
-            content: content.to_string(),
-        });
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | NOTE, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.set_note(
+            game_entity,
+            Note {
+                title: title.to_string(),
+                content: content.to_string(),
+            },
+        );
     }
 }
 
-pub fn discover_physics_props(demo: &mut HorrorDemo, world: &mut World) {
+pub fn discover_physics_props(game_world: &mut GameWorld, world: &mut World) {
     let mut prop_index = 0;
     loop {
         let name = format!("Prop_{}", prop_index);
         let Some(entity) = find_entity_by_name(world, &name) else {
             break;
         };
-        demo.physics_objects.push(entity);
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.add_physics_prop(game_entity);
         prop_index += 1;
     }
 
@@ -126,22 +146,26 @@ pub fn discover_physics_props(demo: &mut HorrorDemo, world: &mut World) {
         let Some(entity) = find_entity_by_name(world, &name) else {
             break;
         };
-        demo.physics_objects.push(entity);
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.add_physics_prop(game_entity);
         link_index += 1;
     }
 
     if let Some(entity) = find_entity_by_name(world, "Lantern") {
-        demo.physics_objects.push(entity);
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.add_physics_prop(game_entity);
     }
 }
 
-pub fn discover_chain_light(demo: &mut HorrorDemo, world: &mut World) {
+pub fn discover_chain_light(game_world: &mut GameWorld, world: &mut World) {
     if let Some(lantern_entity) = find_entity_by_name(world, "Lantern") {
-        demo.lantern_entity = Some(lantern_entity);
+        game_world.resources.lantern_entity = Some(lantern_entity);
     }
 
     if let Some(light_entity) = find_entity_by_name(world, "LanternLight") {
-        demo.lantern_light_entity = Some(light_entity);
+        game_world.resources.lantern_light_entity = Some(light_entity);
     }
 
     let mut link_index = 0;
@@ -178,7 +202,7 @@ pub fn discover_chain_light(demo: &mut HorrorDemo, world: &mut World) {
     }
 }
 
-pub fn discover_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
+pub fn discover_overhead_lights(game_world: &mut GameWorld, world: &mut World) {
     for index in 0..9 {
         let fixture_name = format!("LightFixture_{}", index);
         let light_name = format!("OverheadLight_{}", index);
@@ -192,13 +216,17 @@ pub fn discover_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
 
         let base_intensity = 1.5 + (index % 3) as f32 * 0.3;
 
-        demo.overhead_lights.push(OverheadLightState {
-            entity: fixture_entity,
-            light_entity,
-            base_intensity,
-            spark_timer: 0.0,
-            next_spark_time: 2.0 + (index as f32 * 1.7) % 5.0,
-            is_sparking: false,
-        });
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | OVERHEAD_LIGHT, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(fixture_entity));
+        game_world.set_overhead_light(
+            game_entity,
+            OverheadLight {
+                light_entity,
+                base_intensity,
+                spark_timer: 0.0,
+                next_spark_time: 2.0 + (index as f32 * 1.7) % 5.0,
+                is_sparking: false,
+            },
+        );
     }
 }

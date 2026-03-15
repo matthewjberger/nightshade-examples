@@ -1,43 +1,53 @@
 use crate::constants::INTERACT_RANGE;
-use crate::state::{DoorState, HorrorDemo, InputMode};
+use crate::ecs::{DOOR, Door, ENGINE_ENTITY, GameWorld, InputMode};
 use nightshade::ecs::input::queries::query_active_gamepad;
-use nightshade::ecs::world::commands::find_entity_by_name;
 use nightshade::prelude::*;
 
+pub struct DoorConfig<'a> {
+    pub name: &'a str,
+    pub position: Vec3,
+    pub locked: bool,
+    pub side_door: bool,
+    pub swing_reversed: bool,
+}
+
 pub fn init_door(
-    demo: &mut HorrorDemo,
+    game_world: &mut GameWorld,
     world: &mut World,
-    name: &str,
-    position: Vec3,
-    locked: bool,
-    side_door: bool,
-    swing_reversed: bool,
+    game_entity: freecs::Entity,
+    config: &DoorConfig<'_>,
 ) {
     let door_width = 1.2;
     let door_height = 2.2;
 
-    let door_entity = find_entity_by_name(world, name)
-        .unwrap_or_else(|| panic!("Door entity '{}' not found in map", name));
+    let engine_entity = game_world
+        .get_engine_entity(game_entity)
+        .expect("Door game entity must have EngineEntity")
+        .0;
 
     let hinge_offset = door_width / 2.0;
-    let hinge_position = if side_door {
-        let hinge_z = if swing_reversed {
-            position.z + hinge_offset
+    let hinge_position = if config.side_door {
+        let hinge_z = if config.swing_reversed {
+            config.position.z + hinge_offset
         } else {
-            position.z - hinge_offset
+            config.position.z - hinge_offset
         };
-        nalgebra_glm::vec3(position.x, door_height / 2.0, hinge_z)
+        nalgebra_glm::vec3(config.position.x, door_height / 2.0, hinge_z)
     } else {
-        nalgebra_glm::vec3(position.x - hinge_offset, door_height / 2.0, position.z)
+        nalgebra_glm::vec3(
+            config.position.x - hinge_offset,
+            door_height / 2.0,
+            config.position.z,
+        )
     };
 
     let door_rb_handle = world
         .core
-        .get_rigid_body(door_entity)
+        .get_rigid_body(engine_entity)
         .and_then(|rb| rb.handle)
-        .unwrap_or_else(|| panic!("Door '{}' missing physics handle", name));
+        .unwrap_or_else(|| panic!("Door '{}' missing physics handle", config.name));
 
-    let (min_angle, max_angle) = if swing_reversed {
+    let (min_angle, max_angle) = if config.swing_reversed {
         (
             -std::f32::consts::FRAC_PI_2 * 0.1,
             std::f32::consts::FRAC_PI_2,
@@ -49,45 +59,51 @@ pub fn init_door(
         )
     };
 
-    demo.doors.push(DoorState {
-        entity: door_entity,
-        rigid_body_handle: door_rb_handle.into(),
-        hinge_position,
-        door_half_width: door_width / 2.0,
-        current_angle: 0.0,
-        angular_velocity: 0.0,
-        min_angle,
-        max_angle,
-        locked,
-        side_door,
-        swing_reversed,
-    });
+    game_world.set_door(
+        game_entity,
+        Door {
+            rigid_body_handle: door_rb_handle.into(),
+            hinge_position,
+            door_half_width: door_width / 2.0,
+            current_angle: 0.0,
+            angular_velocity: 0.0,
+            min_angle,
+            max_angle,
+            locked: config.locked,
+            side_door: config.side_door,
+            swing_reversed: config.swing_reversed,
+        },
+    );
 }
 
-pub fn update_manipulated_door(demo: &mut HorrorDemo, world: &mut World, camera_position: Vec3) {
-    let Some(door_index) = demo.interaction.manipulated_door_index else {
+pub fn update_manipulated_door(
+    game_world: &mut GameWorld,
+    world: &mut World,
+    camera_position: Vec3,
+) {
+    let Some(door_game_entity) = game_world.resources.interaction.manipulated_door else {
         return;
     };
-    let Some(door) = demo.doors.get_mut(door_index) else {
+    let Some(door) = game_world.get_door_mut(door_game_entity) else {
         return;
     };
 
     let distance_to_hinge = nalgebra_glm::distance(&camera_position, &door.hinge_position);
 
     if distance_to_hinge > INTERACT_RANGE * 3.0 {
-        demo.interaction.manipulated_door_index = None;
+        game_world.resources.interaction.manipulated_door = None;
         return;
     }
 
     let dt = world.resources.physics.fixed_timestep;
 
-    let mouse_input = if demo.input_mode == InputMode::MouseKeyboard {
+    let mouse_input = if game_world.resources.input_mode == InputMode::MouseKeyboard {
         world.resources.input.mouse.raw_mouse_delta.x * 0.8
     } else {
         0.0
     };
 
-    let gamepad_input = if demo.input_mode == InputMode::Gamepad {
+    let gamepad_input = if game_world.resources.input_mode == InputMode::Gamepad {
         if let Some(gamepad) = query_active_gamepad(world) {
             let right_stick_y = gamepad.value(gilrs::Axis::RightStickY);
             let deadzone = 0.15;
@@ -106,6 +122,7 @@ pub fn update_manipulated_door(demo: &mut HorrorDemo, world: &mut World, camera_
     let torque = mouse_input + gamepad_input;
     let friction = 6.0;
 
+    let door = game_world.get_door_mut(door_game_entity).unwrap();
     door.angular_velocity += torque * dt;
     door.angular_velocity -= door.angular_velocity * friction * dt;
 
@@ -121,13 +138,21 @@ pub fn update_manipulated_door(demo: &mut HorrorDemo, world: &mut World, camera_
 
     door.current_angle = new_angle;
 
-    apply_door_transform(demo, world, door_index);
+    apply_door_transform(game_world, world, door_game_entity);
 }
 
-pub fn apply_door_transform(demo: &HorrorDemo, world: &mut World, door_index: usize) {
-    let Some(door) = demo.doors.get(door_index) else {
+pub fn apply_door_transform(
+    game_world: &GameWorld,
+    world: &mut World,
+    game_entity: freecs::Entity,
+) {
+    let Some(door) = game_world.get_door(game_entity) else {
         return;
     };
+    let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
+        return;
+    };
+    let entity = engine_entity.0;
 
     let cos_angle = door.current_angle.cos();
     let sin_angle = door.current_angle.sin();
@@ -150,13 +175,13 @@ pub fn apply_door_transform(demo: &HorrorDemo, world: &mut World, door_index: us
         )
     };
 
-    if let Some(transform) = world.core.get_local_transform_mut(door.entity) {
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
         transform.translation.x = new_center_x;
         transform.translation.z = new_center_z;
         transform.rotation =
             nalgebra_glm::quat_angle_axis(door.current_angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
     }
-    nightshade::ecs::transform::commands::mark_local_transform_dirty(world, door.entity);
+    nightshade::ecs::transform::commands::mark_local_transform_dirty(world, entity);
 
     if let Some(rb) = world
         .resources
@@ -176,25 +201,36 @@ pub fn apply_door_transform(demo: &HorrorDemo, world: &mut World, door_index: us
     }
 }
 
-pub fn slam_door_closed(demo: &mut HorrorDemo, world: &mut World, door_index: usize) {
-    if let Some(door) = demo.doors.get_mut(door_index) {
+pub fn slam_door_closed(
+    game_world: &mut GameWorld,
+    world: &mut World,
+    game_entity: freecs::Entity,
+) {
+    if let Some(door) = game_world.get_door_mut(game_entity) {
         let closed_angle = door.min_angle + std::f32::consts::FRAC_PI_2;
         door.current_angle = closed_angle;
         door.angular_velocity = 0.0;
     }
-    apply_door_transform(demo, world, door_index);
+    apply_door_transform(game_world, world, game_entity);
 }
 
-pub fn update_doors_momentum(demo: &mut HorrorDemo, world: &mut World) {
+pub fn update_doors_momentum(game_world: &mut GameWorld, world: &mut World) {
     let dt = world.resources.physics.fixed_timestep;
     let friction = 2.0;
 
-    for door_index in 0..demo.doors.len() {
-        if demo.interaction.manipulated_door_index == Some(door_index) {
+    let door_entities: Vec<freecs::Entity> =
+        game_world.query_entities(DOOR | ENGINE_ENTITY).collect();
+
+    let manipulated_door = game_world.resources.interaction.manipulated_door;
+
+    for game_entity in door_entities {
+        if manipulated_door == Some(game_entity) {
             continue;
         }
 
-        let door = &mut demo.doors[door_index];
+        let Some(door) = game_world.get_door_mut(game_entity) else {
+            continue;
+        };
 
         if door.angular_velocity.abs() < 0.01 {
             door.angular_velocity = 0.0;
@@ -213,6 +249,6 @@ pub fn update_doors_momentum(demo: &mut HorrorDemo, world: &mut World) {
 
         door.current_angle = new_angle;
 
-        apply_door_transform(demo, world, door_index);
+        apply_door_transform(game_world, world, game_entity);
     }
 }

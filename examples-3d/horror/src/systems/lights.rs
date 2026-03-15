@@ -1,12 +1,25 @@
-use crate::state::HorrorDemo;
+use crate::ecs::{ENGINE_ENTITY, GameWorld, OVERHEAD_LIGHT};
 use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::prelude::*;
 
-pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
+pub fn update_overhead_lights(game_world: &mut GameWorld, world: &mut World) {
     let dt = world.resources.window.timing.delta_time;
     let total_time = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
 
-    for light_state in &mut demo.overhead_lights {
+    let light_entities: Vec<freecs::Entity> = game_world
+        .query_entities(OVERHEAD_LIGHT | ENGINE_ENTITY)
+        .collect();
+
+    for game_entity in light_entities {
+        let Some(engine_entity) = game_world.get_engine_entity(game_entity) else {
+            continue;
+        };
+        let fixture_entity = engine_entity.0;
+
+        let Some(light_state) = game_world.get_overhead_light_mut(game_entity) else {
+            continue;
+        };
+
         light_state.spark_timer += dt;
 
         if light_state.is_sparking {
@@ -15,8 +28,9 @@ pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
             if spark_progress < 0.5 {
                 let flicker = ((spark_progress * 50.0).sin() * 0.5 + 0.5).powi(2);
                 let intensity = light_state.base_intensity * flicker * 3.0;
+                let light_entity = light_state.light_entity;
 
-                if let Some(light) = world.core.get_light_mut(light_state.light_entity) {
+                if let Some(light) = world.core.get_light_mut(light_entity) {
                     light.intensity = intensity;
                     light.color = nalgebra_glm::vec3(1.0, 0.6 + flicker * 0.3, 0.3);
                 }
@@ -24,24 +38,30 @@ pub fn update_overhead_lights(demo: &mut HorrorDemo, world: &mut World) {
                 light_state.is_sparking = false;
                 light_state.spark_timer = 0.0;
                 light_state.next_spark_time = 3.0 + (total_time * 7.0).sin().abs() * 8.0;
+                let base_intensity = light_state.base_intensity;
+                let light_entity = light_state.light_entity;
 
-                if let Some(light) = world.core.get_light_mut(light_state.light_entity) {
-                    light.intensity = light_state.base_intensity;
+                if let Some(light) = world.core.get_light_mut(light_entity) {
+                    light.intensity = base_intensity;
                     light.color = nalgebra_glm::vec3(1.0, 0.9, 0.7);
                 }
             }
         } else {
-            let subtle_flicker =
-                1.0 + (total_time * 3.0 + light_state.base_intensity * 10.0).sin() * 0.05;
-            if let Some(light) = world.core.get_light_mut(light_state.light_entity) {
-                light.intensity = light_state.base_intensity * subtle_flicker;
+            let base_intensity = light_state.base_intensity;
+            let subtle_flicker = 1.0 + (total_time * 3.0 + base_intensity * 10.0).sin() * 0.05;
+            let light_entity = light_state.light_entity;
+            let should_spark = light_state.spark_timer >= light_state.next_spark_time;
+
+            if let Some(light) = world.core.get_light_mut(light_entity) {
+                light.intensity = base_intensity * subtle_flicker;
             }
 
-            if light_state.spark_timer >= light_state.next_spark_time {
+            if should_spark {
+                let light_state = game_world.get_overhead_light_mut(game_entity).unwrap();
                 light_state.is_sparking = true;
                 light_state.spark_timer = 0.0;
 
-                spawn_spark_particles(world, light_state.entity);
+                spawn_spark_particles(world, fixture_entity);
             }
         }
     }

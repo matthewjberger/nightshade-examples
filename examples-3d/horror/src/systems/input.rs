@@ -1,9 +1,9 @@
-use crate::state::{HorrorDemo, InputMode};
+use crate::ecs::{GameWorld, InputMode};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::world::resources::MouseState;
 use nightshade::prelude::*;
 
-pub fn detect_input_mode(demo: &mut HorrorDemo, world: &mut World) {
+pub fn detect_input_mode(game_world: &mut GameWorld, world: &mut World) {
     let keyboard = &world.resources.input.keyboard;
     let mouse = &world.resources.input.mouse;
 
@@ -30,10 +30,11 @@ pub fn detect_input_mode(demo: &mut HorrorDemo, world: &mut World) {
         false
     };
 
-    if has_gamepad_input && demo.input_mode != InputMode::Gamepad {
-        demo.input_mode = InputMode::Gamepad;
-    } else if (has_keyboard_input || has_mouse_input) && demo.input_mode != InputMode::MouseKeyboard
+    if has_gamepad_input && game_world.resources.input_mode != InputMode::Gamepad {
+        game_world.resources.input_mode = InputMode::Gamepad;
+    } else if (has_keyboard_input || has_mouse_input)
+        && game_world.resources.input_mode != InputMode::MouseKeyboard
     {
-        demo.input_mode = InputMode::MouseKeyboard;
+        game_world.resources.input_mode = InputMode::MouseKeyboard;
     }
 }

@@ -77,6 +77,16 @@ impl State for HorrorGame {
         world.resources.graphics.use_fullscreen = true;
         world.resources.graphics.clear_color = [0.0, 0.0, 0.0, 1.0];
 
+        if let Some(window_handle) = &world.resources.window.handle {
+            if window_handle
+                .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+                .is_err()
+            {
+                let _ = window_handle.set_cursor_grab(winit::window::CursorGrabMode::Confined);
+            }
+            window_handle.set_cursor_visible(false);
+        }
+
         self.game_world.resources.power_restored = false;
         self.game_world.resources.exit_unlocked = false;
         self.game_world.resources.game_won = false;
@@ -161,8 +171,7 @@ impl State for HorrorGame {
                     );
                     self.game_world.resources.generator_audio_entity = Some(generator_audio);
 
-                    let rubble_audio =
-                        world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
+                    let rubble_audio = world.spawn_entities(AUDIO_SOURCE | LOCAL_TRANSFORM, 1)[0];
                     world.core.set_local_transform(
                         rubble_audio,
                         LocalTransform {
@@ -236,6 +245,7 @@ impl State for HorrorGame {
                 world,
             );
             camera_look_system(&mut self.game_world, world);
+            interaction_system(&mut self.game_world, world);
         }
 
         cutscene_system(&mut self.game_world, world);
@@ -243,8 +253,6 @@ impl State for HorrorGame {
 
         lean_system(&mut self.game_world, world);
         crouch_camera_system(&self.game_world, world);
-
-        interaction_system(&mut self.game_world, world);
         update_doors_momentum(&mut self.game_world, world);
         update_levers_momentum(&mut self.game_world, world);
         update_lantern_light(&self.game_world, world);

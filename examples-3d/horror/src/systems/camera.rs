@@ -113,17 +113,34 @@ pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     };
 
-    let keyboard = &world.resources.input.keyboard;
-    let lean_left = keyboard.is_key_pressed(KeyCode::KeyQ);
-    let lean_right = keyboard.is_key_pressed(KeyCode::KeyE);
+    if !game_world.resources.cutscene.active {
+        let keyboard = &world.resources.input.keyboard;
+        let lean_left = keyboard.is_key_pressed(KeyCode::KeyQ);
+        let lean_right = keyboard.is_key_pressed(KeyCode::KeyE);
 
-    game_world.resources.lean_state.target_lean = if lean_left && !lean_right {
-        -1.0
-    } else if lean_right && !lean_left {
-        1.0
+        let (gamepad_lean_left, gamepad_lean_right) =
+            if let Some(gamepad) = query_active_gamepad(world) {
+                (
+                    gamepad.is_pressed(gilrs::Button::LeftTrigger),
+                    gamepad.is_pressed(gilrs::Button::RightTrigger),
+                )
+            } else {
+                (false, false)
+            };
+
+        let any_lean_left = lean_left || gamepad_lean_left;
+        let any_lean_right = lean_right || gamepad_lean_right;
+
+        game_world.resources.lean_state.target_lean = if any_lean_left && !any_lean_right {
+            -1.0
+        } else if any_lean_right && !any_lean_left {
+            1.0
+        } else {
+            0.0
+        };
     } else {
-        0.0
-    };
+        game_world.resources.lean_state.target_lean = 0.0;
+    }
 
     let dt = world.resources.window.timing.delta_time;
     let lean_diff =

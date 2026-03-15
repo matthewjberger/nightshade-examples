@@ -300,7 +300,9 @@ fn update_win_overlay(game_world: &GameWorld, world: &mut World) {
     if should_show {
         let fade_alpha = game_world.resources.fade_amount;
         if let Some(color) = world.ui.get_ui_node_color_mut(overlay) {
-            color.computed_color = nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, fade_alpha);
+            let black_with_alpha = nalgebra_glm::Vec4::new(0.0, 0.0, 0.0, fade_alpha);
+            color.colors[0] = Some(black_with_alpha);
+            color.computed_color = black_with_alpha;
         }
 
         if let Some(text_entity) = game_world.resources.win_text_entity {
@@ -310,7 +312,9 @@ fn update_win_overlay(game_world: &GameWorld, world: &mut World) {
                 0.0
             };
             if let Some(color) = world.ui.get_ui_node_color_mut(text_entity) {
-                color.computed_color = nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, text_alpha);
+                let white_with_alpha = nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, text_alpha);
+                color.colors[0] = Some(white_with_alpha);
+                color.computed_color = white_with_alpha;
             }
         }
     }

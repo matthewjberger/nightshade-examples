@@ -93,7 +93,7 @@ pub fn update_flashlight(game_world: &mut GameWorld, world: &mut World) {
 
     let gamepad_flashlight_pressed =
         if let Some(gamepad) = nightshade::ecs::input::queries::query_active_gamepad(world) {
-            gamepad.is_pressed(gilrs::Button::LeftTrigger)
+            gamepad.is_pressed(gilrs::Button::DPadDown)
         } else {
             false
         };

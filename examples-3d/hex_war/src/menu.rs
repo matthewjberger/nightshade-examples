@@ -157,10 +157,35 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
                         .entity();
                     tree.push_parent(diff_row);
                     tree.add_spring();
+
+                    let easy_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(110.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(easy_wrap);
                     easy_button = tree.add_button("EASY");
+                    tree.pop_parent();
+
+                    let normal_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(110.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(normal_wrap);
                     normal_button =
                         tree.add_button_colored("NORMAL", Vec4::new(0.35, 0.35, 0.2, 1.0));
+                    tree.pop_parent();
+
+                    let hard_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(110.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(hard_wrap);
                     hard_button = tree.add_button("HARD");
+                    tree.pop_parent();
+
                     tree.add_spring();
                     tree.pop_parent();
 

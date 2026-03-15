@@ -328,8 +328,6 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
         return;
     };
 
-    let mouse_pos = world.resources.input.mouse.position;
-
     if game_world.resources.interaction.grabbed_entity.is_some()
         || game_world.resources.interaction.manipulated_door.is_some()
         || game_world.resources.interaction.manipulated_lever.is_some()
@@ -347,16 +345,12 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
         return;
     }
 
-    let screen_pos = if game_world.resources.input_mode == InputMode::Gamepad {
-        let viewport_size = world
-            .resources
-            .window
-            .cached_viewport_size
-            .unwrap_or((800, 600));
-        nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0)
-    } else {
-        mouse_pos
-    };
+    let viewport_size = world
+        .resources
+        .window
+        .cached_viewport_size
+        .unwrap_or((800, 600));
+    let screen_pos = nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
 
     let options = PickingOptions {
         max_distance: GRAB_RANGE,

@@ -12,7 +12,6 @@ use nightshade::prelude::*;
 pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     let mouse = &world.resources.input.mouse;
     let keyboard = &world.resources.input.keyboard;
-    let mouse_pos = mouse.position;
 
     let left_clicked = mouse.state.contains(MouseState::LEFT_CLICKED);
     let left_just_pressed = mouse.state.contains(MouseState::LEFT_JUST_PRESSED);
@@ -103,16 +102,12 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     }
 
-    let screen_pos = if game_world.resources.input_mode == InputMode::Gamepad {
-        let viewport_size = world
-            .resources
-            .window
-            .cached_viewport_size
-            .unwrap_or((800, 600));
-        nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0)
-    } else {
-        mouse_pos
-    };
+    let viewport_size = world
+        .resources
+        .window
+        .cached_viewport_size
+        .unwrap_or((800, 600));
+    let screen_pos = nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
 
     let options = PickingOptions {
         max_distance: GRAB_RANGE,

@@ -15,8 +15,6 @@ use nightshade::prelude::*;
 use std::collections::HashMap;
 
 const HEX_OUTLINE_HEIGHT: f32 = 0.05;
-const SEA_OUTLINE_HEIGHT: f32 = 0.01;
-const SEA_EXTENSION: i32 = 30;
 
 pub struct MapEntities {
     pub instanced_tile_groups: Vec<InstancedTileGroup>,
@@ -57,25 +55,10 @@ pub fn generate_game_map(
 
         spawn_tile(game_world, coord, tile_type);
 
-        let outline_height = if tile_type == TileType::Sea {
-            SEA_OUTLINE_HEIGHT
-        } else {
-            HEX_OUTLINE_HEIGHT
-        };
-        let position = hex_to_world_position(coord.column, coord.row, hex_width, hex_depth);
-        let hex_lines = generate_hex_outline(position, hex_width, hex_depth, outline_height);
-        all_hex_lines.extend(hex_lines);
-    }
-
-    for column in -SEA_EXTENSION..(MAP_WIDTH + SEA_EXTENSION) {
-        for row in -SEA_EXTENSION..(MAP_HEIGHT + SEA_EXTENSION) {
-            let coord = HexCoord { column, row };
-            if generated.tiles.contains_key(&coord) {
-                continue;
-            }
+        if tile_type != TileType::Sea {
             let position = hex_to_world_position(coord.column, coord.row, hex_width, hex_depth);
             let hex_lines =
-                generate_hex_outline(position, hex_width, hex_depth, SEA_OUTLINE_HEIGHT);
+                generate_hex_outline(position, hex_width, hex_depth, HEX_OUTLINE_HEIGHT);
             all_hex_lines.extend(hex_lines);
         }
     }

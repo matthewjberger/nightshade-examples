@@ -165,9 +165,8 @@ pub fn discover_physics_props(game_world: &mut GameWorld, world: &mut World) {
 }
 
 pub fn discover_chain_light(game_world: &mut GameWorld, world: &mut World) {
-    if let Some(lantern_entity) = find_entity_by_name(world, "Lantern") {
-        game_world.resources.lantern_entity = Some(lantern_entity);
-    }
+    let lantern_entity = find_entity_by_name(world, "Lantern");
+    game_world.resources.lantern_entity = lantern_entity;
 
     if let Some(light_entity) = find_entity_by_name(world, "LanternLight") {
         game_world.resources.lantern_light_entity = Some(light_entity);
@@ -193,8 +192,8 @@ pub fn discover_chain_light(game_world: &mut GameWorld, world: &mut World) {
         link_index += 1;
     }
 
-    if let Some(lantern_entity) = find_entity_by_name(world, "Lantern")
-        && let Some(rigid_body) = world.core.get_rigid_body(lantern_entity)
+    if let Some(lantern) = lantern_entity
+        && let Some(rigid_body) = world.core.get_rigid_body(lantern)
         && let Some(handle) = rigid_body.handle
         && let Some(rb) = world
             .resources

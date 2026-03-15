@@ -51,9 +51,8 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     let camera_forward = camera_transform.forward_vector();
 
     if !interact_pressed {
-        if let Some(grabbed_entity) = game_world.resources.interaction.grabbed_entity {
+        if game_world.resources.interaction.grabbed_entity.is_some() {
             throw_grabbed_object(game_world, world, camera_forward);
-            let _ = grabbed_entity;
         }
         game_world.resources.interaction.grabbed_entity = None;
 

@@ -51,54 +51,69 @@ fn world_from_depth(uv: vec2<f32>, depth: f32) -> vec3<f32> {
     return world.xyz / world.w;
 }
 
-fn point_in_flat_top_hex(px: f32, pz: f32, cx: f32, cz: f32) -> bool {
+fn point_in_flat_top_hex(px: f32, pz: f32, cx: f32, cz: f32) -> f32 {
+    let inset = 0.92;
+    let half_w = uniforms.hex_width * 0.5 * inset;
+    let half_h = uniforms.hex_depth * 0.5 * inset;
+    let quarter_w = uniforms.hex_width * 0.25 * inset;
+
     let dx = abs(px - cx);
     let dz = abs(pz - cz);
-    let half_w = uniforms.hex_width * 0.5;
-    let half_h = uniforms.hex_depth * 0.5;
+
     if dx > half_w || dz > half_h {
-        return false;
+        return -1.0;
     }
-    let quarter_w = uniforms.hex_width * 0.25;
+
     if dx <= quarter_w {
-        return true;
+        let edge_dist = min(half_w - dx, half_h - dz);
+        return edge_dist / half_w;
     }
-    let slope = half_h / (half_w - quarter_w);
-    return dz <= slope * (half_w - dx);
+
+    let max_dz = half_h * (half_w - dx) / (half_w - quarter_w);
+    if dz > max_dz {
+        return -1.0;
+    }
+
+    let edge_dist = max_dz - dz;
+    return edge_dist / half_h;
 }
 
 @fragment
 fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let scene_color = textureSampleLevel(scene_texture, tex_sampler, in.uv, 0.0);
 
+    if uniforms.tile_count == 0u {
+        return scene_color;
+    }
+
     let pixel = vec2<i32>(in.position.xy);
     let depth = textureLoad(depth_texture, pixel, 0);
 
-    if depth <= 0.0 || uniforms.tile_count == 0u {
+    if depth <= 0.0 {
         return scene_color;
     }
 
     let world_pos = world_from_depth(in.uv, depth);
 
-    var inside = false;
+    var best_dist: f32 = -1.0;
     for (var index = 0u; index < uniforms.tile_count; index++) {
         let tile = tiles.data[index];
-        if point_in_flat_top_hex(world_pos.x, world_pos.z, tile.x, tile.z) {
-            inside = true;
-            break;
+        let dist = point_in_flat_top_hex(world_pos.x, world_pos.z, tile.x, tile.z);
+        if dist > best_dist {
+            best_dist = dist;
         }
     }
 
-    if !inside {
+    if best_dist < 0.0 {
         return scene_color;
     }
 
     let pulse = sin(uniforms.time * 3.0) * 0.5 + 0.5;
-    let overlay_alpha = 0.2 + 0.1 * pulse;
-    let overlay_rgb = vec3<f32>(0.3, 0.6, 1.0);
+    let edge_fade = smoothstep(0.0, 0.15, best_dist);
+    let strength = (0.12 + 0.06 * pulse) * edge_fade;
 
-    return vec4<f32>(
-        mix(scene_color.rgb, overlay_rgb, overlay_alpha),
-        scene_color.a,
-    );
+    let tint = vec3<f32>(0.6, 0.85, 1.0);
+    let tinted = scene_color.rgb + tint * strength;
+
+    return vec4<f32>(tinted, scene_color.a);
 }

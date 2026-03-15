@@ -7,9 +7,9 @@ use nightshade::prelude::*;
 use std::collections::HashSet;
 
 const DEFAULT_TINT: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-const HOVER_TINT: [f32; 4] = [1.3, 1.3, 1.0, 1.0];
-const VALID_MOVE_TINT: [f32; 4] = [0.8, 1.2, 0.8, 1.0];
-const HOVER_VALID_TINT: [f32; 4] = [1.0, 1.5, 0.7, 1.0];
+const HOVER_TINT: [f32; 4] = [1.4, 1.4, 1.1, 1.0];
+const VALID_MOVE_TINT: [f32; 4] = [1.3, 1.3, 1.7, 1.0];
+const HOVER_VALID_TINT: [f32; 4] = [1.5, 1.5, 2.0, 1.0];
 
 pub fn tile_highlight_system(
     game_world: &mut GameWorld,

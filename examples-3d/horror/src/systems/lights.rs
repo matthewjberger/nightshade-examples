@@ -87,8 +87,7 @@ pub fn update_spark_particles(game_world: &mut GameWorld, world: &mut World) {
     }
     game_world.despawn_entities(&expired);
 
-    let active_sparks: Vec<freecs::Entity> =
-        game_world.query_entities(SPARK_PARTICLE).collect();
+    let active_sparks: Vec<freecs::Entity> = game_world.query_entities(SPARK_PARTICLE).collect();
     for game_entity in active_sparks {
         if let Some(spark) = game_world.get_spark_particle_mut(game_entity) {
             spark.lifetime -= dt;
@@ -96,11 +95,7 @@ pub fn update_spark_particles(game_world: &mut GameWorld, world: &mut World) {
     }
 }
 
-fn spawn_spark_particles(
-    game_world: &mut GameWorld,
-    world: &mut World,
-    fixture_entity: Entity,
-) {
+fn spawn_spark_particles(game_world: &mut GameWorld, world: &mut World, fixture_entity: Entity) {
     let fixture_pos = world
         .core
         .get_local_transform(fixture_entity)

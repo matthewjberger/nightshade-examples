@@ -74,7 +74,6 @@ impl State for HorrorGame {
     }
 
     fn initialize(&mut self, world: &mut World) {
-        world.resources.user_interface.enabled = true;
         world.resources.graphics.atmosphere = Atmosphere::None;
         world.resources.graphics.show_grid = false;
         world.resources.graphics.use_fullscreen = true;

@@ -3,7 +3,6 @@ use crate::constants::{
 };
 use crate::ecs::{GameWorld, InputMode};
 use nightshade::ecs::input::queries::query_active_gamepad;
-use nightshade::ecs::world::resources::MouseState;
 use nightshade::prelude::*;
 
 pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
@@ -23,7 +22,7 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
             .input
             .mouse
             .state
-            .contains(MouseState::RIGHT_CLICKED)
+            .contains(nightshade::ecs::input::resources::MouseState::RIGHT_CLICKED)
     } else {
         false
     };
@@ -53,9 +52,7 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
 
     let has_gamepad_input = gamepad_right_stick_x.abs() > 0.0 || gamepad_right_stick_y.abs() > 0.0;
 
-    let should_lock_cursor = right_clicked || is_interacting;
-
-    if should_lock_cursor {
+    if is_interacting || right_clicked {
         if let Some(window_handle) = &world.resources.window.handle {
             if window_handle
                 .set_cursor_grab(window::CursorGrabMode::Locked)

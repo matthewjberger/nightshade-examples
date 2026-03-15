@@ -41,13 +41,11 @@ pub fn discover_doors(game_world: &mut GameWorld, world: &mut World) {
         );
     }
 
-    let exit_door_entity = game_world
-        .query_entities(DOOR)
-        .find(|&game_entity| {
-            game_world
-                .get_door(game_entity)
-                .is_some_and(|door| door.locked)
-        });
+    let exit_door_entity = game_world.query_entities(DOOR).find(|&game_entity| {
+        game_world
+            .get_door(game_entity)
+            .is_some_and(|door| door.locked)
+    });
     if let Some(entity) = exit_door_entity {
         game_world.add_exit_door(entity);
         game_world.resources.exit_door = Some(entity);

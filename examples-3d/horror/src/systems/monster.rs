@@ -785,7 +785,8 @@ pub fn monster_chase_system(game_world: &mut GameWorld, world: &mut World) {
         if let Some(transform) = world.core.get_local_transform_mut(part_entity) {
             transform.translation += movement;
             let current_rotation = transform.rotation;
-            transform.rotation = nalgebra_glm::quat_slerp(&current_rotation, &target_rotation, dt * 8.0);
+            transform.rotation =
+                nalgebra_glm::quat_slerp(&current_rotation, &target_rotation, dt * 8.0);
 
             match role {
                 MonsterPartRole::Torso => {

@@ -1,4 +1,5 @@
 use nightshade::ecs::material::resources::material_registry_insert;
+use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,6 +23,16 @@ enum SettingsSource {
     MainMenu,
     Pause,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum TransitionPhase {
+    Idle,
+    FadeOut { target: GameState, timer: f32 },
+    FadeIn { timer: f32 },
+}
+
+const FADE_DURATION: f32 = 0.12;
+const FADE_PEAK_ALPHA: f32 = 0.5;
 
 struct GameSettings {
     sound_enabled: bool,
@@ -54,6 +65,8 @@ impl Default for GameSettings {
 }
 
 struct MenuUi {
+    transition_overlay: Entity,
+
     main_menu_screen: Entity,
     play_button: Entity,
     settings_button: Entity,
@@ -94,6 +107,7 @@ struct MenuDemoState {
     game_state: GameState,
     settings_source: SettingsSource,
     settings: GameSettings,
+    transition: TransitionPhase,
 
     camera_entity: Option<Entity>,
     game_entities: Vec<Entity>,
@@ -108,6 +122,7 @@ impl Default for MenuDemoState {
             game_state: GameState::default(),
             settings_source: SettingsSource::default(),
             settings: GameSettings::default(),
+            transition: TransitionPhase::Idle,
             camera_entity: None,
             game_entities: Vec::new(),
             game_rotation: 0.0,
@@ -121,15 +136,32 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
         id: 0,
         generation: 0,
     };
-    let font_size = 16.0;
-    let title_font = 28.0;
-    let heading_font = 22.0;
-    let white = Vec4::new(1.0, 1.0, 1.0, 1.0);
-    let gold = Vec4::new(1.0, 0.8, 0.2, 1.0);
-    let dim = Vec4::new(0.6, 0.6, 0.6, 1.0);
-    let panel_bg = Vec4::new(0.08, 0.08, 0.12, 0.85);
+
+    let font_size = 15.0;
+    let title_font = 36.0;
+    let heading_font = 24.0;
+    let label_font = 14.0;
+
+    let title_color = Vec4::new(0.92, 0.86, 0.65, 1.0);
+    let subtitle_color = Vec4::new(0.5, 0.5, 0.55, 1.0);
+    let label_color = Vec4::new(0.7, 0.7, 0.75, 1.0);
+    let accent = Vec4::new(0.36, 0.52, 0.87, 1.0);
+    let accent_dim = Vec4::new(0.24, 0.36, 0.62, 1.0);
+    let panel_bg = Vec4::new(0.1, 0.1, 0.14, 0.92);
+    let panel_border = Vec4::new(0.2, 0.2, 0.28, 0.6);
+    let screen_bg = Vec4::new(0.02, 0.02, 0.04, 0.75);
 
     let mut tree = UiTreeBuilder::new(world);
+
+    let transition_overlay = tree
+        .add_node()
+        .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+        .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+        .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.0))
+        .with_layer(UiLayer::Tooltips)
+        .with_visible(false)
+        .without_pointer_events()
+        .done();
 
     let mut play_button = placeholder;
     let mut settings_button = placeholder;
@@ -139,43 +171,48 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
         .add_node()
         .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
         .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
-        .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.6))
+        .with_color::<UiBase>(screen_bg)
         .with_layer(UiLayer::FloatingPanels)
         .without_pointer_events()
         .with_children(|tree| {
             tree.add_node()
                 .window(
-                    Rl(Vec2::new(50.0, 50.0)),
-                    Ab(Vec2::new(400.0, 400.0)),
+                    Rl(Vec2::new(50.0, 45.0)),
+                    Ab(Vec2::new(340.0, 360.0)),
                     Anchor::Center,
                 )
-                .with_rect(8.0, 1.0, Vec4::new(0.3, 0.3, 0.4, 0.5))
+                .with_rect(10.0, 1.0, panel_border)
                 .with_color::<UiBase>(panel_bg)
-                .flow(FlowDirection::Vertical, 20.0, 4.0)
+                .flow(FlowDirection::Vertical, 24.0, 6.0)
                 .without_pointer_events()
                 .with_children(|tree| {
+                    tree.add_spacing(8.0);
+
                     tree.add_node()
                         .flow_child(
-                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, title_font * 2.0)),
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, title_font * 1.6)),
                         )
                         .with_text("NIGHTSHADE", title_font)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
-                        .with_color::<UiBase>(gold)
+                        .with_color::<UiBase>(title_color)
                         .without_pointer_events()
                         .done();
 
                     tree.add_node()
-                        .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.5)))
-                        .with_text("Menu Demo", font_size)
+                        .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, font_size * 1.4)))
+                        .with_text("Menu System Demo", font_size)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
-                        .with_color::<UiBase>(dim)
+                        .with_color::<UiBase>(subtitle_color)
                         .without_pointer_events()
                         .done();
 
-                    tree.add_spacing(20.0);
+                    tree.add_spacing(16.0);
 
-                    play_button = tree.add_button("PLAY");
+                    play_button = tree.add_button_colored("PLAY", accent);
                     settings_button = tree.add_button("SETTINGS");
+
+                    tree.add_spacing(4.0);
+
                     quit_button = tree.add_button("QUIT");
                 })
                 .done();
@@ -190,40 +227,42 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
         .add_node()
         .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
         .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
-        .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.6))
+        .with_color::<UiBase>(screen_bg)
         .with_layer(UiLayer::FloatingPanels)
         .with_visible(false)
         .without_pointer_events()
         .with_children(|tree| {
             tree.add_node()
                 .window(
-                    Rl(Vec2::new(50.0, 50.0)),
-                    Ab(Vec2::new(400.0, 350.0)),
+                    Rl(Vec2::new(50.0, 45.0)),
+                    Ab(Vec2::new(340.0, 320.0)),
                     Anchor::Center,
                 )
-                .with_rect(8.0, 1.0, Vec4::new(0.3, 0.3, 0.4, 0.5))
+                .with_rect(10.0, 1.0, panel_border)
                 .with_color::<UiBase>(panel_bg)
-                .flow(FlowDirection::Vertical, 20.0, 4.0)
+                .flow(FlowDirection::Vertical, 24.0, 6.0)
                 .without_pointer_events()
                 .with_children(|tree| {
+                    tree.add_spacing(4.0);
+
                     tree.add_node()
                         .flow_child(
-                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 2.0)),
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.6)),
                         )
                         .with_text("SETTINGS", heading_font)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
-                        .with_color::<UiBase>(gold)
+                        .with_color::<UiBase>(title_color)
                         .without_pointer_events()
                         .done();
 
-                    tree.add_spacing(16.0);
+                    tree.add_spacing(8.0);
 
                     graphics_btn = tree.add_button("GRAPHICS");
                     audio_btn = tree.add_button("AUDIO");
 
                     tree.add_spacing(8.0);
 
-                    settings_back = tree.add_button("BACK");
+                    settings_back = tree.add_button_colored("BACK", accent_dim);
                 })
                 .done();
         })
@@ -239,66 +278,65 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
         .add_node()
         .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
         .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
-        .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.6))
+        .with_color::<UiBase>(screen_bg)
         .with_layer(UiLayer::FloatingPanels)
         .with_visible(false)
         .without_pointer_events()
         .with_children(|tree| {
             tree.add_node()
                 .window(
-                    Rl(Vec2::new(50.0, 50.0)),
-                    Ab(Vec2::new(450.0, 420.0)),
+                    Rl(Vec2::new(50.0, 45.0)),
+                    Ab(Vec2::new(400.0, 420.0)),
                     Anchor::Center,
                 )
-                .with_rect(8.0, 1.0, Vec4::new(0.3, 0.3, 0.4, 0.5))
+                .with_rect(10.0, 1.0, panel_border)
                 .with_color::<UiBase>(panel_bg)
-                .flow(FlowDirection::Vertical, 20.0, 6.0)
+                .flow(FlowDirection::Vertical, 24.0, 6.0)
                 .without_pointer_events()
                 .with_children(|tree| {
+                    tree.add_spacing(4.0);
+
                     tree.add_node()
                         .flow_child(
-                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 2.0)),
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.6)),
                         )
                         .with_text("GRAPHICS", heading_font)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
-                        .with_color::<UiBase>(gold)
+                        .with_color::<UiBase>(title_color)
                         .without_pointer_events()
                         .done();
 
-                    tree.add_label("Resolution");
-                    resolution_dropdown = tree.add_dropdown(
-                        &[
-                            "1280x720",
-                            "1600x900",
-                            "1920x1080",
-                            "2560x1440",
-                            "3840x2160",
-                        ],
-                        settings.resolution_index,
-                    );
+                    build_setting_row(tree, "Resolution", label_font, label_color, |tree| {
+                        resolution_dropdown = tree.add_dropdown(
+                            &[
+                                "1280x720",
+                                "1600x900",
+                                "1920x1080",
+                                "2560x1440",
+                                "3840x2160",
+                            ],
+                            settings.resolution_index,
+                        );
+                    });
 
-                    tree.add_label("Quality");
-                    quality_dropdown = tree
-                        .add_dropdown(&["Low", "Medium", "High", "Ultra"], settings.quality_index);
+                    build_setting_row(tree, "Quality", label_font, label_color, |tree| {
+                        quality_dropdown = tree.add_dropdown(
+                            &["Low", "Medium", "High", "Ultra"],
+                            settings.quality_index,
+                        );
+                    });
 
-                    let row = tree
-                        .add_node()
-                        .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, 30.0)))
-                        .flow(FlowDirection::Horizontal, 0.0, 12.0)
-                        .without_pointer_events()
-                        .entity();
+                    build_setting_row(tree, "Fullscreen", label_font, label_color, |tree| {
+                        fullscreen_toggle = tree.add_toggle(settings.fullscreen);
+                    });
 
-                    tree.push_parent(row);
-                    tree.add_label("Fullscreen");
-                    fullscreen_toggle = tree.add_toggle(settings.fullscreen);
-                    tree.add_spacing(20.0);
-                    tree.add_label("V-Sync");
-                    vsync_toggle = tree.add_toggle(settings.vsync);
-                    tree.pop_parent();
+                    build_setting_row(tree, "V-Sync", label_font, label_color, |tree| {
+                        vsync_toggle = tree.add_toggle(settings.vsync);
+                    });
 
-                    tree.add_spacing(8.0);
+                    tree.add_spacing(4.0);
 
-                    graphics_back = tree.add_button("BACK");
+                    graphics_back = tree.add_button_colored("BACK", accent_dim);
                 })
                 .done();
         })
@@ -315,71 +353,69 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
         .add_node()
         .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
         .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
-        .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.6))
+        .with_color::<UiBase>(screen_bg)
         .with_layer(UiLayer::FloatingPanels)
         .with_visible(false)
         .without_pointer_events()
         .with_children(|tree| {
             tree.add_node()
                 .window(
-                    Rl(Vec2::new(50.0, 50.0)),
-                    Ab(Vec2::new(450.0, 480.0)),
+                    Rl(Vec2::new(50.0, 45.0)),
+                    Ab(Vec2::new(400.0, 480.0)),
                     Anchor::Center,
                 )
-                .with_rect(8.0, 1.0, Vec4::new(0.3, 0.3, 0.4, 0.5))
+                .with_rect(10.0, 1.0, panel_border)
                 .with_color::<UiBase>(panel_bg)
-                .flow(FlowDirection::Vertical, 20.0, 6.0)
+                .flow(FlowDirection::Vertical, 24.0, 6.0)
                 .without_pointer_events()
                 .with_children(|tree| {
+                    tree.add_spacing(4.0);
+
                     tree.add_node()
                         .flow_child(
-                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 2.0)),
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.6)),
                         )
                         .with_text("AUDIO", heading_font)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
-                        .with_color::<UiBase>(gold)
+                        .with_color::<UiBase>(title_color)
                         .without_pointer_events()
                         .done();
 
-                    tree.add_label("Master Volume");
-                    master_slider = tree.add_slider_configured(
-                        SliderConfig::new(0.0, 100.0, settings.master_volume * 100.0)
-                            .suffix("%")
-                            .precision(0),
-                    );
+                    build_setting_row(tree, "Master Volume", label_font, label_color, |tree| {
+                        master_slider = tree.add_slider_configured(
+                            SliderConfig::new(0.0, 100.0, settings.master_volume * 100.0)
+                                .suffix("%")
+                                .precision(0),
+                        );
+                    });
 
-                    tree.add_label("Music Volume");
-                    music_slider = tree.add_slider_configured(
-                        SliderConfig::new(0.0, 100.0, settings.music_volume * 100.0)
-                            .suffix("%")
-                            .precision(0),
-                    );
+                    build_setting_row(tree, "Music Volume", label_font, label_color, |tree| {
+                        music_slider = tree.add_slider_configured(
+                            SliderConfig::new(0.0, 100.0, settings.music_volume * 100.0)
+                                .suffix("%")
+                                .precision(0),
+                        );
+                    });
 
-                    tree.add_label("SFX Volume");
-                    sfx_slider = tree.add_slider_configured(
-                        SliderConfig::new(0.0, 100.0, settings.sfx_volume * 100.0)
-                            .suffix("%")
-                            .precision(0),
-                    );
+                    build_setting_row(tree, "SFX Volume", label_font, label_color, |tree| {
+                        sfx_slider = tree.add_slider_configured(
+                            SliderConfig::new(0.0, 100.0, settings.sfx_volume * 100.0)
+                                .suffix("%")
+                                .precision(0),
+                        );
+                    });
 
-                    let row = tree
-                        .add_node()
-                        .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, 30.0)))
-                        .flow(FlowDirection::Horizontal, 0.0, 12.0)
-                        .without_pointer_events()
-                        .entity();
+                    build_setting_row(tree, "Sound Enabled", label_font, label_color, |tree| {
+                        sound_toggle = tree.add_toggle(settings.sound_enabled);
+                    });
 
-                    tree.push_parent(row);
-                    tree.add_label("Sound");
-                    sound_toggle = tree.add_toggle(settings.sound_enabled);
-                    tree.add_spacing(20.0);
-                    tree.add_label("Music");
-                    music_toggle = tree.add_toggle(settings.music_enabled);
-                    tree.pop_parent();
+                    build_setting_row(tree, "Music Enabled", label_font, label_color, |tree| {
+                        music_toggle = tree.add_toggle(settings.music_enabled);
+                    });
 
-                    tree.add_spacing(8.0);
+                    tree.add_spacing(4.0);
 
-                    audio_back = tree.add_button("BACK");
+                    audio_back = tree.add_button_colored("BACK", accent_dim);
                 })
                 .done();
         })
@@ -393,14 +429,22 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
         .with_children(|tree| {
             tree.add_node()
                 .window(
-                    Rl(Vec2::new(50.0, 95.0)),
-                    Ab(Vec2::new(300.0, 30.0)),
+                    Rl(Vec2::new(50.0, 96.0)),
+                    Ab(Vec2::new(240.0, 32.0)),
                     Anchor::Center,
                 )
-                .with_text("Press P to pause", font_size)
-                .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
-                .with_color::<UiBase>(dim)
+                .with_rect(6.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+                .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.4))
                 .without_pointer_events()
+                .with_children(|tree| {
+                    tree.add_node()
+                        .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+                        .with_text("Press P to pause", label_font)
+                        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(subtitle_color)
+                        .without_pointer_events()
+                        .done();
+                })
                 .done();
         })
         .done();
@@ -413,36 +457,41 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
         .add_node()
         .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
         .with_rect(0.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
-        .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.7))
+        .with_color::<UiBase>(Vec4::new(0.0, 0.0, 0.0, 0.65))
         .with_layer(UiLayer::FloatingPanels)
         .with_visible(false)
         .without_pointer_events()
         .with_children(|tree| {
             tree.add_node()
                 .window(
-                    Rl(Vec2::new(50.0, 50.0)),
-                    Ab(Vec2::new(400.0, 350.0)),
+                    Rl(Vec2::new(50.0, 45.0)),
+                    Ab(Vec2::new(340.0, 320.0)),
                     Anchor::Center,
                 )
-                .with_rect(8.0, 1.0, Vec4::new(0.3, 0.3, 0.4, 0.5))
+                .with_rect(10.0, 1.0, panel_border)
                 .with_color::<UiBase>(panel_bg)
-                .flow(FlowDirection::Vertical, 20.0, 4.0)
+                .flow(FlowDirection::Vertical, 24.0, 6.0)
                 .without_pointer_events()
                 .with_children(|tree| {
+                    tree.add_spacing(4.0);
+
                     tree.add_node()
                         .flow_child(
-                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 2.0)),
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.6)),
                         )
                         .with_text("PAUSED", heading_font)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
-                        .with_color::<UiBase>(white)
+                        .with_color::<UiBase>(Vec4::new(0.9, 0.9, 0.95, 1.0))
                         .without_pointer_events()
                         .done();
 
-                    tree.add_spacing(16.0);
+                    tree.add_spacing(8.0);
 
-                    resume_btn = tree.add_button("RESUME");
+                    resume_btn = tree.add_button_colored("RESUME", accent);
                     pause_settings_btn = tree.add_button("SETTINGS");
+
+                    tree.add_spacing(4.0);
+
                     main_menu_btn = tree.add_button("MAIN MENU");
                 })
                 .done();
@@ -456,6 +505,8 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
     tree.finish();
 
     MenuUi {
+        transition_overlay,
+
         main_menu_screen,
         play_button,
         settings_button,
@@ -493,19 +544,126 @@ fn build_menu_ui(world: &mut World, settings: &GameSettings) -> MenuUi {
     }
 }
 
+fn build_setting_row(
+    tree: &mut UiTreeBuilder,
+    label: &str,
+    label_font: f32,
+    label_color: Vec4,
+    mut build_widget: impl FnMut(&mut UiTreeBuilder),
+) {
+    let row = tree
+        .add_node()
+        .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, 32.0)))
+        .flow(FlowDirection::Horizontal, 0.0, 12.0)
+        .without_pointer_events()
+        .entity();
+
+    tree.push_parent(row);
+
+    tree.add_node()
+        .flow_child(Ab(Vec2::new(130.0, 32.0)))
+        .with_text(label, label_font)
+        .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+        .with_color::<UiBase>(label_color)
+        .without_pointer_events()
+        .done();
+
+    let widget_container = tree
+        .add_node()
+        .flow_child(Ab(Vec2::new(210.0, 32.0)))
+        .without_pointer_events()
+        .entity();
+    tree.push_parent(widget_container);
+    build_widget(tree);
+    tree.pop_parent();
+
+    tree.pop_parent();
+}
+
+fn screen_for_state(ui: &MenuUi, state: GameState) -> Entity {
+    match state {
+        GameState::MainMenu => ui.main_menu_screen,
+        GameState::Settings => ui.settings_screen,
+        GameState::GraphicsSettings => ui.graphics_screen,
+        GameState::AudioSettings => ui.audio_screen,
+        GameState::Playing => ui.playing_screen,
+        GameState::Paused => ui.pause_screen,
+    }
+}
+
 impl MenuDemoState {
-    fn show_screen(&mut self, world: &mut World, state: GameState) {
+    fn start_transition(&mut self, world: &mut World, target: GameState) {
+        if !matches!(self.transition, TransitionPhase::Idle) {
+            return;
+        }
         let ui = self.ui.as_ref().unwrap();
-        world.ui_set_visible(ui.main_menu_screen, state == GameState::MainMenu);
-        world.ui_set_visible(ui.settings_screen, state == GameState::Settings);
-        world.ui_set_visible(ui.graphics_screen, state == GameState::GraphicsSettings);
-        world.ui_set_visible(ui.audio_screen, state == GameState::AudioSettings);
-        world.ui_set_visible(ui.playing_screen, state == GameState::Playing);
-        world.ui_set_visible(ui.pause_screen, state == GameState::Paused);
+        world.ui_set_visible(ui.transition_overlay, true);
+        self.transition = TransitionPhase::FadeOut {
+            target,
+            timer: FADE_DURATION,
+        };
+    }
+
+    fn apply_state(&mut self, world: &mut World, state: GameState) {
+        let ui = self.ui.as_ref().unwrap();
+        let old_screen = screen_for_state(ui, self.game_state);
+        let new_screen = screen_for_state(ui, state);
+        world.ui_set_visible(old_screen, false);
+
+        if state == GameState::Playing {
+            self.setup_playing(world);
+        } else if self.game_state == GameState::Playing {
+            self.teardown_playing(world);
+        }
+        if state == GameState::MainMenu && !self.game_entities.is_empty() {
+            self.cleanup_game(world);
+        }
+
+        world.ui_set_visible(new_screen, true);
         self.game_state = state;
     }
 
-    fn enter_playing(&mut self, world: &mut World) {
+    fn update_transition(&mut self, world: &mut World, delta_time: f32) {
+        let ui = self.ui.as_ref().unwrap();
+        match self.transition {
+            TransitionPhase::FadeOut { target, timer } => {
+                let new_timer = timer - delta_time;
+                let alpha = 1.0 - (new_timer / FADE_DURATION).clamp(0.0, 1.0);
+                if let Some(color) = world.ui.get_ui_node_color_mut(ui.transition_overlay) {
+                    color.colors[UiBase::INDEX] =
+                        Some(Vec4::new(0.0, 0.0, 0.0, alpha * FADE_PEAK_ALPHA));
+                }
+                if new_timer <= 0.0 {
+                    self.apply_state(world, target);
+                    self.transition = TransitionPhase::FadeIn {
+                        timer: FADE_DURATION,
+                    };
+                } else {
+                    self.transition = TransitionPhase::FadeOut {
+                        target,
+                        timer: new_timer,
+                    };
+                }
+            }
+            TransitionPhase::FadeIn { timer } => {
+                let new_timer = timer - delta_time;
+                let alpha = (new_timer / FADE_DURATION).clamp(0.0, 1.0);
+                if let Some(color) = world.ui.get_ui_node_color_mut(ui.transition_overlay) {
+                    color.colors[UiBase::INDEX] =
+                        Some(Vec4::new(0.0, 0.0, 0.0, alpha * FADE_PEAK_ALPHA));
+                }
+                if new_timer <= 0.0 {
+                    world.ui_set_visible(ui.transition_overlay, false);
+                    self.transition = TransitionPhase::Idle;
+                } else {
+                    self.transition = TransitionPhase::FadeIn { timer: new_timer };
+                }
+            }
+            TransitionPhase::Idle => {}
+        }
+    }
+
+    fn setup_playing(&mut self, world: &mut World) {
         world.resources.graphics.show_grid = true;
 
         if let Some(camera) = self.camera_entity
@@ -553,11 +711,9 @@ impl MenuDemoState {
             self.game_entities.push(cube_entity);
             self.game_rotation = 0.0;
         }
-
-        self.show_screen(world, GameState::Playing);
     }
 
-    fn leave_playing(&mut self, world: &mut World) {
+    fn teardown_playing(&mut self, world: &mut World) {
         if let Some(camera) = self.camera_entity
             && let Some(pan_orbit) = world.core.get_pan_orbit_camera_mut(camera)
         {
@@ -565,7 +721,7 @@ impl MenuDemoState {
         }
     }
 
-    fn return_to_main_menu(&mut self, world: &mut World) {
+    fn cleanup_game(&mut self, world: &mut World) {
         world.resources.graphics.show_grid = false;
 
         if let Some(camera) = self.camera_entity
@@ -577,8 +733,6 @@ impl MenuDemoState {
         for entity in self.game_entities.drain(..) {
             world.queue_command(WorldCommand::DespawnRecursive { entity });
         }
-
-        self.show_screen(world, GameState::MainMenu);
     }
 
     fn read_settings_from_widgets(&mut self, world: &World) {
@@ -689,6 +843,16 @@ impl State for MenuDemoState {
     }
 
     fn run_systems(&mut self, world: &mut World) {
+        let delta_time = world.resources.window.timing.delta_time;
+        self.update_transition(world, delta_time);
+
+        if !matches!(self.transition, TransitionPhase::Idle) {
+            if self.game_state == GameState::Playing {
+                pan_orbit_camera_system(world);
+            }
+            return;
+        }
+
         let ui = self.ui.as_ref().unwrap();
 
         if let Some(data) = world.widget::<UiModalDialogData>(ui.quit_dialog)
@@ -703,32 +867,34 @@ impl State for MenuDemoState {
             && let Some(result) = data.result
             && result
         {
-            self.return_to_main_menu(world);
+            self.start_transition(world, GameState::MainMenu);
             return;
         }
 
         match self.game_state {
             GameState::MainMenu => {
-                let ui = self.ui.as_ref().unwrap();
                 if world.ui_clicked(ui.play_button) {
-                    self.enter_playing(world);
+                    self.start_transition(world, GameState::Playing);
                 } else if world.ui_clicked(ui.settings_button) {
                     self.settings_source = SettingsSource::MainMenu;
-                    self.show_screen(world, GameState::Settings);
+                    self.start_transition(world, GameState::Settings);
                 } else if world.ui_clicked(ui.quit_button) {
                     world.ui_show_modal(ui.quit_dialog);
                 }
             }
             GameState::Settings => {
-                let ui = self.ui.as_ref().unwrap();
                 if world.ui_clicked(ui.graphics_button) {
-                    self.show_screen(world, GameState::GraphicsSettings);
+                    self.start_transition(world, GameState::GraphicsSettings);
                 } else if world.ui_clicked(ui.audio_button) {
-                    self.show_screen(world, GameState::AudioSettings);
+                    self.start_transition(world, GameState::AudioSettings);
                 } else if world.ui_clicked(ui.settings_back_button) {
                     match self.settings_source {
-                        SettingsSource::MainMenu => self.show_screen(world, GameState::MainMenu),
-                        SettingsSource::Pause => self.show_screen(world, GameState::Paused),
+                        SettingsSource::MainMenu => {
+                            self.start_transition(world, GameState::MainMenu);
+                        }
+                        SettingsSource::Pause => {
+                            self.start_transition(world, GameState::Paused);
+                        }
                     }
                 }
             }
@@ -736,14 +902,14 @@ impl State for MenuDemoState {
                 self.read_settings_from_widgets(world);
                 let ui = self.ui.as_ref().unwrap();
                 if world.ui_clicked(ui.graphics_back_button) {
-                    self.show_screen(world, GameState::Settings);
+                    self.start_transition(world, GameState::Settings);
                 }
             }
             GameState::AudioSettings => {
                 self.read_settings_from_widgets(world);
                 let ui = self.ui.as_ref().unwrap();
                 if world.ui_clicked(ui.audio_back_button) {
-                    self.show_screen(world, GameState::Settings);
+                    self.start_transition(world, GameState::Settings);
                 }
             }
             GameState::Playing => {
@@ -768,12 +934,11 @@ impl State for MenuDemoState {
                 }
             }
             GameState::Paused => {
-                let ui = self.ui.as_ref().unwrap();
                 if world.ui_clicked(ui.resume_button) {
-                    self.enter_playing(world);
+                    self.start_transition(world, GameState::Playing);
                 } else if world.ui_clicked(ui.pause_settings_button) {
                     self.settings_source = SettingsSource::Pause;
-                    self.show_screen(world, GameState::Settings);
+                    self.start_transition(world, GameState::Settings);
                 } else if world.ui_clicked(ui.main_menu_button) {
                     world.ui_show_modal(ui.return_dialog);
                 }
@@ -782,28 +947,31 @@ impl State for MenuDemoState {
     }
 
     fn on_keyboard_input(&mut self, world: &mut World, key: KeyCode, state: KeyState) {
-        if state != KeyState::Pressed {
+        if state != KeyState::Pressed || !matches!(self.transition, TransitionPhase::Idle) {
             return;
         }
 
         match key {
             KeyCode::KeyP => match self.game_state {
                 GameState::Playing => {
-                    self.leave_playing(world);
-                    self.show_screen(world, GameState::Paused);
+                    self.start_transition(world, GameState::Paused);
                 }
                 GameState::Paused => {
-                    self.enter_playing(world);
+                    self.start_transition(world, GameState::Playing);
                 }
                 _ => {}
             },
             KeyCode::Escape => match self.game_state {
                 GameState::Settings => match self.settings_source {
-                    SettingsSource::MainMenu => self.show_screen(world, GameState::MainMenu),
-                    SettingsSource::Pause => self.show_screen(world, GameState::Paused),
+                    SettingsSource::MainMenu => {
+                        self.start_transition(world, GameState::MainMenu);
+                    }
+                    SettingsSource::Pause => {
+                        self.start_transition(world, GameState::Paused);
+                    }
                 },
                 GameState::GraphicsSettings | GameState::AudioSettings => {
-                    self.show_screen(world, GameState::Settings);
+                    self.start_transition(world, GameState::Settings);
                 }
                 _ => {}
             },

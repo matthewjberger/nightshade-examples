@@ -13,20 +13,6 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
     let is_manipulating = game_world.resources.interaction.manipulated_door.is_some()
         || game_world.resources.interaction.manipulated_lever.is_some();
 
-    let is_interacting =
-        game_world.resources.interaction.grabbed_entity.is_some() || is_manipulating;
-
-    let right_clicked = if game_world.resources.input_mode == InputMode::MouseKeyboard {
-        world
-            .resources
-            .input
-            .mouse
-            .state
-            .contains(nightshade::ecs::input::resources::MouseState::RIGHT_CLICKED)
-    } else {
-        false
-    };
-
     let (gamepad_right_stick_x, gamepad_right_stick_y) =
         if game_world.resources.input_mode == InputMode::Gamepad && !is_manipulating {
             if let Some(gamepad) = query_active_gamepad(world) {
@@ -52,22 +38,7 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
 
     let has_gamepad_input = gamepad_right_stick_x.abs() > 0.0 || gamepad_right_stick_y.abs() > 0.0;
 
-    if is_interacting || right_clicked {
-        if let Some(window_handle) = &world.resources.window.handle {
-            if window_handle
-                .set_cursor_grab(window::CursorGrabMode::Locked)
-                .is_err()
-            {
-                let _ = window_handle.set_cursor_grab(window::CursorGrabMode::Confined);
-            }
-            window_handle.set_cursor_visible(false);
-        }
-    } else if let Some(window_handle) = &world.resources.window.handle {
-        let _ = window_handle.set_cursor_grab(window::CursorGrabMode::None);
-        window_handle.set_cursor_visible(true);
-    }
-
-    let can_look_mouse = right_clicked || game_world.resources.interaction.grabbed_entity.is_some();
+    let can_look_mouse = game_world.resources.input_mode == InputMode::MouseKeyboard;
 
     if !can_look_mouse && !has_gamepad_input {
         return;

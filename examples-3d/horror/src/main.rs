@@ -239,6 +239,7 @@ impl State for HorrorGame {
 
         escape_key_exit_system(world);
         detect_input_mode(&mut self.game_world, world);
+        check_puzzle_state(&mut self.game_world, world);
 
         if !self.game_world.resources.cutscene.active {
             nightshade::ecs::physics::character_controller::character_controller_input_system(
@@ -262,8 +263,6 @@ impl State for HorrorGame {
         update_interaction_prompt(&self.game_world, world);
         update_objective(&self.game_world, world);
         update_temporary_message(&mut self.game_world, world);
-
-        check_puzzle_state(&mut self.game_world, world);
 
         update_footstep_audio(&mut self.game_world, world);
 

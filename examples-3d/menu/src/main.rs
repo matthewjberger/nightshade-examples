@@ -621,6 +621,7 @@ impl State for MenuDemoState {
 
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = false;
+        world.resources.retained_ui.enabled = true;
         world.resources.graphics.show_grid = false;
         world.resources.graphics.atmosphere = Atmosphere::None;
 

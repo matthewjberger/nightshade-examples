@@ -213,7 +213,7 @@ fn build_fps_label(world: &mut World) -> Entity {
 fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
     game.menu_state = MenuState::MapSetup;
 
-    world.resources.graphics.atmosphere = Atmosphere::Nebula;
+    world.resources.graphics.atmosphere = Atmosphere::CloudySky;
     game.sun_entity = Some(spawn_sun(world));
     game.ocean_entity = Some(spawn_ocean(world));
     game.map_entities = Some(generate_game_map(

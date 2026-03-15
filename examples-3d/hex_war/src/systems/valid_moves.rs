@@ -84,7 +84,7 @@ fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
     waypoints.insert(from);
     waypoints.insert(to);
 
-    astar(from, to, &waypoints).or_else(|| Some(vec![from, to]))
+    astar(from, to, &waypoints)
 }
 
 pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option<Vec<HexCoord>> {

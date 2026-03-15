@@ -38,7 +38,8 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
 
     let has_gamepad_input = gamepad_right_stick_x.abs() > 0.0 || gamepad_right_stick_y.abs() > 0.0;
 
-    let can_look_mouse = game_world.resources.input_mode == InputMode::MouseKeyboard;
+    let can_look_mouse =
+        game_world.resources.input_mode == InputMode::MouseKeyboard && !is_manipulating;
 
     if !can_look_mouse && !has_gamepad_input {
         return;

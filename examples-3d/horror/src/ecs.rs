@@ -4,6 +4,26 @@ use nightshade::prelude::freecs;
 use nightshade::prelude::nalgebra_glm;
 use nightshade::prelude::rapier3d;
 
+pub enum SceneTag {
+    Locked,
+    SideDoor,
+    SwingReversed,
+    ExitDoor,
+    Note,
+}
+
+impl SceneTag {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Locked => "locked",
+            Self::SideDoor => "side_door",
+            Self::SwingReversed => "swing_reversed",
+            Self::ExitDoor => "exit_door",
+            Self::Note => "note",
+        }
+    }
+}
+
 #[derive(Default, Clone, Debug)]
 pub struct EngineEntity(pub Entity);
 

@@ -1,8 +1,12 @@
 use crate::constants::INTERACT_RANGE;
 use crate::ecs::{
     BUTTON, Button, DOOR, ENGINE_ENTITY, EngineEntity, GameWorld, INTERACTABLE, Interactable,
-    InteractionKind, LEVER, LeverAction, NOTE, Note, OVERHEAD_LIGHT, OverheadLight,
+    InteractionKind, LEVER, LeverAction, NOTE, Note, OVERHEAD_LIGHT, OverheadLight, SceneTag,
 };
+
+fn has_tag(tags: &[String], tag: SceneTag) -> bool {
+    tags.iter().any(|stored| stored == tag.as_str())
+}
 use crate::systems::levers::init_lever;
 use nightshade::ecs::scene::{MetadataValue, Scene};
 use nightshade::ecs::world::commands::find_entity_by_name;
@@ -18,12 +22,9 @@ pub fn discover_doors(game_world: &mut GameWorld, world: &mut World, scene: &Sce
         }
 
         let tags = &scene_entity.components.tags;
-        let locked = tags.iter().any(|tag| tag == "locked") || name.contains("Exit");
-        let side_door = tags.iter().any(|tag| tag == "side_door")
-            || name.contains("Storage")
-            || name.contains("Generator");
-        let swing_reversed =
-            tags.iter().any(|tag| tag == "swing_reversed") || name.contains("Generator");
+        let locked = has_tag(tags, SceneTag::Locked);
+        let side_door = has_tag(tags, SceneTag::SideDoor);
+        let swing_reversed = has_tag(tags, SceneTag::SwingReversed);
 
         let Some(entity) = find_entity_by_name(world, name) else {
             continue;
@@ -65,20 +66,10 @@ pub fn discover_doors(game_world: &mut GameWorld, world: &mut World, scene: &Sce
             let entity = engine_entity.0;
             scene.entities.iter().any(|scene_entity| {
                 scene_entity.name.as_deref() == world.core.get_name(entity).map(|n| n.0.as_str())
-                    && (scene_entity
-                        .components
-                        .tags
-                        .iter()
-                        .any(|tag| tag == "exit_door")
-                        || scene_entity
-                            .name
-                            .as_ref()
-                            .is_some_and(|n| n.contains("Exit")))
+                    && has_tag(&scene_entity.components.tags, SceneTag::ExitDoor)
             })
         } else {
-            game_world
-                .get_door(game_entity)
-                .is_some_and(|door| door.locked)
+            false
         }
     });
     if let Some(entity) = exit_door_entity {
@@ -125,7 +116,7 @@ pub fn discover_notes(game_world: &mut GameWorld, world: &mut World, scene: &Sce
             continue;
         };
 
-        let has_note_tag = scene_entity.components.tags.iter().any(|tag| tag == "note");
+        let has_note_tag = has_tag(&scene_entity.components.tags, SceneTag::Note);
         if !has_note_tag {
             continue;
         }

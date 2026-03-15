@@ -168,7 +168,6 @@ pub enum CutscenePhase {
 pub struct MonsterState {
     pub root_entity: Option<Entity>,
     pub active: bool,
-    pub speed: f32,
     pub pause_timer: f32,
     pub chasing: bool,
 }

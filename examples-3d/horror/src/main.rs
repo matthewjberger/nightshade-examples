@@ -250,6 +250,7 @@ impl State for HorrorGame {
 
         cutscene_system(&mut self.game_world, world);
         monster_chase_system(&mut self.game_world, world);
+        run_navmesh_systems(world);
 
         lean_system(&mut self.game_world, world);
         crouch_camera_system(&self.game_world, world);

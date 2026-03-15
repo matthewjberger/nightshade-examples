@@ -3,6 +3,11 @@ use crate::systems::doors::slam_door_closed;
 use nightshade::ecs::physics::*;
 use nightshade::prelude::*;
 
+const MONSTER_SPEED: f32 = 2.0;
+const MONSTER_AGENT_RADIUS: f32 = 0.5;
+const MONSTER_AGENT_HEIGHT: f32 = 2.0;
+const MONSTER_KILL_DISTANCE: f32 = 1.2;
+
 const CUTSCENE_LOOK_DURATION: f32 = 1.5;
 const CUTSCENE_WALL_BREAK_DURATION: f32 = 1.0;
 const CUTSCENE_EMERGE_DURATION: f32 = 1.5;
@@ -23,15 +28,9 @@ pub fn start_cutscene(game_world: &mut GameWorld, world: &mut World) {
     world.resources.graphics.letterbox_target = 1.0;
 
     if let Some(player_entity) = game_world.resources.player_entity
-        && let Some(rigid_body) = world.core.get_rigid_body(player_entity)
-        && let Some(handle) = rigid_body.handle
-        && let Some(rb) = world
-            .resources
-            .physics
-            .rigid_body_set
-            .get_mut(handle.into())
+        && let Some(cc) = world.core.get_character_controller_mut(player_entity)
     {
-        rb.set_linvel(rapier3d::math::Vector::zeros(), true);
+        cc.velocity = Vec3::zeros();
     }
 
     if let Some(ambient_entity) = game_world.resources.ambient_audio_entity
@@ -273,7 +272,8 @@ fn spawn_monster(game_world: &mut GameWorld, world: &mut World) {
             | MATERIAL_REF
             | BOUNDING_VOLUME
             | CASTS_SHADOW
-            | VISIBILITY,
+            | VISIBILITY
+            | NAVMESH_AGENT,
         1,
     )[0];
 
@@ -304,8 +304,13 @@ fn spawn_monster(game_world: &mut GameWorld, world: &mut World) {
             nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
     }
 
+    if let Some(agent) = world.core.get_navmesh_agent_mut(entity) {
+        agent.movement_speed = MONSTER_SPEED;
+        agent.agent_radius = MONSTER_AGENT_RADIUS;
+        agent.agent_height = MONSTER_AGENT_HEIGHT;
+    }
+
     game_world.resources.monster.root_entity = Some(entity);
-    game_world.resources.monster.speed = 2.0;
 }
 
 pub fn monster_chase_system(game_world: &mut GameWorld, world: &mut World) {
@@ -343,6 +348,8 @@ pub fn monster_chase_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     }
 
+    set_agent_destination(world, monster_entity, player_pos);
+
     let monster_pos = world
         .core
         .get_local_transform(monster_entity)
@@ -353,25 +360,7 @@ pub fn monster_chase_system(game_world: &mut GameWorld, world: &mut World) {
     let horizontal_dir = nalgebra_glm::vec3(direction.x, 0.0, direction.z);
     let distance = nalgebra_glm::length(&horizontal_dir);
 
-    if distance < 0.1 {
-        return;
-    }
-
-    let normalized_dir = nalgebra_glm::normalize(&horizontal_dir);
-    let movement = normalized_dir * game_world.resources.monster.speed * dt;
-
-    let angle = (-normalized_dir.x).atan2(-normalized_dir.z);
-    let target_rotation = nalgebra_glm::quat_angle_axis(angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
-
-    if let Some(transform) = world.core.get_local_transform_mut(monster_entity) {
-        transform.translation += movement;
-        let current_rotation = transform.rotation;
-        transform.rotation =
-            nalgebra_glm::quat_slerp(&current_rotation, &target_rotation, dt * 8.0);
-    }
-    world.mark_local_transform_dirty(monster_entity);
-
-    if distance < 1.2 && !game_world.resources.game_won {
+    if distance < MONSTER_KILL_DISTANCE && !game_world.resources.game_won {
         game_world.resources.game_won = true;
     }
 }
@@ -385,6 +374,12 @@ fn start_exit_cutscene(game_world: &mut GameWorld, world: &mut World) {
 
     world.resources.graphics.letterbox_target = 1.0;
 
+    if let Some(player_entity) = game_world.resources.player_entity
+        && let Some(cc) = world.core.get_character_controller_mut(player_entity)
+    {
+        cc.velocity = Vec3::zeros();
+    }
+
     if let Some(exit_door_game_entity) = game_world.resources.exit_door {
         slam_door_closed(game_world, world, exit_door_game_entity);
     }
@@ -392,6 +387,7 @@ fn start_exit_cutscene(game_world: &mut GameWorld, world: &mut World) {
 
 fn despawn_monster(game_world: &mut GameWorld, world: &mut World) {
     if let Some(entity) = game_world.resources.monster.root_entity {
+        stop_agent(world, entity);
         world.queue_despawn_entity(entity);
     }
 

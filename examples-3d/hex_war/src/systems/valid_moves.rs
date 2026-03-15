@@ -1,3 +1,4 @@
+use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
 use crate::ecs::{Entity, GameWorld, HEX_POSITION, TILE, TileType, UNIT};
 use crate::hex::{HexCoord, hex_distance, hex_neighbors};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
@@ -67,12 +68,12 @@ fn astar(from: HexCoord, to: HexCoord, passable: &HashSet<HexCoord>) -> Option<V
 }
 
 fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option<Vec<HexCoord>> {
-    let sea_tiles: HashSet<HexCoord> = game_world
+    let land_tiles: HashSet<HexCoord> = game_world
         .query_entities(HEX_POSITION | TILE)
         .filter_map(|entity| {
             let coord = game_world.get_hex_position(entity)?.0;
             let tile = game_world.get_tile(entity)?;
-            if tile.tile_type == TileType::Sea {
+            if tile.tile_type != TileType::Sea {
                 Some(coord)
             } else {
                 None
@@ -80,11 +81,18 @@ fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
         })
         .collect();
 
-    let mut waypoints = sea_tiles.clone();
-    waypoints.insert(from);
-    waypoints.insert(to);
+    let margin = 5;
+    let mut passable: HashSet<HexCoord> = HashSet::new();
+    for column in -margin..(MAP_WIDTH + margin) {
+        for row in -margin..(MAP_HEIGHT + margin) {
+            let coord = HexCoord { column, row };
+            if !land_tiles.contains(&coord) || coord == from || coord == to {
+                passable.insert(coord);
+            }
+        }
+    }
 
-    astar(from, to, &waypoints)
+    astar(from, to, &passable)
 }
 
 pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option<Vec<HexCoord>> {

@@ -1,7 +1,4 @@
-use crate::ecs::{
-    CutscenePhase, ENGINE_ENTITY, EngineEntity, GameWorld, MONSTER_PART, MonsterPart,
-    MonsterPartRole,
-};
+use crate::ecs::{CutscenePhase, GameWorld};
 use crate::systems::doors::slam_door_closed;
 use nightshade::ecs::physics::*;
 use nightshade::prelude::*;
@@ -24,6 +21,18 @@ pub fn start_cutscene(game_world: &mut GameWorld, world: &mut World) {
         game_world.resources.lean_state.base_rotation;
 
     world.resources.graphics.letterbox_target = 1.0;
+
+    if let Some(player_entity) = game_world.resources.player_entity
+        && let Some(rigid_body) = world.core.get_rigid_body(player_entity)
+        && let Some(handle) = rigid_body.handle
+        && let Some(rb) = world
+            .resources
+            .physics
+            .rigid_body_set
+            .get_mut(handle.into())
+    {
+        rb.set_linvel(rapier3d::math::Vector::zeros(), true);
+    }
 
     if let Some(ambient_entity) = game_world.resources.ambient_audio_entity
         && let Some(source) = world.core.get_audio_source_mut(ambient_entity)
@@ -205,16 +214,12 @@ fn spawn_wall_destruction(game_world: &mut GameWorld, world: &mut World) {
                 true,
             );
         }
-
-        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
-        game_world.set_engine_entity(game_entity, EngineEntity(entity));
-        game_world.add_physics_prop(game_entity);
     }
 
-    spawn_dust_particles(game_world, world, break_pos);
+    spawn_dust_particles(world, break_pos);
 }
 
-fn spawn_dust_particles(game_world: &mut GameWorld, world: &mut World, position: Vec3) {
+fn spawn_dust_particles(world: &mut World, position: Vec3) {
     let dust_material = create_textured_material(nalgebra_glm::vec3(0.6, 0.55, 0.5), 0.95, 0.0);
 
     for index in 0..15 {
@@ -253,391 +258,13 @@ fn spawn_dust_particles(game_world: &mut GameWorld, world: &mut World, position:
             let impulse_z = offset_z * 2.0 + 1.0;
             rb.apply_impulse(nalgebra_glm::vec3(impulse_x, impulse_y, impulse_z), true);
         }
-
-        let game_entity = game_world.spawn_entities(ENGINE_ENTITY, 1)[0];
-        game_world.set_engine_entity(game_entity, EngineEntity(entity));
-        game_world.add_physics_prop(game_entity);
     }
 }
 
 fn spawn_monster(game_world: &mut GameWorld, world: &mut World) {
     let break_pos = game_world.resources.cutscene.wall_break_position;
-    let monster_pos = nalgebra_glm::vec3(break_pos.x - 0.5, 0.0, break_pos.z);
+    let monster_pos = nalgebra_glm::vec3(break_pos.x - 0.5, 1.0, break_pos.z);
 
-    let flesh_material = create_textured_material(nalgebra_glm::vec3(0.45, 0.08, 0.08), 0.85, 0.15);
-    let dark_flesh = create_textured_material(nalgebra_glm::vec3(0.25, 0.03, 0.03), 0.9, 0.1);
-    let bone_material = create_textured_material(nalgebra_glm::vec3(0.7, 0.65, 0.55), 0.6, 0.2);
-    let vein_material = create_textured_material(nalgebra_glm::vec3(0.3, 0.0, 0.0), 0.5, 0.4);
-    let eye_material = create_emissive_material(nalgebra_glm::vec3(1.0, 0.2, 0.0), 5.0);
-    let inner_glow = create_emissive_material(nalgebra_glm::vec3(0.8, 0.1, 0.0), 2.0);
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 1.4, -0.1),
-        nalgebra_glm::vec3(0.7, 0.9, 0.5),
-        "Cube",
-        flesh_material.clone(),
-        MonsterPartRole::Torso,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 1.5, 0.2),
-        nalgebra_glm::vec3(0.5, 0.6, 0.15),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Chest,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 1.35, 0.15),
-        nalgebra_glm::vec3(0.3, 0.25, 0.1),
-        "Sphere",
-        inner_glow.clone(),
-        MonsterPartRole::Chest,
-    );
-
-    for rib_index in 0..4 {
-        let y_offset = 1.2 + rib_index as f32 * 0.15;
-        spawn_monster_part(
-            game_world,
-            world,
-            monster_pos + nalgebra_glm::vec3(-0.3, y_offset, 0.1),
-            nalgebra_glm::vec3(0.12, 0.04, 0.2),
-            "Cube",
-            bone_material.clone(),
-            MonsterPartRole::Ribcage,
-        );
-        spawn_monster_part(
-            game_world,
-            world,
-            monster_pos + nalgebra_glm::vec3(0.3, y_offset, 0.1),
-            nalgebra_glm::vec3(0.12, 0.04, 0.2),
-            "Cube",
-            bone_material.clone(),
-            MonsterPartRole::Ribcage,
-        );
-    }
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 1.95, 0.0),
-        nalgebra_glm::vec3(0.2, 0.2, 0.2),
-        "Cylinder",
-        dark_flesh.clone(),
-        MonsterPartRole::Head,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 2.2, 0.15),
-        nalgebra_glm::vec3(0.35, 0.4, 0.4),
-        "Cube",
-        flesh_material.clone(),
-        MonsterPartRole::Head,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 2.45, 0.0),
-        nalgebra_glm::vec3(0.25, 0.12, 0.35),
-        "Cube",
-        bone_material.clone(),
-        MonsterPartRole::Head,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 2.0, 0.3),
-        nalgebra_glm::vec3(0.28, 0.15, 0.2),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Head,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.12, 2.25, 0.35),
-        nalgebra_glm::vec3(0.1, 0.1, 0.1),
-        "Sphere",
-        eye_material.clone(),
-        MonsterPartRole::Head,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.12, 2.25, 0.35),
-        nalgebra_glm::vec3(0.1, 0.1, 0.1),
-        "Sphere",
-        eye_material.clone(),
-        MonsterPartRole::Head,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 2.35, 0.38),
-        nalgebra_glm::vec3(0.06, 0.06, 0.06),
-        "Sphere",
-        eye_material,
-        MonsterPartRole::Head,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.5, 1.7, 0.0),
-        nalgebra_glm::vec3(0.25, 0.2, 0.25),
-        "Sphere",
-        flesh_material.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.65, 1.4, 0.1),
-        nalgebra_glm::vec3(0.12, 0.5, 0.12),
-        "Cube",
-        flesh_material.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.7, 0.95, 0.2),
-        nalgebra_glm::vec3(0.1, 0.45, 0.1),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.72, 0.6, 0.25),
-        nalgebra_glm::vec3(0.15, 0.2, 0.08),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    for finger_index in 0..4 {
-        spawn_monster_part(
-            game_world,
-            world,
-            monster_pos
-                + nalgebra_glm::vec3(
-                    -0.68 - finger_index as f32 * 0.03,
-                    0.42,
-                    0.22 + finger_index as f32 * 0.04,
-                ),
-            nalgebra_glm::vec3(0.02, 0.18, 0.02),
-            "Cube",
-            bone_material.clone(),
-            MonsterPartRole::Arm,
-        );
-    }
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.5, 1.7, 0.0),
-        nalgebra_glm::vec3(0.25, 0.2, 0.25),
-        "Sphere",
-        flesh_material.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.65, 1.4, 0.1),
-        nalgebra_glm::vec3(0.12, 0.5, 0.12),
-        "Cube",
-        flesh_material.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.7, 0.95, 0.2),
-        nalgebra_glm::vec3(0.1, 0.45, 0.1),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.72, 0.6, 0.25),
-        nalgebra_glm::vec3(0.15, 0.2, 0.08),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    for finger_index in 0..4 {
-        spawn_monster_part(
-            game_world,
-            world,
-            monster_pos
-                + nalgebra_glm::vec3(
-                    0.68 + finger_index as f32 * 0.03,
-                    0.42,
-                    0.22 + finger_index as f32 * 0.04,
-                ),
-            nalgebra_glm::vec3(0.02, 0.18, 0.02),
-            "Cube",
-            bone_material.clone(),
-            MonsterPartRole::Arm,
-        );
-    }
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.35, 1.3, -0.2),
-        nalgebra_glm::vec3(0.15, 0.12, 0.15),
-        "Sphere",
-        dark_flesh.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.45, 1.0, -0.15),
-        nalgebra_glm::vec3(0.08, 0.4, 0.08),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Arm,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.0, 0.85, -0.05),
-        nalgebra_glm::vec3(0.55, 0.35, 0.4),
-        "Cube",
-        flesh_material.clone(),
-        MonsterPartRole::Leg,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.22, 0.5, 0.0),
-        nalgebra_glm::vec3(0.18, 0.45, 0.18),
-        "Cube",
-        flesh_material.clone(),
-        MonsterPartRole::Leg,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(-0.22, 0.15, 0.05),
-        nalgebra_glm::vec3(0.12, 0.35, 0.12),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Leg,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.22, 0.5, 0.0),
-        nalgebra_glm::vec3(0.18, 0.45, 0.18),
-        "Cube",
-        flesh_material.clone(),
-        MonsterPartRole::Leg,
-    );
-
-    spawn_monster_part(
-        game_world,
-        world,
-        monster_pos + nalgebra_glm::vec3(0.22, 0.15, 0.05),
-        nalgebra_glm::vec3(0.12, 0.35, 0.12),
-        "Cube",
-        dark_flesh.clone(),
-        MonsterPartRole::Leg,
-    );
-
-    for spine_index in 0..6 {
-        let size = 0.08 + (spine_index as f32 * 0.015);
-        spawn_monster_part(
-            game_world,
-            world,
-            monster_pos
-                + nalgebra_glm::vec3(
-                    0.0,
-                    1.0 + spine_index as f32 * 0.18,
-                    -0.3 - spine_index as f32 * 0.02,
-                ),
-            nalgebra_glm::vec3(size, size * 1.5, size * 2.0),
-            "Cube",
-            bone_material.clone(),
-            MonsterPartRole::Spine,
-        );
-    }
-
-    for vein_index in 0..5 {
-        let angle = vein_index as f32 * 1.2;
-        spawn_monster_part(
-            game_world,
-            world,
-            monster_pos
-                + nalgebra_glm::vec3(
-                    angle.sin() * 0.25,
-                    1.2 + vein_index as f32 * 0.12,
-                    angle.cos() * 0.2,
-                ),
-            nalgebra_glm::vec3(0.03, 0.15, 0.03),
-            "Cylinder",
-            vein_material.clone(),
-            MonsterPartRole::Spine,
-        );
-    }
-
-    for tendril_index in 0..3 {
-        let x_offset = (tendril_index as f32 - 1.0) * 0.2;
-        spawn_monster_part(
-            game_world,
-            world,
-            monster_pos + nalgebra_glm::vec3(x_offset, 0.6, -0.35),
-            nalgebra_glm::vec3(0.04, 0.5, 0.04),
-            "Cylinder",
-            dark_flesh.clone(),
-            MonsterPartRole::Spine,
-        );
-    }
-
-    game_world.resources.monster.speed = 2.0;
-}
-
-fn spawn_monster_part(
-    game_world: &mut GameWorld,
-    world: &mut World,
-    position: Vec3,
-    scale: Vec3,
-    mesh_name: &str,
-    material: Material,
-    role: MonsterPartRole,
-) -> Entity {
     let entity = world.spawn_entities(
         NAME | LOCAL_TRANSFORM
             | GLOBAL_TRANSFORM
@@ -651,30 +278,34 @@ fn spawn_monster_part(
     )[0];
 
     if let Some(name) = world.core.get_name_mut(entity) {
-        name.0 = "Monster Part".to_string();
+        name.0 = "Monster".to_string();
     }
 
     if let Some(transform) = world.core.get_local_transform_mut(entity) {
-        transform.translation = position;
-        transform.scale = scale;
+        transform.translation = monster_pos;
+        transform.scale = nalgebra_glm::vec3(0.5, 2.0, 0.5);
     }
 
     if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
-        mesh.name = mesh_name.to_string();
+        mesh.name = "Cylinder".to_string();
     }
 
-    let material_name = format!("MonsterPart_{}", entity.id);
-    world.register_material(entity, material_name, material);
+    let monster_material = Material {
+        base_color: [0.8, 0.1, 0.1, 1.0],
+        emissive_factor: [0.3, 0.0, 0.0],
+        roughness: 0.6,
+        metallic: 0.2,
+        ..Default::default()
+    };
+    world.register_material(entity, "monster".to_string(), monster_material);
 
-    if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
+        *bounding_volume =
+            nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
     }
 
-    let game_entity = game_world.spawn_entities(ENGINE_ENTITY | MONSTER_PART, 1)[0];
-    game_world.set_engine_entity(game_entity, EngineEntity(entity));
-    game_world.set_monster_part(game_entity, MonsterPart { role });
-
-    entity
+    game_world.resources.monster.root_entity = Some(entity);
+    game_world.resources.monster.speed = 2.0;
 }
 
 pub fn monster_chase_system(game_world: &mut GameWorld, world: &mut World) {
@@ -686,15 +317,7 @@ pub fn monster_chase_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     };
 
-    let Some(monster_entity) = game_world
-        .query_entities(MONSTER_PART | ENGINE_ENTITY)
-        .find(|&game_entity| {
-            game_world
-                .get_monster_part(game_entity)
-                .is_some_and(|part| part.role == MonsterPartRole::Torso)
-        })
-        .and_then(|game_entity| game_world.get_engine_entity(game_entity).map(|e| e.0))
-    else {
+    let Some(monster_entity) = game_world.resources.monster.root_entity else {
         return;
     };
 
@@ -740,60 +363,13 @@ pub fn monster_chase_system(game_world: &mut GameWorld, world: &mut World) {
     let angle = (-normalized_dir.x).atan2(-normalized_dir.z);
     let target_rotation = nalgebra_glm::quat_angle_axis(angle, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
 
-    let total_time = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
-
-    let walk_cycle = total_time * 3.5;
-    let body_bob = (walk_cycle * 2.0).sin() * 0.015;
-    let body_sway = walk_cycle.sin() * 0.008;
-    let arm_swing = walk_cycle.sin() * 0.04;
-    let head_bob = (walk_cycle * 2.0).sin() * 0.008;
-    let breathing = (total_time * 1.5).sin() * 0.006;
-
-    let monster_parts: Vec<(Entity, MonsterPartRole)> = game_world
-        .query_entities(MONSTER_PART | ENGINE_ENTITY)
-        .filter_map(|game_entity| {
-            let engine_entity = game_world.get_engine_entity(game_entity)?.0;
-            let role = game_world.get_monster_part(game_entity)?.role;
-            Some((engine_entity, role))
-        })
-        .collect();
-
-    for &(part_entity, role) in &monster_parts {
-        if let Some(transform) = world.core.get_local_transform_mut(part_entity) {
-            transform.translation += movement;
-            let current_rotation = transform.rotation;
-            transform.rotation =
-                nalgebra_glm::quat_slerp(&current_rotation, &target_rotation, dt * 8.0);
-
-            match role {
-                MonsterPartRole::Torso => {
-                    transform.translation.y += body_bob + breathing;
-                    transform.translation.x += body_sway;
-                }
-                MonsterPartRole::Chest => {
-                    transform.translation.y += body_bob + breathing * 1.2;
-                }
-                MonsterPartRole::Ribcage => {
-                    transform.translation.y += body_bob * 0.8;
-                }
-                MonsterPartRole::Head => {
-                    transform.translation.y += body_bob * 0.5 + head_bob;
-                }
-                MonsterPartRole::Arm => {
-                    transform.translation.z += arm_swing;
-                    transform.translation.y += body_bob * 0.3;
-                }
-                MonsterPartRole::Leg => {
-                    transform.translation.y += body_bob * 0.6;
-                }
-                MonsterPartRole::Spine => {
-                    transform.translation.y += body_bob * 0.4;
-                    transform.translation.x += body_sway * 0.5;
-                }
-            }
-        }
-        world.mark_local_transform_dirty(part_entity);
+    if let Some(transform) = world.core.get_local_transform_mut(monster_entity) {
+        transform.translation += movement;
+        let current_rotation = transform.rotation;
+        transform.rotation =
+            nalgebra_glm::quat_slerp(&current_rotation, &target_rotation, dt * 8.0);
     }
+    world.mark_local_transform_dirty(monster_entity);
 
     if distance < 1.2 && !game_world.resources.game_won {
         game_world.resources.game_won = true;
@@ -815,15 +391,11 @@ fn start_exit_cutscene(game_world: &mut GameWorld, world: &mut World) {
 }
 
 fn despawn_monster(game_world: &mut GameWorld, world: &mut World) {
-    let monster_parts: Vec<freecs::Entity> = game_world.query_entities(MONSTER_PART).collect();
-
-    for game_entity in &monster_parts {
-        if let Some(engine_entity) = game_world.get_engine_entity(*game_entity) {
-            world.queue_despawn_entity(engine_entity.0);
-        }
+    if let Some(entity) = game_world.resources.monster.root_entity {
+        world.queue_despawn_entity(entity);
     }
-    game_world.despawn_entities(&monster_parts);
 
+    game_world.resources.monster.root_entity = None;
     game_world.resources.monster.active = false;
     game_world.resources.monster.chasing = false;
 

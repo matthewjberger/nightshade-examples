@@ -1,5 +1,6 @@
 use crate::ecs::{ENGINE_ENTITY, GameWorld, LEVER, LeverAction};
 use crate::systems::monster::start_cutscene;
+use nightshade::ecs::world::commands::find_entity_by_name;
 use nightshade::prelude::*;
 
 pub fn check_puzzle_state(game_world: &mut GameWorld, world: &mut World) {
@@ -7,6 +8,12 @@ pub fn check_puzzle_state(game_world: &mut GameWorld, world: &mut World) {
 
     let lever_entities: Vec<freecs::Entity> =
         game_world.query_entities(LEVER | ENGINE_ENTITY).collect();
+
+    let has_unlock_exit_lever = lever_entities.iter().any(|&game_entity| {
+        game_world
+            .get_lever(game_entity)
+            .is_some_and(|lever| lever.action == LeverAction::UnlockExit)
+    });
 
     for game_entity in lever_entities {
         let Some(lever) = game_world.get_lever(game_entity) else {
@@ -51,7 +58,7 @@ pub fn check_puzzle_state(game_world: &mut GameWorld, world: &mut World) {
         }
     }
 
-    if should_start_cutscene {
+    if should_start_cutscene && has_unlock_exit_lever {
         start_cutscene(game_world, world);
     }
 
@@ -61,9 +68,22 @@ pub fn check_puzzle_state(game_world: &mut GameWorld, world: &mut World) {
         && !game_world.resources.monster.active
         && let Some(player_entity) = game_world.resources.player_entity
         && let Some(transform) = world.core.get_local_transform(player_entity)
-        && transform.translation.z < -24.0
     {
-        game_world.resources.game_won = true;
+        let at_exit_zone = if let Some(exit_zone_entity) = find_entity_by_name(world, "ExitZone") {
+            if let Some(zone_transform) = world.core.get_local_transform(exit_zone_entity) {
+                let distance =
+                    nalgebra_glm::distance(&transform.translation, &zone_transform.translation);
+                distance < 3.0
+            } else {
+                false
+            }
+        } else {
+            transform.translation.z < -24.0
+        };
+
+        if at_exit_zone {
+            game_world.resources.game_won = true;
+        }
     }
 }
 

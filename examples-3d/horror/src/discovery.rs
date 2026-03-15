@@ -4,20 +4,30 @@ use crate::ecs::{
     InteractionKind, LEVER, LeverAction, NOTE, Note, OVERHEAD_LIGHT, OverheadLight,
 };
 use crate::systems::levers::init_lever;
+use nightshade::ecs::scene::{MetadataValue, Scene};
 use nightshade::ecs::world::commands::find_entity_by_name;
 use nightshade::prelude::*;
 
-pub fn discover_doors(game_world: &mut GameWorld, world: &mut World) {
-    let door_configs: &[(&str, bool, bool, bool)] = &[
-        ("Door_Entry", false, false, false),
-        ("Door_Storage", false, true, false),
-        ("Door_Generator", false, true, true),
-        ("Door_Exit", true, false, false),
-    ];
+pub fn discover_doors(game_world: &mut GameWorld, world: &mut World, scene: &Scene) {
+    for scene_entity in &scene.entities {
+        let Some(name) = &scene_entity.name else {
+            continue;
+        };
+        if !name.starts_with("Door_") {
+            continue;
+        }
 
-    for &(name, locked, side_door, swing_reversed) in door_configs {
-        let entity = find_entity_by_name(world, name)
-            .unwrap_or_else(|| panic!("Door entity '{}' not found", name));
+        let tags = &scene_entity.components.tags;
+        let locked = tags.iter().any(|tag| tag == "locked") || name.contains("Exit");
+        let side_door = tags.iter().any(|tag| tag == "side_door")
+            || name.contains("Storage")
+            || name.contains("Generator");
+        let swing_reversed =
+            tags.iter().any(|tag| tag == "swing_reversed") || name.contains("Generator");
+
+        let Some(entity) = find_entity_by_name(world, name) else {
+            continue;
+        };
 
         let position = world
             .core
@@ -51,9 +61,25 @@ pub fn discover_doors(game_world: &mut GameWorld, world: &mut World) {
     }
 
     let exit_door_entity = game_world.query_entities(DOOR).find(|&game_entity| {
-        game_world
-            .get_door(game_entity)
-            .is_some_and(|door| door.locked)
+        if let Some(engine_entity) = game_world.get_engine_entity(game_entity) {
+            let entity = engine_entity.0;
+            scene.entities.iter().any(|scene_entity| {
+                scene_entity.name.as_deref() == world.core.get_name(entity).map(|n| n.0.as_str())
+                    && (scene_entity
+                        .components
+                        .tags
+                        .iter()
+                        .any(|tag| tag == "exit_door")
+                        || scene_entity
+                            .name
+                            .as_ref()
+                            .is_some_and(|n| n.contains("Exit")))
+            })
+        } else {
+            game_world
+                .get_door(game_entity)
+                .is_some_and(|door| door.locked)
+        }
     });
     if let Some(entity) = exit_door_entity {
         game_world.add_exit_door(entity);
@@ -61,16 +87,25 @@ pub fn discover_doors(game_world: &mut GameWorld, world: &mut World) {
     }
 }
 
-pub fn discover_levers(game_world: &mut GameWorld, world: &mut World) {
-    let lever_configs: &[(&str, LeverAction)] = &[
-        ("Lever_RestorePower", LeverAction::RestorePower),
-        ("Lever_UnlockExit", LeverAction::UnlockExit),
-    ];
+pub fn discover_levers(game_world: &mut GameWorld, world: &mut World, scene: &Scene) {
+    for scene_entity in &scene.entities {
+        let Some(name) = &scene_entity.name else {
+            continue;
+        };
+        if !name.starts_with("Lever_") || !name.ends_with("_Pivot") {
+            continue;
+        }
 
-    for (name, action) in lever_configs {
-        let pivot_name = format!("{}_Pivot", name);
-        let pivot_entity = find_entity_by_name(world, &pivot_name)
-            .unwrap_or_else(|| panic!("Lever pivot '{}' not found", pivot_name));
+        let lever_name = name.trim_end_matches("_Pivot");
+
+        let action = if lever_name.contains("UnlockExit") {
+            LeverAction::UnlockExit
+        } else {
+            LeverAction::RestorePower
+        };
+
+        let pivot_entity = find_entity_by_name(world, name)
+            .unwrap_or_else(|| panic!("Lever pivot '{}' not found", name));
 
         let position = world
             .core
@@ -80,54 +115,34 @@ pub fn discover_levers(game_world: &mut GameWorld, world: &mut World) {
 
         let game_entity = game_world.spawn_entities(ENGINE_ENTITY | LEVER | INTERACTABLE, 1)[0];
 
-        init_lever(game_world, world, game_entity, name, position, *action);
+        init_lever(game_world, world, game_entity, lever_name, position, action);
     }
 }
 
-pub fn discover_notes(game_world: &mut GameWorld, world: &mut World) {
-    let note_data: &[(&str, &str, &str)] = &[
-        (
-            "Note_0",
-            "Engineer's Log - Day 1",
-            "The power went out again. The generator is in the west wing.\n\n\
-             I need to restore power before I can unlock the emergency exit.\n\n\
-             The exit controls are in the main hall, but they won't work without power.",
-        ),
-        (
-            "Note_1",
-            "Warning",
-            "I keep hearing things in the walls...\n\n\
-             Something is down here with us.\n\n\
-             Don't stay in the dark too long.",
-        ),
-        (
-            "Note_2",
-            "Facility Notice",
-            "EMERGENCY PROTOCOL:\n\n\
-             1. Restore power via generator lever (West Wing)\n\
-             2. Return to Main Hall\n\
-             3. Pull exit lever to unlock emergency exit (South)\n\n\
-             The exit lever requires power to function.",
-        ),
-        (
-            "Note_3",
-            "Final Entry",
-            "Don't go to the lower levels. Don't follow the sounds.\n\n\
-             If you find this note, get out while you still can.\n\n\
-             - M. Richter",
-        ),
-        (
-            "Note_4",
-            "Generator Instructions",
-            "Pull the lever to restore emergency power.\n\n\
-             Once power is restored, the exit controls in the main hall will function.\n\n\
-             WARNING: Generator may attract unwanted attention.",
-        ),
-    ];
+pub fn discover_notes(game_world: &mut GameWorld, world: &mut World, scene: &Scene) {
+    for scene_entity in &scene.entities {
+        let Some(name) = &scene_entity.name else {
+            continue;
+        };
 
-    for &(name, title, content) in note_data {
-        let entity = find_entity_by_name(world, name)
-            .unwrap_or_else(|| panic!("Note entity '{}' not found", name));
+        let has_note_tag = scene_entity.components.tags.iter().any(|tag| tag == "note");
+        if !has_note_tag {
+            continue;
+        }
+
+        let Some(entity) = find_entity_by_name(world, name) else {
+            continue;
+        };
+
+        let title = match scene_entity.components.metadata.get("title") {
+            Some(MetadataValue::String(value)) => value.clone(),
+            _ => name.clone(),
+        };
+
+        let content = match scene_entity.components.metadata.get("content") {
+            Some(MetadataValue::String(value)) => value.clone(),
+            _ => String::new(),
+        };
 
         let game_entity = game_world.spawn_entities(ENGINE_ENTITY | NOTE | INTERACTABLE, 1)[0];
         game_world.set_engine_entity(game_entity, EngineEntity(entity));
@@ -139,13 +154,7 @@ pub fn discover_notes(game_world: &mut GameWorld, world: &mut World) {
                 range: INTERACT_RANGE,
             },
         );
-        game_world.set_note(
-            game_entity,
-            Note {
-                title: title.to_string(),
-                content: content.to_string(),
-            },
-        );
+        game_world.set_note(game_entity, Note { title, content });
     }
 }
 
@@ -175,85 +184,44 @@ pub fn discover_physics_props(game_world: &mut GameWorld, world: &mut World) {
     }
 }
 
-pub fn discover_buttons(game_world: &mut GameWorld, world: &mut World) {
-    let button_position = nalgebra_glm::vec3(-7.2, 1.0, -14.0);
+pub fn discover_buttons(game_world: &mut GameWorld, world: &mut World, scene: &Scene) {
+    for scene_entity in &scene.entities {
+        let Some(name) = &scene_entity.name else {
+            continue;
+        };
+        if !name.starts_with("Button_") {
+            continue;
+        }
 
-    let entity = world.spawn_entities(
-        nightshade::prelude::NAME
-            | nightshade::prelude::LOCAL_TRANSFORM
-            | nightshade::prelude::GLOBAL_TRANSFORM
-            | nightshade::prelude::LOCAL_TRANSFORM_DIRTY
-            | nightshade::prelude::RENDER_MESH
-            | nightshade::prelude::MATERIAL_REF
-            | nightshade::prelude::BOUNDING_VOLUME
-            | nightshade::prelude::CASTS_SHADOW
-            | nightshade::prelude::VISIBILITY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER,
-        1,
-    )[0];
+        let Some(entity) = find_entity_by_name(world, name) else {
+            continue;
+        };
 
-    if let Some(name) = world.core.get_name_mut(entity) {
-        name.0 = "Generator Button".to_string();
+        let position = world
+            .core
+            .get_local_transform(entity)
+            .map(|transform| transform.translation)
+            .unwrap_or(Vec3::zeros());
+
+        let game_entity = game_world.spawn_entities(ENGINE_ENTITY | BUTTON | INTERACTABLE, 1)[0];
+        game_world.set_engine_entity(game_entity, EngineEntity(entity));
+        game_world.set_button(
+            game_entity,
+            Button {
+                base_position: position,
+                current_press: 0.0,
+                is_pressed: false,
+            },
+        );
+        game_world.set_interactable(
+            game_entity,
+            Interactable {
+                kind: InteractionKind::Button,
+                match_entity: entity,
+                range: INTERACT_RANGE,
+            },
+        );
     }
-
-    if let Some(transform) = world.core.get_local_transform_mut(entity) {
-        transform.translation = button_position;
-        transform.scale = nalgebra_glm::vec3(0.12, 0.06, 0.12);
-    }
-
-    if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
-        mesh.name = "Cylinder".to_string();
-    }
-
-    let material = nightshade::prelude::Material {
-        base_color: [0.8, 0.15, 0.1, 1.0],
-        roughness: 0.4,
-        metallic: 0.6,
-        ..Default::default()
-    };
-    nightshade::ecs::world::commands::spawn_material(
-        world,
-        entity,
-        "generator_button".to_string(),
-        material,
-    );
-
-    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
-        *bounding_volume =
-            nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
-    }
-
-    if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
-        *rigid_body = nightshade::ecs::physics::RigidBodyComponent::new_kinematic()
-            .with_translation(button_position.x, button_position.y, button_position.z);
-    }
-
-    if let Some(collider) = world.core.get_collider_mut(entity) {
-        *collider = nightshade::ecs::physics::ColliderComponent::new_cylinder(0.03, 0.06)
-            .with_friction(0.5);
-    }
-
-    world.spawn_physics_body(entity);
-
-    let game_entity = game_world.spawn_entities(ENGINE_ENTITY | BUTTON | INTERACTABLE, 1)[0];
-    game_world.set_engine_entity(game_entity, EngineEntity(entity));
-    game_world.set_button(
-        game_entity,
-        Button {
-            base_position: button_position,
-            current_press: 0.0,
-            is_pressed: false,
-        },
-    );
-    game_world.set_interactable(
-        game_entity,
-        Interactable {
-            kind: InteractionKind::Button,
-            match_entity: entity,
-            range: INTERACT_RANGE,
-        },
-    );
 }
 
 fn spawn_physics_prop(game_world: &mut GameWorld, engine_entity: Entity) {

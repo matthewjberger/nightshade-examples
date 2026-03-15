@@ -59,23 +59,6 @@ pub struct Button {
     pub is_pressed: bool,
 }
 
-#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MonsterPartRole {
-    #[default]
-    Torso,
-    Chest,
-    Ribcage,
-    Head,
-    Arm,
-    Leg,
-    Spine,
-}
-
-#[derive(Default, Clone, Debug)]
-pub struct MonsterPart {
-    pub role: MonsterPartRole,
-}
-
 #[derive(Default, Clone, Debug)]
 pub struct SparkParticle {
     pub lifetime: f32,
@@ -163,6 +146,7 @@ pub enum CutscenePhase {
 
 #[derive(Default)]
 pub struct MonsterState {
+    pub root_entity: Option<Entity>,
     pub active: bool,
     pub speed: f32,
     pub pause_timer: f32,
@@ -178,7 +162,6 @@ freecs::ecs! {
         overhead_light: OverheadLight => OVERHEAD_LIGHT,
         button: Button => BUTTON,
         interactable: Interactable => INTERACTABLE,
-        monster_part: MonsterPart => MONSTER_PART,
         spark_particle: SparkParticle => SPARK_PARTICLE,
     }
     Tags {

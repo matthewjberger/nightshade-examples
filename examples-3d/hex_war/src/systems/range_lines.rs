@@ -35,7 +35,7 @@ pub fn range_lines_system(
             &valid_coords,
             game_world.resources.hex_width,
             game_world.resources.hex_depth,
-            nalgebra_glm::vec4(1.0, 1.0, 0.0, 1.0),
+            nalgebra_glm::vec4(0.3, 0.8, 1.0, 1.0),
         );
 
         if let Some(lines_component) = world.core.get_lines_mut(entity) {

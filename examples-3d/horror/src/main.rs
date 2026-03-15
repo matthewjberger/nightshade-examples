@@ -19,11 +19,10 @@ use nightshade::prelude::*;
 use state::HorrorGame;
 use systems::{
     camera_look_system, check_puzzle_state, crouch_camera_system, cutscene_system,
-    detect_input_mode, interaction_system, lean_system, load_textures, monster_chase_system,
-    note_reading_system, spawn_ambient_light, spawn_flashlight, spawn_ui, update_doors_momentum,
-    update_flashlight, update_interaction_prompt, update_lantern_light, update_levers_momentum,
-    update_objective, update_overhead_lights, update_overlays, update_spark_particles,
-    update_temporary_message,
+    detect_input_mode, interaction_system, lean_system, monster_chase_system, note_reading_system,
+    spawn_ambient_light, spawn_flashlight, spawn_ui, update_doors_momentum, update_flashlight,
+    update_interaction_prompt, update_lantern_light, update_levers_momentum, update_objective,
+    update_overhead_lights, update_overlays, update_spark_particles, update_temporary_message,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -106,8 +105,6 @@ impl State for HorrorGame {
         self.game_world.resources.flashlight_on = true;
 
         spawn_ambient_light(world);
-
-        load_textures(world);
 
         #[cfg(target_arch = "wasm32")]
         self.scene_loader.load_from_url("horror_level.bin");

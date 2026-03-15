@@ -1,6 +1,5 @@
 pub mod camera;
 pub mod doors;
-pub mod environment;
 pub mod flashlight;
 pub mod input;
 pub mod interaction;
@@ -12,7 +11,6 @@ pub mod ui;
 
 pub use camera::{camera_look_system, crouch_camera_system, lean_system};
 pub use doors::update_doors_momentum;
-pub use environment::load_textures;
 pub use flashlight::{
     spawn_ambient_light, spawn_flashlight, update_flashlight, update_lantern_light,
 };

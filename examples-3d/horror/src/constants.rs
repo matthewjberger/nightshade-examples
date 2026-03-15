@@ -1,10 +1,3 @@
-pub const FLOOR_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/floor.png");
-pub const WALL_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/wall.png");
-pub const CEILING_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/ceiling.png");
-pub const DOOR_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/door.png");
-pub const NOTE_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/note.png");
-pub const LEVER_TEXTURE: &[u8] = include_bytes!("../../../assets/textures/horror/lever.png");
-
 pub const GRAB_RANGE: f32 = 3.0;
 pub const INTERACT_RANGE: f32 = 2.5;
 pub const INTERACT_CONE_RADIUS: f32 = 40.0;

@@ -1,87 +1,24 @@
 use crate::ecs::GameWorld;
-use crate::hex::{HexCoord, hex_to_world_position};
-use crate::instancing::InstancedTileGroup;
+use crate::hex::hex_to_world_position;
+use crate::hex_overlay_pass::SharedOverlayData;
 use crate::rendering::generate_hex_outline;
 use nightshade::ecs::world::components::Line;
 use nightshade::prelude::*;
-use std::collections::HashSet;
 
-const DEFAULT_TINT: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-const HOVER_TINT: [f32; 4] = [1.4, 1.4, 1.2, 1.0];
-
-fn valid_move_tint(pulse: f32) -> [f32; 4] {
-    let dim = 0.55 + 0.15 * pulse;
-    [dim, dim + 0.1 * pulse, dim, 1.0]
-}
-
-fn hover_valid_tint(pulse: f32) -> [f32; 4] {
-    let bright = 0.8 + 0.2 * pulse;
-    [bright, bright + 0.15 * pulse, bright, 1.0]
-}
-
-pub fn tile_highlight_system(
-    game_world: &mut GameWorld,
-    world: &mut World,
-    instanced_tile_groups: &[InstancedTileGroup],
-) {
-    let hovered_tile = game_world.resources.hovered_tile;
+pub fn tile_highlight_system(game_world: &mut GameWorld, overlay_data: &SharedOverlayData) {
     let valid_move_tiles = &game_world.resources.valid_move_tiles;
-    let has_valid_moves = !valid_move_tiles.is_empty();
+    let hex_width = game_world.resources.hex_width;
+    let hex_depth = game_world.resources.hex_depth;
 
-    let mut currently_highlighted: HashSet<HexCoord> = valid_move_tiles.clone();
-    if let Some(coord) = hovered_tile {
-        currently_highlighted.insert(coord);
+    let mut data = overlay_data.lock().unwrap();
+    data.hex_width = hex_width;
+    data.hex_depth = hex_depth;
+    data.positions.clear();
+
+    for coord in valid_move_tiles {
+        let world_pos = hex_to_world_position(coord.column, coord.row, hex_width, hex_depth);
+        data.positions.push([world_pos.x, world_pos.y, world_pos.z]);
     }
-
-    let hover_changed = hovered_tile != game_world.resources.previous_hovered_tile;
-    let set_changed = currently_highlighted != game_world.resources.previously_highlighted;
-
-    if !set_changed && !hover_changed && !has_valid_moves {
-        return;
-    }
-
-    let pulse = if has_valid_moves {
-        let uptime = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
-        (uptime * 3.0).sin() * 0.5 + 0.5
-    } else {
-        0.0
-    };
-
-    let tiles_to_reset: Vec<HexCoord> = game_world
-        .resources
-        .previously_highlighted
-        .difference(&currently_highlighted)
-        .copied()
-        .collect();
-
-    for group in instanced_tile_groups {
-        let Some(instanced_mesh) = world.core.get_instanced_mesh_mut(group.entity) else {
-            continue;
-        };
-
-        for coord in &tiles_to_reset {
-            if let Some(&instance_index) = group.coord_to_instance.get(coord) {
-                instanced_mesh.set_instance_tint(instance_index, DEFAULT_TINT);
-            }
-        }
-
-        for coord in &currently_highlighted {
-            if let Some(&instance_index) = group.coord_to_instance.get(coord) {
-                let is_hovered = hovered_tile == Some(*coord);
-                let is_valid_move = valid_move_tiles.contains(coord);
-                let tint = match (is_hovered, is_valid_move) {
-                    (true, true) => hover_valid_tint(pulse),
-                    (true, false) => HOVER_TINT,
-                    (false, true) => valid_move_tint(pulse),
-                    (false, false) => DEFAULT_TINT,
-                };
-                instanced_mesh.set_instance_tint(instance_index, tint);
-            }
-        }
-    }
-
-    game_world.resources.previously_highlighted = currently_highlighted;
-    game_world.resources.previous_hovered_tile = hovered_tile;
 }
 
 pub fn hover_outline_system(

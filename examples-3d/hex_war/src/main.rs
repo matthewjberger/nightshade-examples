@@ -3,6 +3,7 @@ mod constants;
 mod ecs;
 mod event_log;
 mod hex;
+mod hex_overlay_pass;
 mod hud;
 mod instancing;
 mod map;
@@ -23,6 +24,7 @@ use event_log::{
     event_log_add_turn_start, event_log_new, event_log_scroll_system, update_event_log_ui,
 };
 use hex::hex_to_world_position;
+use hex_overlay_pass::{HexOverlayPass, SharedOverlayData};
 use hud::{HudUi, build_hud_ui, update_hud};
 use map_generation::{MapEntities, generate_game_map};
 use menu::{
@@ -34,6 +36,7 @@ use nightshade::prelude::*;
 use prefabs::load_tile_prefabs;
 use selection::clear_selection;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use systems::{
     FireworkShell, GameResult, PendingSpawn, ai_turn_system, build_turn_order, can_end_turn,
     despawn_unit, end_turn, floating_popup_system, hover_outline_system, hover_system,
@@ -88,6 +91,7 @@ struct HexWarGame {
     menu_ui: Option<MenuUi>,
     hud_ui: Option<HudUi>,
     event_log_ui: Option<EventLogUi>,
+    overlay_data: SharedOverlayData,
 }
 
 impl Default for HexWarGame {
@@ -112,6 +116,7 @@ impl Default for HexWarGame {
             menu_ui: None,
             hud_ui: None,
             event_log_ui: None,
+            overlay_data: Arc::new(Mutex::new(hex_overlay_pass::OverlayData::default())),
         }
     }
 }
@@ -495,13 +500,7 @@ impl State for HexWarGame {
         valid_moves_system(&mut self.game_world);
         range_lines_system(&mut self.game_world, world, range_lines_entity);
 
-        if let Some(ref map_entities) = self.map_entities {
-            tile_highlight_system(
-                &mut self.game_world,
-                world,
-                &map_entities.instanced_tile_groups,
-            );
-        }
+        tile_highlight_system(&mut self.game_world, &self.overlay_data);
         hover_outline_system(&self.game_world, world, hover_outline_entity);
         unit_text_system(&self.game_world, world);
         unit_visual_update_system(&self.game_world, world);
@@ -627,6 +626,29 @@ impl State for HexWarGame {
             .slot("color", resources.scene_color)
             .slot("depth", resources.depth);
 
+        let overlay_output = graph
+            .add_color_texture("overlay_output")
+            .format(wgpu::TextureFormat::Rgba16Float)
+            .size(
+                resources.surface_width.max(1),
+                resources.surface_height.max(1),
+            )
+            .transient();
+
+        let blit_pipeline =
+            passes::BlitPass::create_pipeline(device, wgpu::TextureFormat::Rgba16Float);
+        let hex_overlay = HexOverlayPass::new(
+            device,
+            wgpu::TextureFormat::Rgba16Float,
+            blit_pipeline,
+            self.overlay_data.clone(),
+        );
+        graph
+            .pass(Box::new(hex_overlay))
+            .read("scene", resources.scene_color)
+            .read("depth", resources.depth)
+            .write("output", overlay_output);
+
         let (width, height) = (1920, 1080);
         let bloom_width = width / 2;
         let bloom_height = height / 2;
@@ -641,13 +663,13 @@ impl State for HexWarGame {
         let bloom_pass = passes::BloomPass::new(device, width, height);
         graph
             .pass(Box::new(bloom_pass))
-            .read("hdr", resources.scene_color)
+            .read("hdr", overlay_output)
             .write("bloom", bloom_texture);
 
         let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.005);
         graph
             .pass(Box::new(postprocess_pass))
-            .read("hdr", resources.scene_color)
+            .read("hdr", overlay_output)
             .read("bloom", bloom_texture)
             .read("ssao", resources.ssao)
             .write("output", resources.compute_output);

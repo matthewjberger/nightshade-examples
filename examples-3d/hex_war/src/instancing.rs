@@ -8,7 +8,6 @@ use std::collections::HashMap;
 
 pub struct InstancedTileGroup {
     pub entity: Entity,
-    pub coord_to_instance: HashMap<HexCoord, usize>,
 }
 
 type MeshInstanceKey = (String, u64);
@@ -141,11 +140,9 @@ pub fn create_instanced_tiles(
             continue;
         }
 
-        let mut coord_to_instance = HashMap::new();
         let mut instances = Vec::with_capacity(coord_instances.len());
 
-        for (index, (coord, transform)) in coord_instances.iter().enumerate() {
-            coord_to_instance.insert(*coord, index);
+        for (_, transform) in coord_instances {
             instances.push(*transform);
         }
 
@@ -166,10 +163,7 @@ pub fn create_instanced_tiles(
 
         let entity =
             spawn_instanced_mesh_with_material(world, mesh_name, instances, &material_name);
-        instanced_groups.push(InstancedTileGroup {
-            entity,
-            coord_to_instance,
-        });
+        instanced_groups.push(InstancedTileGroup { entity });
     }
 
     instanced_groups

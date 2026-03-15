@@ -114,7 +114,7 @@ pub fn build_event_log_ui(world: &mut World) -> EventLogUi {
             let log_height = VISIBLE_ENTRIES as f32 * line_height + 16.0;
             tree.add_node()
                 .window(
-                    Ab(Vec2::new(6.0, 6.0)),
+                    Rl(Vec2::new(0.0, 100.0)) + Ab(Vec2::new(6.0, -6.0)),
                     Ab(Vec2::new(LOG_WIDTH, log_height)),
                     Anchor::BottomLeft,
                 )

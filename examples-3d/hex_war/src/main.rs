@@ -357,6 +357,7 @@ impl State for HexWarGame {
                 let action =
                     menu::main_menu_system(&mut self.menu, world, screen_width, screen_height);
                 game_handle_menu_action(self, world, action);
+                nightshade::ecs::text::systems::sync_text_meshes_system(world);
                 return;
             }
             MenuState::MapSetup => {
@@ -366,12 +367,14 @@ impl State for HexWarGame {
                 }
                 let action = map_setup_system(&mut self.menu, world, screen_width, screen_height);
                 game_handle_menu_action(self, world, action);
+                nightshade::ecs::text::systems::sync_text_meshes_system(world);
                 return;
             }
             MenuState::Paused => {
                 let action =
                     menu::pause_menu_system(&mut self.menu, world, screen_width, screen_height);
                 game_handle_menu_action(self, world, action);
+                nightshade::ecs::text::systems::sync_text_meshes_system(world);
                 return;
             }
             MenuState::GameOver => {
@@ -381,6 +384,7 @@ impl State for HexWarGame {
                 }
                 let action = game_over_system(&mut self.menu, world, screen_width, screen_height);
                 game_handle_menu_action(self, world, action);
+                nightshade::ecs::text::systems::sync_text_meshes_system(world);
                 return;
             }
             MenuState::Playing => {}

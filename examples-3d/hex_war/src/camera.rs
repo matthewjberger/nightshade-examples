@@ -41,33 +41,6 @@ pub fn clamp_camera_to_bounds(world: &mut World, bounds: &CameraBounds) {
     pan_orbit.target_focus.z = pan_orbit.target_focus.z.clamp(bounds.min_z, bounds.max_z);
 }
 
-pub fn world_to_screen(world: &World, world_pos: Vec3) -> Option<Vec2> {
-    let camera_entity = world.resources.active_camera?;
-    let camera = world.core.get_camera(camera_entity)?;
-    let global_transform = world.core.get_global_transform(camera_entity)?;
-
-    let window = &world.resources.window;
-    let (viewport_width, viewport_height) = window.cached_viewport_size?;
-
-    let view_matrix = global_transform.0.try_inverse()?;
-    let aspect_ratio = viewport_width as f32 / viewport_height as f32;
-    let projection_matrix = camera.projection.matrix_with_aspect(aspect_ratio);
-
-    let clip_pos =
-        projection_matrix * view_matrix * Vec4::new(world_pos.x, world_pos.y, world_pos.z, 1.0);
-
-    if clip_pos.w <= 0.0 {
-        return None;
-    }
-
-    let ndc = clip_pos.xyz() / clip_pos.w;
-
-    let screen_x = (ndc.x + 1.0) * 0.5 * viewport_width as f32;
-    let screen_y = (1.0 - ndc.y) * 0.5 * viewport_height as f32;
-
-    Some(Vec2::new(screen_x, screen_y))
-}
-
 pub fn reset_camera_to_map(
     world: &mut World,
     hex_width: f32,

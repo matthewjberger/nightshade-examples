@@ -108,12 +108,13 @@ pub fn build_event_log_ui(world: &mut World) -> EventLogUi {
         .add_node()
         .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
         .with_visible(false)
+        .with_layer(UiLayer::FloatingPanels)
         .without_pointer_events()
         .with_children(|tree| {
             let log_height = VISIBLE_ENTRIES as f32 * line_height + 16.0;
             tree.add_node()
                 .window(
-                    Ab(Vec2::new(6.0, -6.0)),
+                    Ab(Vec2::new(6.0, 6.0)),
                     Ab(Vec2::new(LOG_WIDTH, log_height)),
                     Anchor::BottomLeft,
                 )

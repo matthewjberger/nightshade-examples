@@ -7,15 +7,16 @@ use nightshade::prelude::*;
 use std::collections::HashSet;
 
 const DEFAULT_TINT: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-const HOVER_TINT: [f32; 4] = [1.5, 1.5, 1.3, 1.0];
+const HOVER_TINT: [f32; 4] = [1.4, 1.4, 1.2, 1.0];
 
 fn valid_move_tint(pulse: f32) -> [f32; 4] {
-    let glow = 2.0 + 1.0 * pulse;
-    [glow, glow, glow, 1.0]
+    let dim = 0.55 + 0.15 * pulse;
+    [dim, dim + 0.1 * pulse, dim, 1.0]
 }
 
-fn hover_valid_tint(_pulse: f32) -> [f32; 4] {
-    [3.5, 3.5, 3.5, 1.0]
+fn hover_valid_tint(pulse: f32) -> [f32; 4] {
+    let bright = 0.8 + 0.2 * pulse;
+    [bright, bright + 0.15 * pulse, bright, 1.0]
 }
 
 pub fn tile_highlight_system(

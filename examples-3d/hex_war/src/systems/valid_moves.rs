@@ -1,17 +1,22 @@
 use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
 use crate::ecs::{Entity, GameWorld, HEX_POSITION, TILE, TileType, UNIT};
-use crate::hex::{HexCoord, hex_distance, hex_neighbors};
+use crate::hex::{HexCoord, hex_neighbors, hex_to_world_position};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
-#[derive(Eq, PartialEq)]
+#[derive(PartialEq)]
 struct AStarNode {
     coord: HexCoord,
-    f_score: i32,
+    priority: f32,
 }
+
+impl Eq for AStarNode {}
 
 impl Ord for AStarNode {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.f_score.cmp(&self.f_score)
+        other
+            .priority
+            .partial_cmp(&self.priority)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -21,15 +26,26 @@ impl PartialOrd for AStarNode {
     }
 }
 
-fn astar(from: HexCoord, to: HexCoord, passable: &HashSet<HexCoord>) -> Option<Vec<HexCoord>> {
+fn astar(
+    from: HexCoord,
+    to: HexCoord,
+    passable: &HashSet<HexCoord>,
+    hex_width: f32,
+    hex_depth: f32,
+) -> Option<Vec<HexCoord>> {
+    let goal_world = hex_to_world_position(to.column, to.row, hex_width, hex_depth);
+
     let mut g_score: HashMap<HexCoord, i32> = HashMap::new();
     let mut came_from: HashMap<HexCoord, HexCoord> = HashMap::new();
     let mut open = BinaryHeap::new();
 
     g_score.insert(from, 0);
+    let from_world = hex_to_world_position(from.column, from.row, hex_width, hex_depth);
+    let from_dist =
+        ((goal_world.x - from_world.x).powi(2) + (goal_world.z - from_world.z).powi(2)).sqrt();
     open.push(AStarNode {
         coord: from,
-        f_score: hex_distance(from, to),
+        priority: from_dist,
     });
 
     while let Some(AStarNode { coord: current, .. }) = open.pop() {
@@ -56,9 +72,16 @@ fn astar(from: HexCoord, to: HexCoord, passable: &HashSet<HexCoord>) -> Option<V
             if tentative_g < *g_score.get(&neighbor).unwrap_or(&i32::MAX) {
                 came_from.insert(neighbor, current);
                 g_score.insert(neighbor, tentative_g);
+
+                let neighbor_world =
+                    hex_to_world_position(neighbor.column, neighbor.row, hex_width, hex_depth);
+                let euclidean = ((goal_world.x - neighbor_world.x).powi(2)
+                    + (goal_world.z - neighbor_world.z).powi(2))
+                .sqrt();
+
                 open.push(AStarNode {
                     coord: neighbor,
-                    f_score: tentative_g + hex_distance(neighbor, to),
+                    priority: tentative_g as f32 + euclidean,
                 });
             }
         }
@@ -68,6 +91,9 @@ fn astar(from: HexCoord, to: HexCoord, passable: &HashSet<HexCoord>) -> Option<V
 }
 
 fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option<Vec<HexCoord>> {
+    let hex_width = game_world.resources.hex_width;
+    let hex_depth = game_world.resources.hex_depth;
+
     let land_tiles: HashSet<HexCoord> = game_world
         .query_entities(HEX_POSITION | TILE)
         .filter_map(|entity| {
@@ -92,7 +118,7 @@ fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
         }
     }
 
-    astar(from, to, &passable)
+    astar(from, to, &passable, hex_width, hex_depth)
 }
 
 pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option<Vec<HexCoord>> {
@@ -145,7 +171,9 @@ pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
         return find_sea_path(game_world, from, to);
     }
 
-    astar(from, to, &passable_tiles)
+    let hex_width = game_world.resources.hex_width;
+    let hex_depth = game_world.resources.hex_depth;
+    astar(from, to, &passable_tiles, hex_width, hex_depth)
 }
 
 pub fn calculate_valid_moves(

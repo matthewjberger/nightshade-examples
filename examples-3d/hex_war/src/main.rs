@@ -16,16 +16,19 @@ mod tiles;
 
 use camera::{CameraBounds, calculate_camera_bounds, clamp_camera_to_bounds, reset_camera_to_map};
 use constants::ACTIONS_PER_TURN;
-use ecs::{Faction, GameEvents, GameWorld, TileType, UNIT};
+use ecs::{Difficulty, Faction, GameEvents, GameWorld, TileType, UNIT};
 use event_log::{
-    EventLog, despawn_event_log_ui, event_log_add_combat, event_log_add_faction_eliminated,
-    event_log_add_reinforcement, event_log_add_speech, event_log_add_turn_start, event_log_new,
-    event_log_scroll_system, spawn_event_log_ui, update_event_log_ui,
+    EventLog, EventLogUi, build_event_log_ui, event_log_add_combat,
+    event_log_add_faction_eliminated, event_log_add_reinforcement, event_log_add_speech,
+    event_log_add_turn_start, event_log_new, event_log_scroll_system, update_event_log_ui,
 };
 use hex::hex_to_world_position;
-use hud::{GameHud, despawn_game_hud, spawn_game_hud, update_game_hud};
+use hud::{HudUi, build_hud_ui, update_hud};
 use map_generation::{MapEntities, generate_game_map};
-use menu::{MenuAction, MenuData, MenuState, game_over_system, map_setup_system};
+use menu::{
+    MenuState, MenuUi, build_menu_ui, setup_game_over_display, show_menu_screen,
+    update_difficulty_display,
+};
 use nightshade::ecs::prefab::Prefab;
 use nightshade::prelude::*;
 use prefabs::load_tile_prefabs;
@@ -65,73 +68,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(HexWarGame::default())
 }
 
-fn spawn_fps_display(world: &mut World) -> Entity {
-    let props = TextProperties {
-        font_size: 24.0,
-        color: nalgebra_glm::vec4(1.0, 1.0, 1.0, 1.0),
-        alignment: TextAlignment::Right,
-        outline_width: 0.02,
-        outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
-        ..Default::default()
-    };
-    spawn_ui_text_with_properties(world, "", nalgebra_glm::Vec2::zeros(), props)
-}
-
-fn fps_display_system(world: &mut World, entity: Entity, visible: bool) {
-    if !visible {
-        return;
-    }
-    let Some(text_index) = world.core.get_text(entity).map(|t| t.text_index) else {
-        return;
-    };
-    let fps = world.resources.window.timing.frames_per_second;
-    world
-        .resources
-        .text_cache
-        .set_text(text_index, format!("FPS: {:.0}", fps));
-    if let Some(hud_text) = world.core.get_text_mut(entity) {
-        hud_text.dirty = true;
-    }
-}
-
-fn toggle_fps_display(world: &mut World, entity: Entity, visible: bool) {
-    let Some(text_index) = world.core.get_text(entity).map(|t| t.text_index) else {
-        return;
-    };
-    if visible {
-        let fps = world.resources.window.timing.frames_per_second;
-        world
-            .resources
-            .text_cache
-            .set_text(text_index, format!("FPS: {:.0}", fps));
-    } else {
-        world.resources.text_cache.set_text(text_index, "");
-    }
-    if let Some(hud_text) = world.core.get_text_mut(entity) {
-        hud_text.dirty = true;
-    }
-}
-
-fn get_screen_size(world: &World) -> (f32, f32) {
-    world
-        .resources
-        .window
-        .handle
-        .as_ref()
-        .map(|handle| {
-            let size = handle.inner_size();
-            (size.width as f32, size.height as f32)
-        })
-        .unwrap_or((800.0, 600.0))
-}
-
 struct HexWarGame {
     game_world: GameWorld,
     game_events: GameEvents,
     map_entities: Option<MapEntities>,
     tile_prefabs: HashMap<TileType, Prefab>,
-    menu: MenuData,
-    game_hud: GameHud,
+    menu_state: MenuState,
+    selected_difficulty: Difficulty,
     event_log: EventLog,
     fps_entity: Option<Entity>,
     fps_visible: bool,
@@ -142,6 +85,9 @@ struct HexWarGame {
     pending_spawns: Vec<PendingSpawn>,
     camera_bounds: Option<CameraBounds>,
     firework_shells: Vec<FireworkShell>,
+    menu_ui: Option<MenuUi>,
+    hud_ui: Option<HudUi>,
+    event_log_ui: Option<EventLogUi>,
 }
 
 impl Default for HexWarGame {
@@ -151,8 +97,8 @@ impl Default for HexWarGame {
             game_events: GameEvents::default(),
             map_entities: None,
             tile_prefabs: HashMap::new(),
-            menu: MenuData::default(),
-            game_hud: GameHud::default(),
+            menu_state: MenuState::MainMenu,
+            selected_difficulty: Difficulty::default(),
             event_log: event_log_new(),
             fps_entity: None,
             fps_visible: false,
@@ -163,6 +109,9 @@ impl Default for HexWarGame {
             pending_spawns: Vec::new(),
             camera_bounds: None,
             firework_shells: Vec::new(),
+            menu_ui: None,
+            hud_ui: None,
+            event_log_ui: None,
         }
     }
 }
@@ -231,76 +180,7 @@ fn game_cleanup_game_world(game: &mut HexWarGame, world: &mut World) {
         world.queue_command(WorldCommand::DespawnRecursive { entity: ocean });
     }
 
-    despawn_game_hud(&mut game.game_hud, world);
-    despawn_event_log_ui(world, &mut game.event_log);
     game_cleanup_map(game, world);
-}
-
-fn game_handle_menu_action(game: &mut HexWarGame, world: &mut World, action: MenuAction) {
-    match action {
-        MenuAction::None => {}
-        MenuAction::EnterMapSetup => {
-            game.menu.state = MenuState::MapSetup;
-            menu::despawn_menu_elements(&mut game.menu, world);
-
-            world.resources.graphics.atmosphere = Atmosphere::Nebula;
-            game.sun_entity = Some(spawn_sun(world));
-            game.ocean_entity = Some(spawn_ocean(world));
-            game.map_entities = Some(generate_game_map(
-                &mut game.game_world,
-                world,
-                &game.tile_prefabs,
-            ));
-            game.camera_bounds = Some(calculate_camera_bounds(
-                game.game_world.resources.hex_width,
-                game.game_world.resources.hex_depth,
-                game.game_world.resources.map_params.map_width,
-                game.game_world.resources.map_params.map_height,
-            ));
-            game_reset_camera(game, world);
-
-            menu::setup_map_setup_menu(&mut game.menu, world);
-        }
-        MenuAction::RegenerateMap => {
-            game_regenerate_map(game, world);
-        }
-        MenuAction::StartGame => {
-            game.menu.state = MenuState::Playing;
-            menu::despawn_menu_elements(&mut game.menu, world);
-
-            game.game_world.resources.current_faction = Faction::Redosia;
-            game.game_world.resources.actions_remaining = ACTIONS_PER_TURN;
-            game.game_world.resources.turn_number = 1;
-            game.game_world.resources.faction_eliminated = [false; 4];
-            game.game_world.resources.game_speed = 1.0;
-            game.game_world.resources.difficulty = game.menu.selected_difficulty;
-
-            build_turn_order(&mut game.game_world);
-
-            game.event_log = event_log_new();
-            spawn_event_log_ui(world, &mut game.event_log);
-            event_log_add_turn_start(&mut game.event_log, 1, Faction::Redosia);
-
-            game.game_hud = spawn_game_hud(world);
-        }
-        MenuAction::ResumeGame => {
-            game.menu.state = MenuState::Playing;
-            menu::despawn_menu_elements(&mut game.menu, world);
-            game.game_hud = spawn_game_hud(world);
-        }
-        MenuAction::ReturnToMainMenu => {
-            game_cleanup_game_world(game, world);
-            game.menu.state = MenuState::MainMenu;
-            menu::setup_main_menu(&mut game.menu, world);
-        }
-        MenuAction::QuitGame => {
-            world.resources.window.should_exit = true;
-        }
-        MenuAction::SetDifficulty(difficulty) => {
-            game.menu.selected_difficulty = difficulty;
-            menu::setup_map_setup_menu(&mut game.menu, world);
-        }
-    }
 }
 
 fn game_range_lines_entity(game: &HexWarGame) -> Option<Entity> {
@@ -311,6 +191,117 @@ fn game_hover_outline_entity(game: &HexWarGame) -> Option<Entity> {
     game.map_entities.as_ref().map(|e| e.hover_outline_entity)
 }
 
+fn build_fps_label(world: &mut World) -> Entity {
+    let mut tree = UiTreeBuilder::new(world);
+    let label = tree
+        .add_node()
+        .window(
+            Ab(Vec2::new(-10.0, 10.0)),
+            Ab(Vec2::new(150.0, 24.0)),
+            Anchor::TopRight,
+        )
+        .with_text("", 14.0)
+        .with_text_alignment(TextAlignment::Right, VerticalAlignment::Middle)
+        .with_color::<UiBase>(Vec4::new(1.0, 1.0, 1.0, 1.0))
+        .with_visible(false)
+        .without_pointer_events()
+        .done();
+    tree.finish();
+    label
+}
+
+fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
+    game.menu_state = MenuState::MapSetup;
+
+    world.resources.graphics.atmosphere = Atmosphere::Nebula;
+    game.sun_entity = Some(spawn_sun(world));
+    game.ocean_entity = Some(spawn_ocean(world));
+    game.map_entities = Some(generate_game_map(
+        &mut game.game_world,
+        world,
+        &game.tile_prefabs,
+    ));
+    game.camera_bounds = Some(calculate_camera_bounds(
+        game.game_world.resources.hex_width,
+        game.game_world.resources.hex_depth,
+        game.game_world.resources.map_params.map_width,
+        game.game_world.resources.map_params.map_height,
+    ));
+    game_reset_camera(game, world);
+
+    if let Some(ui) = &game.menu_ui {
+        show_menu_screen(world, ui, MenuState::MapSetup);
+        update_difficulty_display(world, ui, game.selected_difficulty);
+    }
+}
+
+fn start_game(game: &mut HexWarGame, world: &mut World) {
+    game.menu_state = MenuState::Playing;
+
+    game.game_world.resources.current_faction = Faction::Redosia;
+    game.game_world.resources.actions_remaining = ACTIONS_PER_TURN;
+    game.game_world.resources.turn_number = 1;
+    game.game_world.resources.faction_eliminated = [false; 4];
+    game.game_world.resources.game_speed = 1.0;
+    game.game_world.resources.difficulty = game.selected_difficulty;
+
+    build_turn_order(&mut game.game_world);
+
+    game.event_log = event_log_new();
+    event_log_add_turn_start(&mut game.event_log, 1, Faction::Redosia);
+
+    if let Some(ui) = &game.menu_ui {
+        show_menu_screen(world, ui, MenuState::Playing);
+    }
+    if let Some(hud) = &game.hud_ui {
+        world.ui_set_visible(hud.screen, true);
+    }
+    if let Some(log_ui) = &game.event_log_ui {
+        world.ui_set_visible(log_ui.screen, true);
+    }
+}
+
+fn pause_game(game: &mut HexWarGame, world: &mut World) {
+    game.menu_state = MenuState::Paused;
+    if let Some(hud) = &game.hud_ui {
+        world.ui_set_visible(hud.screen, false);
+    }
+    if let Some(log_ui) = &game.event_log_ui {
+        world.ui_set_visible(log_ui.screen, false);
+    }
+    if let Some(ui) = &game.menu_ui {
+        show_menu_screen(world, ui, MenuState::Paused);
+    }
+}
+
+fn resume_game(game: &mut HexWarGame, world: &mut World) {
+    game.menu_state = MenuState::Playing;
+    if let Some(ui) = &game.menu_ui {
+        show_menu_screen(world, ui, MenuState::Playing);
+    }
+    if let Some(hud) = &game.hud_ui {
+        world.ui_set_visible(hud.screen, true);
+    }
+    if let Some(log_ui) = &game.event_log_ui {
+        world.ui_set_visible(log_ui.screen, true);
+    }
+}
+
+fn return_to_main_menu(game: &mut HexWarGame, world: &mut World) {
+    if let Some(hud) = &game.hud_ui {
+        world.ui_set_visible(hud.screen, false);
+    }
+    if let Some(log_ui) = &game.event_log_ui {
+        world.ui_set_visible(log_ui.screen, false);
+    }
+
+    game_cleanup_game_world(game, world);
+    game.menu_state = MenuState::MainMenu;
+    if let Some(ui) = &game.menu_ui {
+        show_menu_screen(world, ui, MenuState::MainMenu);
+    }
+}
+
 impl State for HexWarGame {
     fn title(&self) -> &str {
         "Hex War"
@@ -318,6 +309,7 @@ impl State for HexWarGame {
 
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = false;
+        world.resources.retained_ui.enabled = true;
         world.resources.graphics.show_grid = false;
         world.resources.graphics.atmosphere = Atmosphere::None;
 
@@ -345,19 +337,21 @@ impl State for HexWarGame {
         }
         world.resources.active_camera = Some(camera_entity);
 
-        self.fps_entity = Some(spawn_fps_display(world));
-        menu::setup_main_menu(&mut self.menu, world);
+        self.menu_ui = Some(build_menu_ui(world));
+        self.hud_ui = Some(build_hud_ui(world));
+        self.event_log_ui = Some(build_event_log_ui(world));
+        self.fps_entity = Some(build_fps_label(world));
     }
 
     fn run_systems(&mut self, world: &mut World) {
-        let (screen_width, screen_height) = get_screen_size(world);
-
-        match self.menu.state {
+        match self.menu_state {
             MenuState::MainMenu => {
-                let action =
-                    menu::main_menu_system(&mut self.menu, world, screen_width, screen_height);
-                game_handle_menu_action(self, world, action);
-                nightshade::ecs::text::systems::sync_text_meshes_system(world);
+                let ui = self.menu_ui.as_ref().unwrap();
+                if world.ui_clicked(ui.new_game_button) {
+                    enter_map_setup(self, world);
+                } else if world.ui_clicked(ui.quit_button) {
+                    world.resources.window.should_exit = true;
+                }
                 return;
             }
             MenuState::MapSetup => {
@@ -365,16 +359,36 @@ impl State for HexWarGame {
                 if let Some(bounds) = &self.camera_bounds {
                     clamp_camera_to_bounds(world, bounds);
                 }
-                let action = map_setup_system(&mut self.menu, world, screen_width, screen_height);
-                game_handle_menu_action(self, world, action);
-                nightshade::ecs::text::systems::sync_text_meshes_system(world);
+
+                let ui = self.menu_ui.as_ref().unwrap();
+                if world.ui_clicked(ui.easy_button) {
+                    self.selected_difficulty = Difficulty::Easy;
+                    update_difficulty_display(world, ui, Difficulty::Easy);
+                } else if world.ui_clicked(ui.normal_button) {
+                    self.selected_difficulty = Difficulty::Normal;
+                    update_difficulty_display(world, ui, Difficulty::Normal);
+                } else if world.ui_clicked(ui.hard_button) {
+                    self.selected_difficulty = Difficulty::Hard;
+                    update_difficulty_display(world, ui, Difficulty::Hard);
+                } else if world.ui_clicked(ui.new_map_button) {
+                    game_regenerate_map(self, world);
+                } else if world.ui_clicked(ui.start_button) {
+                    start_game(self, world);
+                } else if world.ui_clicked(ui.setup_back_button) {
+                    game_cleanup_game_world(self, world);
+                    self.menu_state = MenuState::MainMenu;
+                    let ui = self.menu_ui.as_ref().unwrap();
+                    show_menu_screen(world, ui, MenuState::MainMenu);
+                }
                 return;
             }
             MenuState::Paused => {
-                let action =
-                    menu::pause_menu_system(&mut self.menu, world, screen_width, screen_height);
-                game_handle_menu_action(self, world, action);
-                nightshade::ecs::text::systems::sync_text_meshes_system(world);
+                let ui = self.menu_ui.as_ref().unwrap();
+                if world.ui_clicked(ui.resume_button) {
+                    resume_game(self, world);
+                } else if world.ui_clicked(ui.pause_main_menu_button) {
+                    return_to_main_menu(self, world);
+                }
                 return;
             }
             MenuState::GameOver => {
@@ -382,9 +396,20 @@ impl State for HexWarGame {
                 if let Some(bounds) = &self.camera_bounds {
                     clamp_camera_to_bounds(world, bounds);
                 }
-                let action = game_over_system(&mut self.menu, world, screen_width, screen_height);
-                game_handle_menu_action(self, world, action);
-                nightshade::ecs::text::systems::sync_text_meshes_system(world);
+
+                let ui = self.menu_ui.as_ref().unwrap();
+                if world.ui_clicked(ui.game_over_new_game_button) {
+                    if let Some(hud) = &self.hud_ui {
+                        world.ui_set_visible(hud.screen, false);
+                    }
+                    if let Some(log_ui) = &self.event_log_ui {
+                        world.ui_set_visible(log_ui.screen, false);
+                    }
+                    game_cleanup_game_world(self, world);
+                    enter_map_setup(self, world);
+                } else if world.ui_clicked(ui.game_over_main_menu_button) {
+                    return_to_main_menu(self, world);
+                }
                 return;
             }
             MenuState::Playing => {}
@@ -427,8 +452,11 @@ impl State for HexWarGame {
             }
         }
 
-        if let Some(fps_entity) = self.fps_entity {
-            fps_display_system(world, fps_entity, self.fps_visible);
+        if self.fps_visible
+            && let Some(fps_entity) = self.fps_entity
+        {
+            let fps = world.resources.window.timing.frames_per_second;
+            world.ui_set_text(fps_entity, &format!("FPS: {:.0}", fps));
         }
 
         let range_lines_entity = game_range_lines_entity(self);
@@ -479,7 +507,10 @@ impl State for HexWarGame {
         unit_visual_update_system(&self.game_world, world);
         floating_popup_system(&mut self.game_world, world, delta_time);
         nightshade::ecs::text::systems::sync_text_meshes_system(world);
-        update_game_hud(&self.game_hud, &self.game_world, world, self.player_faction);
+
+        if let Some(hud) = &self.hud_ui {
+            update_hud(hud, &self.game_world, world, self.player_faction);
+        }
 
         let game_result = victory_system(&mut self.game_world, world, &mut self.game_events);
 
@@ -508,14 +539,21 @@ impl State for HexWarGame {
         }
 
         event_log_scroll_system(&mut self.event_log, world);
-        update_event_log_ui(world, &self.event_log);
+        if let Some(log_ui) = &self.event_log_ui {
+            update_event_log_ui(world, &self.event_log, log_ui);
+        }
 
         match game_result {
             GameResult::Victory(winner) => {
                 let is_player_winner = winner == self.player_faction;
-                despawn_game_hud(&mut self.game_hud, world);
-                menu::setup_game_over_menu(&mut self.menu, world, winner, is_player_winner);
-                self.menu.state = MenuState::GameOver;
+                if let Some(hud) = &self.hud_ui {
+                    world.ui_set_visible(hud.screen, false);
+                }
+                if let Some(ui) = &self.menu_ui {
+                    setup_game_over_display(world, ui, winner, is_player_winner);
+                    show_menu_screen(world, ui, MenuState::GameOver);
+                }
+                self.menu_state = MenuState::GameOver;
             }
             GameResult::Ongoing => {}
         }
@@ -529,47 +567,46 @@ impl State for HexWarGame {
         }
 
         match key {
-            KeyCode::KeyP => match self.menu.state {
+            KeyCode::KeyP => match self.menu_state {
                 MenuState::Playing => {
-                    self.menu.state = MenuState::Paused;
-                    despawn_game_hud(&mut self.game_hud, world);
-                    menu::setup_pause_menu(&mut self.menu, world);
+                    pause_game(self, world);
                 }
                 MenuState::Paused => {
-                    self.menu.state = MenuState::Playing;
-                    menu::despawn_menu_elements(&mut self.menu, world);
-                    self.game_hud = spawn_game_hud(world);
+                    resume_game(self, world);
                 }
                 MenuState::MainMenu | MenuState::MapSetup | MenuState::GameOver => {}
             },
-            KeyCode::Space if self.menu.state == MenuState::Playing => {
+            KeyCode::Space if self.menu_state == MenuState::Playing => {
                 let is_player_turn =
                     self.game_world.resources.current_faction == self.player_faction;
                 if is_player_turn {
                     game_end_turn(self);
                 }
             }
-            KeyCode::KeyS if self.menu.state == MenuState::Playing => {
+            KeyCode::KeyS if self.menu_state == MenuState::Playing => {
                 let is_player_turn =
                     self.game_world.resources.current_faction == self.player_faction;
                 if is_player_turn {
                     self.speech_requested = true;
                 }
             }
-            KeyCode::Home | KeyCode::KeyC if self.menu.state == MenuState::Playing => {
+            KeyCode::Home | KeyCode::KeyC if self.menu_state == MenuState::Playing => {
                 game_reset_camera(self, world);
             }
             KeyCode::KeyF => {
                 self.fps_visible = !self.fps_visible;
                 if let Some(fps_entity) = self.fps_entity {
-                    toggle_fps_display(world, fps_entity, self.fps_visible);
+                    world.ui_set_visible(fps_entity, self.fps_visible);
+                    if !self.fps_visible {
+                        world.ui_set_text(fps_entity, "");
+                    }
                 }
             }
-            KeyCode::BracketRight | KeyCode::Equal if self.menu.state == MenuState::Playing => {
+            KeyCode::BracketRight | KeyCode::Equal if self.menu_state == MenuState::Playing => {
                 let current = self.game_world.resources.game_speed;
                 self.game_world.resources.game_speed = (current * 2.0).min(8.0);
             }
-            KeyCode::BracketLeft | KeyCode::Minus if self.menu.state == MenuState::Playing => {
+            KeyCode::BracketLeft | KeyCode::Minus if self.menu_state == MenuState::Playing => {
                 let current = self.game_world.resources.game_speed;
                 self.game_world.resources.game_speed = (current / 2.0).max(0.25);
             }

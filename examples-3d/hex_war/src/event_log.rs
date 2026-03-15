@@ -1,14 +1,12 @@
 use crate::ecs::{Faction, faction_color, faction_name};
+use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 use std::collections::VecDeque;
 
 const MAX_LOG_ENTRIES: usize = 1000;
 const VISIBLE_ENTRIES: usize = 8;
-const LOG_FONT_SIZE: f32 = 16.0;
-const LOG_LINE_HEIGHT: f32 = 20.0;
-const LOG_PADDING: f32 = 10.0;
-const LOG_WIDTH: f32 = 350.0;
-const LOG_HEIGHT: f32 = VISIBLE_ENTRIES as f32 * LOG_LINE_HEIGHT + LOG_PADDING * 2.0;
+const LOG_FONT_SIZE: f32 = 13.0;
+const LOG_WIDTH: f32 = 340.0;
 
 #[derive(Clone)]
 pub struct LogEntry {
@@ -17,22 +15,25 @@ pub struct LogEntry {
     pub message: String,
 }
 
-pub struct LogLineEntities {
-    pub faction_entity: Entity,
-    pub message_entity: Entity,
+struct LogLineUi {
+    faction_entity: Entity,
+    message_entity: Entity,
+}
+
+pub struct EventLogUi {
+    pub screen: Entity,
+    lines: Vec<LogLineUi>,
 }
 
 pub struct EventLog {
     pub entries: VecDeque<LogEntry>,
     pub scroll_offset: usize,
-    pub line_entities: Vec<LogLineEntities>,
 }
 
 pub fn event_log_new() -> EventLog {
     EventLog {
         entries: VecDeque::new(),
         scroll_offset: 0,
-        line_entities: Vec::new(),
     }
 }
 
@@ -61,7 +62,6 @@ pub fn event_log_add_combat(
     defender_survived: bool,
 ) {
     let defender_name = faction_name(defender_faction);
-
     let message = if !defender_survived {
         format!("destroyed {} unit", defender_name)
     } else if !attacker_survived {
@@ -69,7 +69,6 @@ pub fn event_log_add_combat(
     } else {
         format!("attacked {}", defender_name)
     };
-
     event_log_add_entry(log, attacker_faction, message);
 }
 
@@ -96,54 +95,79 @@ pub fn event_log_add_speech(log: &mut EventLog, faction: Faction) {
     event_log_add_entry(log, faction, "gave an inspiring speech".to_string());
 }
 
-pub fn spawn_event_log_ui(world: &mut World, log: &mut EventLog) {
-    let faction_props = TextProperties {
-        font_size: LOG_FONT_SIZE,
-        color: nalgebra_glm::vec4(1.0, 1.0, 1.0, 1.0),
-        alignment: TextAlignment::Left,
-        outline_width: 0.05,
-        outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
-        ..Default::default()
-    };
+pub fn build_event_log_ui(world: &mut World) -> EventLogUi {
+    let dim = Vec4::new(0.6, 0.6, 0.6, 1.0);
+    let panel_bg = Vec4::new(0.0, 0.0, 0.0, 0.45);
+    let line_height = LOG_FONT_SIZE * 1.35;
 
-    let message_props = TextProperties {
-        font_size: LOG_FONT_SIZE,
-        color: nalgebra_glm::vec4(1.0, 1.0, 1.0, 1.0),
-        alignment: TextAlignment::Left,
-        outline_width: 0.05,
-        outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
-        ..Default::default()
-    };
+    let mut tree = UiTreeBuilder::new(world);
 
-    for _index in 0..VISIBLE_ENTRIES {
-        let faction_entity = spawn_ui_text_with_properties(
-            world,
-            "",
-            nalgebra_glm::Vec2::zeros(),
-            faction_props.clone(),
-        );
+    let mut lines = Vec::new();
 
-        let message_entity = spawn_ui_text_with_properties(
-            world,
-            "",
-            nalgebra_glm::Vec2::zeros(),
-            message_props.clone(),
-        );
+    let screen = tree
+        .add_node()
+        .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+        .with_visible(false)
+        .without_pointer_events()
+        .with_children(|tree| {
+            let log_height = VISIBLE_ENTRIES as f32 * line_height + 16.0;
+            tree.add_node()
+                .window(
+                    Ab(Vec2::new(6.0, -6.0)),
+                    Ab(Vec2::new(LOG_WIDTH, log_height)),
+                    Anchor::BottomLeft,
+                )
+                .with_rect(6.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+                .with_color::<UiBase>(panel_bg)
+                .flow(FlowDirection::Vertical, 6.0, 2.0)
+                .without_pointer_events()
+                .with_children(|tree| {
+                    for _ in 0..VISIBLE_ENTRIES {
+                        let row = tree
+                            .add_node()
+                            .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, line_height)))
+                            .flow(FlowDirection::Horizontal, 0.0, 4.0)
+                            .without_pointer_events()
+                            .entity();
 
-        log.line_entities.push(LogLineEntities {
-            faction_entity,
-            message_entity,
-        });
-    }
+                        tree.push_parent(row);
+
+                        let faction_entity = tree
+                            .add_node()
+                            .flow_child(Ab(Vec2::new(90.0, line_height)))
+                            .with_text("", LOG_FONT_SIZE)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(dim)
+                            .without_pointer_events()
+                            .done();
+
+                        let message_entity = tree
+                            .add_node()
+                            .flow_child(Ab(Vec2::new(220.0, line_height)))
+                            .with_text("", LOG_FONT_SIZE)
+                            .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                            .with_color::<UiBase>(dim)
+                            .without_pointer_events()
+                            .done();
+
+                        tree.pop_parent();
+
+                        lines.push(LogLineUi {
+                            faction_entity,
+                            message_entity,
+                        });
+                    }
+                })
+                .done();
+        })
+        .done();
+
+    tree.finish();
+
+    EventLogUi { screen, lines }
 }
 
-pub fn despawn_event_log_ui(world: &mut World, log: &mut EventLog) {
-    for line in log.line_entities.drain(..) {
-        world.despawn_entities(&[line.faction_entity, line.message_entity]);
-    }
-}
-
-pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
+pub fn update_event_log_ui(world: &mut World, log: &EventLog, ui: &EventLogUi) {
     let start_index = log.scroll_offset;
     let entries_to_show: Vec<_> = log
         .entries
@@ -153,70 +177,24 @@ pub fn update_event_log_ui(world: &mut World, log: &EventLog) {
         .cloned()
         .collect();
 
-    for (slot_index, line) in log.line_entities.iter().enumerate() {
+    for (slot_index, line) in ui.lines.iter().enumerate() {
         if let Some(entry) = entries_to_show.get(slot_index) {
-            if let Some(text_index) = world
-                .core
-                .get_text(line.faction_entity)
-                .map(|t| t.text_index)
-            {
-                world
-                    .resources
-                    .text_cache
-                    .set_text(text_index, entry.faction_tag.clone());
-            }
-            if let Some(hud_text) = world.core.get_text_mut(line.faction_entity) {
-                hud_text.properties.color = nalgebra_glm::vec4(
+            world.ui_set_text(line.faction_entity, &entry.faction_tag);
+            if let Some(color) = world.ui.get_ui_node_color_mut(line.faction_entity) {
+                color.colors[UiBase::INDEX] = Some(Vec4::new(
                     entry.faction_color[0],
                     entry.faction_color[1],
                     entry.faction_color[2],
                     entry.faction_color[3],
-                );
-                hud_text.dirty = true;
+                ));
             }
-
-            if let Some(text_index) = world
-                .core
-                .get_text(line.message_entity)
-                .map(|t| t.text_index)
-            {
-                world
-                    .resources
-                    .text_cache
-                    .set_text(text_index, entry.message.clone());
-            }
-            if let Some(hud_text) = world.core.get_text_mut(line.message_entity) {
-                hud_text.properties.color = nalgebra_glm::vec4(1.0, 1.0, 1.0, 1.0);
-                hud_text.dirty = true;
+            world.ui_set_text(line.message_entity, &entry.message);
+            if let Some(color) = world.ui.get_ui_node_color_mut(line.message_entity) {
+                color.colors[UiBase::INDEX] = Some(Vec4::new(1.0, 1.0, 1.0, 1.0));
             }
         } else {
-            if let Some(text_index) = world
-                .core
-                .get_text(line.faction_entity)
-                .map(|t| t.text_index)
-            {
-                world
-                    .resources
-                    .text_cache
-                    .set_text(text_index, String::new());
-            }
-            if let Some(hud_text) = world.core.get_text_mut(line.faction_entity) {
-                hud_text.dirty = true;
-            }
-
-            if let Some(text_index) = world
-                .core
-                .get_text(line.message_entity)
-                .map(|t| t.text_index)
-            {
-                world
-                    .resources
-                    .text_cache
-                    .set_text(text_index, String::new());
-            }
-            if let Some(hud_text) = world.core.get_text_mut(line.message_entity) {
-                hud_text.dirty = true;
-            }
+            world.ui_set_text(line.faction_entity, "");
+            world.ui_set_text(line.message_entity, "");
         }
     }
 }
@@ -231,17 +209,17 @@ pub fn event_log_scroll_system(log: &mut EventLog, world: &mut World) {
         .map(|h| h.inner_size().height as f32)
         .unwrap_or(600.0);
 
+    let line_height = LOG_FONT_SIZE * 1.35;
+    let log_height = VISIBLE_ENTRIES as f32 * line_height + 16.0;
     let log_left = 0.0;
     let log_right = LOG_WIDTH;
     let log_bottom = screen_height;
-    let log_top = screen_height - LOG_HEIGHT;
+    let log_top = screen_height - log_height;
 
     let in_log_area = mouse_pos.x >= log_left
         && mouse_pos.x <= log_right
         && mouse_pos.y >= log_top
         && mouse_pos.y <= log_bottom;
-
-    world.resources.user_interface.hud_wants_pointer = in_log_area;
 
     if !in_log_area {
         return;

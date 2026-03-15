@@ -1,192 +1,163 @@
 use crate::ecs::{Faction, GameWorld, faction_color, faction_name};
+use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 
-#[derive(Default)]
-pub struct GameHud {
-    pub turn_text: Option<Entity>,
-    pub faction_text: Option<Entity>,
-    pub actions_text: Option<Entity>,
-    pub instructions_text: Option<Entity>,
-    pub speed_text: Option<Entity>,
+pub struct HudUi {
+    pub screen: Entity,
+    pub turn_text: Entity,
+    pub faction_text: Entity,
+    pub actions_text: Entity,
+    pub instructions_text: Entity,
+    pub speed_text: Entity,
 }
 
-pub fn spawn_game_hud(world: &mut World) -> GameHud {
-    let turn_props = TextProperties {
-        font_size: 28.0,
-        color: nalgebra_glm::vec4(1.0, 1.0, 1.0, 1.0),
-        alignment: TextAlignment::Left,
-        outline_width: 0.05,
-        outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
-        ..Default::default()
+pub fn build_hud_ui(world: &mut World) -> HudUi {
+    let placeholder = Entity {
+        id: 0,
+        generation: 0,
     };
 
-    let faction_props = TextProperties {
-        font_size: 32.0,
-        color: nalgebra_glm::vec4(1.0, 1.0, 1.0, 1.0),
-        alignment: TextAlignment::Left,
-        outline_width: 0.05,
-        outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
-        ..Default::default()
-    };
+    let label_font = 14.0;
+    let heading_font = 16.0;
+    let white = Vec4::new(1.0, 1.0, 1.0, 1.0);
+    let dim = Vec4::new(0.7, 0.7, 0.7, 1.0);
+    let speed_color = Vec4::new(0.9, 0.9, 0.5, 1.0);
+    let panel_bg = Vec4::new(0.0, 0.0, 0.0, 0.5);
 
-    let actions_props = TextProperties {
-        font_size: 24.0,
-        color: nalgebra_glm::vec4(0.9, 0.9, 0.7, 1.0),
-        alignment: TextAlignment::Left,
-        outline_width: 0.05,
-        outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
-        ..Default::default()
-    };
+    let mut tree = UiTreeBuilder::new(world);
 
-    let turn_text =
-        spawn_ui_text_with_properties(world, "Turn 1", nalgebra_glm::Vec2::zeros(), turn_props);
+    let mut turn_text = placeholder;
+    let mut faction_text = placeholder;
+    let mut actions_text = placeholder;
+    let mut instructions_text = placeholder;
+    let mut speed_text = placeholder;
 
-    let faction_text =
-        spawn_ui_text_with_properties(world, "Redosia", nalgebra_glm::Vec2::zeros(), faction_props);
+    let screen = tree
+        .add_node()
+        .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+        .with_visible(false)
+        .without_pointer_events()
+        .with_children(|tree| {
+            tree.add_node()
+                .window(
+                    Ab(Vec2::new(10.0, 10.0)),
+                    Ab(Vec2::new(280.0, 130.0)),
+                    Anchor::TopLeft,
+                )
+                .with_rect(6.0, 0.0, Vec4::new(0.0, 0.0, 0.0, 0.0))
+                .with_color::<UiBase>(panel_bg)
+                .flow(FlowDirection::Vertical, 8.0, 4.0)
+                .without_pointer_events()
+                .with_children(|tree| {
+                    turn_text = tree
+                        .add_node()
+                        .flow_child(
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.4)),
+                        )
+                        .with_text("Turn 1", heading_font)
+                        .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(white)
+                        .without_pointer_events()
+                        .done();
 
-    let actions_text = spawn_ui_text_with_properties(
-        world,
-        "Actions: 5",
-        nalgebra_glm::Vec2::zeros(),
-        actions_props,
-    );
+                    faction_text = tree
+                        .add_node()
+                        .flow_child(
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.4)),
+                        )
+                        .with_text("Redosia", heading_font)
+                        .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(white)
+                        .without_pointer_events()
+                        .done();
 
-    let instructions_props = TextProperties {
-        font_size: 20.0,
-        color: nalgebra_glm::vec4(0.7, 0.7, 0.7, 1.0),
-        alignment: TextAlignment::Left,
-        outline_width: 0.05,
-        outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
-        ..Default::default()
-    };
+                    actions_text = tree
+                        .add_node()
+                        .flow_child(
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, label_font * 1.4)),
+                        )
+                        .with_text("Actions: 5", label_font)
+                        .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(Vec4::new(0.9, 0.9, 0.7, 1.0))
+                        .without_pointer_events()
+                        .done();
 
-    let instructions_text = spawn_ui_text_with_properties(
-        world,
-        "[SPACE] End Turn  [S] Speech  [P] Pause  [+/-] Speed",
-        nalgebra_glm::Vec2::zeros(),
-        instructions_props,
-    );
+                    speed_text = tree
+                        .add_node()
+                        .flow_child(
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, label_font * 1.4)),
+                        )
+                        .with_text("Speed: 1x", label_font)
+                        .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(speed_color)
+                        .without_pointer_events()
+                        .done();
+                })
+                .done();
 
-    let speed_props = TextProperties {
-        font_size: 20.0,
-        color: nalgebra_glm::vec4(0.9, 0.9, 0.5, 1.0),
-        alignment: TextAlignment::Left,
-        outline_width: 0.05,
-        outline_color: nalgebra_glm::vec4(0.0, 0.0, 0.0, 1.0),
-        ..Default::default()
-    };
+            instructions_text = tree
+                .add_node()
+                .window(
+                    Rl(Vec2::new(50.0, 98.0)),
+                    Ab(Vec2::new(500.0, 24.0)),
+                    Anchor::BottomCenter,
+                )
+                .with_text(
+                    "[SPACE] End Turn  [S] Speech  [P] Pause  [+/-] Speed",
+                    label_font,
+                )
+                .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                .with_color::<UiBase>(dim)
+                .without_pointer_events()
+                .done();
+        })
+        .done();
 
-    let speed_text =
-        spawn_ui_text_with_properties(world, "Speed: 1x", nalgebra_glm::Vec2::zeros(), speed_props);
+    tree.finish();
 
-    GameHud {
-        turn_text: Some(turn_text),
-        faction_text: Some(faction_text),
-        actions_text: Some(actions_text),
-        instructions_text: Some(instructions_text),
-        speed_text: Some(speed_text),
+    HudUi {
+        screen,
+        turn_text,
+        faction_text,
+        actions_text,
+        instructions_text,
+        speed_text,
     }
 }
 
-pub fn despawn_game_hud(hud: &mut GameHud, world: &mut World) {
-    if let Some(entity) = hud.turn_text.take() {
-        world.despawn_entities(&[entity]);
-    }
-    if let Some(entity) = hud.faction_text.take() {
-        world.despawn_entities(&[entity]);
-    }
-    if let Some(entity) = hud.actions_text.take() {
-        world.despawn_entities(&[entity]);
-    }
-    if let Some(entity) = hud.instructions_text.take() {
-        world.despawn_entities(&[entity]);
-    }
-    if let Some(entity) = hud.speed_text.take() {
-        world.despawn_entities(&[entity]);
-    }
-}
-
-pub fn update_game_hud(
-    hud: &GameHud,
-    game_world: &GameWorld,
-    world: &mut World,
-    player_faction: Faction,
-) {
+pub fn update_hud(hud: &HudUi, game_world: &GameWorld, world: &mut World, player_faction: Faction) {
     let is_player_turn = game_world.resources.current_faction == player_faction;
 
-    if let Some(turn_entity) = hud.turn_text
-        && let Some(text_index) = world.core.get_text(turn_entity).map(|t| t.text_index)
-    {
-        world.resources.text_cache.set_text(
-            text_index,
-            format!("Turn {}", game_world.resources.turn_number),
-        );
-        if let Some(hud_text) = world.core.get_text_mut(turn_entity) {
-            hud_text.dirty = true;
-        }
+    world.ui_set_text(
+        hud.turn_text,
+        &format!("Turn {}", game_world.resources.turn_number),
+    );
+
+    let faction = game_world.resources.current_faction;
+    let name = faction_name(faction);
+    let fc = faction_color(faction);
+    world.ui_set_text(hud.faction_text, name);
+    if let Some(color) = world.ui.get_ui_node_color_mut(hud.faction_text) {
+        color.colors[UiBase::INDEX] = Some(Vec4::new(fc[0], fc[1], fc[2], 1.0));
     }
 
-    if let Some(faction_entity) = hud.faction_text {
-        let faction = game_world.resources.current_faction;
-        let name = faction_name(faction);
-        let color = faction_color(faction);
+    world.ui_set_text(
+        hud.actions_text,
+        &format!("Actions: {}", game_world.resources.actions_remaining),
+    );
 
-        if let Some(text_index) = world.core.get_text(faction_entity).map(|t| t.text_index) {
-            world
-                .resources
-                .text_cache
-                .set_text(text_index, name.to_string());
-        }
-        if let Some(hud_text) = world.core.get_text_mut(faction_entity) {
-            hud_text.properties.color = nalgebra_glm::vec4(color[0], color[1], color[2], color[3]);
-            hud_text.dirty = true;
-        }
-    }
+    let instructions = if is_player_turn {
+        "[SPACE] End Turn  [S] Speech  [P] Pause  [+/-] Speed"
+    } else {
+        "[P] Pause  [+/-] Speed"
+    };
+    world.ui_set_text(hud.instructions_text, instructions);
 
-    if let Some(actions_entity) = hud.actions_text
-        && let Some(text_index) = world.core.get_text(actions_entity).map(|t| t.text_index)
-    {
-        world.resources.text_cache.set_text(
-            text_index,
-            format!("Actions: {}", game_world.resources.actions_remaining),
-        );
-        if let Some(hud_text) = world.core.get_text_mut(actions_entity) {
-            hud_text.dirty = true;
-        }
-    }
-
-    if let Some(instructions_entity) = hud.instructions_text
-        && let Some(text_index) = world
-            .core
-            .get_text(instructions_entity)
-            .map(|t| t.text_index)
-    {
-        let instructions = if is_player_turn {
-            "[SPACE] End Turn  [S] Speech  [P] Pause  [+/-] Speed"
-        } else {
-            "[P] Pause  [+/-] Speed"
-        };
-        world
-            .resources
-            .text_cache
-            .set_text(text_index, instructions.to_string());
-        if let Some(hud_text) = world.core.get_text_mut(instructions_entity) {
-            hud_text.dirty = true;
-        }
-    }
-
-    if let Some(speed_entity) = hud.speed_text
-        && let Some(text_index) = world.core.get_text(speed_entity).map(|t| t.text_index)
-    {
-        let speed = game_world.resources.game_speed;
-        let speed_text = if speed >= 1.0 {
-            format!("Speed: {}x", speed as i32)
-        } else {
-            format!("Speed: {:.2}x", speed)
-        };
-        world.resources.text_cache.set_text(text_index, speed_text);
-        if let Some(hud_text) = world.core.get_text_mut(speed_entity) {
-            hud_text.dirty = true;
-        }
-    }
+    let speed = game_world.resources.game_speed;
+    let speed_str = if speed >= 1.0 {
+        format!("Speed: {}x", speed as i32)
+    } else {
+        format!("Speed: {:.2}x", speed)
+    };
+    world.ui_set_text(hud.speed_text, &speed_str);
 }

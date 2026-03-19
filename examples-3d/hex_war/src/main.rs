@@ -349,6 +349,10 @@ impl State for HexWarGame {
     }
 
     fn run_systems(&mut self, world: &mut World) {
+        if self.menu_ui.is_none() {
+            return;
+        }
+
         match self.menu_state {
             MenuState::MainMenu => {
                 let ui = self.menu_ui.as_ref().unwrap();

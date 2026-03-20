@@ -5,13 +5,6 @@ use crate::hex::{
 };
 use std::collections::{HashMap, HashSet, VecDeque};
 
-pub const CAPITAL_POSITIONS: [(i32, i32, Faction); FACTION_COUNT] = [
-    (2, 2, Faction::Redosia),
-    (28, 2, Faction::Violetnam),
-    (28, 18, Faction::Bluegaria),
-    (2, 18, Faction::Greenland),
-];
-
 #[derive(Clone)]
 pub struct MapGenParams {
     pub map_width: i32,
@@ -24,6 +17,22 @@ impl Default for MapGenParams {
             map_width: MAP_WIDTH,
             map_height: MAP_HEIGHT,
         }
+    }
+}
+
+impl MapGenParams {
+    pub fn capital_positions(&self) -> [(i32, i32, Faction); FACTION_COUNT] {
+        let margin = 2;
+        let left = margin;
+        let right = self.map_width - 1 - margin;
+        let top = margin;
+        let bottom = self.map_height - 1 - margin;
+        [
+            (left, top, Faction::Redosia),
+            (right, top, Faction::Violetnam),
+            (right, bottom, Faction::Bluegaria),
+            (left, bottom, Faction::Greenland),
+        ]
     }
 }
 
@@ -187,7 +196,8 @@ pub fn generate_map(seed: u32, params: &MapGenParams) -> GeneratedMap {
     let mut rng = Rng { state: seed };
     let mut tiles: HashMap<HexCoord, TileType> = HashMap::new();
 
-    let capital_coords: Vec<HexCoord> = CAPITAL_POSITIONS
+    let capital_positions = params.capital_positions();
+    let capital_coords: Vec<HexCoord> = capital_positions
         .iter()
         .map(|(col, row, _)| HexCoord {
             column: *col,
@@ -336,7 +346,7 @@ pub fn generate_map(seed: u32, params: &MapGenParams) -> GeneratedMap {
 
     let mut features: HashMap<HexCoord, TileFeature> = HashMap::new();
 
-    for (col, row, faction) in CAPITAL_POSITIONS {
+    for (col, row, faction) in capital_positions {
         features.insert(HexCoord { column: col, row }, TileFeature::Capital(faction));
     }
 

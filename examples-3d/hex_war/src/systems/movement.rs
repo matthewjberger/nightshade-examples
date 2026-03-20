@@ -7,8 +7,8 @@ use crate::systems::{UNIT_TEXT_HEIGHT_OFFSET, unit_radius_for_soldiers};
 use nightshade::prelude::*;
 
 pub fn movement_system(game_world: &mut GameWorld, world: &mut World, delta_time: f32) {
-    let hex_width = game_world.resources.hex_width;
-    let hex_depth = game_world.resources.hex_depth;
+    let hex_width = game_world.resources.hex_metrics.hex_width;
+    let hex_depth = game_world.resources.hex_metrics.hex_depth;
     let game_speed = game_world.resources.game_speed;
 
     let mut completed_entities: Vec<(freecs::Entity, HexCoord)> = Vec::new();

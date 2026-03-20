@@ -1,5 +1,5 @@
 use crate::hex::HexCoord;
-use crate::map::{CAPITAL_POSITIONS, MapGenParams};
+use crate::map::MapGenParams;
 use crate::turn_phase::TurnPhaseState;
 use nightshade::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -69,10 +69,16 @@ impl Faction {
         }
     }
 
-    pub fn capital_coord(self) -> HexCoord {
-        let (col, row, _) = CAPITAL_POSITIONS[self.index()];
+    pub fn capital_coord(self, params: &MapGenParams) -> HexCoord {
+        let (col, row, _) = params.capital_positions()[self.index()];
         HexCoord { column: col, row }
     }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct HexMetrics {
+    pub hex_width: f32,
+    pub hex_depth: f32,
 }
 
 freecs::ecs! {
@@ -89,8 +95,7 @@ freecs::ecs! {
         selected => SELECTED,
     }
     GameResources {
-        hex_width: f32,
-        hex_depth: f32,
+        hex_metrics: HexMetrics,
         rng_seed: u32,
         map_params: MapGenParams,
         needs_regeneration: bool,
@@ -321,10 +326,18 @@ pub struct FactionEliminatedEvent {
     pub faction: Faction,
 }
 
+#[derive(Debug, Clone)]
+pub struct ActionRecord {
+    pub faction: Faction,
+    pub turn: u32,
+    pub description: String,
+}
+
 #[derive(Default)]
 pub struct GameEvents {
     pub combat_events: Vec<CombatEvent>,
     pub reinforcement_events: Vec<ReinforcementEvent>,
     pub speech_events: Vec<SpeechEvent>,
     pub faction_eliminated_events: Vec<FactionEliminatedEvent>,
+    pub action_history: Vec<ActionRecord>,
 }

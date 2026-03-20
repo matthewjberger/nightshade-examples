@@ -1,5 +1,7 @@
 use crate::constants::{MAX_MORALE, SPEECH_MORALE_BOOST};
-use crate::ecs::{CombatEvent, Faction, GameEvents, GameWorld, SpeechEvent, UNIT, unit_stats};
+use crate::ecs::{
+    ActionRecord, CombatEvent, Faction, GameEvents, GameWorld, SpeechEvent, UNIT, unit_stats,
+};
 use crate::hex::{HexCoord, hex_distance};
 use crate::selection::{clear_selection, get_selected_unit, select_unit};
 use crate::systems::{
@@ -39,31 +41,8 @@ pub struct MergeResult {
     pub position: Vec3,
 }
 
-fn get_friendly_ports(game_world: &GameWorld, faction: Faction) -> Vec<HexCoord> {
-    game_world
-        .resources
-        .port_tiles
-        .iter()
-        .filter(|coord| {
-            game_world
-                .resources
-                .tile_map
-                .get(coord)
-                .and_then(|&entity| game_world.get_tile(entity))
-                .is_some_and(|tile| tile.faction == Some(faction))
-        })
-        .copied()
-        .collect()
-}
-
-fn is_unit_on_friendly_port(game_world: &GameWorld, unit_hex: HexCoord, faction: Faction) -> bool {
-    game_world.resources.port_tiles.contains(&unit_hex)
-        && game_world
-            .resources
-            .tile_map
-            .get(&unit_hex)
-            .and_then(|&entity| game_world.get_tile(entity))
-            .is_some_and(|tile| tile.faction == Some(faction))
+fn is_port_tile(game_world: &GameWorld, coord: HexCoord) -> bool {
+    game_world.resources.port_tiles.contains(&coord)
 }
 
 fn can_reach_tile(
@@ -146,16 +125,49 @@ pub fn execute_action(
     action: GameAction,
     events: &mut GameEvents,
 ) {
+    let faction = game_world.resources.current_faction;
+    let turn = game_world.resources.turn_number;
+
     match action {
         GameAction::Move { unit, destination } => {
+            let from = game_world
+                .get_hex_position(unit)
+                .map(|h| h.0)
+                .unwrap_or_default();
             move_unit_to(game_world, unit, destination);
             finalize_unit_action(game_world, unit);
+            record_action(
+                events,
+                faction,
+                turn,
+                format!(
+                    "moved unit ({},{}) to ({},{})",
+                    from.column, from.row, destination.column, destination.row
+                ),
+            );
         }
         GameAction::PortTravel { unit, destination } => {
+            let from = game_world
+                .get_hex_position(unit)
+                .map(|h| h.0)
+                .unwrap_or_default();
             move_unit_to(game_world, unit, destination);
             finalize_unit_action(game_world, unit);
+            record_action(
+                events,
+                faction,
+                turn,
+                format!(
+                    "sailed from ({},{}) to ({},{})",
+                    from.column, from.row, destination.column, destination.row
+                ),
+            );
         }
         GameAction::Attack { attacker, defender } => {
+            let defender_faction = game_world
+                .get_unit(defender)
+                .map(|u| u.faction)
+                .unwrap_or_default();
             if let Some(result) = resolve_combat(game_world, world, attacker, defender) {
                 events.combat_events.push(CombatEvent {
                     attacker_faction: result.attacker_faction,
@@ -163,6 +175,14 @@ pub fn execute_action(
                     attacker_survived: result.attacker_survived,
                     defender_survived: result.defender_survived,
                 });
+                let outcome_text = if result.attacker_survived && !result.defender_survived {
+                    format!("destroyed {} unit", defender_faction.name())
+                } else if !result.attacker_survived {
+                    format!("was repelled by {}", defender_faction.name())
+                } else {
+                    format!("attacked {}", defender_faction.name())
+                };
+                record_action(events, faction, turn, outcome_text);
             }
             finalize_unit_action(game_world, attacker);
         }
@@ -172,6 +192,12 @@ pub fn execute_action(
                     spawn_merge_popup(game_world, world, result.position, result.soldiers_gained);
                 }
                 finalize_unit_action(game_world, source);
+                record_action(
+                    events,
+                    faction,
+                    turn,
+                    format!("merged units (+{})", result.soldiers_gained),
+                );
             }
         }
         GameAction::Speech => {
@@ -203,8 +229,22 @@ pub fn execute_action(
             events.speech_events.push(SpeechEvent {
                 faction: current_faction,
             });
+            record_action(
+                events,
+                faction,
+                turn,
+                "gave an inspiring speech".to_string(),
+            );
         }
     }
+}
+
+fn record_action(events: &mut GameEvents, faction: Faction, turn: u32, description: String) {
+    events.action_history.push(ActionRecord {
+        faction,
+        turn,
+        description,
+    });
 }
 
 pub fn determine_action(game_world: &GameWorld, hovered_tile: HexCoord) -> InputResult {
@@ -220,29 +260,22 @@ pub fn determine_action(game_world: &GameWorld, hovered_tile: HexCoord) -> Input
             .contains(&hovered_tile)
             && actions_remaining > 0
         {
-            return InputResult::Execute(GameAction::Move {
-                unit: selected,
-                destination: hovered_tile,
+            let source_hex = game_world.get_hex_position(selected).map(|h| h.0);
+            let is_port_to_port = source_hex.is_some_and(|src| {
+                is_port_tile(game_world, src) && is_port_tile(game_world, hovered_tile)
             });
-        }
 
-        if let Some(selected_unit_data) = game_world.get_unit(selected).copied()
-            && !selected_unit_data.has_moved
-            && actions_remaining > 0
-            && let Some(source_hex) = game_world.get_hex_position(selected).map(|h| h.0)
-            && is_unit_on_friendly_port(game_world, source_hex, current_faction)
-        {
-            let friendly_ports = get_friendly_ports(game_world, current_faction);
-            let is_dest_port = friendly_ports.contains(&hovered_tile);
-            let is_dest_unoccupied = unit_at_tile.is_none();
-            let is_different_port = source_hex != hovered_tile;
-
-            if is_dest_port && is_dest_unoccupied && is_different_port {
-                return InputResult::Execute(GameAction::PortTravel {
+            return if is_port_to_port {
+                InputResult::Execute(GameAction::PortTravel {
                     unit: selected,
                     destination: hovered_tile,
-                });
-            }
+                })
+            } else {
+                InputResult::Execute(GameAction::Move {
+                    unit: selected,
+                    destination: hovered_tile,
+                })
+            };
         }
 
         if let Some(clicked_unit) = unit_at_tile

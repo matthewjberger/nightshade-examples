@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 const MAX_LOG_ENTRIES: usize = 1000;
 const VISIBLE_ENTRIES: usize = 8;
 const LOG_FONT_SIZE: f32 = 13.0;
-const LOG_WIDTH: f32 = 340.0;
+const LOG_WIDTH: f32 = 420.0;
 
 #[derive(Clone)]
 pub struct LogEntry {
@@ -85,6 +85,20 @@ impl EventLog {
     pub fn add_turn_start(&mut self, turn: u32, faction: Faction) {
         let message = format!("Turn {} begins", turn);
         self.add_entry(faction, message);
+    }
+
+    pub fn load_records(&mut self, records: &[crate::ecs::ActionRecord]) {
+        self.entries.clear();
+        self.scroll_offset = 0;
+        for record in records {
+            let faction_tag = format!("[{}]", record.faction.name());
+            let fc = record.faction.color();
+            self.entries.push_back(LogEntry {
+                faction_tag,
+                faction_color: fc,
+                message: format!("[T{}] {}", record.turn, record.description),
+            });
+        }
     }
 
     pub fn add_speech(&mut self, faction: Faction) {
@@ -209,7 +223,7 @@ pub fn build_event_log_ui(world: &mut World) -> EventLogUi {
 
                         let message_entity = tree
                             .add_node()
-                            .flow_child(Ab(Vec2::new(220.0, line_height)))
+                            .flow_child(Ab(Vec2::new(300.0, line_height)))
                             .with_text("", LOG_FONT_SIZE)
                             .with_text_alignment(TextAlignment::Left, VerticalAlignment::Middle)
                             .with_color::<UiBase>(dim)

@@ -18,7 +18,9 @@ mod turn_phase;
 
 use camera::{CameraBounds, calculate_camera_bounds, clamp_camera_to_bounds, reset_camera_to_map};
 use constants::ACTIONS_PER_TURN;
-use ecs::{Difficulty, FACTION_COUNT, Faction, GameEvents, GameWorld, TileType, UNIT};
+use ecs::{
+    ActionRecord, Difficulty, FACTION_COUNT, Faction, GameEvents, GameWorld, TileType, UNIT,
+};
 use event_log::{EventLog, EventLogUi, build_event_log_ui, update_event_log_ui};
 use hex::hex_to_world_position;
 use hex_overlay_pass::{HexOverlayPass, SharedOverlayData};
@@ -90,6 +92,7 @@ struct HexWarGame {
     hud_ui: Option<HudUi>,
     event_log_ui: Option<EventLogUi>,
     overlay_data: SharedOverlayData,
+    replay_history: Vec<ActionRecord>,
 }
 
 impl Default for HexWarGame {
@@ -115,6 +118,7 @@ impl Default for HexWarGame {
             hud_ui: None,
             event_log_ui: None,
             overlay_data: Arc::new(Mutex::new(hex_overlay_pass::OverlayData::default())),
+            replay_history: Vec::new(),
         }
     }
 }
@@ -122,8 +126,8 @@ impl Default for HexWarGame {
 fn game_reset_camera(game: &HexWarGame, world: &mut World) {
     reset_camera_to_map(
         world,
-        game.game_world.resources.hex_width,
-        game.game_world.resources.hex_depth,
+        game.game_world.resources.hex_metrics.hex_width,
+        game.game_world.resources.hex_metrics.hex_depth,
         game.game_world.resources.map_params.map_width,
         game.game_world.resources.map_params.map_height,
     );
@@ -131,14 +135,15 @@ fn game_reset_camera(game: &HexWarGame, world: &mut World) {
 
 fn game_regenerate_map(game: &mut HexWarGame, world: &mut World) {
     game_cleanup_map(game, world);
+    flush_despawns(world);
     game.map_entities = Some(generate_game_map(
         &mut game.game_world,
         world,
         &game.tile_prefabs,
     ));
     game.camera_bounds = Some(calculate_camera_bounds(
-        game.game_world.resources.hex_width,
-        game.game_world.resources.hex_depth,
+        game.game_world.resources.hex_metrics.hex_width,
+        game.game_world.resources.hex_metrics.hex_depth,
         game.game_world.resources.map_params.map_width,
         game.game_world.resources.map_params.map_height,
     ));
@@ -159,6 +164,11 @@ fn game_cleanup_map(game: &mut HexWarGame, world: &mut World) {
     game.game_world.resources.hovered_tile = None;
     game.game_world.resources.frame_cache = Default::default();
     game.game_world.resources.unit_position_map.clear();
+    game.game_events.action_history.clear();
+}
+
+fn flush_despawns(world: &mut World) {
+    nightshade::ecs::world::process_commands_system(world);
 }
 
 fn advance_turn_phase(phase: &mut TurnPhaseState, event: TurnPhaseEvent) {
@@ -215,6 +225,7 @@ fn build_fps_label(world: &mut World) -> Entity {
 }
 
 fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
+    flush_despawns(world);
     world.resources.graphics.atmosphere = Atmosphere::CloudySky;
     game.sun_entity = Some(spawn_sun(world));
     game.ocean_entity = Some(spawn_ocean(world));
@@ -224,8 +235,8 @@ fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
         &game.tile_prefabs,
     ));
     game.camera_bounds = Some(calculate_camera_bounds(
-        game.game_world.resources.hex_width,
-        game.game_world.resources.hex_depth,
+        game.game_world.resources.hex_metrics.hex_width,
+        game.game_world.resources.hex_metrics.hex_depth,
         game.game_world.resources.map_params.map_width,
         game.game_world.resources.map_params.map_height,
     ));
@@ -234,6 +245,18 @@ fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
     set_menu_state(game, world, MenuState::MapSetup);
     if let Some(ui) = &game.menu_ui {
         update_difficulty_display(world, ui, game.selected_difficulty);
+    }
+}
+
+fn enter_replay(game: &mut HexWarGame, world: &mut World) {
+    game.event_log = EventLog::new();
+    game.event_log.load_records(&game.replay_history);
+    game.game_world.resources.frame_cache.previous_log_scroll = usize::MAX;
+    game.game_world.resources.frame_cache.previous_log_count = usize::MAX;
+
+    set_menu_state(game, world, MenuState::Replay);
+    if let Some(log_ui) = &game.event_log_ui {
+        world.ui_set_visible(log_ui.screen, true);
     }
 }
 
@@ -267,6 +290,13 @@ fn start_game(game: &mut HexWarGame, world: &mut World) {
 
     game.event_log = EventLog::new();
     game.event_log.add_turn_start(1, Faction::Redosia);
+    game.replay_history.clear();
+    game.game_events.action_history.clear();
+    game.game_events.action_history.push(ActionRecord {
+        faction: Faction::Redosia,
+        turn: 1,
+        description: "Turn 1 begins".to_string(),
+    });
 
     set_menu_state(game, world, MenuState::Playing);
 }
@@ -298,8 +328,10 @@ impl State for HexWarGame {
 
         if let Some(loaded) = load_tile_prefabs(world) {
             self.tile_prefabs = loaded.tile_prefabs;
-            self.game_world.resources.hex_width = loaded.hex_width;
-            self.game_world.resources.hex_depth = loaded.hex_depth;
+            self.game_world.resources.hex_metrics = ecs::HexMetrics {
+                hex_width: loaded.hex_width,
+                hex_depth: loaded.hex_depth,
+            };
         }
 
         let camera_entity = spawn_pan_orbit_camera(
@@ -387,8 +419,34 @@ impl State for HexWarGame {
                     set_gameplay_ui_visible(self, world, false);
                     game_cleanup_game_world(self, world);
                     enter_map_setup(self, world);
+                } else if world.ui_clicked(ui.game_over_replay_button) {
+                    enter_replay(self, world);
                 } else if world.ui_clicked(ui.game_over_main_menu_button) {
                     return_to_main_menu(self, world);
+                }
+                return;
+            }
+            MenuState::Replay => {
+                pan_orbit_camera_system(world);
+                if let Some(bounds) = &self.camera_bounds {
+                    clamp_camera_to_bounds(world, bounds);
+                }
+
+                self.event_log.scroll_system(world);
+                if let Some(log_ui) = &self.event_log_ui {
+                    update_event_log_ui(
+                        world,
+                        &self.event_log,
+                        log_ui,
+                        &mut self.game_world.resources.frame_cache.previous_log_scroll,
+                        &mut self.game_world.resources.frame_cache.previous_log_count,
+                    );
+                }
+
+                let ui = self.menu_ui.as_ref().unwrap();
+                if world.ui_clicked(ui.replay_back_button) {
+                    set_gameplay_ui_visible(self, world, false);
+                    set_menu_state(self, world, MenuState::GameOver);
                 }
                 return;
             }
@@ -400,8 +458,8 @@ impl State for HexWarGame {
             clamp_camera_to_bounds(world, bounds);
         }
 
-        let hex_width = self.game_world.resources.hex_width;
-        let hex_depth = self.game_world.resources.hex_depth;
+        let hex_width = self.game_world.resources.hex_metrics.hex_width;
+        let hex_depth = self.game_world.resources.hex_metrics.hex_depth;
         let delta_time = world.resources.window.timing.delta_time;
         update_particle_emitters(world, delta_time);
         update_firework_shells(&mut self.firework_shells, world, delta_time);
@@ -529,6 +587,7 @@ impl State for HexWarGame {
             if let Some(ui) = &self.menu_ui {
                 setup_game_over_display(world, ui, winner, is_player_winner);
             }
+            self.replay_history = std::mem::take(&mut self.game_events.action_history);
             set_menu_state(self, world, MenuState::GameOver);
         }
 
@@ -548,7 +607,10 @@ impl State for HexWarGame {
                 MenuState::Paused => {
                     resume_game(self, world);
                 }
-                MenuState::MainMenu | MenuState::MapSetup | MenuState::GameOver => {}
+                MenuState::MainMenu
+                | MenuState::MapSetup
+                | MenuState::GameOver
+                | MenuState::Replay => {}
             },
             KeyCode::Space if self.menu_state == MenuState::Playing => {
                 let is_player_turn =

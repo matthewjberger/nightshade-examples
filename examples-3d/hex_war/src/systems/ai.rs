@@ -31,7 +31,7 @@ fn build_ai_context(game_world: &GameWorld, current_faction: Faction) -> AiTurnC
         .filter(|&&faction| {
             faction != current_faction && !game_world.resources.faction_eliminated[faction.index()]
         })
-        .map(|&faction| faction.capital_coord())
+        .map(|&faction| faction.capital_coord(&game_world.resources.map_params))
         .collect();
 
     AiTurnContext {
@@ -431,7 +431,7 @@ pub fn ai_turn_system(
         return false;
     }
 
-    let my_capital = current_faction.capital_coord();
+    let my_capital = current_faction.capital_coord(&game_world.resources.map_params);
     let context = build_ai_context(game_world, current_faction);
     let movement_range = unit_stats(unit.unit_type).movement_range;
     let valid_moves = calculate_valid_moves(game_world, unit_entity, unit_hex, movement_range);

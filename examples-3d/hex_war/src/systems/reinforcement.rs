@@ -1,6 +1,7 @@
 use crate::constants::CITY_REINFORCEMENT;
 use crate::ecs::{
-    Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, UnitType, unit_stats,
+    ActionRecord, Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, UnitType,
+    unit_stats,
 };
 use crate::hex::{HexCoord, hex_distance};
 
@@ -20,11 +21,26 @@ fn tile_type_name(tile_type: TileType) -> &'static str {
     }
 }
 
+fn record_reinforcement(
+    events: &mut GameEvents,
+    faction: Faction,
+    turn: u32,
+    soldiers: i32,
+    location: &str,
+) {
+    events.action_history.push(ActionRecord {
+        faction,
+        turn,
+        description: format!("reinforced {} (+{})", location, soldiers),
+    });
+}
+
 pub fn reinforcement_system(
     game_world: &mut GameWorld,
     events: &mut GameEvents,
 ) -> Vec<PendingSpawn> {
     let current_faction = game_world.resources.current_faction;
+    let turn = game_world.resources.turn_number;
     let mut pending_spawns = Vec::new();
 
     let tile_info: Vec<(HexCoord, TileType, Option<Faction>)> = game_world
@@ -62,6 +78,13 @@ pub fn reinforcement_system(
                     soldiers: reinforcement,
                     location_name: tile_type_name(tile_type).to_string(),
                 });
+                record_reinforcement(
+                    events,
+                    current_faction,
+                    turn,
+                    reinforcement,
+                    tile_type_name(tile_type),
+                );
             }
         } else {
             let spawn_type = match tile_type {
@@ -79,6 +102,13 @@ pub fn reinforcement_system(
                 soldiers: reinforcement,
                 location_name: tile_type_name(tile_type).to_string(),
             });
+            record_reinforcement(
+                events,
+                current_faction,
+                turn,
+                reinforcement,
+                tile_type_name(tile_type),
+            );
         }
     }
 
@@ -124,6 +154,7 @@ pub fn reinforcement_system(
                 soldiers: port_reinforcement,
                 location_name: "port".to_string(),
             });
+            record_reinforcement(events, current_faction, turn, port_reinforcement, "port");
         }
     }
 
@@ -136,7 +167,7 @@ pub fn reinforcement_system(
     let territory_bonus = (territory_count / 10) as i32;
 
     if territory_bonus > 0 {
-        let capital_coord = current_faction.capital_coord();
+        let capital_coord = current_faction.capital_coord(&game_world.resources.map_params);
 
         let unit_at_capital = game_world
             .resources
@@ -157,6 +188,7 @@ pub fn reinforcement_system(
                     soldiers: territory_bonus,
                     location_name: "territory".to_string(),
                 });
+                record_reinforcement(events, current_faction, turn, territory_bonus, "territory");
             }
         } else {
             let capital_owned = game_world
@@ -178,6 +210,13 @@ pub fn reinforcement_system(
                     soldiers: territory_bonus.max(1),
                     location_name: "territory".to_string(),
                 });
+                record_reinforcement(
+                    events,
+                    current_faction,
+                    turn,
+                    territory_bonus.max(1),
+                    "territory",
+                );
             }
         }
     }

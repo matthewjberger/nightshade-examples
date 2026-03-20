@@ -21,8 +21,8 @@ pub fn tile_highlight_system(game_world: &mut GameWorld, overlay_data: &SharedOv
         .previous_highlight_generation = generation;
 
     let valid_move_tiles = &game_world.resources.valid_move_tiles;
-    let hex_width = game_world.resources.hex_width;
-    let hex_depth = game_world.resources.hex_depth;
+    let hex_width = game_world.resources.hex_metrics.hex_width;
+    let hex_depth = game_world.resources.hex_metrics.hex_depth;
 
     let mut data = overlay_data.lock().unwrap();
     data.hex_width = hex_width;
@@ -59,8 +59,8 @@ pub fn hover_outline_system(
 
     match hovered_tile {
         Some(coord) => {
-            let hex_width = game_world.resources.hex_width;
-            let hex_depth = game_world.resources.hex_depth;
+            let hex_width = game_world.resources.hex_metrics.hex_width;
+            let hex_depth = game_world.resources.hex_metrics.hex_depth;
             let tile_center = hex_to_world_position(coord.column, coord.row, hex_width, hex_depth);
             let outline_lines = generate_hex_outline(tile_center, hex_width, hex_depth, 0.12);
 

@@ -33,8 +33,8 @@ pub fn range_lines_system(
 
         let range_lines = generate_range_circle_lines(
             &valid_coords,
-            game_world.resources.hex_width,
-            game_world.resources.hex_depth,
+            game_world.resources.hex_metrics.hex_width,
+            game_world.resources.hex_metrics.hex_depth,
             nalgebra_glm::vec4(0.3, 0.8, 1.0, 1.0),
         );
 

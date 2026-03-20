@@ -1,5 +1,4 @@
-use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
-use crate::ecs::{Entity, GameWorld, unit_stats};
+use crate::ecs::{Entity, Faction, GameWorld, unit_stats};
 use crate::hex::{HexCoord, hex_neighbors, hex_to_world_position};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
@@ -91,15 +90,17 @@ fn astar(
 }
 
 fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option<Vec<HexCoord>> {
-    let hex_width = game_world.resources.hex_width;
-    let hex_depth = game_world.resources.hex_depth;
+    let hex_width = game_world.resources.hex_metrics.hex_width;
+    let hex_depth = game_world.resources.hex_metrics.hex_depth;
 
     let passable_land = &game_world.resources.passable_tiles;
 
+    let map_width = game_world.resources.map_params.map_width;
+    let map_height = game_world.resources.map_params.map_height;
     let margin = 5;
     let mut passable: HashSet<HexCoord> = HashSet::new();
-    for column in -margin..(MAP_WIDTH + margin) {
-        for row in -margin..(MAP_HEIGHT + margin) {
+    for column in -margin..(map_width + margin) {
+        for row in -margin..(map_height + margin) {
             let coord = HexCoord { column, row };
             if !passable_land.contains(&coord) || coord == from || coord == to {
                 passable.insert(coord);
@@ -129,8 +130,8 @@ pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
         return find_sea_path(game_world, from, to);
     }
 
-    let hex_width = game_world.resources.hex_width;
-    let hex_depth = game_world.resources.hex_depth;
+    let hex_width = game_world.resources.hex_metrics.hex_width;
+    let hex_depth = game_world.resources.hex_metrics.hex_depth;
     astar(from, to, passable_tiles, hex_width, hex_depth)
 }
 
@@ -140,11 +141,31 @@ pub fn calculate_valid_moves(
     unit_hex: HexCoord,
     movement_range: i32,
 ) -> Vec<HexCoord> {
+    let faction = game_world
+        .get_unit(unit_entity)
+        .map(|u| u.faction)
+        .unwrap_or_default();
+    calculate_valid_moves_for_faction(game_world, unit_entity, unit_hex, movement_range, faction)
+}
+
+fn calculate_valid_moves_for_faction(
+    game_world: &GameWorld,
+    unit_entity: Entity,
+    unit_hex: HexCoord,
+    movement_range: i32,
+    faction: Faction,
+) -> Vec<HexCoord> {
     let passable_tiles = &game_world.resources.passable_tiles;
     let port_tiles = &game_world.resources.port_tiles;
     let unit_position_map = &game_world.resources.unit_position_map;
 
-    let starting_on_port = port_tiles.contains(&unit_hex);
+    let starting_on_friendly_port = port_tiles.contains(&unit_hex)
+        && game_world
+            .resources
+            .tile_map
+            .get(&unit_hex)
+            .and_then(|&entity| game_world.get_tile(entity))
+            .is_some_and(|tile| tile.faction == Some(faction));
 
     let mut distances: HashMap<HexCoord, i32> = HashMap::new();
     let mut queue: VecDeque<HexCoord> = VecDeque::new();
@@ -169,7 +190,7 @@ pub fn calculate_valid_moves(
             queue.push_back(neighbor);
         }
 
-        if starting_on_port && current == unit_hex {
+        if starting_on_friendly_port && current == unit_hex {
             for &port_coord in port_tiles {
                 if port_coord == unit_hex {
                     continue;
@@ -177,7 +198,15 @@ pub fn calculate_valid_moves(
                 if distances.contains_key(&port_coord) {
                     continue;
                 }
-                distances.insert(port_coord, movement_range);
+                let is_friendly = game_world
+                    .resources
+                    .tile_map
+                    .get(&port_coord)
+                    .and_then(|&entity| game_world.get_tile(entity))
+                    .is_some_and(|tile| tile.faction == Some(faction));
+                if is_friendly {
+                    distances.insert(port_coord, movement_range);
+                }
             }
         }
     }

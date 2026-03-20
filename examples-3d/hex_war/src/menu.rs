@@ -10,6 +10,7 @@ pub enum MenuState {
     Playing,
     Paused,
     GameOver,
+    Replay,
 }
 
 pub struct MenuUi {
@@ -35,6 +36,10 @@ pub struct MenuUi {
     pub game_over_subtitle: Entity,
     pub game_over_new_game_button: Entity,
     pub game_over_main_menu_button: Entity,
+    pub game_over_replay_button: Entity,
+
+    pub replay_screen: Entity,
+    pub replay_back_button: Entity,
 }
 
 pub fn build_menu_ui(world: &mut World) -> MenuUi {
@@ -248,6 +253,8 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
     let mut game_over_subtitle = placeholder;
     let mut game_over_new_game_button = placeholder;
     let mut game_over_main_menu_button = placeholder;
+    let mut game_over_replay_button = placeholder;
+    let mut replay_back_button = placeholder;
 
     let game_over_screen = tree
         .add_node()
@@ -295,7 +302,53 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
 
                     game_over_new_game_button =
                         tree.add_button_colored("NEW GAME", Vec4::new(0.3, 0.5, 0.3, 1.0));
+                    game_over_replay_button =
+                        tree.add_button_colored("WATCH REPLAY", Vec4::new(0.2, 0.3, 0.5, 1.0));
                     game_over_main_menu_button = tree.add_button("MAIN MENU");
+                })
+                .done();
+        })
+        .done();
+
+    let replay_screen = tree
+        .add_node()
+        .boundary(Rl(Vec2::new(0.0, 0.0)), Rl(Vec2::new(100.0, 100.0)))
+        .with_layer(UiLayer::FloatingPanels)
+        .with_visible(false)
+        .without_pointer_events()
+        .with_children(|tree| {
+            tree.add_node()
+                .window(
+                    Rl(Vec2::new(50.0, 4.0)),
+                    Ab(Vec2::new(360.0, 100.0)),
+                    Anchor::TopCenter,
+                )
+                .with_rect(8.0, 1.0, panel_border)
+                .with_color::<UiBase>(panel_bg)
+                .flow(FlowDirection::Vertical, 8.0, 6.0)
+                .without_pointer_events()
+                .with_children(|tree| {
+                    tree.add_node()
+                        .flow_child(
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.4)),
+                        )
+                        .with_text("GAME REPLAY", heading_font)
+                        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(gold)
+                        .without_pointer_events()
+                        .done();
+
+                    tree.add_node()
+                        .flow_child(
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, label_font * 1.3)),
+                        )
+                        .with_text("Scroll the event log to review the game", label_font)
+                        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(dim)
+                        .without_pointer_events()
+                        .done();
+
+                    replay_back_button = tree.add_button("BACK TO RESULTS");
                 })
                 .done();
         })
@@ -326,6 +379,10 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
         game_over_subtitle,
         game_over_new_game_button,
         game_over_main_menu_button,
+        game_over_replay_button,
+
+        replay_screen,
+        replay_back_button,
     }
 }
 
@@ -334,6 +391,7 @@ pub fn show_menu_screen(world: &mut World, ui: &MenuUi, state: MenuState) {
     world.ui_set_visible(ui.map_setup_screen, state == MenuState::MapSetup);
     world.ui_set_visible(ui.pause_screen, state == MenuState::Paused);
     world.ui_set_visible(ui.game_over_screen, state == MenuState::GameOver);
+    world.ui_set_visible(ui.replay_screen, state == MenuState::Replay);
 }
 
 pub fn update_difficulty_display(world: &mut World, ui: &MenuUi, difficulty: Difficulty) {

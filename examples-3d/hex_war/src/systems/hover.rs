@@ -3,8 +3,8 @@ use crate::hex::world_to_hex;
 use nightshade::prelude::*;
 
 pub fn hover_system(game_world: &mut GameWorld, world: &mut World) {
-    let hex_width = game_world.resources.hex_width;
-    let hex_depth = game_world.resources.hex_depth;
+    let hex_width = game_world.resources.hex_metrics.hex_width;
+    let hex_depth = game_world.resources.hex_metrics.hex_depth;
 
     if let Some(result) = world.resources.gpu_picking.take_result() {
         if result.entity_id.is_some() {

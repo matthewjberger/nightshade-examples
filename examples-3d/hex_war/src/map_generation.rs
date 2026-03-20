@@ -2,7 +2,7 @@ use crate::constants::INITIAL_SOLDIERS;
 use crate::ecs::{GameWorld, TileType, UnitType};
 use crate::hex::{HexCoord, hex_to_world_position};
 use crate::instancing::{InstancedTileGroup, create_instanced_tiles};
-use crate::map::{CAPITAL_POSITIONS, GeneratedMap, TileFeature, generate_map};
+use crate::map::{GeneratedMap, TileFeature, generate_map};
 use crate::rendering::generate_hex_outline;
 use crate::systems::{SpawnUnitParams, spawn_unit};
 use crate::tiles::spawn_tile;
@@ -30,7 +30,8 @@ pub fn generate_game_map(
     world: &mut World,
     tile_prefabs: &HashMap<TileType, Prefab>,
 ) -> MapEntities {
-    use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
+    let map_width = game_world.resources.map_params.map_width;
+    let map_height = game_world.resources.map_params.map_height;
 
     game_world.resources.rng_seed = rand::rng().random();
     let generated = generate_map(
@@ -38,8 +39,8 @@ pub fn generate_game_map(
         &game_world.resources.map_params,
     );
 
-    let hex_width = game_world.resources.hex_width;
-    let hex_depth = game_world.resources.hex_depth;
+    let hex_width = game_world.resources.hex_metrics.hex_width;
+    let hex_depth = game_world.resources.hex_metrics.hex_depth;
 
     let mut all_hex_lines: Vec<Line> = Vec::new();
     let mut tile_positions: Vec<(HexCoord, TileType)> = Vec::new();
@@ -71,7 +72,7 @@ pub fn generate_game_map(
 
     let lines_entity = spawn_lines_entity(world, all_hex_lines);
     let boundary_lines =
-        generate_playable_boundary_lines(MAP_WIDTH, MAP_HEIGHT, hex_width, hex_depth);
+        generate_playable_boundary_lines(map_width, map_height, hex_width, hex_depth);
     let boundary_lines_entity = spawn_lines_entity(world, boundary_lines);
     let range_lines_entity = spawn_hidden_lines_entity(world);
     let hover_outline_entity = spawn_hidden_lines_entity(world);
@@ -172,7 +173,7 @@ fn spawn_initial_units(
     hex_width: f32,
     hex_depth: f32,
 ) {
-    for (col, row, faction) in CAPITAL_POSITIONS {
+    for (col, row, faction) in game_world.resources.map_params.capital_positions() {
         let coord = HexCoord { column: col, row };
         spawn_unit(
             game_world,

@@ -1,5 +1,5 @@
 use crate::constants::ACTIONS_PER_TURN;
-use crate::ecs::{FACTION_COUNT, Faction, GameEvents, GameWorld, MOVEMENT, UNIT};
+use crate::ecs::{ActionRecord, FACTION_COUNT, Faction, GameEvents, GameWorld, MOVEMENT, UNIT};
 use crate::selection::clear_selection;
 use crate::systems::{PendingSpawn, build_turn_order, reinforcement_system};
 
@@ -41,6 +41,12 @@ pub fn end_turn(game_world: &mut GameWorld, events: &mut GameEvents) -> TurnTran
     game_world.resources.speech_used = false;
 
     build_turn_order(game_world);
+
+    events.action_history.push(ActionRecord {
+        faction: next,
+        turn: game_world.resources.turn_number,
+        description: format!("Turn {} begins", game_world.resources.turn_number),
+    });
 
     let pending_spawns = reinforcement_system(game_world, events);
 

@@ -45,6 +45,47 @@ struct ScoredAction {
     score: f32,
 }
 
+struct FactionPersonality {
+    attack_bias: f32,
+    defense_bias: f32,
+    capture_bias: f32,
+    advance_bias: f32,
+    attack_threshold_offset: f32,
+}
+
+fn faction_personality(faction: Faction) -> FactionPersonality {
+    match faction {
+        Faction::Redosia => FactionPersonality {
+            attack_bias: 1.0,
+            defense_bias: 1.0,
+            capture_bias: 1.0,
+            advance_bias: 1.0,
+            attack_threshold_offset: 0.0,
+        },
+        Faction::Violetnam => FactionPersonality {
+            attack_bias: 1.5,
+            defense_bias: 0.3,
+            capture_bias: 1.2,
+            advance_bias: 1.3,
+            attack_threshold_offset: -0.15,
+        },
+        Faction::Bluegaria => FactionPersonality {
+            attack_bias: 1.0,
+            defense_bias: 1.0,
+            capture_bias: 1.0,
+            advance_bias: 1.0,
+            attack_threshold_offset: 0.0,
+        },
+        Faction::Greenland => FactionPersonality {
+            attack_bias: 0.8,
+            defense_bias: 1.5,
+            capture_bias: 1.3,
+            advance_bias: 0.7,
+            attack_threshold_offset: 0.05,
+        },
+    }
+}
+
 struct AiUnitState {
     entity: freecs::Entity,
     hex: HexCoord,
@@ -59,6 +100,7 @@ fn score_attack_actions(
     context: &AiTurnContext,
     difficulty: Difficulty,
     player_faction: Faction,
+    personality: &FactionPersonality,
 ) -> Vec<ScoredAction> {
     let mut actions = Vec::new();
 
@@ -103,11 +145,11 @@ fn score_attack_actions(
 
         let tile_type = get_tile_type_at(game_world, *enemy_hex);
         let is_capital = tile_type == Some(TileType::Capital);
-        let threshold = if is_capital {
+        let threshold = (if is_capital {
             attack_threshold - 0.2
         } else {
             attack_threshold
-        };
+        }) + personality.attack_threshold_offset;
 
         if win_chance > threshold {
             let mut score = 100.0 * win_chance;
@@ -117,6 +159,7 @@ fn score_attack_actions(
             if prefer_human && *enemy_faction == player_faction {
                 score += 20.0;
             }
+            score *= personality.attack_bias;
 
             actions.push(ScoredAction {
                 action: GameAction::Attack {
@@ -286,45 +329,45 @@ fn score_advance_actions(
     actions
 }
 
-fn evaluate_actions(
-    game_world: &GameWorld,
-    unit: &AiUnitState,
-    context: &AiTurnContext,
+fn apply_bias(actions: &mut [ScoredAction], bias: f32) {
+    for action in actions.iter_mut() {
+        action.score *= bias;
+    }
+}
+
+struct EvalContext<'a> {
+    game_world: &'a GameWorld,
+    context: &'a AiTurnContext,
     difficulty: Difficulty,
     player_faction: Faction,
-    valid_moves: &[HexCoord],
+    valid_moves: &'a [HexCoord],
     my_capital: HexCoord,
-) -> Vec<ScoredAction> {
+    personality: &'a FactionPersonality,
+}
+
+fn evaluate_actions(unit: &AiUnitState, eval: &EvalContext) -> Vec<ScoredAction> {
     let mut all_actions = Vec::new();
 
     all_actions.extend(score_attack_actions(
-        game_world,
+        eval.game_world,
         unit,
-        context,
-        difficulty,
-        player_faction,
+        eval.context,
+        eval.difficulty,
+        eval.player_faction,
+        eval.personality,
     ));
 
-    all_actions.extend(score_defense_actions(
-        unit,
-        my_capital,
-        context,
-        valid_moves,
-    ));
+    let mut defense = score_defense_actions(unit, eval.my_capital, eval.context, eval.valid_moves);
+    apply_bias(&mut defense, eval.personality.defense_bias);
+    all_actions.extend(defense);
 
-    all_actions.extend(score_capture_actions(
-        game_world,
-        unit,
-        context,
-        valid_moves,
-    ));
+    let mut capture = score_capture_actions(eval.game_world, unit, eval.context, eval.valid_moves);
+    apply_bias(&mut capture, eval.personality.capture_bias);
+    all_actions.extend(capture);
 
-    all_actions.extend(score_advance_actions(
-        game_world,
-        unit,
-        context,
-        valid_moves,
-    ));
+    let mut advance = score_advance_actions(eval.game_world, unit, eval.context, eval.valid_moves);
+    apply_bias(&mut advance, eval.personality.advance_bias);
+    all_actions.extend(advance);
 
     all_actions
 }
@@ -433,6 +476,7 @@ pub fn ai_turn_system(
 
     let my_capital = current_faction.capital_coord(&game_world.resources.map_params);
     let context = build_ai_context(game_world, current_faction);
+    let personality = faction_personality(current_faction);
     let movement_range = unit_stats(unit.unit_type).movement_range;
     let valid_moves = calculate_valid_moves(game_world, unit_entity, unit_hex, movement_range);
 
@@ -444,15 +488,17 @@ pub fn ai_turn_system(
         unit_type: unit.unit_type,
     };
 
-    let mut scored_actions = evaluate_actions(
+    let eval = EvalContext {
         game_world,
-        &ai_unit,
-        &context,
+        context: &context,
         difficulty,
         player_faction,
-        &valid_moves,
+        valid_moves: &valid_moves,
         my_capital,
-    );
+        personality: &personality,
+    };
+
+    let mut scored_actions = evaluate_actions(&ai_unit, &eval);
 
     scored_actions.sort_by(|a, b| {
         b.score

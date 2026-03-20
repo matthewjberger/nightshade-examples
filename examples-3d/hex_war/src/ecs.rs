@@ -183,6 +183,37 @@ pub struct FloatingPopup {
     pub lifetime: f32,
 }
 
+pub fn update_unit_position(
+    game_world: &mut GameWorld,
+    entity: freecs::Entity,
+    new_coord: HexCoord,
+) {
+    if let Some(hex_pos) = game_world.get_hex_position(entity) {
+        let old_coord = hex_pos.0;
+        if old_coord != new_coord
+            && game_world.resources.unit_position_map.get(&old_coord) == Some(&entity)
+        {
+            game_world.resources.unit_position_map.remove(&old_coord);
+        }
+    }
+    if let Some(hex_pos) = game_world.get_hex_position_mut(entity) {
+        hex_pos.0 = new_coord;
+    }
+    game_world
+        .resources
+        .unit_position_map
+        .insert(new_coord, entity);
+}
+
+pub fn remove_unit_position(game_world: &mut GameWorld, entity: freecs::Entity) {
+    if let Some(hex_pos) = game_world.get_hex_position(entity) {
+        let coord = hex_pos.0;
+        if game_world.resources.unit_position_map.get(&coord) == Some(&entity) {
+            game_world.resources.unit_position_map.remove(&coord);
+        }
+    }
+}
+
 pub fn get_tile_at(game_world: &GameWorld, coord: HexCoord) -> Option<(freecs::Entity, Tile)> {
     let &entity = game_world.resources.tile_map.get(&coord)?;
     let tile = game_world.get_tile(entity).copied()?;

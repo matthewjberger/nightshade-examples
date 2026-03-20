@@ -77,7 +77,7 @@ fn merge_units(
     })
 }
 
-fn is_valid_merge_target(
+fn can_reach_tile(
     game_world: &GameWorld,
     source_entity: freecs::Entity,
     source_hex: HexCoord,
@@ -86,11 +86,6 @@ fn is_valid_merge_target(
 ) -> bool {
     let reachable_tiles =
         calculate_valid_moves(game_world, source_entity, source_hex, movement_range);
-
-    let target_unit = game_world.resources.unit_position_map.get(&target_hex);
-    if target_unit.is_none() || target_unit == Some(&source_entity) {
-        return false;
-    }
 
     let adjacent_to_reachable = reachable_tiles
         .iter()
@@ -200,7 +195,7 @@ pub fn input_system(game_world: &mut GameWorld, world: &mut World, events: &mut 
                     && !selected_unit_data.has_moved
                     && actions_remaining > 0
                     && let Some(source_hex) = game_world.get_hex_position(selected).map(|h| h.0)
-                    && is_valid_merge_target(
+                    && can_reach_tile(
                         game_world,
                         selected,
                         source_hex,
@@ -221,7 +216,10 @@ pub fn input_system(game_world: &mut GameWorld, world: &mut World, events: &mut 
                     clear_selection(game_world);
                     return;
                 }
-                select_unit(game_world, clicked_unit);
+
+                if game_world.get_unit(selected).is_some_and(|u| u.has_moved) {
+                    select_unit(game_world, clicked_unit);
+                }
             } else if clicked_unit == selected {
                 clear_selection(game_world);
             }

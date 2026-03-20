@@ -1,5 +1,7 @@
 use crate::constants::UNIT_HEIGHT_OFFSET;
-use crate::ecs::{ENGINE_ENTITY, GameWorld, HEX_POSITION, MOVEMENT, UNIT, WORLD_POSITION};
+use crate::ecs::{
+    ENGINE_ENTITY, GameWorld, HEX_POSITION, MOVEMENT, UNIT, WORLD_POSITION, update_unit_position,
+};
 use crate::hex::{HexCoord, hex_to_world_position};
 use crate::systems::{UNIT_TEXT_HEIGHT_OFFSET, unit_radius_for_soldiers};
 use nightshade::prelude::*;
@@ -116,19 +118,7 @@ pub fn movement_system(game_world: &mut GameWorld, world: &mut World, delta_time
             }
         };
 
-        if let Some(hex_pos) = game_world.get_hex_position(entity) {
-            let old_coord = hex_pos.0;
-            if game_world.resources.unit_position_map.get(&old_coord) == Some(&entity) {
-                game_world.resources.unit_position_map.remove(&old_coord);
-            }
-        }
-        if let Some(hex_pos) = game_world.get_hex_position_mut(entity) {
-            hex_pos.0 = final_hex;
-        }
-        game_world
-            .resources
-            .unit_position_map
-            .insert(final_hex, entity);
+        update_unit_position(game_world, entity, final_hex);
 
         if is_complete {
             completed_entities.push((entity, final_hex));
@@ -136,24 +126,7 @@ pub fn movement_system(game_world: &mut GameWorld, world: &mut World, delta_time
     }
 
     for (entity, final_hex) in completed_entities {
-        let already_at_final = game_world
-            .get_hex_position(entity)
-            .is_some_and(|h| h.0 == final_hex);
-        if !already_at_final {
-            if let Some(hex_pos) = game_world.get_hex_position(entity) {
-                let old_coord = hex_pos.0;
-                if game_world.resources.unit_position_map.get(&old_coord) == Some(&entity) {
-                    game_world.resources.unit_position_map.remove(&old_coord);
-                }
-            }
-            if let Some(hex_pos) = game_world.get_hex_position_mut(entity) {
-                hex_pos.0 = final_hex;
-            }
-            game_world
-                .resources
-                .unit_position_map
-                .insert(final_hex, entity);
-        }
+        update_unit_position(game_world, entity, final_hex);
         game_world.remove_components(entity, MOVEMENT);
     }
 }

@@ -4,6 +4,7 @@ use crate::constants::{
 use crate::ecs::{
     ENGINE_ENTITY, EngineEntity, Faction, GameWorld, HEX_POSITION, HexPosition, MOVEMENT, Movement,
     UNIT, Unit, WORLD_POSITION, WorldPosition, faction_color, get_faction_morale,
+    remove_unit_position, update_unit_position,
 };
 use crate::hex::{HexCoord, hex_to_world_position};
 use crate::systems::find_path;
@@ -111,10 +112,7 @@ pub fn spawn_unit(
         },
     );
 
-    game_world
-        .resources
-        .unit_position_map
-        .insert(hex_coord, game_entity);
+    update_unit_position(game_world, game_entity, hex_coord);
 
     game_entity
 }
@@ -125,12 +123,7 @@ pub fn font_size_for_soldiers(soldiers: i32) -> f32 {
 }
 
 pub fn despawn_unit(game_world: &mut GameWorld, world: &mut World, entity: freecs::Entity) {
-    if let Some(hex_pos) = game_world.get_hex_position(entity) {
-        let coord = hex_pos.0;
-        if game_world.resources.unit_position_map.get(&coord) == Some(&entity) {
-            game_world.resources.unit_position_map.remove(&coord);
-        }
-    }
+    remove_unit_position(game_world, entity);
     if let Some(unit) = game_world.get_unit(entity)
         && let Some(text_entity) = unit.text_entity
     {
@@ -164,9 +157,7 @@ pub fn move_unit_to(
         return;
     }
 
-    if game_world.resources.unit_position_map.get(&start) == Some(&unit_entity) {
-        game_world.resources.unit_position_map.remove(&start);
-    }
+    remove_unit_position(game_world, unit_entity);
 
     game_world.add_components(unit_entity, MOVEMENT);
     game_world.set_movement(

@@ -33,7 +33,10 @@ pub fn generate_game_map(
     use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
 
     game_world.resources.rng_seed = rand::rng().random();
-    let generated = generate_map(game_world.resources.rng_seed);
+    let generated = generate_map(
+        game_world.resources.rng_seed,
+        &game_world.resources.map_params,
+    );
 
     let hex_width = game_world.resources.hex_width;
     let hex_depth = game_world.resources.hex_depth;

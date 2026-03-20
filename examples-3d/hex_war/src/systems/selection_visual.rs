@@ -1,11 +1,11 @@
-use crate::ecs::{GameWorld, faction_color};
+use crate::ecs::GameWorld;
 use crate::systems::UNIT_SELECTED_COLOR;
 use nightshade::ecs::generational_registry::registry_entry_by_name_mut;
 use nightshade::prelude::*;
 
 pub fn selection_visual_system(game_world: &GameWorld, world: &mut World) {
     let current_selected: Option<freecs::Entity> = game_world.query_selected().next();
-    let previous_selected = game_world.resources.previous_selected_unit;
+    let previous_selected = game_world.resources.frame_cache.previous_selected_unit;
 
     if current_selected == previous_selected {
         return;
@@ -20,7 +20,7 @@ pub fn selection_visual_system(game_world: &GameWorld, world: &mut World) {
         if let Some(material) =
             registry_entry_by_name_mut(&mut world.resources.material_registry.registry, &name)
         {
-            material.base_color = faction_color(unit.faction);
+            material.base_color = unit.faction.color();
         }
     }
 

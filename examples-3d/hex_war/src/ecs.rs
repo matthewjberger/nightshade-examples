@@ -1,10 +1,12 @@
 use crate::hex::HexCoord;
-use crate::map::MapGenParams;
-use crate::turn_phase::TurnPhase;
+use crate::map::{CAPITAL_POSITIONS, MapGenParams};
+use crate::turn_phase::TurnPhaseState;
 use nightshade::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 pub use freecs::Entity;
+
+pub const FACTION_COUNT: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Difficulty {
@@ -23,39 +25,53 @@ pub enum Faction {
     Greenland,
 }
 
-pub fn next_faction(faction: Faction) -> Faction {
-    match faction {
-        Faction::Redosia => Faction::Violetnam,
-        Faction::Violetnam => Faction::Bluegaria,
-        Faction::Bluegaria => Faction::Greenland,
-        Faction::Greenland => Faction::Redosia,
-    }
-}
+impl Faction {
+    pub const ALL: [Faction; FACTION_COUNT] = [
+        Faction::Redosia,
+        Faction::Violetnam,
+        Faction::Bluegaria,
+        Faction::Greenland,
+    ];
 
-pub fn faction_color(faction: Faction) -> [f32; 4] {
-    match faction {
-        Faction::Redosia => [0.8, 0.2, 0.2, 1.0],
-        Faction::Violetnam => [0.6, 0.2, 0.8, 1.0],
-        Faction::Bluegaria => [0.2, 0.4, 0.8, 1.0],
-        Faction::Greenland => [0.2, 0.8, 0.2, 1.0],
+    pub fn next(self) -> Faction {
+        match self {
+            Faction::Redosia => Faction::Violetnam,
+            Faction::Violetnam => Faction::Bluegaria,
+            Faction::Bluegaria => Faction::Greenland,
+            Faction::Greenland => Faction::Redosia,
+        }
     }
-}
 
-pub fn faction_index(faction: Faction) -> usize {
-    match faction {
-        Faction::Redosia => 0,
-        Faction::Violetnam => 1,
-        Faction::Bluegaria => 2,
-        Faction::Greenland => 3,
+    pub fn color(self) -> [f32; 4] {
+        match self {
+            Faction::Redosia => [0.8, 0.2, 0.2, 1.0],
+            Faction::Violetnam => [0.6, 0.2, 0.8, 1.0],
+            Faction::Bluegaria => [0.2, 0.4, 0.8, 1.0],
+            Faction::Greenland => [0.2, 0.8, 0.2, 1.0],
+        }
     }
-}
 
-pub fn faction_name(faction: Faction) -> &'static str {
-    match faction {
-        Faction::Redosia => "Redosia",
-        Faction::Violetnam => "Violetnam",
-        Faction::Bluegaria => "Bluegaria",
-        Faction::Greenland => "Greenland",
+    pub fn index(self) -> usize {
+        match self {
+            Faction::Redosia => 0,
+            Faction::Violetnam => 1,
+            Faction::Bluegaria => 2,
+            Faction::Greenland => 3,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Faction::Redosia => "Redosia",
+            Faction::Violetnam => "Violetnam",
+            Faction::Bluegaria => "Bluegaria",
+            Faction::Greenland => "Greenland",
+        }
+    }
+
+    pub fn capital_coord(self) -> HexCoord {
+        let (col, row, _) = CAPITAL_POSITIONS[self.index()];
+        HexCoord { column: col, row }
     }
 }
 
@@ -80,15 +96,12 @@ freecs::ecs! {
         needs_regeneration: bool,
         valid_move_tiles: HashSet<HexCoord>,
         hovered_tile: Option<HexCoord>,
-        previous_hovered_tile: Option<HexCoord>,
-        previous_selected_unit: Option<freecs::Entity>,
-        previous_valid_move_count: usize,
         current_faction: Faction,
         actions_remaining: u8,
         turn_number: u32,
-        faction_eliminated: [bool; 4],
-        faction_morale: [i32; 4],
-        capital_owners: [Option<Faction>; 4],
+        faction_eliminated: [bool; FACTION_COUNT],
+        faction_morale: [i32; FACTION_COUNT],
+        capital_owners: [Option<Faction>; FACTION_COUNT],
         speech_used: bool,
         turn_order: Vec<freecs::Entity>,
         current_unit_index: usize,
@@ -98,12 +111,9 @@ freecs::ecs! {
         passable_tiles: HashSet<HexCoord>,
         port_tiles: HashSet<HexCoord>,
         unit_position_map: HashMap<HexCoord, freecs::Entity>,
-        previous_hud: HudSnapshot,
-        previous_log_scroll: usize,
-        previous_log_count: usize,
         valid_moves_generation: u32,
-        previous_highlight_generation: u32,
-        turn_phase: TurnPhase,
+        turn_phase: TurnPhaseState,
+        frame_cache: FrameCache,
     }
 }
 
@@ -114,15 +124,30 @@ pub struct HudSnapshot {
     pub actions: u8,
     pub speed_bits: u32,
     pub is_player_turn: bool,
-    pub turn_phase: TurnPhase,
+    pub turn_phase: TurnPhaseState,
+}
+
+#[derive(Default)]
+pub struct FrameCache {
+    pub previous_hovered_tile: Option<HexCoord>,
+    pub previous_selected_unit: Option<freecs::Entity>,
+    pub previous_valid_move_count: usize,
+    pub previous_hud: HudSnapshot,
+    pub previous_log_scroll: usize,
+    pub previous_log_count: usize,
+    pub previous_highlight_generation: u32,
+}
+
+pub fn compute_combat_strength(soldiers: i32, morale: i32, multiplier: f32) -> f32 {
+    soldiers as f32 * (1.0 + morale as f32 / 100.0) * multiplier
 }
 
 pub fn get_faction_morale(resources: &GameResources, faction: Faction) -> i32 {
-    resources.faction_morale[faction_index(faction)]
+    resources.faction_morale[faction.index()]
 }
 
 pub fn modify_faction_morale(resources: &mut GameResources, faction: Faction, delta: i32) {
-    let index = faction_index(faction);
+    let index = faction.index();
     resources.faction_morale[index] = (resources.faction_morale[index] + delta).clamp(-50, 50);
 }
 

@@ -1,5 +1,5 @@
 use crate::constants::ACTIONS_PER_TURN;
-use crate::ecs::{Faction, GameEvents, GameWorld, MOVEMENT, UNIT, faction_index, next_faction};
+use crate::ecs::{FACTION_COUNT, Faction, GameEvents, GameWorld, MOVEMENT, UNIT};
 use crate::selection::clear_selection;
 use crate::systems::{PendingSpawn, build_turn_order, reinforcement_system};
 
@@ -20,15 +20,15 @@ pub fn end_turn(game_world: &mut GameWorld, events: &mut GameEvents) -> TurnTran
         }
     }
 
-    let mut next = next_faction(game_world.resources.current_faction);
+    let mut next = game_world.resources.current_faction.next();
     let mut attempts = 0;
 
-    while attempts < 4 {
-        if !game_world.resources.faction_eliminated[faction_index(next)] {
+    while attempts < FACTION_COUNT {
+        if !game_world.resources.faction_eliminated[next.index()] {
             break;
         }
 
-        next = next_faction(next);
+        next = next.next();
         attempts += 1;
     }
 

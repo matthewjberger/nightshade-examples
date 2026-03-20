@@ -167,12 +167,12 @@ pub fn execute_action(
             finalize_unit_action(game_world, attacker);
         }
         GameAction::Merge { source, target } => {
-            if let Some(result) = merge_units(game_world, world, source, target)
-                && result.soldiers_gained > 0
-            {
-                spawn_merge_popup(game_world, world, result.position, result.soldiers_gained);
+            if let Some(result) = merge_units(game_world, world, source, target) {
+                if result.soldiers_gained > 0 {
+                    spawn_merge_popup(game_world, world, result.position, result.soldiers_gained);
+                }
+                finalize_unit_action(game_world, source);
             }
-            finalize_unit_action(game_world, source);
         }
         GameAction::Speech => {
             if game_world.resources.speech_used {

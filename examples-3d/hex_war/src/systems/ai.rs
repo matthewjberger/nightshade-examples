@@ -1,32 +1,11 @@
 use crate::ecs::{
-    Difficulty, Faction, GameEvents, GameWorld, MOVEMENT, TileType, faction_index,
-    get_defense_bonus_at, get_tile_type_at, unit_stats,
+    Difficulty, Faction, GameEvents, GameWorld, MOVEMENT, TileType, UnitType, get_defense_bonus_at,
+    get_tile_type_at, unit_stats,
 };
 use crate::hex::{HexCoord, hex_distance};
-use crate::map::CAPITAL_POSITIONS;
 use crate::systems::action::{GameAction, execute_action};
-use crate::systems::calculate_valid_moves;
+use crate::systems::{calculate_valid_moves, combat_win_chance};
 use nightshade::prelude::*;
-
-fn get_capital_coord(faction: Faction) -> HexCoord {
-    let index = faction_index(faction);
-    let (col, row, _) = CAPITAL_POSITIONS[index];
-    HexCoord { column: col, row }
-}
-
-fn calculate_win_chance(
-    attacker_soldiers: i32,
-    attacker_morale: i32,
-    defender_soldiers: i32,
-    defender_morale: i32,
-    defense_bonus: f32,
-) -> f32 {
-    let attacker_strength = attacker_soldiers as f32 * (1.0 + attacker_morale as f32 / 100.0);
-    let defender_strength =
-        defender_soldiers as f32 * (1.0 + defender_morale as f32 / 100.0) * defense_bonus;
-
-    attacker_strength / (attacker_strength + defender_strength)
-}
 
 struct AiTurnContext {
     enemy_units: Vec<(freecs::Entity, HexCoord, Faction, i32, i32)>,
@@ -47,19 +26,13 @@ fn build_ai_context(game_world: &GameWorld, current_faction: Faction) -> AiTurnC
         })
         .collect();
 
-    let enemy_capitals: Vec<HexCoord> = [
-        Faction::Redosia,
-        Faction::Violetnam,
-        Faction::Bluegaria,
-        Faction::Greenland,
-    ]
-    .iter()
-    .filter(|&&faction| {
-        faction != current_faction
-            && !game_world.resources.faction_eliminated[faction_index(faction)]
-    })
-    .map(|&faction| get_capital_coord(faction))
-    .collect();
+    let enemy_capitals: Vec<HexCoord> = Faction::ALL
+        .iter()
+        .filter(|&&faction| {
+            faction != current_faction && !game_world.resources.faction_eliminated[faction.index()]
+        })
+        .map(|&faction| faction.capital_coord())
+        .collect();
 
     AiTurnContext {
         enemy_units,
@@ -77,6 +50,7 @@ struct AiUnitState {
     hex: HexCoord,
     soldiers: i32,
     morale: i32,
+    unit_type: UnitType,
 }
 
 fn score_attack_actions(
@@ -103,11 +77,21 @@ fn score_attack_actions(
         }
 
         let defense_bonus = get_defense_bonus_at(game_world, *enemy_hex);
-        let win_chance = calculate_win_chance(
+        let attacker_stats = unit_stats(unit.unit_type);
+        let defender_stats = game_world
+            .get_unit(*enemy_entity)
+            .map(|u| unit_stats(u.unit_type));
+        let defender_defense = defender_stats
+            .as_ref()
+            .map(|s| s.defense_multiplier)
+            .unwrap_or(1.0);
+        let win_chance = combat_win_chance(
             unit.soldiers,
             unit.morale,
+            attacker_stats.attack_multiplier,
             *enemy_soldiers,
             *enemy_morale,
+            defender_defense,
             defense_bonus,
         );
 
@@ -447,7 +431,7 @@ pub fn ai_turn_system(
         return false;
     }
 
-    let my_capital = get_capital_coord(current_faction);
+    let my_capital = current_faction.capital_coord();
     let context = build_ai_context(game_world, current_faction);
     let movement_range = unit_stats(unit.unit_type).movement_range;
     let valid_moves = calculate_valid_moves(game_world, unit_entity, unit_hex, movement_range);
@@ -457,6 +441,7 @@ pub fn ai_turn_system(
         hex: unit_hex,
         soldiers: unit.soldiers,
         morale: unit.morale,
+        unit_type: unit.unit_type,
     };
 
     let mut scored_actions = evaluate_actions(

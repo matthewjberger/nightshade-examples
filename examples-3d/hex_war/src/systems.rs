@@ -19,7 +19,7 @@ mod victory;
 
 pub use action::{GameAction, execute_action};
 pub use ai::{ai_turn_system, build_turn_order};
-pub use combat::resolve_combat;
+pub use combat::{combat_win_chance, resolve_combat};
 pub use fireworks::{FireworkShell, spawn_capture_firework, update_firework_shells};
 pub use highlight::{hover_outline_system, tile_highlight_system};
 

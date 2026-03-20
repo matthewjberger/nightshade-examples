@@ -1,9 +1,11 @@
 use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
-use crate::ecs::{Faction, TileType};
-use crate::hex::{HexCoord, hex_distance, hex_from_cube, hex_tiles_in_range, hex_to_cube};
+use crate::ecs::{FACTION_COUNT, Faction, TileType};
+use crate::hex::{
+    HexCoord, hex_distance, hex_from_cube, hex_neighbors, hex_tiles_in_range, hex_to_cube,
+};
 use std::collections::{HashMap, HashSet, VecDeque};
 
-pub const CAPITAL_POSITIONS: [(i32, i32, Faction); 4] = [
+pub const CAPITAL_POSITIONS: [(i32, i32, Faction); FACTION_COUNT] = [
     (2, 2, Faction::Redosia),
     (28, 2, Faction::Violetnam),
     (28, 18, Faction::Bluegaria),
@@ -57,68 +59,6 @@ fn rng_shuffle<T>(rng: &mut Rng, slice: &mut [T]) {
     }
 }
 
-fn get_hex_neighbors(coord: HexCoord) -> Vec<HexCoord> {
-    let column = coord.column;
-    let row = coord.row;
-    let is_odd_column = column.abs() % 2 != 0;
-
-    if is_odd_column {
-        vec![
-            HexCoord {
-                column,
-                row: row - 1,
-            },
-            HexCoord {
-                column: column + 1,
-                row,
-            },
-            HexCoord {
-                column: column + 1,
-                row: row + 1,
-            },
-            HexCoord {
-                column,
-                row: row + 1,
-            },
-            HexCoord {
-                column: column - 1,
-                row: row + 1,
-            },
-            HexCoord {
-                column: column - 1,
-                row,
-            },
-        ]
-    } else {
-        vec![
-            HexCoord {
-                column,
-                row: row - 1,
-            },
-            HexCoord {
-                column: column + 1,
-                row: row - 1,
-            },
-            HexCoord {
-                column: column + 1,
-                row,
-            },
-            HexCoord {
-                column,
-                row: row + 1,
-            },
-            HexCoord {
-                column: column - 1,
-                row,
-            },
-            HexCoord {
-                column: column - 1,
-                row: row - 1,
-            },
-        ]
-    }
-}
-
 fn is_in_bounds(coord: HexCoord, width: i32, height: i32) -> bool {
     coord.column >= 0 && coord.column < width && coord.row >= 0 && coord.row < height
 }
@@ -130,7 +70,7 @@ fn count_land_neighbors(
     height: i32,
 ) -> i32 {
     let mut count = 0;
-    for neighbor in get_hex_neighbors(coord) {
+    for neighbor in hex_neighbors(coord) {
         if is_in_bounds(neighbor, width, height) && tiles.get(&neighbor) == Some(&TileType::Land) {
             count += 1;
         }
@@ -155,7 +95,7 @@ fn flood_fill_land(
     visited.insert(start);
 
     while let Some(current) = queue.pop_front() {
-        for neighbor in get_hex_neighbors(current) {
+        for neighbor in hex_neighbors(current) {
             if is_in_bounds(neighbor, width, height)
                 && !visited.contains(&neighbor)
                 && tiles.get(&neighbor) == Some(&TileType::Land)
@@ -229,7 +169,7 @@ fn is_adjacent_to_sea(
     width: i32,
     height: i32,
 ) -> bool {
-    for neighbor in get_hex_neighbors(coord) {
+    for neighbor in hex_neighbors(coord) {
         if !is_in_bounds(neighbor, width, height) || tiles.get(&neighbor) == Some(&TileType::Sea) {
             return true;
         }
@@ -241,9 +181,9 @@ fn is_passable_land(tile_type: TileType) -> bool {
     matches!(tile_type, TileType::Land | TileType::Forest)
 }
 
-pub fn generate_map(seed: u32) -> GeneratedMap {
-    let width = MAP_WIDTH;
-    let height = MAP_HEIGHT;
+pub fn generate_map(seed: u32, params: &MapGenParams) -> GeneratedMap {
+    let width = params.map_width;
+    let height = params.map_height;
     let mut rng = Rng { state: seed };
     let mut tiles: HashMap<HexCoord, TileType> = HashMap::new();
 
@@ -346,7 +286,7 @@ pub fn generate_map(seed: u32) -> GeneratedMap {
             for coord in &bridge {
                 tiles.insert(*coord, TileType::Land);
                 connected_land.insert(*coord);
-                for neighbor in get_hex_neighbors(*coord) {
+                for neighbor in hex_neighbors(*coord) {
                     if is_in_bounds(neighbor, width, height)
                         && tiles.get(&neighbor) == Some(&TileType::Sea)
                     {

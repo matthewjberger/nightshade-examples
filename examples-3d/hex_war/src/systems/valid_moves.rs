@@ -197,7 +197,7 @@ pub fn calculate_valid_moves(
 
 pub fn valid_moves_system(game_world: &mut GameWorld) {
     let current_selected: Option<Entity> = game_world.query_selected().next();
-    let previous_selected = game_world.resources.previous_selected_unit;
+    let previous_selected = game_world.resources.frame_cache.previous_selected_unit;
 
     if current_selected == previous_selected {
         return;
@@ -219,5 +219,5 @@ pub fn valid_moves_system(game_world: &mut GameWorld) {
     }
 
     game_world.resources.valid_moves_generation += 1;
-    game_world.resources.previous_selected_unit = current_selected;
+    game_world.resources.frame_cache.previous_selected_unit = current_selected;
 }

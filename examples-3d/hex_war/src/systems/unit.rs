@@ -1,8 +1,8 @@
 use crate::constants::{UNIT_HEIGHT_OFFSET, UNIT_MOVEMENT_SPEED};
 use crate::ecs::{
     ENGINE_ENTITY, EngineEntity, Faction, GameWorld, HEX_POSITION, HexPosition, MOVEMENT, Movement,
-    UNIT, Unit, UnitType, WORLD_POSITION, WorldPosition, faction_color, get_faction_morale,
-    remove_unit_position, update_unit_position,
+    UNIT, Unit, UnitType, WORLD_POSITION, WorldPosition, get_faction_morale, remove_unit_position,
+    update_unit_position,
 };
 use crate::hex::{HexCoord, hex_to_world_position};
 use crate::systems::find_path;
@@ -67,7 +67,7 @@ pub fn spawn_unit(
         &mut world.resources.material_registry,
         material_name.clone(),
         Material {
-            base_color: faction_color(faction),
+            base_color: faction.color(),
             ..Default::default()
         },
     );
@@ -94,7 +94,7 @@ pub fn spawn_unit(
         unit_position.y + radius + UNIT_TEXT_HEIGHT_OFFSET,
         unit_position.z,
     );
-    let color = faction_color(faction);
+    let color = faction.color();
     let text_entity = spawn_3d_billboard_text_with_properties(
         world,
         &soldiers.to_string(),

@@ -1,4 +1,4 @@
-use crate::ecs::{Difficulty, Faction, faction_color, faction_name};
+use crate::ecs::{Difficulty, Faction};
 use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 
@@ -388,7 +388,7 @@ pub fn setup_game_over_display(
         color.colors[UiBase::INDEX] = Some(title_color);
     }
 
-    let name = faction_name(winner);
+    let name = winner.name();
     let subtitle = if is_player_winner {
         format!("{} conquers all!", name)
     } else {
@@ -396,7 +396,7 @@ pub fn setup_game_over_display(
     };
 
     world.ui_set_text(ui.game_over_subtitle, &subtitle);
-    let fc = faction_color(winner);
+    let fc = winner.color();
     if let Some(color) = world.ui.get_ui_node_color_mut(ui.game_over_subtitle) {
         color.colors[UiBase::INDEX] = Some(Vec4::new(fc[0], fc[1], fc[2], 1.0));
     }

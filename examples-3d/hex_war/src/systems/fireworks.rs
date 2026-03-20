@@ -1,4 +1,4 @@
-use crate::ecs::{Faction, TileType, faction_color};
+use crate::ecs::{Faction, TileType};
 use nightshade::ecs::particles::components::{ColorGradient, EmitterShape, EmitterType};
 use nightshade::prelude::*;
 
@@ -62,7 +62,7 @@ pub fn spawn_capture_firework(
     tile_type: TileType,
     faction: Faction,
 ) {
-    let color = faction_color(faction);
+    let color = faction.color();
     let color_vec = nalgebra_glm::vec3(color[0], color[1], color[2]);
 
     let launch_pos = nalgebra_glm::vec3(position.x, position.y, position.z);

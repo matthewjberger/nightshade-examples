@@ -18,12 +18,8 @@ mod turn_phase;
 
 use camera::{CameraBounds, calculate_camera_bounds, clamp_camera_to_bounds, reset_camera_to_map};
 use constants::ACTIONS_PER_TURN;
-use ecs::{Difficulty, Faction, GameEvents, GameWorld, TileType, UNIT};
-use event_log::{
-    EventLog, EventLogUi, build_event_log_ui, event_log_add_combat,
-    event_log_add_faction_eliminated, event_log_add_reinforcement, event_log_add_speech,
-    event_log_add_turn_start, event_log_new, event_log_scroll_system, update_event_log_ui,
-};
+use ecs::{Difficulty, FACTION_COUNT, Faction, GameEvents, GameWorld, TileType, UNIT};
+use event_log::{EventLog, EventLogUi, build_event_log_ui, update_event_log_ui};
 use hex::hex_to_world_position;
 use hex_overlay_pass::{HexOverlayPass, SharedOverlayData};
 use hud::{HudUi, build_hud_ui, update_hud};
@@ -47,7 +43,7 @@ use systems::{
     valid_moves_system, victory_system,
 };
 use tiles::despawn_all_tiles;
-use turn_phase::TurnPhase;
+use turn_phase::{TurnPhaseEvent, TurnPhaseState};
 
 fn spawn_ocean(world: &mut World) -> Entity {
     use nightshade::ecs::water::Water;
@@ -105,7 +101,7 @@ impl Default for HexWarGame {
             tile_prefabs: HashMap::new(),
             menu_state: MenuState::MainMenu,
             selected_difficulty: Difficulty::default(),
-            event_log: event_log_new(),
+            event_log: EventLog::new(),
             fps_entity: None,
             fps_visible: false,
             sun_entity: None,
@@ -161,19 +157,20 @@ fn game_cleanup_map(game: &mut HexWarGame, world: &mut World) {
     despawn_all_tiles(&mut game.game_world);
     clear_selection(&mut game.game_world);
     game.game_world.resources.hovered_tile = None;
-    game.game_world.resources.previous_hovered_tile = None;
-    game.game_world.resources.previous_selected_unit = None;
-    game.game_world.resources.previous_valid_move_count = 0;
+    game.game_world.resources.frame_cache = Default::default();
     game.game_world.resources.unit_position_map.clear();
+}
+
+fn advance_turn_phase(phase: &mut TurnPhaseState, event: TurnPhaseEvent) {
+    if let Some(next) = phase.process_event(event) {
+        *phase = next;
+    }
 }
 
 fn game_end_turn(game: &mut HexWarGame) {
     let transition = end_turn(&mut game.game_world, &mut game.game_events);
-    event_log_add_turn_start(
-        &mut game.event_log,
-        transition.turn_number,
-        transition.new_faction,
-    );
+    game.event_log
+        .add_turn_start(transition.turn_number, transition.new_faction);
     game.pending_spawns = transition.pending_spawns;
 }
 
@@ -218,8 +215,6 @@ fn build_fps_label(world: &mut World) -> Entity {
 }
 
 fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
-    game.menu_state = MenuState::MapSetup;
-
     world.resources.graphics.atmosphere = Atmosphere::CloudySky;
     game.sun_entity = Some(spawn_sun(world));
     game.ocean_entity = Some(spawn_ocean(world));
@@ -236,77 +231,58 @@ fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
     ));
     game_reset_camera(game, world);
 
+    set_menu_state(game, world, MenuState::MapSetup);
     if let Some(ui) = &game.menu_ui {
-        show_menu_screen(world, ui, MenuState::MapSetup);
         update_difficulty_display(world, ui, game.selected_difficulty);
     }
 }
 
-fn start_game(game: &mut HexWarGame, world: &mut World) {
-    game.menu_state = MenuState::Playing;
+fn set_gameplay_ui_visible(game: &HexWarGame, world: &mut World, visible: bool) {
+    if let Some(hud) = &game.hud_ui {
+        world.ui_set_visible(hud.screen, visible);
+    }
+    if let Some(log_ui) = &game.event_log_ui {
+        world.ui_set_visible(log_ui.screen, visible);
+    }
+}
 
+fn set_menu_state(game: &mut HexWarGame, world: &mut World, state: MenuState) {
+    game.menu_state = state;
+    let playing = state == MenuState::Playing;
+    set_gameplay_ui_visible(game, world, playing);
+    if let Some(ui) = &game.menu_ui {
+        show_menu_screen(world, ui, state);
+    }
+}
+
+fn start_game(game: &mut HexWarGame, world: &mut World) {
     game.game_world.resources.current_faction = Faction::Redosia;
     game.game_world.resources.actions_remaining = ACTIONS_PER_TURN;
     game.game_world.resources.turn_number = 1;
-    game.game_world.resources.faction_eliminated = [false; 4];
+    game.game_world.resources.faction_eliminated = [false; FACTION_COUNT];
     game.game_world.resources.game_speed = 1.0;
     game.game_world.resources.difficulty = game.selected_difficulty;
 
     build_turn_order(&mut game.game_world);
 
-    game.event_log = event_log_new();
-    event_log_add_turn_start(&mut game.event_log, 1, Faction::Redosia);
+    game.event_log = EventLog::new();
+    game.event_log.add_turn_start(1, Faction::Redosia);
 
-    if let Some(ui) = &game.menu_ui {
-        show_menu_screen(world, ui, MenuState::Playing);
-    }
-    if let Some(hud) = &game.hud_ui {
-        world.ui_set_visible(hud.screen, true);
-    }
-    if let Some(log_ui) = &game.event_log_ui {
-        world.ui_set_visible(log_ui.screen, true);
-    }
+    set_menu_state(game, world, MenuState::Playing);
 }
 
 fn pause_game(game: &mut HexWarGame, world: &mut World) {
-    game.menu_state = MenuState::Paused;
-    if let Some(hud) = &game.hud_ui {
-        world.ui_set_visible(hud.screen, false);
-    }
-    if let Some(log_ui) = &game.event_log_ui {
-        world.ui_set_visible(log_ui.screen, false);
-    }
-    if let Some(ui) = &game.menu_ui {
-        show_menu_screen(world, ui, MenuState::Paused);
-    }
+    set_menu_state(game, world, MenuState::Paused);
 }
 
 fn resume_game(game: &mut HexWarGame, world: &mut World) {
-    game.menu_state = MenuState::Playing;
-    if let Some(ui) = &game.menu_ui {
-        show_menu_screen(world, ui, MenuState::Playing);
-    }
-    if let Some(hud) = &game.hud_ui {
-        world.ui_set_visible(hud.screen, true);
-    }
-    if let Some(log_ui) = &game.event_log_ui {
-        world.ui_set_visible(log_ui.screen, true);
-    }
+    set_menu_state(game, world, MenuState::Playing);
 }
 
 fn return_to_main_menu(game: &mut HexWarGame, world: &mut World) {
-    if let Some(hud) = &game.hud_ui {
-        world.ui_set_visible(hud.screen, false);
-    }
-    if let Some(log_ui) = &game.event_log_ui {
-        world.ui_set_visible(log_ui.screen, false);
-    }
-
+    set_gameplay_ui_visible(game, world, false);
     game_cleanup_game_world(game, world);
-    game.menu_state = MenuState::MainMenu;
-    if let Some(ui) = &game.menu_ui {
-        show_menu_screen(world, ui, MenuState::MainMenu);
-    }
+    set_menu_state(game, world, MenuState::MainMenu);
 }
 
 impl State for HexWarGame {
@@ -387,9 +363,7 @@ impl State for HexWarGame {
                     start_game(self, world);
                 } else if world.ui_clicked(ui.setup_back_button) {
                     game_cleanup_game_world(self, world);
-                    self.menu_state = MenuState::MainMenu;
-                    let ui = self.menu_ui.as_ref().unwrap();
-                    show_menu_screen(world, ui, MenuState::MainMenu);
+                    set_menu_state(self, world, MenuState::MainMenu);
                 }
                 return;
             }
@@ -410,12 +384,7 @@ impl State for HexWarGame {
 
                 let ui = self.menu_ui.as_ref().unwrap();
                 if world.ui_clicked(ui.game_over_new_game_button) {
-                    if let Some(hud) = &self.hud_ui {
-                        world.ui_set_visible(hud.screen, false);
-                    }
-                    if let Some(log_ui) = &self.event_log_ui {
-                        world.ui_set_visible(log_ui.screen, false);
-                    }
+                    set_gameplay_ui_visible(self, world, false);
                     game_cleanup_game_world(self, world);
                     enter_map_setup(self, world);
                 } else if world.ui_clicked(ui.game_over_main_menu_button) {
@@ -441,7 +410,7 @@ impl State for HexWarGame {
         let is_ai_turn = self.game_world.resources.current_faction != self.player_faction;
 
         match self.game_world.resources.turn_phase {
-            TurnPhase::Reinforcement => {
+            TurnPhaseState::Reinforcement => {
                 for pending in self.pending_spawns.drain(..) {
                     spawn_unit(
                         &mut self.game_world,
@@ -456,9 +425,12 @@ impl State for HexWarGame {
                         },
                     );
                 }
-                self.game_world.resources.turn_phase = TurnPhase::Action;
+                advance_turn_phase(
+                    &mut self.game_world.resources.turn_phase,
+                    TurnPhaseEvent::SpawnsProcessed,
+                );
             }
-            TurnPhase::Action => {
+            TurnPhaseState::Action => {
                 if is_ai_turn {
                     let ai_done = ai_turn_system(
                         &mut self.game_world,
@@ -467,7 +439,10 @@ impl State for HexWarGame {
                         &mut self.game_events,
                     );
                     if ai_done && can_end_turn(&self.game_world) {
-                        self.game_world.resources.turn_phase = TurnPhase::End;
+                        advance_turn_phase(
+                            &mut self.game_world.resources.turn_phase,
+                            TurnPhaseEvent::ActionsExhausted,
+                        );
                     }
                 } else {
                     hover_system(&mut self.game_world, world);
@@ -483,9 +458,12 @@ impl State for HexWarGame {
                     }
                 }
             }
-            TurnPhase::End => {
+            TurnPhaseState::End => {
                 game_end_turn(self);
-                self.game_world.resources.turn_phase = TurnPhase::Reinforcement;
+                advance_turn_phase(
+                    &mut self.game_world.resources.turn_phase,
+                    TurnPhaseEvent::TurnAdvanced,
+                );
             }
         }
 
@@ -534,54 +512,24 @@ impl State for HexWarGame {
 
         let game_result = victory_system(&mut self.game_world, world, &mut self.game_events);
 
-        for event in self.game_events.combat_events.drain(..) {
-            event_log_add_combat(
-                &mut self.event_log,
-                event.attacker_faction,
-                event.defender_faction,
-                event.attacker_survived,
-                event.defender_survived,
-            );
-        }
-        for event in self.game_events.speech_events.drain(..) {
-            event_log_add_speech(&mut self.event_log, event.faction);
-        }
-        for event in self.game_events.reinforcement_events.drain(..) {
-            event_log_add_reinforcement(
-                &mut self.event_log,
-                event.faction,
-                event.soldiers,
-                &event.location_name,
-            );
-        }
-        for event in self.game_events.faction_eliminated_events.drain(..) {
-            event_log_add_faction_eliminated(&mut self.event_log, event.faction);
-        }
-
-        event_log_scroll_system(&mut self.event_log, world);
+        self.event_log.drain_events(&mut self.game_events);
+        self.event_log.scroll_system(world);
         if let Some(log_ui) = &self.event_log_ui {
             update_event_log_ui(
                 world,
                 &self.event_log,
                 log_ui,
-                &mut self.game_world.resources.previous_log_scroll,
-                &mut self.game_world.resources.previous_log_count,
+                &mut self.game_world.resources.frame_cache.previous_log_scroll,
+                &mut self.game_world.resources.frame_cache.previous_log_count,
             );
         }
 
-        match game_result {
-            GameResult::Victory(winner) => {
-                let is_player_winner = winner == self.player_faction;
-                if let Some(hud) = &self.hud_ui {
-                    world.ui_set_visible(hud.screen, false);
-                }
-                if let Some(ui) = &self.menu_ui {
-                    setup_game_over_display(world, ui, winner, is_player_winner);
-                    show_menu_screen(world, ui, MenuState::GameOver);
-                }
-                self.menu_state = MenuState::GameOver;
+        if let GameResult::Victory(winner) = game_result {
+            let is_player_winner = winner == self.player_faction;
+            if let Some(ui) = &self.menu_ui {
+                setup_game_over_display(world, ui, winner, is_player_winner);
             }
-            GameResult::Ongoing => {}
+            set_menu_state(self, world, MenuState::GameOver);
         }
 
         self.game_world.step();
@@ -606,7 +554,10 @@ impl State for HexWarGame {
                 let is_player_turn =
                     self.game_world.resources.current_faction == self.player_faction;
                 if is_player_turn {
-                    self.game_world.resources.turn_phase = TurnPhase::End;
+                    advance_turn_phase(
+                        &mut self.game_world.resources.turn_phase,
+                        TurnPhaseEvent::EndTurnPressed,
+                    );
                 }
             }
             KeyCode::KeyS if self.menu_state == MenuState::Playing => {

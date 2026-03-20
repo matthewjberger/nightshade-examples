@@ -13,7 +13,7 @@ pub fn range_lines_system(
     };
 
     let current_count = game_world.resources.valid_move_tiles.len();
-    let previous_count = game_world.resources.previous_valid_move_count;
+    let previous_count = game_world.resources.frame_cache.previous_valid_move_count;
 
     if current_count == previous_count {
         return;
@@ -47,5 +47,5 @@ pub fn range_lines_system(
         }
     }
 
-    game_world.resources.previous_valid_move_count = current_count;
+    game_world.resources.frame_cache.previous_valid_move_count = current_count;
 }

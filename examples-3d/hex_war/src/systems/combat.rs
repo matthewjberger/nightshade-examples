@@ -1,4 +1,7 @@
-use crate::ecs::{Faction, GameWorld, get_defense_bonus_at, modify_faction_morale, unit_stats};
+use crate::ecs::{
+    Faction, GameWorld, compute_combat_strength, get_defense_bonus_at, modify_faction_morale,
+    unit_stats,
+};
 use crate::hex::HexCoord;
 use crate::systems::{despawn_unit, move_unit_to};
 use nightshade::prelude::*;
@@ -8,6 +11,25 @@ pub struct CombatResult {
     pub defender_faction: Faction,
     pub attacker_survived: bool,
     pub defender_survived: bool,
+}
+
+pub fn combat_win_chance(
+    attacker_soldiers: i32,
+    attacker_morale: i32,
+    attacker_multiplier: f32,
+    defender_soldiers: i32,
+    defender_morale: i32,
+    defender_multiplier: f32,
+    defense_bonus: f32,
+) -> f32 {
+    let attacker_strength =
+        compute_combat_strength(attacker_soldiers, attacker_morale, attacker_multiplier);
+    let defender_strength = compute_combat_strength(
+        defender_soldiers,
+        defender_morale,
+        defender_multiplier * defense_bonus,
+    );
+    attacker_strength / (attacker_strength + defender_strength)
 }
 
 pub fn resolve_combat(
@@ -27,13 +49,16 @@ pub fn resolve_combat(
     let attacker_stats = unit_stats(attacker.unit_type);
     let defender_stats = unit_stats(defender.unit_type);
 
-    let attacker_strength = attacker.soldiers as f32
-        * (1.0 + attacker.morale as f32 / 100.0)
-        * attacker_stats.attack_multiplier;
-    let defender_strength = defender.soldiers as f32
-        * (1.0 + defender.morale as f32 / 100.0)
-        * defense_bonus
-        * defender_stats.defense_multiplier;
+    let attacker_strength = compute_combat_strength(
+        attacker.soldiers,
+        attacker.morale,
+        attacker_stats.attack_multiplier,
+    );
+    let defender_strength = compute_combat_strength(
+        defender.soldiers,
+        defender.morale,
+        defender_stats.defense_multiplier * defense_bonus,
+    );
 
     let attacker_wins = attacker_strength > defender_strength;
 
@@ -49,7 +74,7 @@ pub fn resolve_combat(
                 unit.soldiers = attacker_new_soldiers;
             }
             move_unit_to(game_world, attacker_entity, defender_hex);
-            update_tile_ownership(game_world, defender_hex, attacker_faction);
+            set_tile_faction(game_world, defender_hex, attacker_faction);
         } else {
             despawn_unit(game_world, world, attacker_entity);
         }
@@ -90,7 +115,7 @@ pub fn resolve_combat(
     }
 }
 
-fn update_tile_ownership(game_world: &mut GameWorld, coord: HexCoord, faction: Faction) {
+fn set_tile_faction(game_world: &mut GameWorld, coord: HexCoord, faction: Faction) {
     if let Some(&entity) = game_world.resources.tile_map.get(&coord)
         && let Some(tile) = game_world.get_tile_mut(entity)
     {

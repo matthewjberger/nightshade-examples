@@ -1,10 +1,8 @@
 use crate::constants::CITY_REINFORCEMENT;
 use crate::ecs::{
-    Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, UnitType, faction_index,
-    unit_stats,
+    Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, UnitType, unit_stats,
 };
 use crate::hex::{HexCoord, hex_distance};
-use crate::map::CAPITAL_POSITIONS;
 
 pub struct PendingSpawn {
     pub coord: HexCoord,
@@ -20,12 +18,6 @@ fn tile_type_name(tile_type: TileType) -> &'static str {
         TileType::Port => "port",
         _ => "tile",
     }
-}
-
-fn get_capital_coord(faction: Faction) -> HexCoord {
-    let index = faction_index(faction);
-    let (col, row, _) = CAPITAL_POSITIONS[index];
-    HexCoord { column: col, row }
 }
 
 pub fn reinforcement_system(
@@ -144,7 +136,7 @@ pub fn reinforcement_system(
     let territory_bonus = (territory_count / 10) as i32;
 
     if territory_bonus > 0 {
-        let capital_coord = get_capital_coord(current_faction);
+        let capital_coord = current_faction.capital_coord();
 
         let unit_at_capital = game_world
             .resources

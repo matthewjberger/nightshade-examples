@@ -1,5 +1,5 @@
-use crate::ecs::{Faction, GameWorld, HudSnapshot, faction_color, faction_name};
-use crate::turn_phase::TurnPhase;
+use crate::ecs::{Faction, GameWorld, HudSnapshot};
+use crate::turn_phase::TurnPhaseState;
 use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 
@@ -141,11 +141,11 @@ pub fn update_hud(
         turn_phase: game_world.resources.turn_phase,
     };
 
-    if current == game_world.resources.previous_hud {
+    if current == game_world.resources.frame_cache.previous_hud {
         return;
     }
 
-    game_world.resources.previous_hud = current;
+    game_world.resources.frame_cache.previous_hud = current;
 
     let turn = game_world.resources.turn_number;
     let faction = game_world.resources.current_faction;
@@ -154,17 +154,17 @@ pub fn update_hud(
 
     world.ui_set_text(hud.turn_text, &format!("Turn {}", turn));
 
-    let name = faction_name(faction);
-    let fc = faction_color(faction);
+    let name = faction.name();
+    let fc = faction.color();
     world.ui_set_text(hud.faction_text, name);
     if let Some(color) = world.ui.get_ui_node_color_mut(hud.faction_text) {
         color.colors[UiBase::INDEX] = Some(Vec4::new(fc[0], fc[1], fc[2], 1.0));
     }
 
     let phase_label = match game_world.resources.turn_phase {
-        TurnPhase::Reinforcement => "Reinforcement",
-        TurnPhase::Action => "Action",
-        TurnPhase::End => "End",
+        TurnPhaseState::Reinforcement => "Reinforcement",
+        TurnPhaseState::Action => "Action",
+        TurnPhaseState::End => "End",
     };
     world.ui_set_text(
         hud.actions_text,

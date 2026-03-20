@@ -1,4 +1,4 @@
-use crate::ecs::{Faction, faction_color, faction_name};
+use crate::ecs::{Faction, GameEvents};
 use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 use std::collections::VecDeque;
@@ -30,69 +30,134 @@ pub struct EventLog {
     pub scroll_offset: usize,
 }
 
-pub fn event_log_new() -> EventLog {
-    EventLog {
-        entries: VecDeque::new(),
-        scroll_offset: 0,
-    }
-}
-
-fn event_log_add_entry(log: &mut EventLog, faction: Faction, message: String) {
-    let faction_tag = format!("[{}]", faction_name(faction));
-    let faction_color = faction_color(faction);
-    log.entries.push_back(LogEntry {
-        faction_tag,
-        faction_color,
-        message,
-    });
-    if log.entries.len() > MAX_LOG_ENTRIES {
-        log.entries.pop_front();
-        if log.scroll_offset > 0 {
-            log.scroll_offset -= 1;
+impl EventLog {
+    pub fn new() -> Self {
+        Self {
+            entries: VecDeque::new(),
+            scroll_offset: 0,
         }
     }
-    log.scroll_offset = log.entries.len().saturating_sub(VISIBLE_ENTRIES);
-}
 
-pub fn event_log_add_combat(
-    log: &mut EventLog,
-    attacker_faction: Faction,
-    defender_faction: Faction,
-    attacker_survived: bool,
-    defender_survived: bool,
-) {
-    let defender_name = faction_name(defender_faction);
-    let message = if !defender_survived {
-        format!("destroyed {} unit", defender_name)
-    } else if !attacker_survived {
-        format!("was repelled by {}", defender_name)
-    } else {
-        format!("attacked {}", defender_name)
-    };
-    event_log_add_entry(log, attacker_faction, message);
-}
+    fn add_entry(&mut self, faction: Faction, message: String) {
+        let faction_tag = format!("[{}]", faction.name());
+        let fc = faction.color();
+        self.entries.push_back(LogEntry {
+            faction_tag,
+            faction_color: fc,
+            message,
+        });
+        if self.entries.len() > MAX_LOG_ENTRIES {
+            self.entries.pop_front();
+            if self.scroll_offset > 0 {
+                self.scroll_offset -= 1;
+            }
+        }
+        self.scroll_offset = self.entries.len().saturating_sub(VISIBLE_ENTRIES);
+    }
 
-pub fn event_log_add_faction_eliminated(log: &mut EventLog, eliminated_faction: Faction) {
-    event_log_add_entry(log, eliminated_faction, "has been eliminated!".to_string());
-}
+    pub fn add_combat(
+        &mut self,
+        attacker_faction: Faction,
+        defender_faction: Faction,
+        attacker_survived: bool,
+        defender_survived: bool,
+    ) {
+        let defender_name = defender_faction.name();
+        let message = if !defender_survived {
+            format!("destroyed {} unit", defender_name)
+        } else if !attacker_survived {
+            format!("was repelled by {}", defender_name)
+        } else {
+            format!("attacked {}", defender_name)
+        };
+        self.add_entry(attacker_faction, message);
+    }
 
-pub fn event_log_add_reinforcement(
-    log: &mut EventLog,
-    faction: Faction,
-    soldiers: i32,
-    location: &str,
-) {
-    let message = format!("reinforced {} (+{})", location, soldiers);
-    event_log_add_entry(log, faction, message);
-}
+    pub fn add_faction_eliminated(&mut self, eliminated_faction: Faction) {
+        self.add_entry(eliminated_faction, "has been eliminated!".to_string());
+    }
 
-pub fn event_log_add_turn_start(log: &mut EventLog, turn: u32, faction: Faction) {
-    let message = format!("Turn {} begins", turn);
-    event_log_add_entry(log, faction, message);
-}
+    pub fn add_reinforcement(&mut self, faction: Faction, soldiers: i32, location: &str) {
+        let message = format!("reinforced {} (+{})", location, soldiers);
+        self.add_entry(faction, message);
+    }
 
-pub fn event_log_add_speech(log: &mut EventLog, faction: Faction) {
-    event_log_add_entry(log, faction, "gave an inspiring speech".to_string());
+    pub fn add_turn_start(&mut self, turn: u32, faction: Faction) {
+        let message = format!("Turn {} begins", turn);
+        self.add_entry(faction, message);
+    }
+
+    pub fn add_speech(&mut self, faction: Faction) {
+        self.add_entry(faction, "gave an inspiring speech".to_string());
+    }
+
+    pub fn drain_events(&mut self, events: &mut GameEvents) {
+        for event in events.combat_events.drain(..) {
+            self.add_combat(
+                event.attacker_faction,
+                event.defender_faction,
+                event.attacker_survived,
+                event.defender_survived,
+            );
+        }
+        for event in events.speech_events.drain(..) {
+            self.add_speech(event.faction);
+        }
+        for event in events.reinforcement_events.drain(..) {
+            self.add_reinforcement(event.faction, event.soldiers, &event.location_name);
+        }
+        for event in events.faction_eliminated_events.drain(..) {
+            self.add_faction_eliminated(event.faction);
+        }
+    }
+
+    pub fn scroll_system(&mut self, world: &mut World) {
+        let mouse_pos = world.resources.input.mouse.position;
+        let screen_height = world
+            .resources
+            .window
+            .handle
+            .as_ref()
+            .map(|h| h.inner_size().height as f32)
+            .unwrap_or(600.0);
+
+        let line_height = LOG_FONT_SIZE * 1.35;
+        let log_height = VISIBLE_ENTRIES as f32 * line_height + 16.0;
+        let log_left = 0.0;
+        let log_right = LOG_WIDTH;
+        let log_bottom = screen_height;
+        let log_top = screen_height - log_height;
+
+        let in_log_area = mouse_pos.x >= log_left
+            && mouse_pos.x <= log_right
+            && mouse_pos.y >= log_top
+            && mouse_pos.y <= log_bottom;
+
+        if !in_log_area {
+            return;
+        }
+
+        if !world
+            .resources
+            .input
+            .mouse
+            .state
+            .contains(MouseState::SCROLLED)
+        {
+            return;
+        }
+
+        let scroll_lines = -world.resources.input.mouse.wheel_delta.y.round() as i32;
+        let max_scroll = self.entries.len().saturating_sub(VISIBLE_ENTRIES);
+
+        if scroll_lines < 0 {
+            self.scroll_offset = self
+                .scroll_offset
+                .saturating_sub(scroll_lines.unsigned_abs() as usize);
+        } else {
+            self.scroll_offset = (self.scroll_offset + scroll_lines as usize).min(max_scroll);
+        }
+    }
 }
 
 pub fn build_event_log_ui(world: &mut World) -> EventLogUi {
@@ -205,53 +270,5 @@ pub fn update_event_log_ui(
             world.ui_set_text(line.faction_entity, "");
             world.ui_set_text(line.message_entity, "");
         }
-    }
-}
-
-pub fn event_log_scroll_system(log: &mut EventLog, world: &mut World) {
-    let mouse_pos = world.resources.input.mouse.position;
-    let screen_height = world
-        .resources
-        .window
-        .handle
-        .as_ref()
-        .map(|h| h.inner_size().height as f32)
-        .unwrap_or(600.0);
-
-    let line_height = LOG_FONT_SIZE * 1.35;
-    let log_height = VISIBLE_ENTRIES as f32 * line_height + 16.0;
-    let log_left = 0.0;
-    let log_right = LOG_WIDTH;
-    let log_bottom = screen_height;
-    let log_top = screen_height - log_height;
-
-    let in_log_area = mouse_pos.x >= log_left
-        && mouse_pos.x <= log_right
-        && mouse_pos.y >= log_top
-        && mouse_pos.y <= log_bottom;
-
-    if !in_log_area {
-        return;
-    }
-
-    if !world
-        .resources
-        .input
-        .mouse
-        .state
-        .contains(MouseState::SCROLLED)
-    {
-        return;
-    }
-
-    let scroll_lines = -world.resources.input.mouse.wheel_delta.y.round() as i32;
-    let max_scroll = log.entries.len().saturating_sub(VISIBLE_ENTRIES);
-
-    if scroll_lines < 0 {
-        log.scroll_offset = log
-            .scroll_offset
-            .saturating_sub(scroll_lines.unsigned_abs() as usize);
-    } else {
-        log.scroll_offset = (log.scroll_offset + scroll_lines as usize).min(max_scroll);
     }
 }

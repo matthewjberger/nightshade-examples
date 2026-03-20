@@ -40,6 +40,12 @@ pub struct MenuUi {
 
     pub replay_screen: Entity,
     pub replay_back_button: Entity,
+    pub replay_prev_button: Entity,
+    pub replay_next_button: Entity,
+    pub replay_turn_text: Entity,
+    pub replay_faction_text: Entity,
+    pub replay_action_text: Entity,
+    pub replay_counter_text: Entity,
 }
 
 pub fn build_menu_ui(world: &mut World) -> MenuUi {
@@ -255,6 +261,12 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
     let mut game_over_main_menu_button = placeholder;
     let mut game_over_replay_button = placeholder;
     let mut replay_back_button = placeholder;
+    let mut replay_prev_button = placeholder;
+    let mut replay_next_button = placeholder;
+    let mut replay_turn_text = placeholder;
+    let mut replay_faction_text = placeholder;
+    let mut replay_action_text = placeholder;
+    let mut replay_counter_text = placeholder;
 
     let game_over_screen = tree
         .add_node()
@@ -319,36 +331,106 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
         .with_children(|tree| {
             tree.add_node()
                 .window(
-                    Rl(Vec2::new(50.0, 4.0)),
-                    Ab(Vec2::new(360.0, 100.0)),
-                    Anchor::TopCenter,
+                    Rl(Vec2::new(50.0, 100.0)) + Ab(Vec2::new(0.0, -10.0)),
+                    Ab(Vec2::new(500.0, 160.0)),
+                    Anchor::BottomCenter,
                 )
                 .with_rect(8.0, 1.0, panel_border)
                 .with_color::<UiBase>(panel_bg)
-                .flow(FlowDirection::Vertical, 8.0, 6.0)
+                .flow(FlowDirection::Vertical, 8.0, 4.0)
                 .without_pointer_events()
                 .with_children(|tree| {
                     tree.add_node()
                         .flow_child(
-                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.4)),
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, label_font * 1.3)),
                         )
-                        .with_text("GAME REPLAY", heading_font)
+                        .with_text("GAME REPLAY", label_font)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                         .with_color::<UiBase>(gold)
                         .without_pointer_events()
                         .done();
 
-                    tree.add_node()
+                    replay_turn_text = tree
+                        .add_node()
                         .flow_child(
-                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, label_font * 1.3)),
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, heading_font * 1.4)),
                         )
-                        .with_text("Scroll the event log to review the game", label_font)
+                        .with_text("Turn 1", heading_font)
+                        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(white)
+                        .without_pointer_events()
+                        .done();
+
+                    replay_faction_text = tree
+                        .add_node()
+                        .flow_child(
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, label_font * 1.4)),
+                        )
+                        .with_text("Redosia", label_font)
+                        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(white)
+                        .without_pointer_events()
+                        .done();
+
+                    replay_action_text = tree
+                        .add_node()
+                        .flow_child(
+                            Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, label_font * 1.4)),
+                        )
+                        .with_text("", label_font)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                         .with_color::<UiBase>(dim)
                         .without_pointer_events()
                         .done();
 
-                    replay_back_button = tree.add_button("BACK TO RESULTS");
+                    let button_row = tree
+                        .add_node()
+                        .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, 36.0)))
+                        .flow(FlowDirection::Horizontal, 0.0, 6.0)
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(button_row);
+                    tree.add_spring();
+
+                    let prev_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(80.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(prev_wrap);
+                    replay_prev_button = tree.add_button("<< PREV");
+                    tree.pop_parent();
+
+                    replay_counter_text = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(80.0, 36.0)))
+                        .with_text("1 / 1", label_font)
+                        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
+                        .with_color::<UiBase>(dim)
+                        .without_pointer_events()
+                        .done();
+
+                    let next_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(80.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(next_wrap);
+                    replay_next_button =
+                        tree.add_button_colored("NEXT >>", Vec4::new(0.2, 0.3, 0.5, 1.0));
+                    tree.pop_parent();
+
+                    let back_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(100.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(back_wrap);
+                    replay_back_button = tree.add_button("BACK");
+                    tree.pop_parent();
+
+                    tree.add_spring();
+                    tree.pop_parent();
                 })
                 .done();
         })
@@ -383,6 +465,12 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
 
         replay_screen,
         replay_back_button,
+        replay_prev_button,
+        replay_next_button,
+        replay_turn_text,
+        replay_faction_text,
+        replay_action_text,
+        replay_counter_text,
     }
 }
 

@@ -31,6 +31,7 @@ use menu::{
     update_difficulty_display,
 };
 use nightshade::ecs::prefab::Prefab;
+use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 use prefabs::load_tile_prefabs;
 use selection::clear_selection;
@@ -93,6 +94,7 @@ struct HexWarGame {
     event_log_ui: Option<EventLogUi>,
     overlay_data: SharedOverlayData,
     replay_history: Vec<ActionRecord>,
+    replay_cursor: usize,
 }
 
 impl Default for HexWarGame {
@@ -119,6 +121,7 @@ impl Default for HexWarGame {
             event_log_ui: None,
             overlay_data: Arc::new(Mutex::new(hex_overlay_pass::OverlayData::default())),
             replay_history: Vec::new(),
+            replay_cursor: 0,
         }
     }
 }
@@ -249,15 +252,42 @@ fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
 }
 
 fn enter_replay(game: &mut HexWarGame, world: &mut World) {
-    game.event_log = EventLog::new();
-    game.event_log.load_records(&game.replay_history);
-    game.game_world.resources.frame_cache.previous_log_scroll = usize::MAX;
-    game.game_world.resources.frame_cache.previous_log_count = usize::MAX;
-
+    game.replay_cursor = 0;
     set_menu_state(game, world, MenuState::Replay);
-    if let Some(log_ui) = &game.event_log_ui {
-        world.ui_set_visible(log_ui.screen, true);
+    update_replay_display(game, world);
+}
+
+fn update_replay_display(game: &HexWarGame, world: &mut World) {
+    let Some(ui) = &game.menu_ui else {
+        return;
+    };
+
+    let total = game.replay_history.len();
+    if total == 0 {
+        world.ui_set_text(ui.replay_turn_text, "No actions recorded");
+        world.ui_set_text(ui.replay_faction_text, "");
+        world.ui_set_text(ui.replay_action_text, "");
+        world.ui_set_text(ui.replay_counter_text, "0 / 0");
+        return;
     }
+
+    let cursor = game.replay_cursor.min(total.saturating_sub(1));
+    let record = &game.replay_history[cursor];
+
+    world.ui_set_text(ui.replay_turn_text, &format!("Turn {}", record.turn));
+
+    let name = record.faction.name();
+    world.ui_set_text(ui.replay_faction_text, name);
+    let fc = record.faction.color();
+    if let Some(color) = world.ui.get_ui_node_color_mut(ui.replay_faction_text) {
+        color.colors[UiBase::INDEX] = Some(Vec4::new(fc[0], fc[1], fc[2], 1.0));
+    }
+
+    world.ui_set_text(ui.replay_action_text, &record.description);
+    world.ui_set_text(
+        ui.replay_counter_text,
+        &format!("{} / {}", cursor + 1, total),
+    );
 }
 
 fn set_gameplay_ui_visible(game: &HexWarGame, world: &mut World, visible: bool) {
@@ -432,20 +462,22 @@ impl State for HexWarGame {
                     clamp_camera_to_bounds(world, bounds);
                 }
 
-                self.event_log.scroll_system(world);
-                if let Some(log_ui) = &self.event_log_ui {
-                    update_event_log_ui(
-                        world,
-                        &self.event_log,
-                        log_ui,
-                        &mut self.game_world.resources.frame_cache.previous_log_scroll,
-                        &mut self.game_world.resources.frame_cache.previous_log_count,
-                    );
+                let total = self.replay_history.len();
+                let ui = self.menu_ui.as_ref().unwrap();
+
+                if world.ui_clicked(ui.replay_next_button)
+                    && self.replay_cursor < total.saturating_sub(1)
+                {
+                    self.replay_cursor += 1;
+                    update_replay_display(self, world);
                 }
 
-                let ui = self.menu_ui.as_ref().unwrap();
+                if world.ui_clicked(ui.replay_prev_button) && self.replay_cursor > 0 {
+                    self.replay_cursor -= 1;
+                    update_replay_display(self, world);
+                }
+
                 if world.ui_clicked(ui.replay_back_button) {
-                    set_gameplay_ui_visible(self, world, false);
                     set_menu_state(self, world, MenuState::GameOver);
                 }
                 return;
@@ -612,6 +644,22 @@ impl State for HexWarGame {
                 | MenuState::GameOver
                 | MenuState::Replay => {}
             },
+            KeyCode::ArrowRight if self.menu_state == MenuState::Replay => {
+                let total = self.replay_history.len();
+                if self.replay_cursor < total.saturating_sub(1) {
+                    self.replay_cursor += 1;
+                    update_replay_display(self, world);
+                }
+            }
+            KeyCode::ArrowLeft if self.menu_state == MenuState::Replay => {
+                if self.replay_cursor > 0 {
+                    self.replay_cursor -= 1;
+                    update_replay_display(self, world);
+                }
+            }
+            KeyCode::Escape if self.menu_state == MenuState::Replay => {
+                set_menu_state(self, world, MenuState::GameOver);
+            }
             KeyCode::Space if self.menu_state == MenuState::Playing => {
                 let is_player_turn =
                     self.game_world.resources.current_faction == self.player_faction;

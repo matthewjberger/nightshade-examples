@@ -52,8 +52,6 @@ pub fn spawn_unit(
 
     let mesh_name = match unit_type {
         UnitType::Infantry => "Sphere",
-        UnitType::Cavalry => "Cube",
-        UnitType::Artillery => "Cylinder",
     };
     let render_entity = spawn_mesh(
         world,

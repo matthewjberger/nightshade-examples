@@ -87,15 +87,11 @@ pub fn reinforcement_system(
                 );
             }
         } else {
-            let spawn_type = match tile_type {
-                TileType::Capital => UnitType::Cavalry,
-                _ => UnitType::Infantry,
-            };
             pending_spawns.push(PendingSpawn {
                 coord,
                 faction: current_faction,
                 soldiers: reinforcement,
-                unit_type: spawn_type,
+                unit_type: UnitType::Infantry,
             });
             events.reinforcement_events.push(ReinforcementEvent {
                 faction: current_faction,
@@ -203,7 +199,7 @@ pub fn reinforcement_system(
                     coord: capital_coord,
                     faction: current_faction,
                     soldiers: territory_bonus.max(1),
-                    unit_type: UnitType::Artillery,
+                    unit_type: UnitType::Infantry,
                 });
                 events.reinforcement_events.push(ReinforcementEvent {
                     faction: current_faction,

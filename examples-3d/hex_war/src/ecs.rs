@@ -169,8 +169,6 @@ pub struct HexPosition(pub HexCoord);
 pub enum UnitType {
     #[default]
     Infantry,
-    Cavalry,
-    Artillery,
 }
 
 pub struct UnitStats {
@@ -187,18 +185,6 @@ pub fn unit_stats(unit_type: UnitType) -> UnitStats {
             attack_multiplier: 1.0,
             defense_multiplier: 1.0,
             max_soldiers: 99,
-        },
-        UnitType::Cavalry => UnitStats {
-            movement_range: 3,
-            attack_multiplier: 1.2,
-            defense_multiplier: 0.8,
-            max_soldiers: 60,
-        },
-        UnitType::Artillery => UnitStats {
-            movement_range: 1,
-            attack_multiplier: 1.5,
-            defense_multiplier: 0.6,
-            max_soldiers: 40,
         },
     }
 }

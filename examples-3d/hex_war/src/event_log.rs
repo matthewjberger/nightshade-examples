@@ -87,20 +87,6 @@ impl EventLog {
         self.add_entry(faction, message);
     }
 
-    pub fn load_records(&mut self, records: &[crate::ecs::ActionRecord]) {
-        self.entries.clear();
-        self.scroll_offset = 0;
-        for record in records {
-            let faction_tag = format!("[{}]", record.faction.name());
-            let fc = record.faction.color();
-            self.entries.push_back(LogEntry {
-                faction_tag,
-                faction_color: fc,
-                message: format!("[T{}] {}", record.turn, record.description),
-            });
-        }
-    }
-
     pub fn add_speech(&mut self, faction: Faction) {
         self.add_entry(faction, "gave an inspiring speech".to_string());
     }

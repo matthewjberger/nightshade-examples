@@ -1,7 +1,7 @@
 use crate::hex::HexCoord;
 use crate::map::MapGenParams;
 use nightshade::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub use freecs::Entity;
 
@@ -79,7 +79,6 @@ freecs::ecs! {
         needs_regeneration: bool,
         valid_move_tiles: HashSet<HexCoord>,
         hovered_tile: Option<HexCoord>,
-        previously_highlighted: HashSet<HexCoord>,
         previous_hovered_tile: Option<HexCoord>,
         previous_selected_unit: Option<freecs::Entity>,
         previous_valid_move_count: usize,
@@ -94,7 +93,25 @@ freecs::ecs! {
         current_unit_index: usize,
         game_speed: f32,
         difficulty: Difficulty,
+        tile_map: HashMap<HexCoord, freecs::Entity>,
+        passable_tiles: HashSet<HexCoord>,
+        port_tiles: HashSet<HexCoord>,
+        unit_position_map: HashMap<HexCoord, freecs::Entity>,
+        previous_hud: HudSnapshot,
+        previous_log_scroll: usize,
+        previous_log_count: usize,
+        valid_moves_generation: u32,
+        previous_highlight_generation: u32,
     }
+}
+
+#[derive(Default, PartialEq)]
+pub struct HudSnapshot {
+    pub turn: u32,
+    pub faction: Faction,
+    pub actions: u8,
+    pub speed_bits: u32,
+    pub is_player_turn: bool,
 }
 
 pub fn get_faction_morale(resources: &GameResources, faction: Faction) -> i32 {
@@ -164,6 +181,22 @@ pub struct Tile {
 pub struct FloatingPopup {
     pub text_entity: Entity,
     pub lifetime: f32,
+}
+
+pub fn get_tile_at(game_world: &GameWorld, coord: HexCoord) -> Option<(freecs::Entity, Tile)> {
+    let &entity = game_world.resources.tile_map.get(&coord)?;
+    let tile = game_world.get_tile(entity).copied()?;
+    Some((entity, tile))
+}
+
+pub fn get_tile_type_at(game_world: &GameWorld, coord: HexCoord) -> Option<TileType> {
+    get_tile_at(game_world, coord).map(|(_, tile)| tile.tile_type)
+}
+
+pub fn get_defense_bonus_at(game_world: &GameWorld, coord: HexCoord) -> f32 {
+    get_tile_at(game_world, coord)
+        .map(|(_, tile)| tile_defense_bonus(tile.tile_type))
+        .unwrap_or(1.0)
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -1,6 +1,4 @@
-use crate::ecs::{
-    Faction, GameWorld, HEX_POSITION, TILE, modify_faction_morale, tile_defense_bonus,
-};
+use crate::ecs::{Faction, GameWorld, get_defense_bonus_at, modify_faction_morale};
 use crate::hex::HexCoord;
 use crate::systems::{despawn_unit, move_unit_to};
 use nightshade::prelude::*;
@@ -87,32 +85,8 @@ pub fn resolve_combat(
     }
 }
 
-fn get_defense_bonus_at(game_world: &GameWorld, coord: HexCoord) -> f32 {
-    game_world
-        .query_entities(HEX_POSITION | TILE)
-        .find_map(|entity| {
-            let hex = game_world.get_hex_position(entity)?;
-            if hex.0 == coord {
-                let tile = game_world.get_tile(entity)?;
-                Some(tile_defense_bonus(tile.tile_type))
-            } else {
-                None
-            }
-        })
-        .unwrap_or(1.0)
-}
-
 fn update_tile_ownership(game_world: &mut GameWorld, coord: HexCoord, faction: Faction) {
-    let tile_entity = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .find(|&entity| {
-            game_world
-                .get_hex_position(entity)
-                .map(|hex| hex.0 == coord)
-                .unwrap_or(false)
-        });
-
-    if let Some(entity) = tile_entity
+    if let Some(&entity) = game_world.resources.tile_map.get(&coord)
         && let Some(tile) = game_world.get_tile_mut(entity)
     {
         tile.faction = Some(faction);

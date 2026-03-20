@@ -1,5 +1,5 @@
 use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
-use crate::ecs::{Entity, GameWorld, HEX_POSITION, TILE, TileType, UNIT};
+use crate::ecs::{Entity, GameWorld};
 use crate::hex::{HexCoord, hex_neighbors, hex_to_world_position};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
@@ -94,25 +94,14 @@ fn find_sea_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
     let hex_width = game_world.resources.hex_width;
     let hex_depth = game_world.resources.hex_depth;
 
-    let land_tiles: HashSet<HexCoord> = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .filter_map(|entity| {
-            let coord = game_world.get_hex_position(entity)?.0;
-            let tile = game_world.get_tile(entity)?;
-            if tile.tile_type != TileType::Sea {
-                Some(coord)
-            } else {
-                None
-            }
-        })
-        .collect();
+    let passable_land = &game_world.resources.passable_tiles;
 
     let margin = 5;
     let mut passable: HashSet<HexCoord> = HashSet::new();
     for column in -margin..(MAP_WIDTH + margin) {
         for row in -margin..(MAP_HEIGHT + margin) {
             let coord = HexCoord { column, row };
-            if !land_tiles.contains(&coord) || coord == from || coord == to {
+            if !passable_land.contains(&coord) || coord == from || coord == to {
                 passable.insert(coord);
             }
         }
@@ -126,46 +115,15 @@ pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
         return Some(vec![from]);
     }
 
-    let passable_tiles: HashSet<HexCoord> = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .filter_map(|entity| {
-            let coord = game_world.get_hex_position(entity)?.0;
-            let tile = game_world.get_tile(entity)?;
-            if tile.tile_type != TileType::Sea {
-                Some(coord)
-            } else {
-                None
-            }
-        })
-        .collect();
+    let passable_tiles = &game_world.resources.passable_tiles;
+    let port_tiles = &game_world.resources.port_tiles;
 
     if !passable_tiles.contains(&from) || !passable_tiles.contains(&to) {
         return None;
     }
 
-    let from_is_port = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .any(|entity| {
-            let Some(coord) = game_world.get_hex_position(entity).map(|h| h.0) else {
-                return false;
-            };
-            let Some(tile) = game_world.get_tile(entity) else {
-                return false;
-            };
-            coord == from && tile.tile_type == TileType::Port
-        });
-
-    let to_is_port = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .any(|entity| {
-            let Some(coord) = game_world.get_hex_position(entity).map(|h| h.0) else {
-                return false;
-            };
-            let Some(tile) = game_world.get_tile(entity) else {
-                return false;
-            };
-            coord == to && tile.tile_type == TileType::Port
-        });
+    let from_is_port = port_tiles.contains(&from);
+    let to_is_port = port_tiles.contains(&to);
 
     if from_is_port && to_is_port {
         return find_sea_path(game_world, from, to);
@@ -173,7 +131,7 @@ pub fn find_path(game_world: &GameWorld, from: HexCoord, to: HexCoord) -> Option
 
     let hex_width = game_world.resources.hex_width;
     let hex_depth = game_world.resources.hex_depth;
-    astar(from, to, &passable_tiles, hex_width, hex_depth)
+    astar(from, to, passable_tiles, hex_width, hex_depth)
 }
 
 pub fn calculate_valid_moves(
@@ -182,37 +140,9 @@ pub fn calculate_valid_moves(
     unit_hex: HexCoord,
     movement_range: i32,
 ) -> Vec<HexCoord> {
-    let unit_positions: HashSet<HexCoord> = game_world
-        .query_entities(HEX_POSITION | UNIT)
-        .filter(|&entity| entity != unit_entity)
-        .filter_map(|entity| game_world.get_hex_position(entity).map(|hex| hex.0))
-        .collect();
-
-    let passable_tiles: HashSet<HexCoord> = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .filter_map(|entity| {
-            let coord = game_world.get_hex_position(entity)?.0;
-            let tile = game_world.get_tile(entity)?;
-            if tile.tile_type != TileType::Sea {
-                Some(coord)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    let port_tiles: HashSet<HexCoord> = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .filter_map(|entity| {
-            let coord = game_world.get_hex_position(entity)?.0;
-            let tile = game_world.get_tile(entity)?;
-            if tile.tile_type == TileType::Port {
-                Some(coord)
-            } else {
-                None
-            }
-        })
-        .collect();
+    let passable_tiles = &game_world.resources.passable_tiles;
+    let port_tiles = &game_world.resources.port_tiles;
+    let unit_position_map = &game_world.resources.unit_position_map;
 
     let starting_on_port = port_tiles.contains(&unit_hex);
 
@@ -240,7 +170,7 @@ pub fn calculate_valid_moves(
         }
 
         if starting_on_port && current == unit_hex {
-            for &port_coord in &port_tiles {
+            for &port_coord in port_tiles {
                 if port_coord == unit_hex {
                     continue;
                 }
@@ -255,7 +185,11 @@ pub fn calculate_valid_moves(
     distances
         .into_iter()
         .filter(|(coord, distance)| {
-            *distance > 0 && *distance <= movement_range && !unit_positions.contains(coord)
+            *distance > 0
+                && *distance <= movement_range
+                && !unit_position_map
+                    .get(coord)
+                    .is_some_and(|&entity| entity != unit_entity)
         })
         .map(|(coord, _)| coord)
         .collect()
@@ -284,5 +218,6 @@ pub fn valid_moves_system(game_world: &mut GameWorld) {
         }
     }
 
+    game_world.resources.valid_moves_generation += 1;
     game_world.resources.previous_selected_unit = current_selected;
 }

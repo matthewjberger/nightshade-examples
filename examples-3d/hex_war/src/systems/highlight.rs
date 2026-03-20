@@ -6,6 +6,12 @@ use nightshade::ecs::world::components::Line;
 use nightshade::prelude::*;
 
 pub fn tile_highlight_system(game_world: &mut GameWorld, overlay_data: &SharedOverlayData) {
+    let generation = game_world.resources.valid_moves_generation;
+    if generation == game_world.resources.previous_highlight_generation {
+        return;
+    }
+    game_world.resources.previous_highlight_generation = generation;
+
     let valid_move_tiles = &game_world.resources.valid_move_tiles;
     let hex_width = game_world.resources.hex_width;
     let hex_depth = game_world.resources.hex_depth;
@@ -22,7 +28,7 @@ pub fn tile_highlight_system(game_world: &mut GameWorld, overlay_data: &SharedOv
 }
 
 pub fn hover_outline_system(
-    game_world: &GameWorld,
+    game_world: &mut GameWorld,
     world: &mut World,
     hover_outline_entity: Option<Entity>,
 ) {
@@ -31,6 +37,14 @@ pub fn hover_outline_system(
     };
 
     let hovered_tile = game_world.resources.hovered_tile;
+    let previous_hovered = game_world.resources.previous_hovered_tile;
+    let generation = game_world.resources.valid_moves_generation;
+    let previous_generation = game_world.resources.previous_highlight_generation;
+
+    if hovered_tile == previous_hovered && generation == previous_generation {
+        return;
+    }
+    game_world.resources.previous_hovered_tile = hovered_tile;
 
     match hovered_tile {
         Some(coord) => {

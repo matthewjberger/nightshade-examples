@@ -159,10 +159,10 @@ fn game_cleanup_map(game: &mut HexWarGame, world: &mut World) {
     despawn_all_tiles(&mut game.game_world);
     clear_selection(&mut game.game_world);
     game.game_world.resources.hovered_tile = None;
-    game.game_world.resources.previously_highlighted.clear();
     game.game_world.resources.previous_hovered_tile = None;
     game.game_world.resources.previous_selected_unit = None;
     game.game_world.resources.previous_valid_move_count = 0;
+    game.game_world.resources.unit_position_map.clear();
 }
 
 fn game_end_turn(game: &mut HexWarGame) {
@@ -505,14 +505,14 @@ impl State for HexWarGame {
         range_lines_system(&mut self.game_world, world, range_lines_entity);
 
         tile_highlight_system(&mut self.game_world, &self.overlay_data);
-        hover_outline_system(&self.game_world, world, hover_outline_entity);
+        hover_outline_system(&mut self.game_world, world, hover_outline_entity);
         unit_text_system(&self.game_world, world);
         unit_visual_update_system(&self.game_world, world);
         floating_popup_system(&mut self.game_world, world, delta_time);
         nightshade::ecs::text::systems::sync_text_meshes_system(world);
 
         if let Some(hud) = &self.hud_ui {
-            update_hud(hud, &self.game_world, world, self.player_faction);
+            update_hud(hud, &mut self.game_world, world, self.player_faction);
         }
 
         let game_result = victory_system(&mut self.game_world, world, &mut self.game_events);
@@ -543,7 +543,13 @@ impl State for HexWarGame {
 
         event_log_scroll_system(&mut self.event_log, world);
         if let Some(log_ui) = &self.event_log_ui {
-            update_event_log_ui(world, &self.event_log, log_ui);
+            update_event_log_ui(
+                world,
+                &self.event_log,
+                log_ui,
+                &mut self.game_world.resources.previous_log_scroll,
+                &mut self.game_world.resources.previous_log_count,
+            );
         }
 
         match game_result {

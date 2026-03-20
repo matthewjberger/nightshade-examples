@@ -1,4 +1,4 @@
-use crate::ecs::{GameWorld, HEX_POSITION, TILE};
+use crate::ecs::GameWorld;
 use crate::hex::world_to_hex;
 use nightshade::prelude::*;
 
@@ -14,13 +14,7 @@ pub fn hover_system(game_world: &mut GameWorld, world: &mut World) {
                 hex_width,
                 hex_depth,
             );
-            let exists = game_world
-                .query_entities(HEX_POSITION | TILE)
-                .any(|entity| {
-                    game_world
-                        .get_hex_position(entity)
-                        .is_some_and(|hex| hex.0 == coord)
-                });
+            let exists = game_world.resources.tile_map.contains_key(&coord);
             game_world.resources.hovered_tile = if exists { Some(coord) } else { None };
         } else {
             game_world.resources.hovered_tile = None;

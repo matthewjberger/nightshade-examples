@@ -1,6 +1,5 @@
-use crate::ecs::{Faction, GameWorld, HEX_POSITION, TILE, TileType, UNIT, modify_faction_morale};
+use crate::ecs::{Faction, GameWorld, TileType, modify_faction_morale};
 use crate::hex::HexCoord;
-use std::collections::HashMap;
 
 pub struct TileCapture {
     pub coord: HexCoord,
@@ -29,10 +28,11 @@ fn morale_change_for_loss(tile_type: TileType) -> i32 {
 }
 
 pub fn tile_ownership_system(game_world: &mut GameWorld) -> Vec<TileCapture> {
-    let unit_positions: HashMap<HexCoord, Faction> = game_world
-        .query_entities(HEX_POSITION | UNIT)
-        .filter_map(|entity| {
-            let coord = game_world.get_hex_position(entity)?.0;
+    let unit_positions: Vec<(HexCoord, Faction)> = game_world
+        .resources
+        .unit_position_map
+        .iter()
+        .filter_map(|(&coord, &entity)| {
             let unit = game_world.get_unit(entity)?;
             Some((coord, unit.faction))
         })
@@ -41,51 +41,47 @@ pub fn tile_ownership_system(game_world: &mut GameWorld) -> Vec<TileCapture> {
     let mut morale_changes: Vec<(Faction, i32)> = Vec::new();
     let mut captures: Vec<TileCapture> = Vec::new();
 
-    for entity in game_world
-        .query_entities(HEX_POSITION | TILE)
-        .collect::<Vec<_>>()
-    {
-        let Some(coord) = game_world.get_hex_position(entity).map(|h| h.0) else {
+    for (coord, unit_faction) in &unit_positions {
+        let Some(&tile_entity) = game_world.resources.tile_map.get(coord) else {
+            continue;
+        };
+        let Some(tile) = game_world.get_tile(tile_entity).copied() else {
             continue;
         };
 
-        if let Some(&unit_faction) = unit_positions.get(&coord)
-            && let Some(tile) = game_world.get_tile(entity)
-        {
-            if tile.tile_type == TileType::Sea {
-                continue;
-            }
+        if tile.tile_type == TileType::Sea {
+            continue;
+        }
 
-            let old_owner = tile.faction;
-            if old_owner == Some(unit_faction) {
-                continue;
-            }
+        let old_owner = tile.faction;
+        if old_owner == Some(*unit_faction) {
+            continue;
+        }
 
-            let was_enemy = old_owner.is_some();
-            let gain = morale_change_for_capture(tile.tile_type, was_enemy);
-            if gain > 0 {
-                morale_changes.push((unit_faction, gain));
-            }
+        let was_enemy = old_owner.is_some();
+        let gain = morale_change_for_capture(tile.tile_type, was_enemy);
+        if gain > 0 {
+            morale_changes.push((*unit_faction, gain));
+        }
 
-            if let Some(old_faction) = old_owner {
-                let loss = morale_change_for_loss(tile.tile_type);
-                morale_changes.push((old_faction, loss));
-            }
+        if let Some(old_faction) = old_owner {
+            let loss = morale_change_for_loss(tile.tile_type);
+            morale_changes.push((old_faction, loss));
+        }
 
-            if matches!(
-                tile.tile_type,
-                TileType::City | TileType::Port | TileType::Capital
-            ) {
-                captures.push(TileCapture {
-                    coord,
-                    tile_type: tile.tile_type,
-                    faction: unit_faction,
-                });
-            }
+        if matches!(
+            tile.tile_type,
+            TileType::City | TileType::Port | TileType::Capital
+        ) {
+            captures.push(TileCapture {
+                coord: *coord,
+                tile_type: tile.tile_type,
+                faction: *unit_faction,
+            });
+        }
 
-            let mut tile = *tile;
-            tile.faction = Some(unit_faction);
-            game_world.set_tile(entity, tile);
+        if let Some(tile_mut) = game_world.get_tile_mut(tile_entity) {
+            tile_mut.faction = Some(*unit_faction);
         }
     }
 

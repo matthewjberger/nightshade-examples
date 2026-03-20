@@ -1,6 +1,5 @@
 use crate::ecs::{
-    Faction, FactionEliminatedEvent, GameEvents, GameWorld, HEX_POSITION, TILE, TileType, UNIT,
-    faction_index,
+    Faction, FactionEliminatedEvent, GameEvents, GameWorld, TileType, UNIT, faction_index,
 };
 use crate::hex::HexCoord;
 use crate::map::CAPITAL_POSITIONS;
@@ -40,16 +39,16 @@ pub fn victory_system(
         let capital_coord = get_capital_coord(faction);
 
         let capital_owner = game_world
-            .query_entities(HEX_POSITION | TILE)
-            .find_map(|entity| {
-                let hex = game_world.get_hex_position(entity)?;
-                if hex.0 == capital_coord {
-                    let tile = game_world.get_tile(entity)?;
-                    if tile.tile_type == TileType::Capital {
-                        return tile.faction;
-                    }
+            .resources
+            .tile_map
+            .get(&capital_coord)
+            .and_then(|&entity| game_world.get_tile(entity))
+            .and_then(|tile| {
+                if tile.tile_type == TileType::Capital {
+                    tile.faction
+                } else {
+                    None
                 }
-                None
             });
 
         if let Some(owner) = capital_owner
@@ -74,16 +73,13 @@ pub fn victory_system(
                 crate::systems::despawn_unit(game_world, world, entity);
             }
 
-            for entity in game_world
-                .query_entities(HEX_POSITION | TILE)
-                .collect::<Vec<_>>()
-            {
+            let tile_entities: Vec<_> = game_world.resources.tile_map.values().copied().collect();
+            for entity in tile_entities {
                 if let Some(tile) = game_world.get_tile(entity)
                     && tile.faction == Some(faction)
+                    && let Some(tile_mut) = game_world.get_tile_mut(entity)
                 {
-                    let mut tile = *tile;
-                    tile.faction = None;
-                    game_world.set_tile(entity, tile);
+                    tile_mut.faction = None;
                 }
             }
         }

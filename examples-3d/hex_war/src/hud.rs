@@ -1,4 +1,4 @@
-use crate::ecs::{Faction, GameWorld, faction_color, faction_name};
+use crate::ecs::{Faction, GameWorld, HudSnapshot, faction_color, faction_name};
 use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 
@@ -125,15 +125,33 @@ pub fn build_hud_ui(world: &mut World) -> HudUi {
     }
 }
 
-pub fn update_hud(hud: &HudUi, game_world: &GameWorld, world: &mut World, player_faction: Faction) {
-    let is_player_turn = game_world.resources.current_faction == player_faction;
+pub fn update_hud(
+    hud: &HudUi,
+    game_world: &mut GameWorld,
+    world: &mut World,
+    player_faction: Faction,
+) {
+    let current = HudSnapshot {
+        turn: game_world.resources.turn_number,
+        faction: game_world.resources.current_faction,
+        actions: game_world.resources.actions_remaining,
+        speed_bits: game_world.resources.game_speed.to_bits(),
+        is_player_turn: game_world.resources.current_faction == player_faction,
+    };
 
-    world.ui_set_text(
-        hud.turn_text,
-        &format!("Turn {}", game_world.resources.turn_number),
-    );
+    if current == game_world.resources.previous_hud {
+        return;
+    }
 
+    game_world.resources.previous_hud = current;
+
+    let turn = game_world.resources.turn_number;
     let faction = game_world.resources.current_faction;
+    let actions = game_world.resources.actions_remaining;
+    let is_player_turn = faction == player_faction;
+
+    world.ui_set_text(hud.turn_text, &format!("Turn {}", turn));
+
     let name = faction_name(faction);
     let fc = faction_color(faction);
     world.ui_set_text(hud.faction_text, name);
@@ -141,10 +159,7 @@ pub fn update_hud(hud: &HudUi, game_world: &GameWorld, world: &mut World, player
         color.colors[UiBase::INDEX] = Some(Vec4::new(fc[0], fc[1], fc[2], 1.0));
     }
 
-    world.ui_set_text(
-        hud.actions_text,
-        &format!("Actions: {}", game_world.resources.actions_remaining),
-    );
+    world.ui_set_text(hud.actions_text, &format!("Actions: {}", actions));
 
     let instructions = if is_player_turn {
         "[SPACE] End Turn  [S] Speech  [P] Pause  [+/-] Speed"

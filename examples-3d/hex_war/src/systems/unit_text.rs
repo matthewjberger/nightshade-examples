@@ -15,10 +15,17 @@ pub fn unit_text_system(game_world: &GameWorld, world: &mut World) {
             continue;
         };
 
-        world
+        let new_text = unit.soldiers.to_string();
+        let unchanged = world
             .resources
             .text_cache
-            .set_text(text_index, unit.soldiers.to_string());
+            .get_text(text_index)
+            .is_some_and(|t| t == new_text);
+        if unchanged {
+            continue;
+        }
+
+        world.resources.text_cache.set_text(text_index, new_text);
 
         if let Some(text) = world.core.get_text_mut(text_entity) {
             text.dirty = true;

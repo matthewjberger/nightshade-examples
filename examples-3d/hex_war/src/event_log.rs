@@ -168,18 +168,26 @@ pub fn build_event_log_ui(world: &mut World) -> EventLogUi {
     EventLogUi { screen, lines }
 }
 
-pub fn update_event_log_ui(world: &mut World, log: &EventLog, ui: &EventLogUi) {
+pub fn update_event_log_ui(
+    world: &mut World,
+    log: &EventLog,
+    ui: &EventLogUi,
+    previous_scroll: &mut usize,
+    previous_count: &mut usize,
+) {
+    let current_scroll = log.scroll_offset;
+    let current_count = log.entries.len();
+
+    if current_scroll == *previous_scroll && current_count == *previous_count {
+        return;
+    }
+    *previous_scroll = current_scroll;
+    *previous_count = current_count;
+
     let start_index = log.scroll_offset;
-    let entries_to_show: Vec<_> = log
-        .entries
-        .iter()
-        .skip(start_index)
-        .take(VISIBLE_ENTRIES)
-        .cloned()
-        .collect();
 
     for (slot_index, line) in ui.lines.iter().enumerate() {
-        if let Some(entry) = entries_to_show.get(slot_index) {
+        if let Some(entry) = log.entries.get(start_index + slot_index) {
             world.ui_set_text(line.faction_entity, &entry.faction_tag);
             if let Some(color) = world.ui.get_ui_node_color_mut(line.faction_entity) {
                 color.colors[UiBase::INDEX] = Some(Vec4::new(

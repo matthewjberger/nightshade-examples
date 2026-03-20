@@ -1,11 +1,9 @@
 use crate::constants::{CITY_REINFORCEMENT, MAX_SOLDIERS};
 use crate::ecs::{
-    Entity, Faction, GameEvents, GameWorld, HEX_POSITION, ReinforcementEvent, TILE, TileType, UNIT,
-    faction_index,
+    Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, faction_index,
 };
 use crate::hex::{HexCoord, hex_distance};
 use crate::map::CAPITAL_POSITIONS;
-use std::collections::HashMap;
 
 pub struct PendingSpawn {
     pub coord: HexCoord,
@@ -35,24 +33,17 @@ pub fn reinforcement_system(
     let current_faction = game_world.resources.current_faction;
     let mut pending_spawns = Vec::new();
 
-    let tile_info: HashMap<HexCoord, (TileType, Option<Faction>)> = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .filter_map(|entity| {
-            let coord = game_world.get_hex_position(entity)?.0;
+    let tile_info: Vec<(HexCoord, TileType, Option<Faction>)> = game_world
+        .resources
+        .tile_map
+        .iter()
+        .filter_map(|(&coord, &entity)| {
             let tile = game_world.get_tile(entity)?;
-            Some((coord, (tile.tile_type, tile.faction)))
+            Some((coord, tile.tile_type, tile.faction))
         })
         .collect();
 
-    let unit_positions: HashMap<HexCoord, Entity> = game_world
-        .query_entities(HEX_POSITION | UNIT)
-        .filter_map(|entity| {
-            let coord = game_world.get_hex_position(entity)?.0;
-            Some((coord, entity))
-        })
-        .collect();
-
-    for (&coord, &(tile_type, tile_faction)) in &tile_info {
+    for &(coord, tile_type, tile_faction) in &tile_info {
         if tile_faction != Some(current_faction) {
             continue;
         }
@@ -62,7 +53,9 @@ pub fn reinforcement_system(
             _ => continue,
         };
 
-        if let Some(&unit_entity) = unit_positions.get(&coord) {
+        let unit_at = game_world.resources.unit_position_map.get(&coord).copied();
+
+        if let Some(unit_entity) = unit_at {
             if let Some(unit) = game_world.get_unit(unit_entity)
                 && unit.faction == current_faction
             {
@@ -89,7 +82,7 @@ pub fn reinforcement_system(
         }
     }
 
-    for (&coord, &(tile_type, tile_faction)) in &tile_info {
+    for &(coord, tile_type, tile_faction) in &tile_info {
         if tile_type != TileType::Port {
             continue;
         }
@@ -106,7 +99,7 @@ pub fn reinforcement_system(
             .wrapping_add(12345);
 
         let mut closest_unit: Option<(Entity, i32)> = None;
-        for (&unit_coord, &unit_entity) in &unit_positions {
+        for (&unit_coord, &unit_entity) in &game_world.resources.unit_position_map {
             if let Some(unit) = game_world.get_unit(unit_entity)
                 && unit.faction != current_faction
             {
@@ -134,8 +127,8 @@ pub fn reinforcement_system(
     }
 
     let territory_count = tile_info
-        .values()
-        .filter(|(tile_type, faction)| {
+        .iter()
+        .filter(|(_, tile_type, faction)| {
             *faction == Some(current_faction) && *tile_type != TileType::Sea
         })
         .count();
@@ -144,7 +137,13 @@ pub fn reinforcement_system(
     if territory_bonus > 0 {
         let capital_coord = get_capital_coord(current_faction);
 
-        if let Some(&unit_entity) = unit_positions.get(&capital_coord) {
+        let unit_at_capital = game_world
+            .resources
+            .unit_position_map
+            .get(&capital_coord)
+            .copied();
+
+        if let Some(unit_entity) = unit_at_capital {
             if let Some(unit) = game_world.get_unit(unit_entity)
                 && unit.faction == current_faction
             {
@@ -157,21 +156,26 @@ pub fn reinforcement_system(
                     location_name: "territory".to_string(),
                 });
             }
-        } else if tile_info
-            .get(&capital_coord)
-            .map(|(_, f)| *f == Some(current_faction))
-            .unwrap_or(false)
-        {
-            pending_spawns.push(PendingSpawn {
-                coord: capital_coord,
-                faction: current_faction,
-                soldiers: territory_bonus.max(1),
-            });
-            events.reinforcement_events.push(ReinforcementEvent {
-                faction: current_faction,
-                soldiers: territory_bonus.max(1),
-                location_name: "territory".to_string(),
-            });
+        } else {
+            let capital_owned = game_world
+                .resources
+                .tile_map
+                .get(&capital_coord)
+                .and_then(|&entity| game_world.get_tile(entity))
+                .is_some_and(|tile| tile.faction == Some(current_faction));
+
+            if capital_owned {
+                pending_spawns.push(PendingSpawn {
+                    coord: capital_coord,
+                    faction: current_faction,
+                    soldiers: territory_bonus.max(1),
+                });
+                events.reinforcement_events.push(ReinforcementEvent {
+                    faction: current_faction,
+                    soldiers: territory_bonus.max(1),
+                    location_name: "territory".to_string(),
+                });
+            }
         }
     }
 

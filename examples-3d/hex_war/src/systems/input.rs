@@ -1,7 +1,7 @@
 use crate::constants::MAX_SOLDIERS;
-use crate::ecs::{CombatEvent, Faction, GameEvents, GameWorld, HEX_POSITION, TILE, TileType, UNIT};
+use crate::ecs::{CombatEvent, Faction, GameEvents, GameWorld};
 use crate::hex::{HexCoord, hex_distance};
-use crate::selection::{clear_selection, get_selected_unit, get_unit_at_tile, select_unit};
+use crate::selection::{clear_selection, get_selected_unit, select_unit};
 use crate::systems::{
     calculate_valid_moves, despawn_unit, move_unit_to, resolve_combat, spawn_merge_popup,
 };
@@ -9,31 +9,29 @@ use nightshade::prelude::*;
 
 fn get_friendly_ports(game_world: &GameWorld, faction: Faction) -> Vec<HexCoord> {
     game_world
-        .query_entities(HEX_POSITION | TILE)
-        .filter_map(|entity| {
-            let hex = game_world.get_hex_position(entity)?.0;
-            let tile = game_world.get_tile(entity)?;
-            if tile.tile_type == TileType::Port && tile.faction == Some(faction) {
-                Some(hex)
-            } else {
-                None
-            }
+        .resources
+        .port_tiles
+        .iter()
+        .filter(|coord| {
+            game_world
+                .resources
+                .tile_map
+                .get(coord)
+                .and_then(|&entity| game_world.get_tile(entity))
+                .is_some_and(|tile| tile.faction == Some(faction))
         })
+        .copied()
         .collect()
 }
 
 fn is_unit_on_friendly_port(game_world: &GameWorld, unit_hex: HexCoord, faction: Faction) -> bool {
-    game_world
-        .query_entities(HEX_POSITION | TILE)
-        .any(|entity| {
-            let Some(hex) = game_world.get_hex_position(entity) else {
-                return false;
-            };
-            let Some(tile) = game_world.get_tile(entity) else {
-                return false;
-            };
-            hex.0 == unit_hex && tile.tile_type == TileType::Port && tile.faction == Some(faction)
-        })
+    game_world.resources.port_tiles.contains(&unit_hex)
+        && game_world
+            .resources
+            .tile_map
+            .get(&unit_hex)
+            .and_then(|&entity| game_world.get_tile(entity))
+            .is_some_and(|tile| tile.faction == Some(faction))
 }
 
 pub struct MergeResult {
@@ -89,27 +87,21 @@ fn is_valid_merge_target(
     let reachable_tiles =
         calculate_valid_moves(game_world, source_entity, source_hex, movement_range);
 
-    for entity in game_world.query_entities(HEX_POSITION | UNIT) {
-        if entity == source_entity {
-            continue;
-        }
-        let Some(hex) = game_world.get_hex_position(entity) else {
-            continue;
-        };
-        if hex.0 != target_hex {
-            continue;
-        }
-
-        let adjacent_to_reachable = reachable_tiles
-            .iter()
-            .any(|&tile| hex_distance(tile, target_hex) <= 1);
-        let directly_adjacent = hex_distance(source_hex, target_hex) == 1;
-
-        if adjacent_to_reachable || directly_adjacent {
-            return true;
-        }
+    let target_unit = game_world.resources.unit_position_map.get(&target_hex);
+    if target_unit.is_none() || target_unit == Some(&source_entity) {
+        return false;
     }
-    false
+
+    let adjacent_to_reachable = reachable_tiles
+        .iter()
+        .any(|&tile| hex_distance(tile, target_hex) <= 1);
+    let directly_adjacent = hex_distance(source_hex, target_hex) == 1;
+
+    adjacent_to_reachable || directly_adjacent
+}
+
+fn get_unit_at_tile(game_world: &GameWorld, coord: HexCoord) -> Option<freecs::Entity> {
+    game_world.resources.unit_position_map.get(&coord).copied()
 }
 
 pub fn input_system(game_world: &mut GameWorld, world: &mut World, events: &mut GameEvents) {

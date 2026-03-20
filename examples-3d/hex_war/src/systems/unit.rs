@@ -111,6 +111,11 @@ pub fn spawn_unit(
         },
     );
 
+    game_world
+        .resources
+        .unit_position_map
+        .insert(hex_coord, game_entity);
+
     game_entity
 }
 
@@ -120,6 +125,12 @@ pub fn font_size_for_soldiers(soldiers: i32) -> f32 {
 }
 
 pub fn despawn_unit(game_world: &mut GameWorld, world: &mut World, entity: freecs::Entity) {
+    if let Some(hex_pos) = game_world.get_hex_position(entity) {
+        let coord = hex_pos.0;
+        if game_world.resources.unit_position_map.get(&coord) == Some(&entity) {
+            game_world.resources.unit_position_map.remove(&coord);
+        }
+    }
     if let Some(unit) = game_world.get_unit(entity)
         && let Some(text_entity) = unit.text_entity
     {
@@ -153,6 +164,10 @@ pub fn move_unit_to(
         return;
     }
 
+    if game_world.resources.unit_position_map.get(&start) == Some(&unit_entity) {
+        game_world.resources.unit_position_map.remove(&start);
+    }
+
     game_world.add_components(unit_entity, MOVEMENT);
     game_world.set_movement(
         unit_entity,
@@ -178,6 +193,14 @@ pub fn unit_visual_update_system(game_world: &GameWorld, world: &mut World) {
         };
 
         let radius = unit_radius_for_soldiers(unit.soldiers);
+
+        let current_scale = world
+            .core
+            .get_local_transform(engine_entity.0)
+            .map(|t| t.scale.x);
+        if current_scale.is_some_and(|s| (s - radius).abs() < 0.001) {
+            continue;
+        }
 
         if let Some(transform) = world.core.get_local_transform_mut(engine_entity.0) {
             transform.scale = nalgebra_glm::vec3(radius, radius, radius);

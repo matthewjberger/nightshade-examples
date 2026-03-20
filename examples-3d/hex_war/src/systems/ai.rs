@@ -1,6 +1,6 @@
 use crate::ecs::{
-    CombatEvent, Difficulty, Faction, GameEvents, GameWorld, HEX_POSITION, MOVEMENT, TILE,
-    TileType, UNIT, faction_index, tile_defense_bonus,
+    CombatEvent, Difficulty, Faction, GameEvents, GameWorld, MOVEMENT, TileType, faction_index,
+    get_defense_bonus_at, get_tile_type_at,
 };
 use crate::hex::{HexCoord, hex_distance};
 use crate::map::CAPITAL_POSITIONS;
@@ -61,46 +61,59 @@ fn calculate_win_chance(
     attacker_strength / (attacker_strength + defender_strength)
 }
 
-fn get_defense_bonus_at(game_world: &GameWorld, coord: HexCoord) -> f32 {
-    game_world
-        .query_entities(HEX_POSITION | TILE)
-        .find_map(|entity| {
-            let hex = game_world.get_hex_position(entity)?;
-            if hex.0 == coord {
-                let tile = game_world.get_tile(entity)?;
-                Some(tile_defense_bonus(tile.tile_type))
-            } else {
-                None
-            }
-        })
-        .unwrap_or(1.0)
+struct AiTurnContext {
+    enemy_units: Vec<(freecs::Entity, HexCoord, Faction, i32, i32)>,
+    enemy_capitals: Vec<HexCoord>,
 }
 
-fn get_tile_type_at(game_world: &GameWorld, coord: HexCoord) -> Option<TileType> {
-    game_world
-        .query_entities(HEX_POSITION | TILE)
-        .find_map(|entity| {
-            let hex = game_world.get_hex_position(entity)?;
-            if hex.0 == coord {
-                let tile = game_world.get_tile(entity)?;
-                Some(tile.tile_type)
-            } else {
-                None
+fn build_ai_context(game_world: &GameWorld, current_faction: Faction) -> AiTurnContext {
+    let enemy_units: Vec<(freecs::Entity, HexCoord, Faction, i32, i32)> = game_world
+        .resources
+        .unit_position_map
+        .iter()
+        .filter_map(|(&coord, &entity)| {
+            let unit = game_world.get_unit(entity)?;
+            if unit.faction == current_faction {
+                return None;
             }
+            Some((entity, coord, unit.faction, unit.soldiers, unit.morale))
         })
+        .collect();
+
+    let enemy_capitals: Vec<HexCoord> = [
+        Faction::Redosia,
+        Faction::Violetnam,
+        Faction::Bluegaria,
+        Faction::Greenland,
+    ]
+    .iter()
+    .filter(|&&faction| {
+        faction != current_faction
+            && !game_world.resources.faction_eliminated[faction_index(faction)]
+    })
+    .map(|&faction| get_capital_coord(faction))
+    .collect();
+
+    AiTurnContext {
+        enemy_units,
+        enemy_capitals,
+    }
 }
 
 pub fn build_turn_order(game_world: &mut GameWorld) {
     let current_faction = game_world.resources.current_faction;
 
     let units: Vec<freecs::Entity> = game_world
-        .query_entities(HEX_POSITION | UNIT)
-        .filter(|&entity| {
+        .resources
+        .unit_position_map
+        .values()
+        .filter(|&&entity| {
             game_world
                 .get_unit(entity)
                 .map(|unit| unit.faction == current_faction)
                 .unwrap_or(false)
         })
+        .copied()
         .collect();
 
     game_world.resources.turn_order = units;
@@ -155,24 +168,7 @@ pub fn ai_turn_system(
     }
 
     let my_capital = get_capital_coord(current_faction);
-
-    let enemy_units: Vec<(freecs::Entity, HexCoord, i32, i32)> = game_world
-        .query_entities(HEX_POSITION | UNIT)
-        .filter_map(|entity| {
-            let enemy_unit = game_world.get_unit(entity)?;
-            if enemy_unit.faction == current_faction {
-                return None;
-            }
-            let hex = game_world.get_hex_position(entity)?.0;
-            Some((entity, hex, enemy_unit.soldiers, enemy_unit.morale))
-        })
-        .collect();
-
-    let adjacent_enemies: Vec<_> = enemy_units
-        .iter()
-        .filter(|(_, hex, _, _)| hex_distance(unit_hex, *hex) == 1)
-        .copied()
-        .collect();
+    let context = build_ai_context(game_world, current_faction);
 
     let difficulty = game_world.resources.difficulty;
     let rng_seed = game_world.resources.rng_seed;
@@ -188,24 +184,24 @@ pub fn ai_turn_system(
         return false;
     }
 
-    let mut sorted_enemies = adjacent_enemies.clone();
+    let adjacent_enemies: Vec<_> = context
+        .enemy_units
+        .iter()
+        .filter(|(_, hex, _, _, _)| hex_distance(unit_hex, *hex) == 1)
+        .copied()
+        .collect();
+
+    let mut sorted_enemies = adjacent_enemies;
     if should_prefer_human_target(difficulty) {
-        sorted_enemies.sort_by_key(|(entity, _, _, _)| {
-            let is_human = game_world
-                .get_unit(*entity)
-                .map(|u| u.faction == player_faction)
-                .unwrap_or(false);
-            if is_human { 0 } else { 1 }
-        });
+        sorted_enemies.sort_by_key(
+            |(_, _, faction, _, _)| {
+                if *faction == player_faction { 0 } else { 1 }
+            },
+        );
     }
 
-    for (enemy_entity, enemy_hex, enemy_soldiers, enemy_morale) in &sorted_enemies {
-        let enemy_faction = game_world
-            .get_unit(*enemy_entity)
-            .map(|u| u.faction)
-            .unwrap_or(player_faction);
-
-        if should_avoid_ai_vs_ai(difficulty) && enemy_faction != player_faction {
+    for (enemy_entity, enemy_hex, enemy_faction, enemy_soldiers, enemy_morale) in &sorted_enemies {
+        if should_avoid_ai_vs_ai(difficulty) && *enemy_faction != player_faction {
             continue;
         }
 
@@ -255,9 +251,10 @@ pub fn ai_turn_system(
         return false;
     }
 
-    let threat_to_capital = enemy_units
+    let threat_to_capital = context
+        .enemy_units
         .iter()
-        .any(|(_, hex, _, _)| hex_distance(*hex, my_capital) <= 3);
+        .any(|(_, hex, _, _, _)| hex_distance(*hex, my_capital) <= 3);
 
     if threat_to_capital && hex_distance(unit_hex, my_capital) > 2 {
         let best_move = valid_moves
@@ -279,16 +276,20 @@ pub fn ai_turn_system(
     }
 
     let undefended_cities: Vec<HexCoord> = game_world
-        .query_entities(HEX_POSITION | TILE)
-        .filter_map(|entity| {
-            let hex = game_world.get_hex_position(entity)?.0;
+        .resources
+        .tile_map
+        .iter()
+        .filter_map(|(&coord, &entity)| {
             let tile = game_world.get_tile(entity)?;
             if (tile.tile_type == TileType::City || tile.tile_type == TileType::Capital)
                 && tile.faction != Some(current_faction)
             {
-                let has_enemy = enemy_units.iter().any(|(_, eh, _, _)| *eh == hex);
+                let has_enemy = context
+                    .enemy_units
+                    .iter()
+                    .any(|(_, eh, _, _, _)| *eh == coord);
                 if !has_enemy {
-                    return Some(hex);
+                    return Some(coord);
                 }
             }
             None
@@ -309,38 +310,28 @@ pub fn ai_turn_system(
         }
     }
 
-    let enemy_capitals: Vec<HexCoord> = [
-        Faction::Redosia,
-        Faction::Violetnam,
-        Faction::Bluegaria,
-        Faction::Greenland,
-    ]
-    .iter()
-    .filter(|&&f| {
-        f != current_faction && !game_world.resources.faction_eliminated[faction_index(f)]
-    })
-    .map(|&f| get_capital_coord(f))
-    .collect();
-
-    let closest_enemy_capital = enemy_capitals
+    let closest_enemy_capital = context
+        .enemy_capitals
         .iter()
         .min_by_key(|coord| hex_distance(unit_hex, **coord));
 
     let target = if let Some(&capital) = closest_enemy_capital {
         capital
-    } else if let Some((_, closest_hex, _, _)) = enemy_units
+    } else if let Some((_, closest_hex, _, _, _)) = context
+        .enemy_units
         .iter()
-        .min_by_key(|(_, hex, _, _)| hex_distance(unit_hex, *hex))
+        .min_by_key(|(_, hex, _, _, _)| hex_distance(unit_hex, *hex))
     {
         *closest_hex
     } else {
         let unclaimed: Vec<_> = game_world
-            .query_entities(HEX_POSITION | TILE)
-            .filter_map(|entity| {
-                let hex = game_world.get_hex_position(entity)?.0;
+            .resources
+            .tile_map
+            .iter()
+            .filter_map(|(&coord, &entity)| {
                 let tile = game_world.get_tile(entity)?;
                 if tile.tile_type != TileType::Sea && tile.faction.is_none() {
-                    Some(hex)
+                    Some(coord)
                 } else {
                     None
                 }

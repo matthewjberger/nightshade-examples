@@ -14,6 +14,7 @@ mod rendering;
 mod selection;
 mod systems;
 mod tiles;
+mod turn_phase;
 
 use camera::{CameraBounds, calculate_camera_bounds, clamp_camera_to_bounds, reset_camera_to_map};
 use constants::ACTIONS_PER_TURN;
@@ -38,14 +39,15 @@ use selection::clear_selection;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use systems::{
-    FireworkShell, GameResult, PendingSpawn, ai_turn_system, build_turn_order, can_end_turn,
-    despawn_unit, end_turn, floating_popup_system, hover_outline_system, hover_system,
-    input_system, movement_system, range_lines_system, selection_visual_system,
-    spawn_capture_firework, spawn_capture_popup, spawn_unit, speech_system, tile_highlight_system,
+    FireworkShell, GameResult, PendingSpawn, SpawnUnitParams, ai_turn_system, build_turn_order,
+    can_end_turn, despawn_unit, end_turn, floating_popup_system, hover_outline_system,
+    hover_system, input_system, movement_system, range_lines_system, selection_visual_system,
+    spawn_capture_firework, spawn_capture_popup, spawn_unit, tile_highlight_system,
     tile_ownership_system, unit_text_system, unit_visual_update_system, update_firework_shells,
     valid_moves_system, victory_system,
 };
 use tiles::despawn_all_tiles;
+use turn_phase::TurnPhase;
 
 fn spawn_ocean(world: &mut World) -> Entity {
     use nightshade::ecs::water::Water;
@@ -431,33 +433,59 @@ impl State for HexWarGame {
 
         let hex_width = self.game_world.resources.hex_width;
         let hex_depth = self.game_world.resources.hex_depth;
-        for pending in self.pending_spawns.drain(..) {
-            spawn_unit(
-                &mut self.game_world,
-                world,
-                pending.coord,
-                hex_width,
-                hex_depth,
-                pending.faction,
-                pending.soldiers,
-            );
-        }
-
         let delta_time = world.resources.window.timing.delta_time;
         update_particle_emitters(world, delta_time);
         update_firework_shells(&mut self.firework_shells, world, delta_time);
         movement_system(&mut self.game_world, world, delta_time);
 
         let is_ai_turn = self.game_world.resources.current_faction != self.player_faction;
-        if is_ai_turn {
-            let ai_done = ai_turn_system(
-                &mut self.game_world,
-                world,
-                self.player_faction,
-                &mut self.game_events,
-            );
-            if ai_done && can_end_turn(&self.game_world) {
+
+        match self.game_world.resources.turn_phase {
+            TurnPhase::Reinforcement => {
+                for pending in self.pending_spawns.drain(..) {
+                    spawn_unit(
+                        &mut self.game_world,
+                        world,
+                        SpawnUnitParams {
+                            coord: pending.coord,
+                            hex_width,
+                            hex_depth,
+                            faction: pending.faction,
+                            soldiers: pending.soldiers,
+                            unit_type: pending.unit_type,
+                        },
+                    );
+                }
+                self.game_world.resources.turn_phase = TurnPhase::Action;
+            }
+            TurnPhase::Action => {
+                if is_ai_turn {
+                    let ai_done = ai_turn_system(
+                        &mut self.game_world,
+                        world,
+                        self.player_faction,
+                        &mut self.game_events,
+                    );
+                    if ai_done && can_end_turn(&self.game_world) {
+                        self.game_world.resources.turn_phase = TurnPhase::End;
+                    }
+                } else {
+                    hover_system(&mut self.game_world, world);
+                    input_system(&mut self.game_world, world, &mut self.game_events);
+                    if self.speech_requested {
+                        systems::execute_action(
+                            &mut self.game_world,
+                            world,
+                            systems::GameAction::Speech,
+                            &mut self.game_events,
+                        );
+                        self.speech_requested = false;
+                    }
+                }
+            }
+            TurnPhase::End => {
                 game_end_turn(self);
+                self.game_world.resources.turn_phase = TurnPhase::Reinforcement;
             }
         }
 
@@ -470,17 +498,6 @@ impl State for HexWarGame {
 
         let range_lines_entity = game_range_lines_entity(self);
         let hover_outline_entity = game_hover_outline_entity(self);
-
-        if !is_ai_turn {
-            hover_system(&mut self.game_world, world);
-            input_system(&mut self.game_world, world, &mut self.game_events);
-            speech_system(
-                &mut self.game_world,
-                self.speech_requested,
-                &mut self.game_events,
-            );
-            self.speech_requested = false;
-        }
 
         let captures = tile_ownership_system(&mut self.game_world);
         for capture in captures {
@@ -589,7 +606,7 @@ impl State for HexWarGame {
                 let is_player_turn =
                     self.game_world.resources.current_faction == self.player_faction;
                 if is_player_turn {
-                    game_end_turn(self);
+                    self.game_world.resources.turn_phase = TurnPhase::End;
                 }
             }
             KeyCode::KeyS if self.menu_state == MenuState::Playing => {

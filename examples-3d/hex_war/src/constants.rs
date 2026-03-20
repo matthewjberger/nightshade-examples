@@ -10,7 +10,6 @@ pub const MAX_MORALE: i32 = 50;
 
 pub const UNIT_HEIGHT_OFFSET: f32 = 0.1;
 pub const UNIT_MOVEMENT_SPEED: f32 = 2.0;
-pub const UNIT_DEFAULT_MOVEMENT_RANGE: i32 = 2;
 
 pub const MAP_WIDTH: i32 = 31;
 pub const MAP_HEIGHT: i32 = 21;

@@ -1,9 +1,7 @@
-use crate::constants::{
-    MAX_SOLDIERS, UNIT_DEFAULT_MOVEMENT_RANGE, UNIT_HEIGHT_OFFSET, UNIT_MOVEMENT_SPEED,
-};
+use crate::constants::{UNIT_HEIGHT_OFFSET, UNIT_MOVEMENT_SPEED};
 use crate::ecs::{
     ENGINE_ENTITY, EngineEntity, Faction, GameWorld, HEX_POSITION, HexPosition, MOVEMENT, Movement,
-    UNIT, Unit, WORLD_POSITION, WorldPosition, faction_color, get_faction_morale,
+    UNIT, Unit, UnitType, WORLD_POSITION, WorldPosition, faction_color, get_faction_morale,
     remove_unit_position, update_unit_position,
 };
 use crate::hex::{HexCoord, hex_to_world_position};
@@ -17,19 +15,33 @@ pub const UNIT_TEXT_HEIGHT_OFFSET: f32 = 2.0;
 pub const UNIT_SELECTED_COLOR: [f32; 4] = [1.0, 0.8, 0.2, 1.0];
 
 pub fn unit_radius_for_soldiers(soldiers: i32) -> f32 {
-    let t = (soldiers as f32 / MAX_SOLDIERS as f32).clamp(0.0, 1.0);
+    let max = crate::constants::MAX_SOLDIERS as f32;
+    let t = (soldiers as f32 / max).clamp(0.0, 1.0);
     UNIT_BASE_RADIUS + (UNIT_MAX_RADIUS - UNIT_BASE_RADIUS) * t
+}
+
+pub struct SpawnUnitParams {
+    pub coord: HexCoord,
+    pub hex_width: f32,
+    pub hex_depth: f32,
+    pub faction: Faction,
+    pub soldiers: i32,
+    pub unit_type: UnitType,
 }
 
 pub fn spawn_unit(
     game_world: &mut GameWorld,
     world: &mut World,
-    hex_coord: HexCoord,
-    hex_width: f32,
-    hex_depth: f32,
-    faction: Faction,
-    soldiers: i32,
+    params: SpawnUnitParams,
 ) -> freecs::Entity {
+    let SpawnUnitParams {
+        coord: hex_coord,
+        hex_width,
+        hex_depth,
+        faction,
+        soldiers,
+        unit_type,
+    } = params;
     let radius = unit_radius_for_soldiers(soldiers);
     let position = hex_to_world_position(hex_coord.column, hex_coord.row, hex_width, hex_depth);
     let unit_position = nalgebra_glm::vec3(
@@ -38,9 +50,14 @@ pub fn spawn_unit(
         position.z,
     );
 
+    let mesh_name = match unit_type {
+        UnitType::Infantry => "Sphere",
+        UnitType::Cavalry => "Cube",
+        UnitType::Artillery => "Cylinder",
+    };
     let render_entity = spawn_mesh(
         world,
-        "Sphere",
+        mesh_name,
         unit_position,
         nalgebra_glm::vec3(radius, radius, radius),
     );
@@ -106,7 +123,7 @@ pub fn spawn_unit(
             faction,
             soldiers,
             morale,
-            movement_range: UNIT_DEFAULT_MOVEMENT_RANGE,
+            unit_type,
             has_moved: false,
             text_entity: Some(text_entity),
         },
@@ -118,7 +135,8 @@ pub fn spawn_unit(
 }
 
 pub fn font_size_for_soldiers(soldiers: i32) -> f32 {
-    let t = (soldiers as f32 / MAX_SOLDIERS as f32).clamp(0.0, 1.0);
+    let max = crate::constants::MAX_SOLDIERS as f32;
+    let t = (soldiers as f32 / max).clamp(0.0, 1.0);
     150.0 + 50.0 * t
 }
 

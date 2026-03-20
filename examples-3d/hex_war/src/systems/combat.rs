@@ -1,4 +1,4 @@
-use crate::ecs::{Faction, GameWorld, get_defense_bonus_at, modify_faction_morale};
+use crate::ecs::{Faction, GameWorld, get_defense_bonus_at, modify_faction_morale, unit_stats};
 use crate::hex::HexCoord;
 use crate::systems::{despawn_unit, move_unit_to};
 use nightshade::prelude::*;
@@ -24,10 +24,16 @@ pub fn resolve_combat(
     let defender_faction = defender.faction;
 
     let defense_bonus = get_defense_bonus_at(game_world, defender_hex);
+    let attacker_stats = unit_stats(attacker.unit_type);
+    let defender_stats = unit_stats(defender.unit_type);
 
-    let attacker_strength = attacker.soldiers as f32 * (1.0 + attacker.morale as f32 / 100.0);
-    let defender_strength =
-        defender.soldiers as f32 * (1.0 + defender.morale as f32 / 100.0) * defense_bonus;
+    let attacker_strength = attacker.soldiers as f32
+        * (1.0 + attacker.morale as f32 / 100.0)
+        * attacker_stats.attack_multiplier;
+    let defender_strength = defender.soldiers as f32
+        * (1.0 + defender.morale as f32 / 100.0)
+        * defense_bonus
+        * defender_stats.defense_multiplier;
 
     let attacker_wins = attacker_strength > defender_strength;
 
@@ -41,7 +47,6 @@ pub fn resolve_combat(
         if attacker_survived {
             if let Some(unit) = game_world.get_unit_mut(attacker_entity) {
                 unit.soldiers = attacker_new_soldiers;
-                unit.has_moved = true;
             }
             move_unit_to(game_world, attacker_entity, defender_hex);
             update_tile_ownership(game_world, defender_hex, attacker_faction);

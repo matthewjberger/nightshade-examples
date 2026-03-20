@@ -1,4 +1,5 @@
 use crate::ecs::{Faction, GameWorld, HudSnapshot, faction_color, faction_name};
+use crate::turn_phase::TurnPhase;
 use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 
@@ -137,6 +138,7 @@ pub fn update_hud(
         actions: game_world.resources.actions_remaining,
         speed_bits: game_world.resources.game_speed.to_bits(),
         is_player_turn: game_world.resources.current_faction == player_faction,
+        turn_phase: game_world.resources.turn_phase,
     };
 
     if current == game_world.resources.previous_hud {
@@ -159,7 +161,15 @@ pub fn update_hud(
         color.colors[UiBase::INDEX] = Some(Vec4::new(fc[0], fc[1], fc[2], 1.0));
     }
 
-    world.ui_set_text(hud.actions_text, &format!("Actions: {}", actions));
+    let phase_label = match game_world.resources.turn_phase {
+        TurnPhase::Reinforcement => "Reinforcement",
+        TurnPhase::Action => "Action",
+        TurnPhase::End => "End",
+    };
+    world.ui_set_text(
+        hud.actions_text,
+        &format!("Actions: {} ({})", actions, phase_label),
+    );
 
     let instructions = if is_player_turn {
         "[SPACE] End Turn  [S] Speech  [P] Pause  [+/-] Speed"

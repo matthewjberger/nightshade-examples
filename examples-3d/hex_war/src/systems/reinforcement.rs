@@ -1,6 +1,7 @@
-use crate::constants::{CITY_REINFORCEMENT, MAX_SOLDIERS};
+use crate::constants::CITY_REINFORCEMENT;
 use crate::ecs::{
-    Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, faction_index,
+    Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, UnitType, faction_index,
+    unit_stats,
 };
 use crate::hex::{HexCoord, hex_distance};
 use crate::map::CAPITAL_POSITIONS;
@@ -9,6 +10,7 @@ pub struct PendingSpawn {
     pub coord: HexCoord,
     pub faction: Faction,
     pub soldiers: i32,
+    pub unit_type: UnitType,
 }
 
 fn tile_type_name(tile_type: TileType) -> &'static str {
@@ -60,7 +62,8 @@ pub fn reinforcement_system(
                 && unit.faction == current_faction
             {
                 let mut unit = *unit;
-                unit.soldiers = (unit.soldiers + reinforcement).min(MAX_SOLDIERS);
+                let max = unit_stats(unit.unit_type).max_soldiers;
+                unit.soldiers = (unit.soldiers + reinforcement).min(max);
                 game_world.set_unit(unit_entity, unit);
                 events.reinforcement_events.push(ReinforcementEvent {
                     faction: current_faction,
@@ -69,10 +72,15 @@ pub fn reinforcement_system(
                 });
             }
         } else {
+            let spawn_type = match tile_type {
+                TileType::Capital => UnitType::Cavalry,
+                _ => UnitType::Infantry,
+            };
             pending_spawns.push(PendingSpawn {
                 coord,
                 faction: current_faction,
                 soldiers: reinforcement,
+                unit_type: spawn_type,
             });
             events.reinforcement_events.push(ReinforcementEvent {
                 faction: current_faction,
@@ -116,7 +124,8 @@ pub fn reinforcement_system(
             && let Some(unit) = game_world.get_unit(unit_entity)
         {
             let mut unit = *unit;
-            unit.soldiers = (unit.soldiers + port_reinforcement).min(MAX_SOLDIERS);
+            let max = unit_stats(unit.unit_type).max_soldiers;
+            unit.soldiers = (unit.soldiers + port_reinforcement).min(max);
             game_world.set_unit(unit_entity, unit);
             events.reinforcement_events.push(ReinforcementEvent {
                 faction: current_faction,
@@ -148,7 +157,8 @@ pub fn reinforcement_system(
                 && unit.faction == current_faction
             {
                 let mut unit = *unit;
-                unit.soldiers = (unit.soldiers + territory_bonus).min(MAX_SOLDIERS);
+                let max = unit_stats(unit.unit_type).max_soldiers;
+                unit.soldiers = (unit.soldiers + territory_bonus).min(max);
                 game_world.set_unit(unit_entity, unit);
                 events.reinforcement_events.push(ReinforcementEvent {
                     faction: current_faction,
@@ -169,6 +179,7 @@ pub fn reinforcement_system(
                     coord: capital_coord,
                     faction: current_faction,
                     soldiers: territory_bonus.max(1),
+                    unit_type: UnitType::Artillery,
                 });
                 events.reinforcement_events.push(ReinforcementEvent {
                     faction: current_faction,

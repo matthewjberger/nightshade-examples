@@ -1,5 +1,6 @@
 use crate::hex::HexCoord;
 use crate::map::MapGenParams;
+use crate::turn_phase::TurnPhase;
 use nightshade::prelude::*;
 use std::collections::{HashMap, HashSet};
 
@@ -102,6 +103,7 @@ freecs::ecs! {
         previous_log_count: usize,
         valid_moves_generation: u32,
         previous_highlight_generation: u32,
+        turn_phase: TurnPhase,
     }
 }
 
@@ -112,6 +114,7 @@ pub struct HudSnapshot {
     pub actions: u8,
     pub speed_bits: u32,
     pub is_player_turn: bool,
+    pub turn_phase: TurnPhase,
 }
 
 pub fn get_faction_morale(resources: &GameResources, faction: Faction) -> i32 {
@@ -132,12 +135,50 @@ pub struct WorldPosition(pub Vec3);
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HexPosition(pub HexCoord);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum UnitType {
+    #[default]
+    Infantry,
+    Cavalry,
+    Artillery,
+}
+
+pub struct UnitStats {
+    pub movement_range: i32,
+    pub attack_multiplier: f32,
+    pub defense_multiplier: f32,
+    pub max_soldiers: i32,
+}
+
+pub fn unit_stats(unit_type: UnitType) -> UnitStats {
+    match unit_type {
+        UnitType::Infantry => UnitStats {
+            movement_range: 2,
+            attack_multiplier: 1.0,
+            defense_multiplier: 1.0,
+            max_soldiers: 99,
+        },
+        UnitType::Cavalry => UnitStats {
+            movement_range: 3,
+            attack_multiplier: 1.2,
+            defense_multiplier: 0.8,
+            max_soldiers: 60,
+        },
+        UnitType::Artillery => UnitStats {
+            movement_range: 1,
+            attack_multiplier: 1.5,
+            defense_multiplier: 0.6,
+            max_soldiers: 40,
+        },
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Unit {
     pub faction: Faction,
     pub soldiers: i32,
     pub morale: i32,
-    pub movement_range: i32,
+    pub unit_type: UnitType,
     pub has_moved: bool,
     pub text_entity: Option<Entity>,
 }

@@ -1,10 +1,10 @@
 use crate::constants::INITIAL_SOLDIERS;
-use crate::ecs::{GameWorld, TileType};
+use crate::ecs::{GameWorld, TileType, UnitType};
 use crate::hex::{HexCoord, hex_to_world_position};
 use crate::instancing::{InstancedTileGroup, create_instanced_tiles};
 use crate::map::{CAPITAL_POSITIONS, GeneratedMap, TileFeature, generate_map};
 use crate::rendering::generate_hex_outline;
-use crate::systems::spawn_unit;
+use crate::systems::{SpawnUnitParams, spawn_unit};
 use crate::tiles::spawn_tile;
 use nightshade::ecs::prefab::Prefab;
 use nightshade::ecs::world::components::Line;
@@ -174,11 +174,14 @@ fn spawn_initial_units(
         spawn_unit(
             game_world,
             world,
-            coord,
-            hex_width,
-            hex_depth,
-            faction,
-            INITIAL_SOLDIERS,
+            SpawnUnitParams {
+                coord,
+                hex_width,
+                hex_depth,
+                faction,
+                soldiers: INITIAL_SOLDIERS,
+                unit_type: UnitType::Infantry,
+            },
         );
     }
 }

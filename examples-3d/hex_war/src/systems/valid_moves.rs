@@ -1,5 +1,5 @@
 use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
-use crate::ecs::{Entity, GameWorld};
+use crate::ecs::{Entity, GameWorld, unit_stats};
 use crate::hex::{HexCoord, hex_neighbors, hex_to_world_position};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 
@@ -211,8 +211,8 @@ pub fn valid_moves_system(game_world: &mut GameWorld) {
             game_world.get_unit(unit_entity),
         )
     {
-        let valid_moves =
-            calculate_valid_moves(game_world, unit_entity, hex_pos.0, unit.movement_range);
+        let movement_range = unit_stats(unit.unit_type).movement_range;
+        let valid_moves = calculate_valid_moves(game_world, unit_entity, hex_pos.0, movement_range);
         for coord in valid_moves {
             game_world.resources.valid_move_tiles.insert(coord);
         }

@@ -1,9 +1,9 @@
 use crate::constants::CITY_REINFORCEMENT;
 use crate::ecs::{
-    ActionRecord, Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, UnitType,
-    unit_stats,
+    Entity, Faction, GameEvents, GameWorld, ReinforcementEvent, TileType, UnitType, unit_stats,
 };
 use crate::hex::{HexCoord, hex_distance};
+use crate::replay::{ReinforcementEntry, ReplayAction};
 
 pub struct PendingSpawn {
     pub coord: HexCoord,
@@ -21,27 +21,13 @@ fn tile_type_name(tile_type: TileType) -> &'static str {
     }
 }
 
-fn record_reinforcement(
-    events: &mut GameEvents,
-    faction: Faction,
-    turn: u32,
-    soldiers: i32,
-    location: &str,
-) {
-    events.action_history.push(ActionRecord {
-        faction,
-        turn,
-        description: format!("reinforced {} (+{})", location, soldiers),
-    });
-}
-
 pub fn reinforcement_system(
     game_world: &mut GameWorld,
     events: &mut GameEvents,
 ) -> Vec<PendingSpawn> {
     let current_faction = game_world.resources.current_faction;
-    let turn = game_world.resources.turn_number;
     let mut pending_spawns = Vec::new();
+    let mut replay_entries: Vec<ReinforcementEntry> = Vec::new();
 
     let tile_info: Vec<(HexCoord, TileType, Option<Faction>)> = game_world
         .resources
@@ -78,13 +64,14 @@ pub fn reinforcement_system(
                     soldiers: reinforcement,
                     location_name: tile_type_name(tile_type).to_string(),
                 });
-                record_reinforcement(
-                    events,
-                    current_faction,
-                    turn,
-                    reinforcement,
-                    tile_type_name(tile_type),
-                );
+                replay_entries.push(ReinforcementEntry {
+                    coord,
+                    faction: current_faction,
+                    soldiers_added: reinforcement,
+                    is_new_unit: false,
+                    unit_type: unit.unit_type,
+                    new_total: unit.soldiers,
+                });
             }
         } else {
             pending_spawns.push(PendingSpawn {
@@ -98,13 +85,14 @@ pub fn reinforcement_system(
                 soldiers: reinforcement,
                 location_name: tile_type_name(tile_type).to_string(),
             });
-            record_reinforcement(
-                events,
-                current_faction,
-                turn,
-                reinforcement,
-                tile_type_name(tile_type),
-            );
+            replay_entries.push(ReinforcementEntry {
+                coord,
+                faction: current_faction,
+                soldiers_added: reinforcement,
+                is_new_unit: true,
+                unit_type: UnitType::Infantry,
+                new_total: reinforcement,
+            });
         }
     }
 
@@ -150,7 +138,17 @@ pub fn reinforcement_system(
                 soldiers: port_reinforcement,
                 location_name: "port".to_string(),
             });
-            record_reinforcement(events, current_faction, turn, port_reinforcement, "port");
+            replay_entries.push(ReinforcementEntry {
+                coord: *game_world
+                    .get_hex_position(unit_entity)
+                    .map(|h| &h.0)
+                    .unwrap_or(&coord),
+                faction: current_faction,
+                soldiers_added: port_reinforcement,
+                is_new_unit: false,
+                unit_type: unit.unit_type,
+                new_total: unit.soldiers,
+            });
         }
     }
 
@@ -184,7 +182,14 @@ pub fn reinforcement_system(
                     soldiers: territory_bonus,
                     location_name: "territory".to_string(),
                 });
-                record_reinforcement(events, current_faction, turn, territory_bonus, "territory");
+                replay_entries.push(ReinforcementEntry {
+                    coord: capital_coord,
+                    faction: current_faction,
+                    soldiers_added: territory_bonus,
+                    is_new_unit: false,
+                    unit_type: unit.unit_type,
+                    new_total: unit.soldiers,
+                });
             }
         } else {
             let capital_owned = game_world
@@ -206,15 +211,22 @@ pub fn reinforcement_system(
                     soldiers: territory_bonus.max(1),
                     location_name: "territory".to_string(),
                 });
-                record_reinforcement(
-                    events,
-                    current_faction,
-                    turn,
-                    territory_bonus.max(1),
-                    "territory",
-                );
+                replay_entries.push(ReinforcementEntry {
+                    coord: capital_coord,
+                    faction: current_faction,
+                    soldiers_added: territory_bonus.max(1),
+                    is_new_unit: true,
+                    unit_type: UnitType::Infantry,
+                    new_total: territory_bonus.max(1),
+                });
             }
         }
+    }
+
+    if !replay_entries.is_empty() {
+        events.replay_actions.push(ReplayAction::Reinforcement {
+            entries: replay_entries,
+        });
     }
 
     pending_spawns

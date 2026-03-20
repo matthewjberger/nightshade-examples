@@ -312,12 +312,7 @@ pub struct FactionEliminatedEvent {
     pub faction: Faction,
 }
 
-#[derive(Debug, Clone)]
-pub struct ActionRecord {
-    pub faction: Faction,
-    pub turn: u32,
-    pub description: String,
-}
+use crate::replay::{GameSnapshot, ReplayAction};
 
 #[derive(Default)]
 pub struct GameEvents {
@@ -325,5 +320,6 @@ pub struct GameEvents {
     pub reinforcement_events: Vec<ReinforcementEvent>,
     pub speech_events: Vec<SpeechEvent>,
     pub faction_eliminated_events: Vec<FactionEliminatedEvent>,
-    pub action_history: Vec<ActionRecord>,
+    pub replay_actions: Vec<ReplayAction>,
+    pub replay_snapshots: Vec<(usize, GameSnapshot)>,
 }

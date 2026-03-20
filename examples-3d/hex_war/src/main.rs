@@ -11,6 +11,7 @@ mod map_generation;
 mod menu;
 mod prefabs;
 mod rendering;
+mod replay;
 mod selection;
 mod systems;
 mod tiles;
@@ -18,9 +19,7 @@ mod turn_phase;
 
 use camera::{CameraBounds, calculate_camera_bounds, clamp_camera_to_bounds, reset_camera_to_map};
 use constants::ACTIONS_PER_TURN;
-use ecs::{
-    ActionRecord, Difficulty, FACTION_COUNT, Faction, GameEvents, GameWorld, TileType, UNIT,
-};
+use ecs::{Difficulty, FACTION_COUNT, Faction, GameEvents, GameWorld, TileType, UNIT};
 use event_log::{EventLog, EventLogUi, build_event_log_ui, update_event_log_ui};
 use hex::hex_to_world_position;
 use hex_overlay_pass::{HexOverlayPass, SharedOverlayData};
@@ -34,6 +33,10 @@ use nightshade::ecs::prefab::Prefab;
 use nightshade::ecs::ui::state::UiStateTrait;
 use nightshade::prelude::*;
 use prefabs::load_tile_prefabs;
+use replay::{
+    GameSnapshot, ReplayAction, execute_replay_step, replay_action_description,
+    replay_action_faction, restore_snapshot, take_snapshot,
+};
 use selection::clear_selection;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -93,8 +96,13 @@ struct HexWarGame {
     hud_ui: Option<HudUi>,
     event_log_ui: Option<EventLogUi>,
     overlay_data: SharedOverlayData,
-    replay_history: Vec<ActionRecord>,
+    replay_actions: Vec<ReplayAction>,
+    replay_snapshots: Vec<(usize, GameSnapshot)>,
     replay_cursor: usize,
+    replay_current_turn: u32,
+    replay_playing: bool,
+    replay_speed: f32,
+    replay_timer: f32,
 }
 
 impl Default for HexWarGame {
@@ -120,8 +128,13 @@ impl Default for HexWarGame {
             hud_ui: None,
             event_log_ui: None,
             overlay_data: Arc::new(Mutex::new(hex_overlay_pass::OverlayData::default())),
-            replay_history: Vec::new(),
+            replay_actions: Vec::new(),
+            replay_snapshots: Vec::new(),
             replay_cursor: 0,
+            replay_current_turn: 1,
+            replay_playing: false,
+            replay_speed: 1.0,
+            replay_timer: 0.0,
         }
     }
 }
@@ -167,7 +180,9 @@ fn game_cleanup_map(game: &mut HexWarGame, world: &mut World) {
     game.game_world.resources.hovered_tile = None;
     game.game_world.resources.frame_cache = Default::default();
     game.game_world.resources.unit_position_map.clear();
-    game.game_events.action_history.clear();
+
+    game.game_events.replay_actions.clear();
+    game.game_events.replay_snapshots.clear();
 }
 
 fn flush_despawns(world: &mut World) {
@@ -251,8 +266,54 @@ fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
     }
 }
 
+fn replay_restore_to_cursor(game: &mut HexWarGame, world: &mut World) {
+    let target = game.replay_cursor;
+
+    let snapshot_idx = game
+        .replay_snapshots
+        .iter()
+        .rposition(|(action_idx, _)| *action_idx <= target)
+        .unwrap_or(0);
+    let (start_action, snapshot) = &game.replay_snapshots[snapshot_idx];
+    let start_action = *start_action;
+    let snapshot_turn = snapshot.turn_number;
+    restore_snapshot(&mut game.game_world, world, &snapshot.clone());
+
+    game.replay_current_turn = snapshot_turn;
+    for step in (start_action + 1)..=target {
+        let action = game.replay_actions[step].clone();
+        if let ReplayAction::TurnStart { turn, .. } = &action {
+            game.replay_current_turn = *turn;
+        }
+        execute_replay_step(&mut game.game_world, world, &action);
+    }
+}
+
+fn replay_restore_final_state(game: &mut HexWarGame, world: &mut World) {
+    if let Some((_, snapshot)) = game.replay_snapshots.last() {
+        restore_snapshot(&mut game.game_world, world, &snapshot.clone());
+    }
+    let total = game.replay_actions.len();
+    let last_snapshot_action = game
+        .replay_snapshots
+        .last()
+        .map(|(idx, _)| *idx)
+        .unwrap_or(0);
+    for step in (last_snapshot_action + 1)..total {
+        let action = game.replay_actions[step].clone();
+        execute_replay_step(&mut game.game_world, world, &action);
+    }
+}
+
 fn enter_replay(game: &mut HexWarGame, world: &mut World) {
     game.replay_cursor = 0;
+    game.replay_current_turn = 1;
+    game.replay_playing = false;
+    game.replay_speed = 1.0;
+    game.replay_timer = 0.0;
+    if let Some((_, snapshot)) = game.replay_snapshots.first() {
+        restore_snapshot(&mut game.game_world, world, snapshot);
+    }
     set_menu_state(game, world, MenuState::Replay);
     update_replay_display(game, world);
 }
@@ -262,7 +323,7 @@ fn update_replay_display(game: &HexWarGame, world: &mut World) {
         return;
     };
 
-    let total = game.replay_history.len();
+    let total = game.replay_actions.len();
     if total == 0 {
         world.ui_set_text(ui.replay_turn_text, "No actions recorded");
         world.ui_set_text(ui.replay_faction_text, "");
@@ -272,18 +333,21 @@ fn update_replay_display(game: &HexWarGame, world: &mut World) {
     }
 
     let cursor = game.replay_cursor.min(total.saturating_sub(1));
-    let record = &game.replay_history[cursor];
+    let action = &game.replay_actions[cursor];
 
-    world.ui_set_text(ui.replay_turn_text, &format!("Turn {}", record.turn));
+    world.ui_set_text(
+        ui.replay_turn_text,
+        &format!("Turn {}", game.replay_current_turn),
+    );
 
-    let name = record.faction.name();
-    world.ui_set_text(ui.replay_faction_text, name);
-    let fc = record.faction.color();
+    let faction = replay_action_faction(action);
+    world.ui_set_text(ui.replay_faction_text, faction.name());
+    let fc = faction.color();
     if let Some(color) = world.ui.get_ui_node_color_mut(ui.replay_faction_text) {
         color.colors[UiBase::INDEX] = Some(Vec4::new(fc[0], fc[1], fc[2], 1.0));
     }
 
-    world.ui_set_text(ui.replay_action_text, &record.description);
+    world.ui_set_text(ui.replay_action_text, &replay_action_description(action));
     world.ui_set_text(
         ui.replay_counter_text,
         &format!("{} / {}", cursor + 1, total),
@@ -320,13 +384,20 @@ fn start_game(game: &mut HexWarGame, world: &mut World) {
 
     game.event_log = EventLog::new();
     game.event_log.add_turn_start(1, Faction::Redosia);
-    game.replay_history.clear();
-    game.game_events.action_history.clear();
-    game.game_events.action_history.push(ActionRecord {
-        faction: Faction::Redosia,
-        turn: 1,
-        description: "Turn 1 begins".to_string(),
-    });
+
+    game.game_events.replay_actions.clear();
+    game.game_events.replay_snapshots.clear();
+
+    let initial_snapshot = take_snapshot(&game.game_world);
+    game.game_events
+        .replay_actions
+        .push(ReplayAction::TurnStart {
+            faction: Faction::Redosia,
+            turn: 1,
+        });
+    game.game_events
+        .replay_snapshots
+        .push((0, initial_snapshot));
 
     set_menu_state(game, world, MenuState::Playing);
 }
@@ -462,22 +533,106 @@ impl State for HexWarGame {
                     clamp_camera_to_bounds(world, bounds);
                 }
 
-                let total = self.replay_history.len();
-                let ui = self.menu_ui.as_ref().unwrap();
+                unit_text_system(&self.game_world, world);
+                unit_visual_update_system(&self.game_world, world);
+                nightshade::ecs::text::systems::sync_text_meshes_system(world);
 
-                if world.ui_clicked(ui.replay_next_button)
-                    && self.replay_cursor < total.saturating_sub(1)
-                {
+                let total = self.replay_actions.len();
+                let delta_time = world.resources.window.timing.delta_time;
+                let next_clicked = self
+                    .menu_ui
+                    .as_ref()
+                    .is_some_and(|ui| world.ui_clicked(ui.replay_next_button));
+                let prev_clicked = self
+                    .menu_ui
+                    .as_ref()
+                    .is_some_and(|ui| world.ui_clicked(ui.replay_prev_button));
+                let play_clicked = self
+                    .menu_ui
+                    .as_ref()
+                    .is_some_and(|ui| world.ui_clicked(ui.replay_play_button));
+                let speed_clicked = self
+                    .menu_ui
+                    .as_ref()
+                    .is_some_and(|ui| world.ui_clicked(ui.replay_speed_button));
+                let back_clicked = self
+                    .menu_ui
+                    .as_ref()
+                    .is_some_and(|ui| world.ui_clicked(ui.replay_back_button));
+
+                if play_clicked {
+                    self.replay_playing = !self.replay_playing;
+                    self.replay_timer = 0.0;
+                    if let Some(ui) = &self.menu_ui {
+                        let label = if self.replay_playing { "PAUSE" } else { "PLAY" };
+                        world.ui_set_text(ui.replay_play_button, label);
+                    }
+                }
+
+                if speed_clicked {
+                    self.replay_speed = match self.replay_speed as i32 {
+                        1 => 2.0,
+                        2 => 4.0,
+                        4 => 8.0,
+                        _ => 1.0,
+                    };
+                    if let Some(ui) = &self.menu_ui {
+                        world.ui_set_text(
+                            ui.replay_speed_button,
+                            &format!("{}x", self.replay_speed as i32),
+                        );
+                    }
+                }
+
+                if self.replay_playing && self.replay_cursor < total.saturating_sub(1) {
+                    self.replay_timer += delta_time * self.replay_speed;
+                    let step_interval = 0.5;
+                    while self.replay_timer >= step_interval
+                        && self.replay_cursor < total.saturating_sub(1)
+                    {
+                        self.replay_timer -= step_interval;
+                        self.replay_cursor += 1;
+                        let action = self.replay_actions[self.replay_cursor].clone();
+                        if let ReplayAction::TurnStart { turn, .. } = &action {
+                            self.replay_current_turn = *turn;
+                        }
+                        execute_replay_step(&mut self.game_world, world, &action);
+                    }
+                    if self.replay_cursor >= total.saturating_sub(1) {
+                        self.replay_playing = false;
+                        if let Some(ui) = &self.menu_ui {
+                            world.ui_set_text(ui.replay_play_button, "PLAY");
+                        }
+                    }
+                    update_replay_display(self, world);
+                }
+
+                if next_clicked && self.replay_cursor < total.saturating_sub(1) {
+                    self.replay_playing = false;
+                    if let Some(ui) = &self.menu_ui {
+                        world.ui_set_text(ui.replay_play_button, "PLAY");
+                    }
                     self.replay_cursor += 1;
+                    let action = self.replay_actions[self.replay_cursor].clone();
+                    if let ReplayAction::TurnStart { turn, .. } = &action {
+                        self.replay_current_turn = *turn;
+                    }
+                    execute_replay_step(&mut self.game_world, world, &action);
                     update_replay_display(self, world);
                 }
 
-                if world.ui_clicked(ui.replay_prev_button) && self.replay_cursor > 0 {
+                if prev_clicked && self.replay_cursor > 0 {
+                    self.replay_playing = false;
+                    if let Some(ui) = &self.menu_ui {
+                        world.ui_set_text(ui.replay_play_button, "PLAY");
+                    }
                     self.replay_cursor -= 1;
+                    replay_restore_to_cursor(self, world);
                     update_replay_display(self, world);
                 }
 
-                if world.ui_clicked(ui.replay_back_button) {
+                if back_clicked {
+                    replay_restore_final_state(self, world);
                     set_menu_state(self, world, MenuState::GameOver);
                 }
                 return;
@@ -619,7 +774,8 @@ impl State for HexWarGame {
             if let Some(ui) = &self.menu_ui {
                 setup_game_over_display(world, ui, winner, is_player_winner);
             }
-            self.replay_history = std::mem::take(&mut self.game_events.action_history);
+            self.replay_actions = std::mem::take(&mut self.game_events.replay_actions);
+            self.replay_snapshots = std::mem::take(&mut self.game_events.replay_snapshots);
             set_menu_state(self, world, MenuState::GameOver);
         }
 
@@ -644,20 +800,43 @@ impl State for HexWarGame {
                 | MenuState::GameOver
                 | MenuState::Replay => {}
             },
+            KeyCode::Space if self.menu_state == MenuState::Replay => {
+                self.replay_playing = !self.replay_playing;
+                self.replay_timer = 0.0;
+                if let Some(ui) = &self.menu_ui {
+                    let label = if self.replay_playing { "PAUSE" } else { "PLAY" };
+                    world.ui_set_text(ui.replay_play_button, label);
+                }
+            }
             KeyCode::ArrowRight if self.menu_state == MenuState::Replay => {
-                let total = self.replay_history.len();
+                self.replay_playing = false;
+                if let Some(ui) = &self.menu_ui {
+                    world.ui_set_text(ui.replay_play_button, "PLAY");
+                }
+                let total = self.replay_actions.len();
                 if self.replay_cursor < total.saturating_sub(1) {
                     self.replay_cursor += 1;
+                    let action = self.replay_actions[self.replay_cursor].clone();
+                    if let ReplayAction::TurnStart { turn, .. } = &action {
+                        self.replay_current_turn = *turn;
+                    }
+                    execute_replay_step(&mut self.game_world, world, &action);
                     update_replay_display(self, world);
                 }
             }
             KeyCode::ArrowLeft if self.menu_state == MenuState::Replay => {
+                self.replay_playing = false;
+                if let Some(ui) = &self.menu_ui {
+                    world.ui_set_text(ui.replay_play_button, "PLAY");
+                }
                 if self.replay_cursor > 0 {
                     self.replay_cursor -= 1;
+                    replay_restore_to_cursor(self, world);
                     update_replay_display(self, world);
                 }
             }
             KeyCode::Escape if self.menu_state == MenuState::Replay => {
+                replay_restore_final_state(self, world);
                 set_menu_state(self, world, MenuState::GameOver);
             }
             KeyCode::Space if self.menu_state == MenuState::Playing => {

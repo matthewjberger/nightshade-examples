@@ -42,6 +42,8 @@ pub struct MenuUi {
     pub replay_back_button: Entity,
     pub replay_prev_button: Entity,
     pub replay_next_button: Entity,
+    pub replay_play_button: Entity,
+    pub replay_speed_button: Entity,
     pub replay_turn_text: Entity,
     pub replay_faction_text: Entity,
     pub replay_action_text: Entity,
@@ -263,6 +265,8 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
     let mut replay_back_button = placeholder;
     let mut replay_prev_button = placeholder;
     let mut replay_next_button = placeholder;
+    let mut replay_play_button = placeholder;
+    let mut replay_speed_button = placeholder;
     let mut replay_turn_text = placeholder;
     let mut replay_faction_text = placeholder;
     let mut replay_action_text = placeholder;
@@ -386,7 +390,7 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
                     let button_row = tree
                         .add_node()
                         .flow_child(Rl(Vec2::new(100.0, 0.0)) + Ab(Vec2::new(0.0, 36.0)))
-                        .flow(FlowDirection::Horizontal, 0.0, 6.0)
+                        .flow(FlowDirection::Horizontal, 0.0, 4.0)
                         .without_pointer_events()
                         .entity();
                     tree.push_parent(button_row);
@@ -394,35 +398,54 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
 
                     let prev_wrap = tree
                         .add_node()
-                        .flow_child(Ab(Vec2::new(80.0, 36.0)))
+                        .flow_child(Ab(Vec2::new(60.0, 36.0)))
                         .without_pointer_events()
                         .entity();
                     tree.push_parent(prev_wrap);
-                    replay_prev_button = tree.add_button("<< PREV");
+                    replay_prev_button = tree.add_button("<<");
+                    tree.pop_parent();
+
+                    let play_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(60.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(play_wrap);
+                    replay_play_button =
+                        tree.add_button_colored("PLAY", Vec4::new(0.2, 0.4, 0.2, 1.0));
+                    tree.pop_parent();
+
+                    let next_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(60.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(next_wrap);
+                    replay_next_button =
+                        tree.add_button_colored(">>", Vec4::new(0.2, 0.3, 0.5, 1.0));
+                    tree.pop_parent();
+
+                    let speed_wrap = tree
+                        .add_node()
+                        .flow_child(Ab(Vec2::new(50.0, 36.0)))
+                        .without_pointer_events()
+                        .entity();
+                    tree.push_parent(speed_wrap);
+                    replay_speed_button = tree.add_button("1x");
                     tree.pop_parent();
 
                     replay_counter_text = tree
                         .add_node()
-                        .flow_child(Ab(Vec2::new(80.0, 36.0)))
+                        .flow_child(Ab(Vec2::new(70.0, 36.0)))
                         .with_text("1 / 1", label_font)
                         .with_text_alignment(TextAlignment::Center, VerticalAlignment::Middle)
                         .with_color::<UiBase>(dim)
                         .without_pointer_events()
                         .done();
 
-                    let next_wrap = tree
-                        .add_node()
-                        .flow_child(Ab(Vec2::new(80.0, 36.0)))
-                        .without_pointer_events()
-                        .entity();
-                    tree.push_parent(next_wrap);
-                    replay_next_button =
-                        tree.add_button_colored("NEXT >>", Vec4::new(0.2, 0.3, 0.5, 1.0));
-                    tree.pop_parent();
-
                     let back_wrap = tree
                         .add_node()
-                        .flow_child(Ab(Vec2::new(100.0, 36.0)))
+                        .flow_child(Ab(Vec2::new(70.0, 36.0)))
                         .without_pointer_events()
                         .entity();
                     tree.push_parent(back_wrap);
@@ -467,6 +490,8 @@ pub fn build_menu_ui(world: &mut World) -> MenuUi {
         replay_back_button,
         replay_prev_button,
         replay_next_button,
+        replay_play_button,
+        replay_speed_button,
         replay_turn_text,
         replay_faction_text,
         replay_action_text,

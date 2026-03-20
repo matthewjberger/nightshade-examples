@@ -1,6 +1,5 @@
-use crate::ecs::{
-    ActionRecord, Faction, FactionEliminatedEvent, GameEvents, GameWorld, TileType, UNIT,
-};
+use crate::ecs::{Faction, FactionEliminatedEvent, GameEvents, GameWorld, TileType, UNIT};
+use crate::replay::ReplayAction;
 use nightshade::prelude::*;
 
 pub enum GameResult {
@@ -40,11 +39,9 @@ pub fn victory_system(
             events
                 .faction_eliminated_events
                 .push(FactionEliminatedEvent { faction });
-            events.action_history.push(ActionRecord {
-                faction,
-                turn: game_world.resources.turn_number,
-                description: format!("{} has been eliminated!", faction.name()),
-            });
+            events
+                .replay_actions
+                .push(ReplayAction::Elimination { faction });
 
             let units_to_remove: Vec<_> = game_world
                 .query_entities(UNIT)

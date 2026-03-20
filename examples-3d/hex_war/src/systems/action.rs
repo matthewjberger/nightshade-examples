@@ -1,8 +1,7 @@
 use crate::constants::{MAX_MORALE, SPEECH_MORALE_BOOST};
-use crate::ecs::{
-    ActionRecord, CombatEvent, Faction, GameEvents, GameWorld, SpeechEvent, UNIT, unit_stats,
-};
+use crate::ecs::{CombatEvent, GameEvents, GameWorld, SpeechEvent, UNIT, unit_stats};
 use crate::hex::{HexCoord, hex_distance};
+use crate::replay::ReplayAction;
 use crate::selection::{clear_selection, get_selected_unit, select_unit};
 use crate::systems::{
     calculate_valid_moves, despawn_unit, move_unit_to, resolve_combat, spawn_merge_popup,
@@ -126,7 +125,6 @@ pub fn execute_action(
     events: &mut GameEvents,
 ) {
     let faction = game_world.resources.current_faction;
-    let turn = game_world.resources.turn_number;
 
     match action {
         GameAction::Move { unit, destination } => {
@@ -136,15 +134,11 @@ pub fn execute_action(
                 .unwrap_or_default();
             move_unit_to(game_world, unit, destination);
             finalize_unit_action(game_world, unit);
-            record_action(
-                events,
+            events.replay_actions.push(ReplayAction::Move {
                 faction,
-                turn,
-                format!(
-                    "moved unit ({},{}) to ({},{})",
-                    from.column, from.row, destination.column, destination.row
-                ),
-            );
+                from,
+                to: destination,
+            });
         }
         GameAction::PortTravel { unit, destination } => {
             let from = game_world
@@ -153,51 +147,84 @@ pub fn execute_action(
                 .unwrap_or_default();
             move_unit_to(game_world, unit, destination);
             finalize_unit_action(game_world, unit);
-            record_action(
-                events,
+            events.replay_actions.push(ReplayAction::PortTravel {
                 faction,
-                turn,
-                format!(
-                    "sailed from ({},{}) to ({},{})",
-                    from.column, from.row, destination.column, destination.row
-                ),
-            );
+                from,
+                to: destination,
+            });
         }
         GameAction::Attack { attacker, defender } => {
-            let defender_faction = game_world
+            let attacker_coord = game_world
+                .get_hex_position(attacker)
+                .map(|h| h.0)
+                .unwrap_or_default();
+            let defender_coord = game_world
+                .get_hex_position(defender)
+                .map(|h| h.0)
+                .unwrap_or_default();
+            let defender_faction_val = game_world
                 .get_unit(defender)
                 .map(|u| u.faction)
                 .unwrap_or_default();
+
             if let Some(result) = resolve_combat(game_world, world, attacker, defender) {
+                let attacker_remaining = if result.attacker_survived {
+                    game_world
+                        .get_unit(attacker)
+                        .map(|u| u.soldiers)
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+                let defender_remaining = if result.defender_survived {
+                    game_world
+                        .get_unit(defender)
+                        .map(|u| u.soldiers)
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+
                 events.combat_events.push(CombatEvent {
                     attacker_faction: result.attacker_faction,
                     defender_faction: result.defender_faction,
                     attacker_survived: result.attacker_survived,
                     defender_survived: result.defender_survived,
                 });
-                let outcome_text = if result.attacker_survived && !result.defender_survived {
-                    format!("destroyed {} unit", defender_faction.name())
-                } else if !result.attacker_survived {
-                    format!("was repelled by {}", defender_faction.name())
-                } else {
-                    format!("attacked {}", defender_faction.name())
-                };
-                record_action(events, faction, turn, outcome_text);
+                events.replay_actions.push(ReplayAction::Attack {
+                    attacker_coord,
+                    defender_coord,
+                    attacker_faction: faction,
+                    defender_faction: defender_faction_val,
+                    attacker_survived: result.attacker_survived,
+                    defender_survived: result.defender_survived,
+                    attacker_remaining,
+                    defender_remaining,
+                });
             }
             finalize_unit_action(game_world, attacker);
         }
         GameAction::Merge { source, target } => {
+            let source_coord = game_world
+                .get_hex_position(source)
+                .map(|h| h.0)
+                .unwrap_or_default();
+            let target_coord = game_world
+                .get_hex_position(target)
+                .map(|h| h.0)
+                .unwrap_or_default();
             if let Some(result) = merge_units(game_world, world, source, target) {
+                let new_soldiers = game_world.get_unit(target).map(|u| u.soldiers).unwrap_or(0);
                 if result.soldiers_gained > 0 {
                     spawn_merge_popup(game_world, world, result.position, result.soldiers_gained);
                 }
                 finalize_unit_action(game_world, source);
-                record_action(
-                    events,
+                events.replay_actions.push(ReplayAction::Merge {
                     faction,
-                    turn,
-                    format!("merged units (+{})", result.soldiers_gained),
-                );
+                    source_coord,
+                    target_coord,
+                    new_soldiers,
+                });
             }
         }
         GameAction::Speech => {
@@ -229,22 +256,9 @@ pub fn execute_action(
             events.speech_events.push(SpeechEvent {
                 faction: current_faction,
             });
-            record_action(
-                events,
-                faction,
-                turn,
-                "gave an inspiring speech".to_string(),
-            );
+            events.replay_actions.push(ReplayAction::Speech { faction });
         }
     }
-}
-
-fn record_action(events: &mut GameEvents, faction: Faction, turn: u32, description: String) {
-    events.action_history.push(ActionRecord {
-        faction,
-        turn,
-        description,
-    });
 }
 
 pub fn determine_action(game_world: &GameWorld, hovered_tile: HexCoord) -> InputResult {

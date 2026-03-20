@@ -50,12 +50,16 @@ pub fn hover_outline_system(
     let previous_generation = game_world
         .resources
         .frame_cache
-        .previous_highlight_generation;
+        .previous_hover_outline_generation;
 
     if hovered_tile == previous_hovered && generation == previous_generation {
         return;
     }
     game_world.resources.frame_cache.previous_hovered_tile = hovered_tile;
+    game_world
+        .resources
+        .frame_cache
+        .previous_hover_outline_generation = generation;
 
     match hovered_tile {
         Some(coord) => {

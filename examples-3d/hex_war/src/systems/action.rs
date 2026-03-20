@@ -3,9 +3,7 @@ use crate::ecs::{CombatEvent, GameEvents, GameWorld, SpeechEvent, UNIT, unit_sta
 use crate::hex::{HexCoord, hex_distance};
 use crate::replay::ReplayAction;
 use crate::selection::{clear_selection, get_selected_unit, select_unit};
-use crate::systems::{
-    calculate_valid_moves, despawn_unit, move_unit_to, resolve_combat, spawn_merge_popup,
-};
+use crate::systems::{despawn_unit, move_unit_to, resolve_combat, spawn_merge_popup};
 use nightshade::prelude::*;
 
 pub enum GameAction {
@@ -44,15 +42,8 @@ fn is_port_tile(game_world: &GameWorld, coord: HexCoord) -> bool {
     game_world.resources.port_tiles.contains(&coord)
 }
 
-fn can_reach_tile(
-    game_world: &GameWorld,
-    source_entity: freecs::Entity,
-    source_hex: HexCoord,
-    target_hex: HexCoord,
-    movement_range: i32,
-) -> bool {
-    let reachable_tiles =
-        calculate_valid_moves(game_world, source_entity, source_hex, movement_range);
+fn can_reach_tile(game_world: &GameWorld, source_hex: HexCoord, target_hex: HexCoord) -> bool {
+    let reachable_tiles = &game_world.resources.valid_move_tiles;
 
     let adjacent_to_reachable = reachable_tiles
         .iter()
@@ -315,13 +306,7 @@ pub fn determine_action(game_world: &GameWorld, hovered_tile: HexCoord) -> Input
                     && actions_remaining > 0
                     && selected_unit_data.unit_type == clicked_unit_data.unit_type
                     && let Some(source_hex) = game_world.get_hex_position(selected).map(|h| h.0)
-                    && can_reach_tile(
-                        game_world,
-                        selected,
-                        source_hex,
-                        hovered_tile,
-                        unit_stats(selected_unit_data.unit_type).movement_range,
-                    )
+                    && can_reach_tile(game_world, source_hex, hovered_tile)
                 {
                     return InputResult::Execute(GameAction::Merge {
                         source: selected,

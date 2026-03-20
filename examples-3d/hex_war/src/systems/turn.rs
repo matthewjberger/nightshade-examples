@@ -33,7 +33,8 @@ pub fn end_turn(game_world: &mut GameWorld, events: &mut GameEvents) -> TurnTran
         attempts += 1;
     }
 
-    if next == Faction::Redosia {
+    let current = game_world.resources.current_faction;
+    if next.index() <= current.index() {
         game_world.resources.turn_number += 1;
     }
 

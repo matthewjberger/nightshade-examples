@@ -105,7 +105,7 @@ pub fn reinforcement_system(
             continue;
         }
 
-        let port_reinforcement = 1 + (game_world.resources.rng_seed as i32 % 3);
+        let port_reinforcement = 1 + (game_world.resources.rng_seed % 3) as i32;
         game_world.resources.rng_seed = game_world
             .resources
             .rng_seed

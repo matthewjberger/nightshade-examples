@@ -190,9 +190,15 @@ pub fn execute_replay_step(game_world: &mut GameWorld, world: &mut World, action
             game_world.resources.actions_remaining = crate::constants::ACTIONS_PER_TURN;
             game_world.resources.speech_used = false;
         }
-        ReplayAction::Move { from, to, .. } | ReplayAction::PortTravel { from, to, .. } => {
+        ReplayAction::Move { faction, from, to }
+        | ReplayAction::PortTravel { faction, from, to } => {
             if let Some(&entity) = game_world.resources.unit_position_map.get(from) {
                 instant_move(game_world, world, entity, *to, hex_width, hex_depth);
+                if let Some(&tile_entity) = game_world.resources.tile_map.get(to)
+                    && let Some(tile) = game_world.get_tile_mut(tile_entity)
+                {
+                    tile.faction = Some(*faction);
+                }
             }
         }
         ReplayAction::Attack {

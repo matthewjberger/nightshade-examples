@@ -12,13 +12,21 @@ pub fn range_lines_system(
         return;
     };
 
-    let current_count = game_world.resources.valid_move_tiles.len();
-    let previous_count = game_world.resources.frame_cache.previous_valid_move_count;
+    let generation = game_world.resources.valid_moves_generation;
+    let previous_generation = game_world
+        .resources
+        .frame_cache
+        .previous_range_lines_generation;
 
-    if current_count == previous_count {
+    if generation == previous_generation {
         return;
     }
+    game_world
+        .resources
+        .frame_cache
+        .previous_range_lines_generation = generation;
 
+    let current_count = game_world.resources.valid_move_tiles.len();
     if current_count == 0 {
         if let Some(visibility) = world.core.get_visibility_mut(entity) {
             visibility.visible = false;
@@ -46,6 +54,4 @@ pub fn range_lines_system(
             visibility.visible = true;
         }
     }
-
-    game_world.resources.frame_cache.previous_valid_move_count = current_count;
 }

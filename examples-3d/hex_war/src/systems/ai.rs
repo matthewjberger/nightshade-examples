@@ -110,14 +110,9 @@ fn score_attack_actions(
         .filter(|(_, hex, _, _, _)| hex_distance(unit.hex, *hex) == 1)
         .collect();
 
-    let avoid_ai_vs_ai = difficulty == Difficulty::Hard;
     let prefer_human = matches!(difficulty, Difficulty::Normal | Difficulty::Hard);
 
     for (enemy_entity, enemy_hex, enemy_faction, enemy_soldiers, enemy_morale) in adjacent_enemies {
-        if avoid_ai_vs_ai && *enemy_faction != player_faction {
-            continue;
-        }
-
         let defense_bonus = get_defense_bonus_at(game_world, *enemy_hex);
         let attacker_stats = unit_stats(unit.unit_type);
         let defender_stats = game_world
@@ -437,6 +432,36 @@ pub fn ai_turn_system(
 
     if game_world.resources.actions_remaining == 0 {
         return true;
+    }
+
+    if !game_world.resources.speech_used && game_world.resources.current_unit_index == 0 {
+        let avg_morale: i32 = game_world
+            .resources
+            .unit_position_map
+            .values()
+            .filter_map(|&entity| game_world.get_unit(entity))
+            .filter(|unit| unit.faction == current_faction)
+            .map(|unit| unit.morale)
+            .sum::<i32>()
+            .checked_div(
+                game_world
+                    .resources
+                    .unit_position_map
+                    .values()
+                    .filter_map(|&entity| game_world.get_unit(entity))
+                    .filter(|unit| unit.faction == current_faction)
+                    .count() as i32,
+            )
+            .unwrap_or(0);
+        if avg_morale < 10 {
+            crate::systems::action::execute_action(
+                game_world,
+                world,
+                crate::systems::action::GameAction::Speech,
+                events,
+            );
+            return false;
+        }
     }
 
     if game_world.resources.turn_order.is_empty() {

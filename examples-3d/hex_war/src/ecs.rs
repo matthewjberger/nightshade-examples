@@ -98,7 +98,6 @@ freecs::ecs! {
         hex_metrics: HexMetrics,
         rng_seed: u32,
         map_params: MapGenParams,
-        needs_regeneration: bool,
         valid_move_tiles: HashSet<HexCoord>,
         hovered_tile: Option<HexCoord>,
         current_faction: Faction,
@@ -106,7 +105,6 @@ freecs::ecs! {
         turn_number: u32,
         faction_eliminated: [bool; FACTION_COUNT],
         faction_morale: [i32; FACTION_COUNT],
-        capital_owners: [Option<Faction>; FACTION_COUNT],
         speech_used: bool,
         turn_order: Vec<freecs::Entity>,
         current_unit_index: usize,
@@ -136,11 +134,12 @@ pub struct HudSnapshot {
 pub struct FrameCache {
     pub previous_hovered_tile: Option<HexCoord>,
     pub previous_selected_unit: Option<freecs::Entity>,
-    pub previous_valid_move_count: usize,
     pub previous_hud: HudSnapshot,
     pub previous_log_scroll: usize,
     pub previous_log_count: usize,
     pub previous_highlight_generation: u32,
+    pub previous_hover_outline_generation: u32,
+    pub previous_range_lines_generation: u32,
 }
 
 pub fn compute_combat_strength(soldiers: i32, morale: i32, multiplier: f32) -> f32 {

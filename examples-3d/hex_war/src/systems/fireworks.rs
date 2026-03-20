@@ -139,7 +139,11 @@ pub fn update_firework_shells(shells: &mut Vec<FireworkShell>, world: &mut World
         }
     }
 
-    for (pos, color, particle_count, is_capital, entity) in explosions {
+    for (pos, color, particle_count, is_capital, trail_entity) in explosions {
+        world.queue_command(WorldCommand::DespawnRecursive {
+            entity: trail_entity,
+        });
+
         let flash_entity = world.spawn_entities(nightshade::ecs::PARTICLE_EMITTER, 1)[0];
         let mut flash_emitter = ParticleEmitter::flash_burst(pos);
         scale_emitter(&mut flash_emitter);
@@ -158,6 +162,8 @@ pub fn update_firework_shells(shells: &mut Vec<FireworkShell>, world: &mut World
             .core
             .set_particle_emitter(glitter_entity, glitter_emitter);
 
+        let mut effect_entities = vec![flash_entity, explosion_entity, glitter_entity];
+
         if is_capital {
             for ring_index in 0..6 {
                 let angle = (ring_index as f32) * std::f32::consts::TAU / 6.0;
@@ -166,11 +172,14 @@ pub fn update_firework_shells(shells: &mut Vec<FireworkShell>, world: &mut World
                 ring_emitter.direction = nalgebra_glm::vec3(angle.sin(), 0.0, angle.cos());
                 scale_emitter(&mut ring_emitter);
                 world.core.set_particle_emitter(ring_entity, ring_emitter);
+                effect_entities.push(ring_entity);
             }
         }
 
-        if let Some(emitter) = world.core.get_particle_emitter_mut(entity) {
-            emitter.enabled = false;
+        for effect_entity in effect_entities {
+            world.queue_command(WorldCommand::DespawnRecursive {
+                entity: effect_entity,
+            });
         }
     }
 

@@ -14,8 +14,8 @@ pub fn hover_system(game_world: &mut GameWorld, world: &mut World) {
                 hex_width,
                 hex_depth,
             );
-            let exists = game_world.resources.tile_map.contains_key(&coord);
-            game_world.resources.hovered_tile = if exists { Some(coord) } else { None };
+            let is_land = game_world.resources.passable_tiles.contains(&coord);
+            game_world.resources.hovered_tile = if is_land { Some(coord) } else { None };
         } else {
             game_world.resources.hovered_tile = None;
         }

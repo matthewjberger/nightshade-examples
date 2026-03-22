@@ -252,81 +252,140 @@ pub fn execute_action(
     }
 }
 
-pub fn determine_action(game_world: &GameWorld, hovered_tile: HexCoord) -> InputResult {
-    let current_faction = game_world.resources.current_faction;
-    let actions_remaining = game_world.resources.actions_remaining;
-    let selected_unit = get_selected_unit(game_world);
-    let unit_at_tile = get_unit_at_tile(game_world, hovered_tile);
-
-    if let Some(selected) = selected_unit {
-        if game_world
-            .resources
-            .valid_move_tiles
-            .contains(&hovered_tile)
-            && actions_remaining > 0
-        {
-            let source_hex = game_world.get_hex_position(selected).map(|h| h.0);
-            let is_port_to_port = source_hex.is_some_and(|src| {
-                is_port_tile(game_world, src) && is_port_tile(game_world, hovered_tile)
-            });
-
-            return if is_port_to_port {
-                InputResult::Execute(GameAction::PortTravel {
-                    unit: selected,
-                    destination: hovered_tile,
-                })
-            } else {
-                InputResult::Execute(GameAction::Move {
-                    unit: selected,
-                    destination: hovered_tile,
-                })
-            };
-        }
-
-        if let Some(clicked_unit) = unit_at_tile
-            && let Some(clicked_unit_data) = game_world.get_unit(clicked_unit).copied()
-        {
-            if clicked_unit_data.faction != current_faction && actions_remaining > 0 {
-                let selected_hex = game_world.get_hex_position(selected).map(|h| h.0);
-                let is_adjacent = selected_hex
-                    .map(|hex| hex_distance(hex, hovered_tile) == 1)
-                    .unwrap_or(false);
-
-                if is_adjacent {
-                    return InputResult::Execute(GameAction::Attack {
-                        attacker: selected,
-                        defender: clicked_unit,
-                    });
-                }
-            }
-
-            if clicked_unit_data.faction == current_faction && clicked_unit != selected {
-                if let Some(selected_unit_data) = game_world.get_unit(selected).copied()
-                    && !selected_unit_data.has_moved
-                    && actions_remaining > 0
-                    && selected_unit_data.unit_type == clicked_unit_data.unit_type
-                    && let Some(source_hex) = game_world.get_hex_position(selected).map(|h| h.0)
-                    && can_reach_tile(game_world, source_hex, hovered_tile)
-                {
-                    return InputResult::Execute(GameAction::Merge {
-                        source: selected,
-                        target: clicked_unit,
-                    });
-                }
-
-                if game_world.get_unit(selected).is_some_and(|u| u.has_moved) {
-                    return InputResult::Select(clicked_unit);
-                }
-            } else if clicked_unit == selected {
-                return InputResult::Deselect;
-            }
-        }
-    } else if let Some(clicked_unit) = unit_at_tile
-        && let Some(unit_data) = game_world.get_unit(clicked_unit)
-        && unit_data.faction == current_faction
-        && actions_remaining > 0
+fn try_move(
+    game_world: &GameWorld,
+    selected: freecs::Entity,
+    hovered_tile: HexCoord,
+) -> Option<InputResult> {
+    if game_world.resources.actions_remaining == 0 {
+        return None;
+    }
+    if !game_world
+        .resources
+        .valid_move_tiles
+        .contains(&hovered_tile)
     {
-        return InputResult::Select(clicked_unit);
+        return None;
+    }
+
+    let source_hex = game_world.get_hex_position(selected).map(|h| h.0);
+    let is_port_to_port = source_hex
+        .is_some_and(|src| is_port_tile(game_world, src) && is_port_tile(game_world, hovered_tile));
+
+    Some(if is_port_to_port {
+        InputResult::Execute(GameAction::PortTravel {
+            unit: selected,
+            destination: hovered_tile,
+        })
+    } else {
+        InputResult::Execute(GameAction::Move {
+            unit: selected,
+            destination: hovered_tile,
+        })
+    })
+}
+
+fn try_attack(
+    game_world: &GameWorld,
+    selected: freecs::Entity,
+    target: freecs::Entity,
+    hovered_tile: HexCoord,
+) -> Option<InputResult> {
+    if game_world.resources.actions_remaining == 0 {
+        return None;
+    }
+    let target_data = game_world.get_unit(target)?;
+    if target_data.faction == game_world.resources.current_faction {
+        return None;
+    }
+    let selected_hex = game_world.get_hex_position(selected)?.0;
+    if hex_distance(selected_hex, hovered_tile) != 1 {
+        return None;
+    }
+    Some(InputResult::Execute(GameAction::Attack {
+        attacker: selected,
+        defender: target,
+    }))
+}
+
+fn try_merge(
+    game_world: &GameWorld,
+    selected: freecs::Entity,
+    target: freecs::Entity,
+    hovered_tile: HexCoord,
+) -> Option<InputResult> {
+    if game_world.resources.actions_remaining == 0 {
+        return None;
+    }
+    let target_data = game_world.get_unit(target)?;
+    if target_data.faction != game_world.resources.current_faction || target == selected {
+        return None;
+    }
+    let selected_data = game_world.get_unit(selected)?;
+    if selected_data.has_moved || selected_data.unit_type != target_data.unit_type {
+        return None;
+    }
+    let source_hex = game_world.get_hex_position(selected)?.0;
+    if !can_reach_tile(game_world, source_hex, hovered_tile) {
+        return None;
+    }
+    Some(InputResult::Execute(GameAction::Merge {
+        source: selected,
+        target,
+    }))
+}
+
+fn try_reselect_or_deselect(
+    game_world: &GameWorld,
+    selected: freecs::Entity,
+    clicked: freecs::Entity,
+) -> Option<InputResult> {
+    if clicked == selected {
+        return Some(InputResult::Deselect);
+    }
+    let clicked_data = game_world.get_unit(clicked)?;
+    if clicked_data.faction != game_world.resources.current_faction {
+        return None;
+    }
+    if game_world.get_unit(selected).is_some_and(|u| u.has_moved) {
+        return Some(InputResult::Select(clicked));
+    }
+    None
+}
+
+fn try_select_fresh(game_world: &GameWorld, hovered_tile: HexCoord) -> Option<InputResult> {
+    if game_world.resources.actions_remaining == 0 {
+        return None;
+    }
+    let clicked = get_unit_at_tile(game_world, hovered_tile)?;
+    let unit_data = game_world.get_unit(clicked)?;
+    if unit_data.faction != game_world.resources.current_faction {
+        return None;
+    }
+    Some(InputResult::Select(clicked))
+}
+
+pub fn determine_action(game_world: &GameWorld, hovered_tile: HexCoord) -> InputResult {
+    let selected = get_selected_unit(game_world);
+    let clicked = get_unit_at_tile(game_world, hovered_tile);
+
+    if let Some(selected) = selected {
+        if let Some(result) = try_move(game_world, selected, hovered_tile) {
+            return result;
+        }
+        if let Some(clicked) = clicked {
+            if let Some(result) = try_attack(game_world, selected, clicked, hovered_tile) {
+                return result;
+            }
+            if let Some(result) = try_merge(game_world, selected, clicked, hovered_tile) {
+                return result;
+            }
+            if let Some(result) = try_reselect_or_deselect(game_world, selected, clicked) {
+                return result;
+            }
+        }
+    } else if let Some(result) = try_select_fresh(game_world, hovered_tile) {
+        return result;
     }
 
     InputResult::Nothing

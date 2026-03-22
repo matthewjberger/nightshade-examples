@@ -75,6 +75,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(HexWarGame::default())
 }
 
+struct ReplayState {
+    actions: Vec<ReplayAction>,
+    snapshots: Vec<(usize, GameSnapshot)>,
+    cursor: usize,
+    current_turn: u32,
+    playing: bool,
+    speed: f32,
+    timer: f32,
+}
+
+impl Default for ReplayState {
+    fn default() -> Self {
+        Self {
+            actions: Vec::new(),
+            snapshots: Vec::new(),
+            cursor: 0,
+            current_turn: 1,
+            playing: false,
+            speed: 1.0,
+            timer: 0.0,
+        }
+    }
+}
+
 struct HexWarGame {
     game_world: GameWorld,
     game_events: GameEvents,
@@ -96,13 +120,7 @@ struct HexWarGame {
     hud_ui: Option<HudUi>,
     event_log_ui: Option<EventLogUi>,
     overlay_data: SharedOverlayData,
-    replay_actions: Vec<ReplayAction>,
-    replay_snapshots: Vec<(usize, GameSnapshot)>,
-    replay_cursor: usize,
-    replay_current_turn: u32,
-    replay_playing: bool,
-    replay_speed: f32,
-    replay_timer: f32,
+    replay: ReplayState,
 }
 
 impl Default for HexWarGame {
@@ -128,13 +146,7 @@ impl Default for HexWarGame {
             hud_ui: None,
             event_log_ui: None,
             overlay_data: Arc::new(Mutex::new(hex_overlay_pass::OverlayData::default())),
-            replay_actions: Vec::new(),
-            replay_snapshots: Vec::new(),
-            replay_cursor: 0,
-            replay_current_turn: 1,
-            replay_playing: false,
-            replay_speed: 1.0,
-            replay_timer: 0.0,
+            replay: ReplayState::default(),
         }
     }
 }
@@ -215,11 +227,11 @@ fn game_cleanup_game_world(game: &mut HexWarGame, world: &mut World) {
     game_cleanup_map(game, world);
 }
 
-fn game_range_lines_entity(game: &HexWarGame) -> Option<Entity> {
+fn range_lines_entity(game: &HexWarGame) -> Option<Entity> {
     game.map_entities.as_ref().map(|e| e.range_lines_entity)
 }
 
-fn game_hover_outline_entity(game: &HexWarGame) -> Option<Entity> {
+fn hover_outline_entity(game: &HexWarGame) -> Option<Entity> {
     game.map_entities.as_ref().map(|e| e.hover_outline_entity)
 }
 
@@ -267,51 +279,53 @@ fn enter_map_setup(game: &mut HexWarGame, world: &mut World) {
 }
 
 fn replay_restore_to_cursor(game: &mut HexWarGame, world: &mut World) {
-    let target = game.replay_cursor;
+    let target = game.replay.cursor;
 
     let snapshot_idx = game
-        .replay_snapshots
+        .replay
+        .snapshots
         .iter()
         .rposition(|(action_idx, _)| *action_idx <= target)
         .unwrap_or(0);
-    let (start_action, snapshot) = &game.replay_snapshots[snapshot_idx];
+    let (start_action, snapshot) = &game.replay.snapshots[snapshot_idx];
     let start_action = *start_action;
     let snapshot_turn = snapshot.turn_number;
     restore_snapshot(&mut game.game_world, world, &snapshot.clone());
 
-    game.replay_current_turn = snapshot_turn;
+    game.replay.current_turn = snapshot_turn;
     for step in (start_action + 1)..=target {
-        let action = game.replay_actions[step].clone();
+        let action = game.replay.actions[step].clone();
         if let ReplayAction::TurnStart { turn, .. } = &action {
-            game.replay_current_turn = *turn;
+            game.replay.current_turn = *turn;
         }
         execute_replay_step(&mut game.game_world, world, &action);
     }
 }
 
 fn replay_restore_final_state(game: &mut HexWarGame, world: &mut World) {
-    if let Some((_, snapshot)) = game.replay_snapshots.last() {
+    if let Some((_, snapshot)) = game.replay.snapshots.last() {
         restore_snapshot(&mut game.game_world, world, &snapshot.clone());
     }
-    let total = game.replay_actions.len();
+    let total = game.replay.actions.len();
     let last_snapshot_action = game
-        .replay_snapshots
+        .replay
+        .snapshots
         .last()
         .map(|(idx, _)| *idx)
         .unwrap_or(0);
     for step in (last_snapshot_action + 1)..total {
-        let action = game.replay_actions[step].clone();
+        let action = game.replay.actions[step].clone();
         execute_replay_step(&mut game.game_world, world, &action);
     }
 }
 
 fn enter_replay(game: &mut HexWarGame, world: &mut World) {
-    game.replay_cursor = 0;
-    game.replay_current_turn = 1;
-    game.replay_playing = false;
-    game.replay_speed = 1.0;
-    game.replay_timer = 0.0;
-    if let Some((_, snapshot)) = game.replay_snapshots.first() {
+    game.replay.cursor = 0;
+    game.replay.current_turn = 1;
+    game.replay.playing = false;
+    game.replay.speed = 1.0;
+    game.replay.timer = 0.0;
+    if let Some((_, snapshot)) = game.replay.snapshots.first() {
         restore_snapshot(&mut game.game_world, world, snapshot);
     }
     set_menu_state(game, world, MenuState::Replay);
@@ -323,7 +337,7 @@ fn update_replay_display(game: &HexWarGame, world: &mut World) {
         return;
     };
 
-    let total = game.replay_actions.len();
+    let total = game.replay.actions.len();
     if total == 0 {
         world.ui_set_text(ui.replay_turn_text, "No actions recorded");
         world.ui_set_text(ui.replay_faction_text, "");
@@ -332,12 +346,12 @@ fn update_replay_display(game: &HexWarGame, world: &mut World) {
         return;
     }
 
-    let cursor = game.replay_cursor.min(total.saturating_sub(1));
-    let action = &game.replay_actions[cursor];
+    let cursor = game.replay.cursor.min(total.saturating_sub(1));
+    let action = &game.replay.actions[cursor];
 
     world.ui_set_text(
         ui.replay_turn_text,
-        &format!("Turn {}", game.replay_current_turn),
+        &format!("Turn {}", game.replay.current_turn),
     );
 
     let faction = replay_action_faction(action);
@@ -416,6 +430,322 @@ fn return_to_main_menu(game: &mut HexWarGame, world: &mut World) {
     set_menu_state(game, world, MenuState::MainMenu);
 }
 
+fn replay_step_forward(game: &mut HexWarGame, world: &mut World) {
+    if game.replay.cursor >= game.replay.actions.len().saturating_sub(1) {
+        return;
+    }
+    game.replay.cursor += 1;
+    let action = game.replay.actions[game.replay.cursor].clone();
+    if let ReplayAction::TurnStart { turn, .. } = &action {
+        game.replay.current_turn = *turn;
+    }
+    execute_replay_step(&mut game.game_world, world, &action);
+}
+
+fn replay_pause(game: &mut HexWarGame, world: &mut World) {
+    game.replay.playing = false;
+    if let Some(ui) = &game.menu_ui {
+        world.ui_set_text(ui.replay_play_button, "PLAY");
+    }
+}
+
+fn run_camera(game: &HexWarGame, world: &mut World) {
+    pan_orbit_camera_system(world);
+    if let Some(bounds) = &game.camera_bounds {
+        clamp_camera_to_bounds(world, bounds);
+    }
+}
+
+fn run_main_menu(game: &mut HexWarGame, world: &mut World) {
+    let Some(ui) = &game.menu_ui else {
+        return;
+    };
+    if world.ui_clicked(ui.new_game_button) {
+        enter_map_setup(game, world);
+    } else if world.ui_clicked(ui.quit_button) {
+        world.resources.window.should_exit = true;
+    }
+}
+
+fn run_map_setup(game: &mut HexWarGame, world: &mut World) {
+    run_camera(game, world);
+
+    let Some(ui) = &game.menu_ui else {
+        return;
+    };
+    if world.ui_clicked(ui.easy_button) {
+        game.selected_difficulty = Difficulty::Easy;
+        update_difficulty_display(world, ui, Difficulty::Easy);
+    } else if world.ui_clicked(ui.normal_button) {
+        game.selected_difficulty = Difficulty::Normal;
+        update_difficulty_display(world, ui, Difficulty::Normal);
+    } else if world.ui_clicked(ui.hard_button) {
+        game.selected_difficulty = Difficulty::Hard;
+        update_difficulty_display(world, ui, Difficulty::Hard);
+    } else if world.ui_clicked(ui.new_map_button) {
+        game_regenerate_map(game, world);
+    } else if world.ui_clicked(ui.start_button) {
+        start_game(game, world);
+    } else if world.ui_clicked(ui.setup_back_button) {
+        game_cleanup_game_world(game, world);
+        set_menu_state(game, world, MenuState::MainMenu);
+    }
+}
+
+fn run_paused(game: &mut HexWarGame, world: &mut World) {
+    let Some(ui) = &game.menu_ui else {
+        return;
+    };
+    if world.ui_clicked(ui.resume_button) {
+        resume_game(game, world);
+    } else if world.ui_clicked(ui.pause_main_menu_button) {
+        return_to_main_menu(game, world);
+    }
+}
+
+fn run_game_over(game: &mut HexWarGame, world: &mut World) {
+    run_camera(game, world);
+
+    let Some(ui) = &game.menu_ui else {
+        return;
+    };
+    if world.ui_clicked(ui.game_over_new_game_button) {
+        set_gameplay_ui_visible(game, world, false);
+        game_cleanup_game_world(game, world);
+        enter_map_setup(game, world);
+    } else if world.ui_clicked(ui.game_over_replay_button) {
+        enter_replay(game, world);
+    } else if world.ui_clicked(ui.game_over_main_menu_button) {
+        return_to_main_menu(game, world);
+    }
+}
+
+fn run_replay(game: &mut HexWarGame, world: &mut World) {
+    run_camera(game, world);
+
+    unit_text_system(&game.game_world, world);
+    unit_visual_update_system(&game.game_world, world);
+    nightshade::ecs::text::systems::sync_text_meshes_system(world);
+
+    let total = game.replay.actions.len();
+    let delta_time = world.resources.window.timing.delta_time;
+    let next_clicked = game
+        .menu_ui
+        .as_ref()
+        .is_some_and(|ui| world.ui_clicked(ui.replay_next_button));
+    let prev_clicked = game
+        .menu_ui
+        .as_ref()
+        .is_some_and(|ui| world.ui_clicked(ui.replay_prev_button));
+    let play_clicked = game
+        .menu_ui
+        .as_ref()
+        .is_some_and(|ui| world.ui_clicked(ui.replay_play_button));
+    let speed_clicked = game
+        .menu_ui
+        .as_ref()
+        .is_some_and(|ui| world.ui_clicked(ui.replay_speed_button));
+    let back_clicked = game
+        .menu_ui
+        .as_ref()
+        .is_some_and(|ui| world.ui_clicked(ui.replay_back_button));
+
+    if play_clicked {
+        game.replay.playing = !game.replay.playing;
+        game.replay.timer = 0.0;
+        if let Some(ui) = &game.menu_ui {
+            let label = if game.replay.playing { "PAUSE" } else { "PLAY" };
+            world.ui_set_text(ui.replay_play_button, label);
+        }
+    }
+
+    if speed_clicked {
+        game.replay.speed = match game.replay.speed as i32 {
+            1 => 2.0,
+            2 => 4.0,
+            4 => 8.0,
+            _ => 1.0,
+        };
+        if let Some(ui) = &game.menu_ui {
+            world.ui_set_text(
+                ui.replay_speed_button,
+                &format!("{}x", game.replay.speed as i32),
+            );
+        }
+    }
+
+    if game.replay.playing && game.replay.cursor < total.saturating_sub(1) {
+        game.replay.timer += delta_time * game.replay.speed;
+        let step_interval = 0.5;
+        while game.replay.timer >= step_interval && game.replay.cursor < total.saturating_sub(1) {
+            game.replay.timer -= step_interval;
+            replay_step_forward(game, world);
+        }
+        if game.replay.cursor >= total.saturating_sub(1) {
+            replay_pause(game, world);
+        }
+        update_replay_display(game, world);
+    }
+
+    if next_clicked && game.replay.cursor < total.saturating_sub(1) {
+        replay_pause(game, world);
+        replay_step_forward(game, world);
+        update_replay_display(game, world);
+    }
+
+    if prev_clicked && game.replay.cursor > 0 {
+        replay_pause(game, world);
+        game.replay.cursor -= 1;
+        replay_restore_to_cursor(game, world);
+        update_replay_display(game, world);
+    }
+
+    if back_clicked {
+        replay_restore_final_state(game, world);
+        set_menu_state(game, world, MenuState::GameOver);
+    }
+}
+
+fn run_playing(game: &mut HexWarGame, world: &mut World) {
+    run_camera(game, world);
+
+    let hex_width = game.game_world.resources.hex_metrics.hex_width;
+    let hex_depth = game.game_world.resources.hex_metrics.hex_depth;
+    let delta_time = world.resources.window.timing.delta_time;
+    update_particle_emitters(world, delta_time);
+    update_firework_shells(&mut game.firework_shells, world, delta_time);
+    movement_system(&mut game.game_world, world, delta_time);
+
+    let is_ai_turn = game.game_world.resources.current_faction != game.player_faction;
+
+    match game.game_world.resources.turn_phase {
+        TurnPhaseState::Reinforcement => {
+            for pending in game.pending_spawns.drain(..) {
+                spawn_unit(
+                    &mut game.game_world,
+                    world,
+                    SpawnUnitParams {
+                        coord: pending.coord,
+                        hex_width,
+                        hex_depth,
+                        faction: pending.faction,
+                        soldiers: pending.soldiers,
+                        unit_type: pending.unit_type,
+                    },
+                );
+            }
+            advance_turn_phase(
+                &mut game.game_world.resources.turn_phase,
+                TurnPhaseEvent::SpawnsProcessed,
+            );
+        }
+        TurnPhaseState::Action => {
+            if is_ai_turn {
+                let ai_done = ai_turn_system(
+                    &mut game.game_world,
+                    world,
+                    game.player_faction,
+                    &mut game.game_events,
+                );
+                if ai_done && can_end_turn(&game.game_world) {
+                    advance_turn_phase(
+                        &mut game.game_world.resources.turn_phase,
+                        TurnPhaseEvent::ActionsExhausted,
+                    );
+                }
+            } else {
+                hover_system(&mut game.game_world, world);
+                input_system(&mut game.game_world, world, &mut game.game_events);
+                if game.speech_requested {
+                    systems::execute_action(
+                        &mut game.game_world,
+                        world,
+                        systems::GameAction::Speech,
+                        &mut game.game_events,
+                    );
+                    game.speech_requested = false;
+                }
+            }
+        }
+        TurnPhaseState::End => {
+            game_end_turn(game);
+            advance_turn_phase(
+                &mut game.game_world.resources.turn_phase,
+                TurnPhaseEvent::TurnAdvanced,
+            );
+        }
+    }
+
+    if game.fps_visible
+        && let Some(fps_entity) = game.fps_entity
+    {
+        let fps = world.resources.window.timing.frames_per_second;
+        world.ui_set_text(fps_entity, &format!("FPS: {:.0}", fps));
+    }
+
+    let range_entity = range_lines_entity(game);
+    let hover_entity = hover_outline_entity(game);
+
+    let captures = tile_ownership_system(&mut game.game_world);
+    for capture in captures {
+        let position = hex_to_world_position(
+            capture.coord.column,
+            capture.coord.row,
+            hex_width,
+            hex_depth,
+        );
+        spawn_capture_popup(&mut game.game_world, world, position, capture.tile_type);
+        spawn_capture_firework(
+            &mut game.firework_shells,
+            world,
+            position,
+            capture.tile_type,
+            capture.faction,
+        );
+    }
+
+    selection_visual_system(&game.game_world, world);
+    valid_moves_system(&mut game.game_world);
+    range_lines_system(&mut game.game_world, world, range_entity);
+
+    tile_highlight_system(&mut game.game_world, &game.overlay_data);
+    hover_outline_system(&mut game.game_world, world, hover_entity);
+    unit_text_system(&game.game_world, world);
+    unit_visual_update_system(&game.game_world, world);
+    floating_popup_system(&mut game.game_world, world, delta_time);
+    nightshade::ecs::text::systems::sync_text_meshes_system(world);
+
+    if let Some(hud) = &game.hud_ui {
+        update_hud(hud, &mut game.game_world, world, game.player_faction);
+    }
+
+    let game_result = victory_system(&mut game.game_world, world, &mut game.game_events);
+
+    game.event_log.drain_events(&mut game.game_events);
+    game.event_log.scroll_system(world);
+    if let Some(log_ui) = &game.event_log_ui {
+        update_event_log_ui(
+            world,
+            &game.event_log,
+            log_ui,
+            &mut game.game_world.resources.frame_cache.previous_log_scroll,
+            &mut game.game_world.resources.frame_cache.previous_log_count,
+        );
+    }
+
+    if let GameResult::Victory(winner) = game_result {
+        let is_player_winner = winner == game.player_faction;
+        if let Some(ui) = &game.menu_ui {
+            setup_game_over_display(world, ui, winner, is_player_winner);
+        }
+        game.replay.actions = std::mem::take(&mut game.game_events.replay_actions);
+        game.replay.snapshots = std::mem::take(&mut game.game_events.replay_snapshots);
+        set_menu_state(game, world, MenuState::GameOver);
+    }
+
+    game.game_world.step();
+}
+
 impl State for HexWarGame {
     fn title(&self) -> &str {
         "Hex War"
@@ -465,321 +795,13 @@ impl State for HexWarGame {
         }
 
         match self.menu_state {
-            MenuState::MainMenu => {
-                let ui = self.menu_ui.as_ref().unwrap();
-                if world.ui_clicked(ui.new_game_button) {
-                    enter_map_setup(self, world);
-                } else if world.ui_clicked(ui.quit_button) {
-                    world.resources.window.should_exit = true;
-                }
-                return;
-            }
-            MenuState::MapSetup => {
-                pan_orbit_camera_system(world);
-                if let Some(bounds) = &self.camera_bounds {
-                    clamp_camera_to_bounds(world, bounds);
-                }
-
-                let ui = self.menu_ui.as_ref().unwrap();
-                if world.ui_clicked(ui.easy_button) {
-                    self.selected_difficulty = Difficulty::Easy;
-                    update_difficulty_display(world, ui, Difficulty::Easy);
-                } else if world.ui_clicked(ui.normal_button) {
-                    self.selected_difficulty = Difficulty::Normal;
-                    update_difficulty_display(world, ui, Difficulty::Normal);
-                } else if world.ui_clicked(ui.hard_button) {
-                    self.selected_difficulty = Difficulty::Hard;
-                    update_difficulty_display(world, ui, Difficulty::Hard);
-                } else if world.ui_clicked(ui.new_map_button) {
-                    game_regenerate_map(self, world);
-                } else if world.ui_clicked(ui.start_button) {
-                    start_game(self, world);
-                } else if world.ui_clicked(ui.setup_back_button) {
-                    game_cleanup_game_world(self, world);
-                    set_menu_state(self, world, MenuState::MainMenu);
-                }
-                return;
-            }
-            MenuState::Paused => {
-                let ui = self.menu_ui.as_ref().unwrap();
-                if world.ui_clicked(ui.resume_button) {
-                    resume_game(self, world);
-                } else if world.ui_clicked(ui.pause_main_menu_button) {
-                    return_to_main_menu(self, world);
-                }
-                return;
-            }
-            MenuState::GameOver => {
-                pan_orbit_camera_system(world);
-                if let Some(bounds) = &self.camera_bounds {
-                    clamp_camera_to_bounds(world, bounds);
-                }
-
-                let ui = self.menu_ui.as_ref().unwrap();
-                if world.ui_clicked(ui.game_over_new_game_button) {
-                    set_gameplay_ui_visible(self, world, false);
-                    game_cleanup_game_world(self, world);
-                    enter_map_setup(self, world);
-                } else if world.ui_clicked(ui.game_over_replay_button) {
-                    enter_replay(self, world);
-                } else if world.ui_clicked(ui.game_over_main_menu_button) {
-                    return_to_main_menu(self, world);
-                }
-                return;
-            }
-            MenuState::Replay => {
-                pan_orbit_camera_system(world);
-                if let Some(bounds) = &self.camera_bounds {
-                    clamp_camera_to_bounds(world, bounds);
-                }
-
-                unit_text_system(&self.game_world, world);
-                unit_visual_update_system(&self.game_world, world);
-                nightshade::ecs::text::systems::sync_text_meshes_system(world);
-
-                let total = self.replay_actions.len();
-                let delta_time = world.resources.window.timing.delta_time;
-                let next_clicked = self
-                    .menu_ui
-                    .as_ref()
-                    .is_some_and(|ui| world.ui_clicked(ui.replay_next_button));
-                let prev_clicked = self
-                    .menu_ui
-                    .as_ref()
-                    .is_some_and(|ui| world.ui_clicked(ui.replay_prev_button));
-                let play_clicked = self
-                    .menu_ui
-                    .as_ref()
-                    .is_some_and(|ui| world.ui_clicked(ui.replay_play_button));
-                let speed_clicked = self
-                    .menu_ui
-                    .as_ref()
-                    .is_some_and(|ui| world.ui_clicked(ui.replay_speed_button));
-                let back_clicked = self
-                    .menu_ui
-                    .as_ref()
-                    .is_some_and(|ui| world.ui_clicked(ui.replay_back_button));
-
-                if play_clicked {
-                    self.replay_playing = !self.replay_playing;
-                    self.replay_timer = 0.0;
-                    if let Some(ui) = &self.menu_ui {
-                        let label = if self.replay_playing { "PAUSE" } else { "PLAY" };
-                        world.ui_set_text(ui.replay_play_button, label);
-                    }
-                }
-
-                if speed_clicked {
-                    self.replay_speed = match self.replay_speed as i32 {
-                        1 => 2.0,
-                        2 => 4.0,
-                        4 => 8.0,
-                        _ => 1.0,
-                    };
-                    if let Some(ui) = &self.menu_ui {
-                        world.ui_set_text(
-                            ui.replay_speed_button,
-                            &format!("{}x", self.replay_speed as i32),
-                        );
-                    }
-                }
-
-                if self.replay_playing && self.replay_cursor < total.saturating_sub(1) {
-                    self.replay_timer += delta_time * self.replay_speed;
-                    let step_interval = 0.5;
-                    while self.replay_timer >= step_interval
-                        && self.replay_cursor < total.saturating_sub(1)
-                    {
-                        self.replay_timer -= step_interval;
-                        self.replay_cursor += 1;
-                        let action = self.replay_actions[self.replay_cursor].clone();
-                        if let ReplayAction::TurnStart { turn, .. } = &action {
-                            self.replay_current_turn = *turn;
-                        }
-                        execute_replay_step(&mut self.game_world, world, &action);
-                    }
-                    if self.replay_cursor >= total.saturating_sub(1) {
-                        self.replay_playing = false;
-                        if let Some(ui) = &self.menu_ui {
-                            world.ui_set_text(ui.replay_play_button, "PLAY");
-                        }
-                    }
-                    update_replay_display(self, world);
-                }
-
-                if next_clicked && self.replay_cursor < total.saturating_sub(1) {
-                    self.replay_playing = false;
-                    if let Some(ui) = &self.menu_ui {
-                        world.ui_set_text(ui.replay_play_button, "PLAY");
-                    }
-                    self.replay_cursor += 1;
-                    let action = self.replay_actions[self.replay_cursor].clone();
-                    if let ReplayAction::TurnStart { turn, .. } = &action {
-                        self.replay_current_turn = *turn;
-                    }
-                    execute_replay_step(&mut self.game_world, world, &action);
-                    update_replay_display(self, world);
-                }
-
-                if prev_clicked && self.replay_cursor > 0 {
-                    self.replay_playing = false;
-                    if let Some(ui) = &self.menu_ui {
-                        world.ui_set_text(ui.replay_play_button, "PLAY");
-                    }
-                    self.replay_cursor -= 1;
-                    replay_restore_to_cursor(self, world);
-                    update_replay_display(self, world);
-                }
-
-                if back_clicked {
-                    replay_restore_final_state(self, world);
-                    set_menu_state(self, world, MenuState::GameOver);
-                }
-                return;
-            }
-            MenuState::Playing => {}
+            MenuState::MainMenu => run_main_menu(self, world),
+            MenuState::MapSetup => run_map_setup(self, world),
+            MenuState::Paused => run_paused(self, world),
+            MenuState::GameOver => run_game_over(self, world),
+            MenuState::Replay => run_replay(self, world),
+            MenuState::Playing => run_playing(self, world),
         }
-
-        pan_orbit_camera_system(world);
-        if let Some(bounds) = &self.camera_bounds {
-            clamp_camera_to_bounds(world, bounds);
-        }
-
-        let hex_width = self.game_world.resources.hex_metrics.hex_width;
-        let hex_depth = self.game_world.resources.hex_metrics.hex_depth;
-        let delta_time = world.resources.window.timing.delta_time;
-        update_particle_emitters(world, delta_time);
-        update_firework_shells(&mut self.firework_shells, world, delta_time);
-        movement_system(&mut self.game_world, world, delta_time);
-
-        let is_ai_turn = self.game_world.resources.current_faction != self.player_faction;
-
-        match self.game_world.resources.turn_phase {
-            TurnPhaseState::Reinforcement => {
-                for pending in self.pending_spawns.drain(..) {
-                    spawn_unit(
-                        &mut self.game_world,
-                        world,
-                        SpawnUnitParams {
-                            coord: pending.coord,
-                            hex_width,
-                            hex_depth,
-                            faction: pending.faction,
-                            soldiers: pending.soldiers,
-                            unit_type: pending.unit_type,
-                        },
-                    );
-                }
-                advance_turn_phase(
-                    &mut self.game_world.resources.turn_phase,
-                    TurnPhaseEvent::SpawnsProcessed,
-                );
-            }
-            TurnPhaseState::Action => {
-                if is_ai_turn {
-                    let ai_done = ai_turn_system(
-                        &mut self.game_world,
-                        world,
-                        self.player_faction,
-                        &mut self.game_events,
-                    );
-                    if ai_done && can_end_turn(&self.game_world) {
-                        advance_turn_phase(
-                            &mut self.game_world.resources.turn_phase,
-                            TurnPhaseEvent::ActionsExhausted,
-                        );
-                    }
-                } else {
-                    hover_system(&mut self.game_world, world);
-                    input_system(&mut self.game_world, world, &mut self.game_events);
-                    if self.speech_requested {
-                        systems::execute_action(
-                            &mut self.game_world,
-                            world,
-                            systems::GameAction::Speech,
-                            &mut self.game_events,
-                        );
-                        self.speech_requested = false;
-                    }
-                }
-            }
-            TurnPhaseState::End => {
-                game_end_turn(self);
-                advance_turn_phase(
-                    &mut self.game_world.resources.turn_phase,
-                    TurnPhaseEvent::TurnAdvanced,
-                );
-            }
-        }
-
-        if self.fps_visible
-            && let Some(fps_entity) = self.fps_entity
-        {
-            let fps = world.resources.window.timing.frames_per_second;
-            world.ui_set_text(fps_entity, &format!("FPS: {:.0}", fps));
-        }
-
-        let range_lines_entity = game_range_lines_entity(self);
-        let hover_outline_entity = game_hover_outline_entity(self);
-
-        let captures = tile_ownership_system(&mut self.game_world);
-        for capture in captures {
-            let position = hex_to_world_position(
-                capture.coord.column,
-                capture.coord.row,
-                hex_width,
-                hex_depth,
-            );
-            spawn_capture_popup(&mut self.game_world, world, position, capture.tile_type);
-            spawn_capture_firework(
-                &mut self.firework_shells,
-                world,
-                position,
-                capture.tile_type,
-                capture.faction,
-            );
-        }
-
-        selection_visual_system(&self.game_world, world);
-        valid_moves_system(&mut self.game_world);
-        range_lines_system(&mut self.game_world, world, range_lines_entity);
-
-        tile_highlight_system(&mut self.game_world, &self.overlay_data);
-        hover_outline_system(&mut self.game_world, world, hover_outline_entity);
-        unit_text_system(&self.game_world, world);
-        unit_visual_update_system(&self.game_world, world);
-        floating_popup_system(&mut self.game_world, world, delta_time);
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
-
-        if let Some(hud) = &self.hud_ui {
-            update_hud(hud, &mut self.game_world, world, self.player_faction);
-        }
-
-        let game_result = victory_system(&mut self.game_world, world, &mut self.game_events);
-
-        self.event_log.drain_events(&mut self.game_events);
-        self.event_log.scroll_system(world);
-        if let Some(log_ui) = &self.event_log_ui {
-            update_event_log_ui(
-                world,
-                &self.event_log,
-                log_ui,
-                &mut self.game_world.resources.frame_cache.previous_log_scroll,
-                &mut self.game_world.resources.frame_cache.previous_log_count,
-            );
-        }
-
-        if let GameResult::Victory(winner) = game_result {
-            let is_player_winner = winner == self.player_faction;
-            if let Some(ui) = &self.menu_ui {
-                setup_game_over_display(world, ui, winner, is_player_winner);
-            }
-            self.replay_actions = std::mem::take(&mut self.game_events.replay_actions);
-            self.replay_snapshots = std::mem::take(&mut self.game_events.replay_snapshots);
-            set_menu_state(self, world, MenuState::GameOver);
-        }
-
-        self.game_world.step();
     }
 
     fn on_keyboard_input(&mut self, world: &mut World, key: KeyCode, state: KeyState) {
@@ -789,48 +811,33 @@ impl State for HexWarGame {
 
         match key {
             KeyCode::KeyP => match self.menu_state {
-                MenuState::Playing => {
-                    pause_game(self, world);
-                }
-                MenuState::Paused => {
-                    resume_game(self, world);
-                }
+                MenuState::Playing => pause_game(self, world),
+                MenuState::Paused => resume_game(self, world),
                 MenuState::MainMenu
                 | MenuState::MapSetup
                 | MenuState::GameOver
                 | MenuState::Replay => {}
             },
             KeyCode::Space if self.menu_state == MenuState::Replay => {
-                self.replay_playing = !self.replay_playing;
-                self.replay_timer = 0.0;
+                self.replay.playing = !self.replay.playing;
+                self.replay.timer = 0.0;
                 if let Some(ui) = &self.menu_ui {
-                    let label = if self.replay_playing { "PAUSE" } else { "PLAY" };
+                    let label = if self.replay.playing { "PAUSE" } else { "PLAY" };
                     world.ui_set_text(ui.replay_play_button, label);
                 }
             }
             KeyCode::ArrowRight if self.menu_state == MenuState::Replay => {
-                self.replay_playing = false;
-                if let Some(ui) = &self.menu_ui {
-                    world.ui_set_text(ui.replay_play_button, "PLAY");
-                }
-                let total = self.replay_actions.len();
-                if self.replay_cursor < total.saturating_sub(1) {
-                    self.replay_cursor += 1;
-                    let action = self.replay_actions[self.replay_cursor].clone();
-                    if let ReplayAction::TurnStart { turn, .. } = &action {
-                        self.replay_current_turn = *turn;
-                    }
-                    execute_replay_step(&mut self.game_world, world, &action);
+                let total = self.replay.actions.len();
+                if self.replay.cursor < total.saturating_sub(1) {
+                    replay_pause(self, world);
+                    replay_step_forward(self, world);
                     update_replay_display(self, world);
                 }
             }
             KeyCode::ArrowLeft if self.menu_state == MenuState::Replay => {
-                self.replay_playing = false;
-                if let Some(ui) = &self.menu_ui {
-                    world.ui_set_text(ui.replay_play_button, "PLAY");
-                }
-                if self.replay_cursor > 0 {
-                    self.replay_cursor -= 1;
+                if self.replay.cursor > 0 {
+                    replay_pause(self, world);
+                    self.replay.cursor -= 1;
                     replay_restore_to_cursor(self, world);
                     update_replay_display(self, world);
                 }

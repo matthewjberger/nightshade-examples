@@ -119,8 +119,12 @@ fn evaluate_guess(guess: &str, answer: &str) -> [LetterResult; WORD_LENGTH] {
 fn result_foreground(result: LetterResult) -> TermColor {
     match result {
         LetterResult::Correct => TermColor::White,
-        LetterResult::WrongPosition => TermColor::Black,
-        LetterResult::NotInWord => TermColor::White,
+        LetterResult::WrongPosition => TermColor::White,
+        LetterResult::NotInWord => TermColor::Rgb {
+            r: 180,
+            g: 180,
+            b: 190,
+        },
     }
 }
 
@@ -148,11 +152,11 @@ fn keyboard_state_foreground(state: KeyboardLetterState) -> TermColor {
     match state {
         KeyboardLetterState::Unknown => TermColor::White,
         KeyboardLetterState::Correct => TermColor::White,
-        KeyboardLetterState::WrongPosition => TermColor::Black,
+        KeyboardLetterState::WrongPosition => TermColor::White,
         KeyboardLetterState::NotInWord => TermColor::Rgb {
-            r: 80,
-            g: 80,
-            b: 80,
+            r: 100,
+            g: 100,
+            b: 108,
         },
     }
 }
@@ -228,7 +232,7 @@ impl State for TitleScreenState {
             LetterResult::WrongPosition,
         ];
         for (char_index, character) in sample_word.chars().enumerate() {
-            let col = center_column - 7.0 + char_index as f64 * 3.0;
+            let col = center_column - 12.0 + char_index as f64 * 5.0;
             let entity = self.entities.spawn_one(world, POSITION | LABEL | Z_INDEX);
             world.set_position(
                 entity,
@@ -240,7 +244,7 @@ impl State for TitleScreenState {
             world.set_label(
                 entity,
                 Label {
-                    text: format!(" {} ", character),
+                    text: format!("  {}  ", character),
                     foreground: result_foreground(sample_results[char_index]),
                     background: result_background(sample_results[char_index]),
                 },
@@ -406,7 +410,7 @@ impl GameplayState {
         let terminal = world.resources.terminal_size;
         let center_column = terminal.columns as f64 / 2.0;
         let grid_start_row = 2.0;
-        let cell_width = 3.0;
+        let cell_width = 5.0;
         let grid_width = WORD_LENGTH as f64 * cell_width;
         let grid_start_column = center_column - grid_width / 2.0;
 
@@ -423,7 +427,7 @@ impl GameplayState {
                         entity,
                         Label {
                             text: format!(
-                                " {} ",
+                                "  {}  ",
                                 character.to_uppercase().next().unwrap_or(character)
                             ),
                             foreground: result_foreground(results[char_index]),
@@ -438,9 +442,9 @@ impl GameplayState {
                     let character = self.current_input.chars().nth(char_index);
                     let text = match character {
                         Some(letter) => {
-                            format!(" {} ", letter.to_uppercase().next().unwrap_or(letter))
+                            format!("  {}  ", letter.to_uppercase().next().unwrap_or(letter))
                         }
-                        None => " _ ".to_string(),
+                        None => "  _  ".to_string(),
                     };
                     let entity = self.entities.spawn_one(world, POSITION | LABEL | Z_INDEX);
                     world.set_position(entity, Position { column: col, row });
@@ -466,7 +470,7 @@ impl GameplayState {
                     world.set_label(
                         entity,
                         Label {
-                            text: " . ".to_string(),
+                            text: "  .  ".to_string(),
                             foreground: TermColor::Rgb {
                                 r: 60,
                                 g: 60,
@@ -488,12 +492,13 @@ impl GameplayState {
         let keyboard_rows = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
         for (row_index, keys) in keyboard_rows.iter().enumerate() {
-            let row_width = keys.len() as f64 * 3.0;
+            let key_width = 4.0;
+            let row_width = keys.len() as f64 * key_width;
             let row_start = center_column - row_width / 2.0;
             for (key_index, key_char) in keys.chars().enumerate() {
                 let letter_index = (key_char.to_lowercase().next().unwrap() as u8 - b'a') as usize;
                 let state = self.keyboard_states[letter_index];
-                let col = row_start + key_index as f64 * 3.0;
+                let col = row_start + key_index as f64 * key_width;
                 let entity = self.entities.spawn_one(world, POSITION | LABEL | Z_INDEX);
                 world.set_position(
                     entity,
@@ -505,7 +510,7 @@ impl GameplayState {
                 world.set_label(
                     entity,
                     Label {
-                        text: format!(" {} ", key_char),
+                        text: format!(" {}  ", key_char),
                         foreground: keyboard_state_foreground(state),
                         background: keyboard_state_background(state),
                     },

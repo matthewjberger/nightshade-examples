@@ -9,6 +9,7 @@ members = [
 exclude = [
     "examples-native/plugins",
     "examples-native/webview",
+    "examples-native/nightshade_dioxus",
     "examples-native/claude_chat_leptos",
     "examples-native/claude_chat_leptos_mcp",
 ]

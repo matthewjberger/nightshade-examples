@@ -3338,6 +3338,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
+name = "idle_clicker"
+version = "0.1.0"
+dependencies = [
+ "nightshade",
+]
+
+[[package]]
 name = "idna"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4185,7 +4192,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 [[package]]
 name = "nightshade"
 version = "0.10.0"
-source = "git+https://github.com/matthewjberger/nightshade.git#45e6ee62f81d38da113259a4b9e46f65b0422e8e"
+source = "git+https://github.com/matthewjberger/nightshade.git#aa97f7312f28d64c0bc282a339b7b824a11afa3c"
 dependencies = [
  "ash",
  "axum",

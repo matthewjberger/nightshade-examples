@@ -114,8 +114,6 @@ impl State for ShellDemo {
         self.shell.update_animation(delta_time);
 
         shell_retained_ui(&mut self.shell, world);
-
-        sync_text_meshes_system(world);
     }
 
     fn on_keyboard_input(&mut self, world: &mut World, key_code: KeyCode, key_state: ElementState) {

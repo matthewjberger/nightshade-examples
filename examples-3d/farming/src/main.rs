@@ -117,7 +117,6 @@ impl FarmingGame {
         terrain::update_grass(&self.game, world);
         terrain::update_ground(&self.game, world);
         visuals::update_popups(&mut self.game, world);
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
     }
 
     fn run_playing_systems(&mut self, world: &mut World) {

@@ -100,7 +100,6 @@ impl State for NeonLightsDemo {
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
         fly_camera_system(world);
-        sync_text_meshes_system(world);
 
         if self.flicker_enabled {
             self.update_flicker(world);

@@ -228,12 +228,8 @@ impl State for FireworksDemo {
         #[cfg(not(feature = "openxr"))]
         pan_orbit_camera_system(world);
 
-        sync_text_meshes_system(world);
-
         let delta_time = world.resources.window.timing.delta_time;
         let uptime = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
-
-        update_particle_emitters(world, delta_time);
 
         if self.show_active {
             self.update_fireworks_show(world, uptime);

@@ -207,7 +207,6 @@ impl State for PongGame {
 
         self.update_visuals(world);
         self.update_score_display(world);
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
     }
 
     fn ui(&mut self, world: &mut World, ctx: &egui::Context) {

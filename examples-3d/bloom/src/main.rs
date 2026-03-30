@@ -250,7 +250,6 @@ impl State for BloomDemo {
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
         fly_camera_system(world);
-        sync_text_meshes_system(world);
 
         let time = world.resources.window.timing.uptime_milliseconds as f32 / 1000.0;
         let num_lights = self.moving_lights.len();

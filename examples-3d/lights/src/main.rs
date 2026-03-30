@@ -62,7 +62,6 @@ impl State for ManyLights {
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
         fly_camera_system(world);
-        sync_text_meshes_system(world);
         self.update_lights(world);
     }
 }

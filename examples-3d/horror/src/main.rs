@@ -241,17 +241,12 @@ impl State for HorrorGame {
         check_puzzle_state(&mut self.game_world, world);
 
         if !self.game_world.resources.cutscene.active {
-            nightshade::ecs::physics::character_controller::character_controller_input_system(
-                world,
-            );
             camera_look_system(&mut self.game_world, world);
             interaction_system(&mut self.game_world, world);
         }
 
         cutscene_system(&mut self.game_world, world);
         monster_chase_system(&mut self.game_world, world);
-        run_navmesh_systems(world);
-
         lean_system(&mut self.game_world, world);
         crouch_camera_system(&self.game_world, world);
         update_doors_momentum(&mut self.game_world, world);

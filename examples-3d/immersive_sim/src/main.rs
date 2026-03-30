@@ -10,7 +10,7 @@ use nightshade::ecs::generational_registry::registry_entry_by_name;
 use nightshade::ecs::navmesh::{RecastNavMeshConfig, generate_navmesh_recast};
 use nightshade::ecs::physics::{
     ColliderComponent, ColliderShape, RigidBodyComponent, physics_debug_draw_system,
-    run_physics_systems, spawn_first_person_player,
+    spawn_first_person_player,
 };
 use nightshade::ecs::prefab::import_gltf_from_bytes;
 use nightshade::ecs::prefab::resources::mesh_cache_insert;
@@ -635,21 +635,15 @@ fn run_gameplay_systems(game: &mut ImmersiveSim, world: &mut World) {
     if !game.shell.visible && !game.shell.dragging_resize {
         if game.shell.context.noclip {
             fly_camera_system(world);
+        } else if game.dialogue.active {
+            systems::camera::lean_system(game, world);
+            systems::camera::crouch_camera_system(game, world);
         } else {
-            run_physics_systems(world);
-
-            if game.dialogue.active {
-                systems::camera::lean_system(game, world);
-                systems::camera::crouch_camera_system(game, world);
-            } else {
-                systems::camera::camera_look_system(game, world);
-                systems::camera::lean_system(game, world);
-                systems::camera::crouch_camera_system(game, world);
-                systems::interaction::interaction_system(game, world);
-            }
+            systems::camera::camera_look_system(game, world);
+            systems::camera::lean_system(game, world);
+            systems::camera::crouch_camera_system(game, world);
+            systems::interaction::interaction_system(game, world);
         }
-    } else if !game.shell.context.noclip {
-        run_physics_systems(world);
     }
 
     game.player_progress.stats.update(delta_time);
@@ -734,8 +728,6 @@ fn run_gameplay_systems(game: &mut ImmersiveSim, world: &mut World) {
     systems::flashlight::update_flashlight(game, world);
 
     systems::dialogue::dialogue_system(game, world);
-
-    run_navmesh_systems(world);
 
     systems::audio::audio_system(game, world);
 

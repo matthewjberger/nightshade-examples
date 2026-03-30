@@ -76,7 +76,6 @@ impl State for SdfTextDemoState {
 
     fn run_systems(&mut self, world: &mut World) {
         nightshade::ecs::camera::systems::fly_camera_system(world);
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
 
         if let Some(font_index) = self.pending_font_index
             && world

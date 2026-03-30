@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use chunk::ChunkStreamer;
 use nightshade::ecs::graphics::resources::{DepthOfField, DepthOfFieldQuality};
-use nightshade::ecs::physics::{physics_debug_draw_system, run_physics_systems};
+use nightshade::ecs::physics::physics_debug_draw_system;
 use nightshade::ecs::water::Water;
 use nightshade::ecs::world::{WATER, WorldCommand};
 use nightshade::prelude::*;
@@ -433,8 +433,6 @@ impl State for CityDemo {
         if let Some(hud) = &mut self.district_hud {
             hud.update(camera_pos, delta_time);
         }
-
-        update_particle_emitters(world, delta_time);
     }
 
     fn ui(&mut self, world: &mut World, ui_context: &egui::Context) {
@@ -641,8 +639,6 @@ impl State for CityDemo {
 
 fn run_first_person_systems(demo: &mut CityDemo, world: &mut World) {
     player_systems::detect_input_mode(demo, world);
-
-    run_physics_systems(world);
 
     player_systems::camera_look_system(demo, world);
     player_systems::lean_system(demo, world);

@@ -7,7 +7,6 @@ mod simulation;
 mod ui;
 
 use nightshade::ecs::camera::systems::pan_orbit_camera_system;
-use nightshade::ecs::text::systems::sync_text_meshes_system;
 use nightshade::prelude::*;
 
 use environment::Environment;
@@ -223,7 +222,6 @@ impl State for VillageSurvival {
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
         pan_orbit_camera_system(world);
-        sync_text_meshes_system(world);
 
         self.handle_gpu_picking(world);
 

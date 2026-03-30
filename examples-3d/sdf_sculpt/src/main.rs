@@ -1764,7 +1764,6 @@ impl State for SdfDemo {
     fn run_systems(&mut self, world: &mut World) {
         escape_key_exit_system(world);
         fly_camera_system(world);
-        sync_text_meshes_system(world);
 
         if let Some(fps_text_entity) = self.fps_hud_text {
             let fps = world.resources.window.timing.frames_per_second;

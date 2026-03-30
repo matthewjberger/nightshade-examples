@@ -841,9 +841,6 @@ impl State for Survivors {
                     self.check_high_scores();
                     self.game_state = GameState::GameOver;
                 }
-
-                update_particle_emitters(world, game_delta);
-                nightshade::ecs::text::systems::sync_text_meshes_system(world);
             }
             GameState::Paused => {
                 self.camera_follow_system(world, delta);

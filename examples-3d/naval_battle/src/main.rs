@@ -170,8 +170,6 @@ impl State for NavalBattle {
         self.update_trajectory_lines(world);
         self.camera_follow_system(world);
         self.effect_system(world, delta);
-
-        update_particle_emitters(world, world.resources.window.timing.delta_time);
     }
 
     fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {

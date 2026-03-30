@@ -747,7 +747,6 @@ impl State for TextAdventureState {
 
     fn run_systems(&mut self, world: &mut World) {
         self.update_terminal_display(world);
-        sync_text_meshes_system(world);
     }
 
     fn on_keyboard_input(&mut self, world: &mut World, key_code: KeyCode, key_state: KeyState) {

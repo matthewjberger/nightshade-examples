@@ -347,9 +347,6 @@ impl State for TowerDefenseECS {
             world.resources.window.timing.delta_time,
         );
         ui_update_system(&mut self.game_world, world);
-
-        update_particle_emitters(world, world.resources.window.timing.delta_time);
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
     }
 
     fn configure_render_graph(

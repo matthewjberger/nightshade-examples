@@ -415,7 +415,6 @@ impl State for PhysicsDemo {
         #[cfg(not(feature = "openxr"))]
         self.detect_input_mode(world);
         self.check_fall_reset(world);
-        nightshade::ecs::physics::character_controller::character_controller_input_system(world);
         #[cfg(not(feature = "openxr"))]
         self.camera_look_system(world);
         #[cfg(not(feature = "openxr"))]
@@ -438,7 +437,6 @@ impl State for PhysicsDemo {
         self.update_joint_visuals(world);
         self.update_coulomb_friction_joints(world);
         self.setup_velocity_friction_joints(world);
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
     }
 
     fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {

@@ -76,8 +76,6 @@ impl State for DriveInDemo {
 
         let delta_time = world.resources.window.timing.delta_time;
         self.total_time += delta_time;
-
-        update_particle_emitters(world, delta_time);
         update_campfire_light(world, self.campfire_light_entity);
 
         if let Some(secondary) = &mut self.secondary {

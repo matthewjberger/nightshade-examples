@@ -950,9 +950,6 @@ impl State for IdleClickerGame {
 
         self.process_upgrade_clicks(world);
         self.update_ui_labels(world);
-
-        update_particle_emitters(world, delta_time);
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
     }
 
     fn on_mouse_input(&mut self, world: &mut World, state: ElementState, button: MouseButton) {

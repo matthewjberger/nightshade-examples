@@ -184,8 +184,6 @@ pub fn update_particles(particle_system: &mut ParticleSystem, world: &mut World,
             false
         }
     });
-
-    update_particle_emitters(world, _delta_time);
 }
 
 pub fn spawn_fireball_effect(particle_system: &mut ParticleSystem, position: Vec3) {

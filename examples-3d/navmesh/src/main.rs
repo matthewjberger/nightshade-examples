@@ -202,8 +202,6 @@ impl State for NavMeshDemo {
         if !self.follow_mode {
             pan_orbit_camera_system(world);
         }
-        run_navmesh_systems(world);
-
         self.handle_mouse_input(world);
         self.update_wander_mode(world);
         self.sync_foxes_to_agents(world);

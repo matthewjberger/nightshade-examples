@@ -2913,13 +2913,9 @@ impl State for DemoSceneState {
             fly_camera_system(world);
         }
 
-        sync_text_meshes_system(world);
-
         let delta_time = world.resources.window.timing.delta_time;
         self.global_time += delta_time;
         self.phase_time += delta_time;
-
-        update_particle_emitters(world, delta_time);
 
         if self.auto_transition && self.phase_time >= self.phase_duration {
             let next = self.next_phase();

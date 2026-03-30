@@ -131,8 +131,6 @@ impl State for LatticeState {
             }
         }
 
-        lattice_deformation_system(world);
-
         let active_lattice = if self.jelly_mode {
             self.jelly_lattice_entity
         } else {

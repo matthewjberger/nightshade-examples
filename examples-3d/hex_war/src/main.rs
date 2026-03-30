@@ -525,7 +525,6 @@ fn run_replay(game: &mut HexWarGame, world: &mut World) {
 
     unit_text_system(&game.game_world, world);
     unit_visual_update_system(&game.game_world, world);
-    nightshade::ecs::text::systems::sync_text_meshes_system(world);
 
     let total = game.replay.actions.len();
     let delta_time = world.resources.window.timing.delta_time;
@@ -612,7 +611,6 @@ fn run_playing(game: &mut HexWarGame, world: &mut World) {
     let hex_width = game.game_world.resources.hex_metrics.hex_width;
     let hex_depth = game.game_world.resources.hex_metrics.hex_depth;
     let delta_time = world.resources.window.timing.delta_time;
-    update_particle_emitters(world, delta_time);
     update_firework_shells(&mut game.firework_shells, world, delta_time);
     movement_system(&mut game.game_world, world, delta_time);
 
@@ -713,7 +711,6 @@ fn run_playing(game: &mut HexWarGame, world: &mut World) {
     unit_text_system(&game.game_world, world);
     unit_visual_update_system(&game.game_world, world);
     floating_popup_system(&mut game.game_world, world, delta_time);
-    nightshade::ecs::text::systems::sync_text_meshes_system(world);
 
     if let Some(hud) = &game.hud_ui {
         update_hud(hud, &mut game.game_world, world, game.player_faction);

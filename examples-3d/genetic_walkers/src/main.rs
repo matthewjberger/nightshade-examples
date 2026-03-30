@@ -550,7 +550,6 @@ impl State for GeneticWalkers {
         self.update_creature_colors(world);
         self.update_rank_labels(world);
         pan_orbit_camera_system(world);
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
         self.update_lane_lines(world);
     }
 

@@ -81,9 +81,6 @@ impl State for ThirdPersonGame {
         pan_orbit_camera_system(world);
         physics_debug_draw_system(world);
 
-        let delta_time = world.resources.window.timing.delta_time;
-        update_particle_emitters(world, delta_time);
-
         systems::update_campfire_light(&self.game_world, world);
 
         if self.loaded {

@@ -220,8 +220,6 @@ impl State for JigsawGame {
             render_system(&self.puzzle_world, world);
             drop_pieces_system(&self.puzzle_world, world);
         }
-
-        nightshade::ecs::text::systems::sync_text_meshes_system(world);
     }
 
     fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {

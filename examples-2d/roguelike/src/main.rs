@@ -178,7 +178,6 @@ impl State for RoguelikeGame {
 
         self.check_descend();
         update_display(&self.display, &self.game_world, world);
-        sync_text_meshes_system(world);
     }
 
     fn on_keyboard_input(&mut self, world: &mut World, key: KeyCode, state: KeyState) {

@@ -233,7 +233,6 @@ impl State for DecalsDemo {
 
     fn run_systems(&mut self, world: &mut World) {
         pan_orbit_camera_system(world);
-        sync_text_meshes_system(world);
 
         if let Some(result) = world.resources.gpu_picking.take_result() {
             self.last_pick_result = Some(result);

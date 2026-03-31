@@ -9,7 +9,7 @@ authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 description = "Example app using nightshade-webview"
 license = "MIT OR Apache-2.0"
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.92"
 publish = false
 
 [[bin]]

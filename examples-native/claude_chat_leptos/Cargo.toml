@@ -9,7 +9,7 @@ authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 description = "Chat UI for Claude CLI using nightshade webview with a Leptos frontend"
 license = "MIT OR Apache-2.0"
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.92"
 publish = false
 
 [[bin]]

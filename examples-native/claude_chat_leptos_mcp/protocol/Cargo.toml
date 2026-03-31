@@ -5,7 +5,7 @@ authors = ["Matthew Berger <matthewjordanberger@gmail.com>"]
 description = "Shared message types for claude_chat_leptos_mcp bidirectional communication"
 license = "MIT OR Apache-2.0"
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.92"
 publish = false
 
 [dependencies]

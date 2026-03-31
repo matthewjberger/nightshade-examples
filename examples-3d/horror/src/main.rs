@@ -133,11 +133,11 @@ fn setup_level_audio(game_world: &mut GameWorld, world: &mut World) {
 fn level_path(level_name: &str) -> String {
     #[cfg(target_arch = "wasm32")]
     {
-        format!("{}.bin", level_name)
+        format!("{}.json", level_name)
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        format!("examples-3d/horror/{}.bin", level_name)
+        format!("examples-3d/horror/{}.json", level_name)
     }
 }
 

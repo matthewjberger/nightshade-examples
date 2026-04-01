@@ -314,7 +314,7 @@ fn spawn_movie_screen(world: &mut World) {
         .set_name(screen, Name("Movie Screen".to_string()));
 
     let rotation =
-        nalgebra_glm::quat_angle_axis(std::f32::consts::FRAC_PI_2, &Vec3::new(1.0, 0.0, 0.0));
+        nalgebra_glm::quat_angle_axis(-std::f32::consts::FRAC_PI_2, &Vec3::new(1.0, 0.0, 0.0));
 
     world.core.set_local_transform(
         screen,

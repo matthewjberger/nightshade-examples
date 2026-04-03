@@ -114,7 +114,16 @@ impl State for SteamDemo {
     }
 
     fn ui(&mut self, world: &mut World, ui: &egui::Context) {
-        egui::CentralPanel::default().show(ui, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ui.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ui.content_rect()),
+        );
+        root_ui.set_clip_rect(ui.content_rect());
+
+        egui::CentralPanel::default().show_inside(&mut root_ui, |ui| {
             ui.heading("Steam Integration Demo");
             ui.separator();
 

@@ -37,13 +37,22 @@ impl State for McpViewer {
     }
 
     fn ui(&mut self, _world: &mut World, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("mcp_info")
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
+        egui::Panel::top("mcp_info")
             .frame(
                 egui::Frame::new()
                     .fill(BG_MID)
                     .inner_margin(egui::Margin::symmetric(12, 6)),
             )
-            .show(ctx, |ui| {
+            .show_inside(&mut root_ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new("NIGHTSHADE MCP")

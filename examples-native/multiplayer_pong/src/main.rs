@@ -724,7 +724,16 @@ impl PongGame {
     }
 
     fn render_menu(&mut self, world: &mut World, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui_menu"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
+        egui::CentralPanel::default().show_inside(&mut root_ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(50.0);
                 ui.heading("Multiplayer Pong");
@@ -837,7 +846,16 @@ impl PongGame {
     }
 
     fn render_waiting(&mut self, world: &mut World, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui_waiting"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
+        egui::CentralPanel::default().show_inside(&mut root_ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(100.0);
                 ui.heading("Waiting for Opponent...");
@@ -870,7 +888,16 @@ impl PongGame {
     }
 
     fn render_playing(&mut self, _world: &mut World, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("score_panel").show(ctx, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui_playing"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
+        egui::Panel::top("score_panel").show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 ui.add_space(50.0);
 
@@ -891,7 +918,7 @@ impl PongGame {
             });
         });
 
-        egui::TopBottomPanel::bottom("controls_panel").show(ctx, |ui| {
+        egui::Panel::bottom("controls_panel").show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Controls: W/S or Arrow Up/Down to move paddle");
             });
@@ -899,7 +926,16 @@ impl PongGame {
     }
 
     fn render_game_over(&mut self, world: &mut World, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui_game_over"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
+        egui::CentralPanel::default().show_inside(&mut root_ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(100.0);
                 ui.heading("Game Over!");

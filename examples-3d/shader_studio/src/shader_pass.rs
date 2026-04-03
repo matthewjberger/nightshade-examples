@@ -460,7 +460,7 @@ impl ShaderPass {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
 
@@ -471,7 +471,7 @@ impl ShaderPass {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
 
@@ -601,7 +601,7 @@ impl ShaderPass {
         let target_format = BUFFER_FORMAT;
 
         #[cfg(not(target_arch = "wasm32"))]
-        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
 
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some(&format!("Shader Studio {} Shader", pass_id.label())),
@@ -611,11 +611,11 @@ impl ShaderPass {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Shader Studio Pipeline Layout"),
             bind_group_layouts: &[
-                &self.uniform_bind_group_layout,
-                &self.texture_bind_group_layout,
-                &self.ibl_bind_group_layout,
+                Some(&self.uniform_bind_group_layout),
+                Some(&self.texture_bind_group_layout),
+                Some(&self.ibl_bind_group_layout),
             ],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
 
         let pass_index = pass_id.index();
@@ -651,12 +651,12 @@ impl ShaderPass {
                         })],
                         compilation_options: Default::default(),
                     }),
-                    multiview: None,
+                    multiview_mask: None,
                     cache: None,
                 });
 
                 #[cfg(not(target_arch = "wasm32"))]
-                if let Some(error) = pollster::block_on(device.pop_error_scope()) {
+                if let Some(error) = pollster::block_on(error_scope.pop()) {
                     return Err(format!("GPU pipeline error: {error}"));
                 }
 
@@ -684,8 +684,8 @@ impl ShaderPass {
                     },
                     depth_stencil: Some(wgpu::DepthStencilState {
                         format: DEPTH_FORMAT,
-                        depth_write_enabled: true,
-                        depth_compare: wgpu::CompareFunction::GreaterEqual,
+                        depth_write_enabled: Some(true),
+                        depth_compare: Some(wgpu::CompareFunction::GreaterEqual),
                         stencil: wgpu::StencilState::default(),
                         bias: wgpu::DepthBiasState::default(),
                     }),
@@ -700,12 +700,12 @@ impl ShaderPass {
                         })],
                         compilation_options: Default::default(),
                     }),
-                    multiview: None,
+                    multiview_mask: None,
                     cache: None,
                 });
 
                 #[cfg(not(target_arch = "wasm32"))]
-                if let Some(error) = pollster::block_on(device.pop_error_scope()) {
+                if let Some(error) = pollster::block_on(error_scope.pop()) {
                     return Err(format!("GPU pipeline error: {error}"));
                 }
 
@@ -1140,6 +1140,7 @@ impl PassNode<World> for ShaderPass {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
 
             render_pass.set_pipeline(pipeline);
@@ -1244,6 +1245,7 @@ impl PassNode<World> for ShaderPass {
                     depth_stencil_attachment: depth_attachment,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
 
             render_pass.set_pipeline(pipeline);

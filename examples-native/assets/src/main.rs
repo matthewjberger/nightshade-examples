@@ -353,7 +353,7 @@ impl AssetBrowserBehavior<'_> {
         zoo: &mut AssetZooPane,
         tile_id: egui_tiles::TileId,
     ) {
-        egui::TopBottomPanel::top(egui::Id::new("asset_zoo_toolbar")).show_inside(ui, |ui| {
+        egui::Panel::top(egui::Id::new("asset_zoo_toolbar")).show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!(
                     "{} - {}/{} models",
@@ -1532,13 +1532,22 @@ impl State for AssetViewer {
     fn ui(&mut self, world: &mut World, ctx: &egui::Context) {
         let mut tree = self.tile_tree.take().unwrap();
 
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
         if let Some(browser) = get_browser_pane_mut(&mut tree) {
             browser.process_thumbnail_queue(ctx);
         }
 
         let mut source_changed = false;
         let mut open_asset_zoo = false;
-        egui::TopBottomPanel::top("source_tabs").show(ctx, |ui| {
+        egui::Panel::top("source_tabs").show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("Asset Browser");
                 ui.separator();
@@ -1593,10 +1602,10 @@ impl State for AssetViewer {
         let browser_selected_pack =
             get_browser_pane(&tree).and_then(|browser| browser.selected_pack);
 
-        egui::SidePanel::left("browser")
-            .default_width(280.0)
+        egui::Panel::left("browser")
+            .default_size(280.0)
             .resizable(true)
-            .show(ctx, |ui| {
+            .show_inside(&mut root_ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Filter:");
                     ui.text_edit_singleline(&mut self.pack_filter);
@@ -1669,10 +1678,10 @@ impl State for AssetViewer {
         });
 
         if self.preview_texture.is_some() {
-            egui::SidePanel::right("preview")
-                .default_width(350.0)
+            egui::Panel::right("preview")
+                .default_size(350.0)
                 .resizable(true)
-                .show(ctx, |ui| {
+                .show_inside(&mut root_ui, |ui| {
                     ui.heading("Preview");
                     ui.separator();
 
@@ -1749,7 +1758,7 @@ impl State for AssetViewer {
             asset_zoo_viewport_size: self.asset_zoo_viewport_size,
         };
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(&mut root_ui, |ui| {
             tree.ui(&mut behavior, ui);
         });
 

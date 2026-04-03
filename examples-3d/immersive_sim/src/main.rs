@@ -1094,14 +1094,23 @@ fn dialogue_ui(game: &mut ImmersiveSim, ctx: &egui::Context) {
 
     let mut selected_choice: Option<usize> = None;
 
-    egui::TopBottomPanel::bottom("dialogue_panel")
+    let mut root_ui = egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("root_ui"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.content_rect()),
+    );
+    root_ui.set_clip_rect(ctx.content_rect());
+
+    egui::Panel::bottom("dialogue_panel")
         .frame(
             egui::Frame::default()
                 .fill(egui::Color32::from_rgba_unmultiplied(20, 20, 30, 230))
                 .inner_margin(egui::Margin::same(20)),
         )
-        .min_height(150.0)
-        .show(ctx, |ui| {
+        .min_size(150.0)
+        .show_inside(&mut root_ui, |ui| {
             if current_line < lines.len() {
                 let (speaker, text) = &lines[current_line];
 
@@ -1157,9 +1166,18 @@ fn dialogue_ui(game: &mut ImmersiveSim, ctx: &egui::Context) {
 }
 
 fn pause_menu_ui(game: &mut ImmersiveSim, ctx: &egui::Context) {
+    let mut root_ui = egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("root_ui"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.content_rect()),
+    );
+    root_ui.set_clip_rect(ctx.content_rect());
+
     egui::CentralPanel::default()
         .frame(egui::Frame::default().fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200)))
-        .show(ctx, |ui| {
+        .show_inside(&mut root_ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(ui.available_height() * 0.3);
 
@@ -1197,9 +1215,18 @@ fn pause_menu_ui(game: &mut ImmersiveSim, ctx: &egui::Context) {
 }
 
 fn loading_ui(game: &ImmersiveSim, ctx: &egui::Context) {
+    let mut root_ui = egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("root_ui"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.content_rect()),
+    );
+    root_ui.set_clip_rect(ctx.content_rect());
+
     egui::CentralPanel::default()
         .frame(egui::Frame::default().fill(egui::Color32::from_rgba_unmultiplied(20, 20, 30, 255)))
-        .show(ctx, |ui| {
+        .show_inside(&mut root_ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(ui.available_height() * 0.4);
 

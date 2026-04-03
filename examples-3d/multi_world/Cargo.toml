@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 nightshade = { workspace = true, features = ["tracing", "physics", "egui", "gamepad"] }
-egui_tiles = "0.14"
+egui_tiles = "0.15"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wry = "0.54"

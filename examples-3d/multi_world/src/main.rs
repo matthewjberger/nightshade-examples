@@ -1017,10 +1017,19 @@ impl State for MultiWorldDemo {
     }
 
     fn ui(&mut self, _world: &mut World, ctx: &egui::Context) {
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui_main"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
         let mut pending_popout_world_id: Option<u32> = None;
         let mut pending_popin_world_id: Option<u32> = None;
 
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        egui::Panel::top("top_panel").show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Multi-World Demo");
                 ui.separator();
@@ -1195,7 +1204,7 @@ impl State for MultiWorldDemo {
 
         let pixels_per_point = ctx.pixels_per_point();
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(&mut root_ui, |ui| {
             if self.primary_world_ids.is_empty() {
                 ui.centered_and_justified(|ui| {
                     ui.vertical_centered(|ui| {
@@ -1285,9 +1294,18 @@ impl State for MultiWorldDemo {
     }
 
     fn secondary_ui(&mut self, _world: &mut World, window_index: usize, ctx: &egui::Context) {
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui_secondary"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
         self.window_states.entry(window_index).or_default();
 
-        egui::TopBottomPanel::top("secondary_top_panel").show(ctx, |ui| {
+        egui::Panel::top("secondary_top_panel").show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Multi-World Demo");
                 ui.separator();
@@ -1364,7 +1382,7 @@ impl State for MultiWorldDemo {
         let pixels_per_point = ctx.pixels_per_point();
         let mut window_state = self.window_states.remove(&window_index).unwrap();
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(&mut root_ui, |ui| {
             if window_state.world_ids.is_empty() {
                 ui.centered_and_justified(|ui| {
                     ui.vertical_centered(|ui| {

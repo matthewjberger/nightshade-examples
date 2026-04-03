@@ -112,11 +112,20 @@ impl State for PongGame {
                 });
             });
 
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
         match self.state {
             GameState::Paused => {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(180)))
-                    .show(ctx, |ui| {
+                    .show_inside(&mut root_ui, |ui| {
                         ui.vertical_centered(|ui| {
                             ui.add_space(100.0);
                             ui.heading("PAUSED");
@@ -129,7 +138,7 @@ impl State for PongGame {
             GameState::GameOver => {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::new().fill(egui::Color32::from_black_alpha(180)))
-                    .show(ctx, |ui| {
+                    .show_inside(&mut root_ui, |ui| {
                         ui.vertical_centered(|ui| {
                             ui.add_space(100.0);
                             let winner = if self.left_score >= WINNING_SCORE {

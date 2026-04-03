@@ -164,12 +164,21 @@ impl State for ChatApp {
             }
         }
 
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
         let panel_width = (ctx.content_rect().width() * 0.4).max(360.0);
 
-        egui::SidePanel::right("chat_panel")
-            .exact_width(panel_width)
+        egui::Panel::right("chat_panel")
+            .exact_size(panel_width)
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
+            .show_inside(&mut root_ui, |ui| {
                 if let Some(handle) = &world.resources.window.handle {
                     self.ctx.ensure_webview(
                         handle.clone(),

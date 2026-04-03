@@ -32,7 +32,15 @@ impl State for SdfTextDemoState {
     }
 
     fn ui(&mut self, world: &mut World, ui_context: &egui::Context) {
-        egui::TopBottomPanel::top("top").show(ui_context, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ui_context.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ui_context.content_rect()),
+        );
+        root_ui.set_clip_rect(ui_context.content_rect());
+        egui::Panel::top("top").show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Text Tests:");
                 if ui.button("Spawn 3D Text").clicked() {

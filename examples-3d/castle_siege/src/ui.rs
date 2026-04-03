@@ -24,9 +24,18 @@ pub fn draw_ui(game: &mut GameWorld, _world: &mut World, ui_context: &egui::Cont
 }
 
 fn draw_status_panel(game: &GameWorld, ui_context: &egui::Context) {
-    egui::SidePanel::left("castle_status")
-        .default_width(240.0)
-        .show(ui_context, |ui| {
+    let mut root_ui = egui::Ui::new(
+        ui_context.clone(),
+        egui::Id::new("root_ui_status"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ui_context.content_rect()),
+    );
+    root_ui.set_clip_rect(ui_context.content_rect());
+
+    egui::Panel::left("castle_status")
+        .default_size(240.0)
+        .show_inside(&mut root_ui, |ui| {
             ui.heading("Castle Siege");
             ui.separator();
 
@@ -282,9 +291,18 @@ fn draw_world_state_flags(game: &GameWorld, ui: &mut egui::Ui) {
 }
 
 fn draw_agent_panel(game: &mut GameWorld, ui_context: &egui::Context) {
-    egui::SidePanel::right("agent_panel")
-        .default_width(320.0)
-        .show(ui_context, |ui| {
+    let mut root_ui = egui::Ui::new(
+        ui_context.clone(),
+        egui::Id::new("root_ui_agent"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ui_context.content_rect()),
+    );
+    root_ui.set_clip_rect(ui_context.content_rect());
+
+    egui::Panel::right("agent_panel")
+        .default_size(320.0)
+        .show_inside(&mut root_ui, |ui| {
             ui.heading("GOAP Agent Plans");
             ui.label(
                 egui::RichText::new("Backwards-chaining A* planner")
@@ -515,9 +533,18 @@ fn draw_agent_card(ui: &mut egui::Ui, agent: &crate::agent::Agent, agent_index: 
 }
 
 fn draw_controls(game: &mut GameWorld, ui_context: &egui::Context) {
-    egui::TopBottomPanel::bottom("controls")
-        .min_height(44.0)
-        .show(ui_context, |ui| {
+    let mut root_ui = egui::Ui::new(
+        ui_context.clone(),
+        egui::Id::new("root_ui_controls"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ui_context.content_rect()),
+    );
+    root_ui.set_clip_rect(ui_context.content_rect());
+
+    egui::Panel::bottom("controls")
+        .min_size(44.0)
+        .show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Speed:");
                 ui.add(

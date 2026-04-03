@@ -10,5 +10,5 @@ nightshade = { workspace = true, features = ["egui", "tracing"] }
 naga = { version = "27", features = ["wgsl-in"] }
 bytemuck = { version = "1", features = ["derive"] }
 image = "0.25"
-egui-snarl = "0.9"
+egui-snarl = { git = "https://github.com/zakarumych/egui-snarl", rev = "5bdc34e4ebdb9d7a0968f21564dce51a1a027ee8" }
 pollster = "0.4"

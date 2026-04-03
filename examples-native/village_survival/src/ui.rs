@@ -9,9 +9,18 @@ pub fn draw_ui(
     campfire_count: usize,
     ui_context: &egui::Context,
 ) {
-    egui::SidePanel::left("village_panel")
-        .min_width(260.0)
-        .show(ui_context, |ui| {
+    let mut root_ui = egui::Ui::new(
+        ui_context.clone(),
+        egui::Id::new("root_ui"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ui_context.content_rect()),
+    );
+    root_ui.set_clip_rect(ui_context.content_rect());
+
+    egui::Panel::left("village_panel")
+        .min_size(260.0)
+        .show_inside(&mut root_ui, |ui| {
             ui.heading("Village Survival");
             ui.separator();
 

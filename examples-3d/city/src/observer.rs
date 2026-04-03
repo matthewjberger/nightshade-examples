@@ -511,7 +511,7 @@ fn fly_cam_look(world: &mut World) {
 
 fn fly_cam_wasd(world: &mut World) {
     if let Some(gui_state) = &mut world.resources.user_interface.state
-        && gui_state.egui_ctx().wants_keyboard_input()
+        && gui_state.egui_ctx().egui_wants_keyboard_input()
     {
         return;
     }

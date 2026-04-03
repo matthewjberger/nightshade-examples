@@ -496,7 +496,7 @@ impl State for ShaderStudio {
 
 impl ShaderStudio {
     fn handle_keyboard_shortcuts(&mut self, ui_context: &egui::Context) {
-        let wants_text = ui_context.wants_keyboard_input();
+        let wants_text = ui_context.egui_wants_keyboard_input();
 
         ui_context.input(|input| {
             if input.key_pressed(egui::Key::F11) {
@@ -728,7 +728,15 @@ impl ShaderStudio {
     }
 
     fn top_bar(&mut self, ui_context: &egui::Context) {
-        egui::TopBottomPanel::top("top_bar").show(ui_context, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ui_context.clone(),
+            egui::Id::new("root_ui_top_bar"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ui_context.content_rect()),
+        );
+        root_ui.set_clip_rect(ui_context.content_rect());
+        egui::Panel::top("top_bar").show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("Shader Studio");
                 ui.separator();
@@ -867,7 +875,15 @@ impl ShaderStudio {
     }
 
     fn bottom_bar(&self, ui_context: &egui::Context) {
-        egui::TopBottomPanel::bottom("bottom_bar").show(ui_context, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ui_context.clone(),
+            egui::Id::new("root_ui_bottom_bar"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ui_context.content_rect()),
+        );
+        root_ui.set_clip_rect(ui_context.content_rect());
+        egui::Panel::bottom("bottom_bar").show_inside(&mut root_ui, |ui| {
             ui.horizontal(|ui| {
                 let shared = self.shared.lock().unwrap();
 
@@ -921,10 +937,18 @@ impl ShaderStudio {
     }
 
     fn left_panel(&mut self, ui_context: &egui::Context, world: &mut World) {
-        egui::SidePanel::left("left_panel")
-            .default_width(500.0)
-            .min_width(300.0)
-            .show(ui_context, |ui| {
+        let mut root_ui = egui::Ui::new(
+            ui_context.clone(),
+            egui::Id::new("root_ui_left_panel"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ui_context.content_rect()),
+        );
+        root_ui.set_clip_rect(ui_context.content_rect());
+        egui::Panel::left("left_panel")
+            .default_size(500.0)
+            .min_size(300.0)
+            .show_inside(&mut root_ui, |ui| {
                 self.preset_tree(ui);
                 ui.separator();
 

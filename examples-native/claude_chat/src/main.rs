@@ -208,25 +208,34 @@ impl State for ChatApp {
             ctx.request_repaint();
         }
 
-        egui::TopBottomPanel::top("toolbar")
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
+        egui::Panel::top("toolbar")
             .frame(
                 egui::Frame::new()
                     .fill(BG_MID)
                     .inner_margin(egui::Margin::symmetric(12, 6)),
             )
-            .show(ctx, |ui| {
+            .show_inside(&mut root_ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(TEXT_PRIMARY);
                 self.render_toolbar(ui);
             });
 
-        egui::TopBottomPanel::bottom("input")
+        egui::Panel::bottom("input")
             .frame(
                 egui::Frame::new()
                     .fill(BG_MID)
                     .stroke(egui::Stroke::new(1.0, BORDER))
                     .inner_margin(egui::Margin::symmetric(12, 8)),
             )
-            .show(ctx, |ui| {
+            .show_inside(&mut root_ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(TEXT_PRIMARY);
                 self.render_input(ui);
             });
@@ -237,7 +246,7 @@ impl State for ChatApp {
                     .fill(BG_DARK)
                     .inner_margin(egui::Margin::symmetric(16, 12)),
             )
-            .show(ctx, |ui| {
+            .show_inside(&mut root_ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(TEXT_PRIMARY);
                 self.render_messages(ui);
             });
@@ -351,8 +360,7 @@ impl ChatApp {
                 .hint_text(
                     egui::RichText::new("Type a prompt... (Ctrl+Enter to send)").color(TEXT_FAINT),
                 )
-                .text_color(TEXT_PRIMARY)
-                .frame(true);
+                .text_color(TEXT_PRIMARY);
 
             let response = ui.add(text_edit);
 

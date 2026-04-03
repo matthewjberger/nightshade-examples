@@ -70,14 +70,23 @@ fn draw_health_mana_bars(player_progress: &PlayerProgress, ctx: &egui::Context) 
 fn draw_inventory_bar(player_progress: &PlayerProgress, ctx: &egui::Context) {
     let inventory = &player_progress.inventory;
 
-    egui::TopBottomPanel::bottom("inventory_bar")
+    let mut root_ui = egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("root_ui"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.content_rect()),
+    );
+    root_ui.set_clip_rect(ctx.content_rect());
+
+    egui::Panel::bottom("inventory_bar")
         .frame(
             egui::Frame::default()
                 .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 40, 200))
                 .inner_margin(egui::Margin::same(8)),
         )
-        .min_height(60.0)
-        .show(ctx, |ui| {
+        .min_size(60.0)
+        .show_inside(&mut root_ui, |ui| {
             ui.horizontal_centered(|ui| {
                 ui.label(
                     egui::RichText::new(format!("Gold: {}", inventory.gold))
@@ -252,9 +261,18 @@ fn draw_stats_display(player_progress: &PlayerProgress, ctx: &egui::Context) {
 pub fn draw_death_screen(ctx: &egui::Context) -> bool {
     let mut respawn = false;
 
+    let mut root_ui = egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("root_ui"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.content_rect()),
+    );
+    root_ui.set_clip_rect(ctx.content_rect());
+
     egui::CentralPanel::default()
         .frame(egui::Frame::default().fill(egui::Color32::from_rgba_unmultiplied(20, 0, 0, 220)))
-        .show(ctx, |ui| {
+        .show_inside(&mut root_ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(ui.available_height() * 0.3);
 

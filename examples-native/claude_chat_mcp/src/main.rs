@@ -245,12 +245,21 @@ impl State for ChatApp {
             ctx.request_repaint();
         }
 
+        let mut root_ui = egui::Ui::new(
+            ctx.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ctx.content_rect()),
+        );
+        root_ui.set_clip_rect(ctx.content_rect());
+
         let panel_width = (ctx.content_rect().width() * 0.4).max(320.0);
 
-        egui::SidePanel::right("chat_panel")
-            .exact_width(panel_width)
+        egui::Panel::right("chat_panel")
+            .exact_size(panel_width)
             .frame(egui::Frame::new().fill(BG_DARK))
-            .show(ctx, |ui| {
+            .show_inside(&mut root_ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(TEXT_PRIMARY);
 
                 egui::Frame::new()
@@ -411,8 +420,7 @@ impl ChatApp {
                 .hint_text(
                     egui::RichText::new("Type a prompt... (Ctrl+Enter to send)").color(TEXT_FAINT),
                 )
-                .text_color(TEXT_PRIMARY)
-                .frame(true);
+                .text_color(TEXT_PRIMARY);
 
             let response = ui.add(text_edit);
 

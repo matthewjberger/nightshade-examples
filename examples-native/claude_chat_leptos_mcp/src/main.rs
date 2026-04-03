@@ -97,11 +97,20 @@ impl State for ChatApp {
         self.process_frontend_commands();
         self.forward_cli_events();
 
+        let mut root_ui = egui::Ui::new(
+            ui_context.clone(),
+            egui::Id::new("root_ui"),
+            egui::UiBuilder::new()
+                .layer_id(egui::LayerId::background())
+                .max_rect(ui_context.content_rect()),
+        );
+        root_ui.set_clip_rect(ui_context.content_rect());
+
         self.webview_rect = None;
 
-        egui::SidePanel::right("chat_panel")
-            .default_width(ui_context.content_rect().width() * 0.4)
-            .show(ui_context, |ui| {
+        egui::Panel::right("chat_panel")
+            .default_size(ui_context.content_rect().width() * 0.4)
+            .show_inside(&mut root_ui, |ui| {
                 let rect = ui.available_rect_before_wrap();
                 ui.painter()
                     .rect_filled(rect, 0.0, ui.style().visuals.panel_fill);

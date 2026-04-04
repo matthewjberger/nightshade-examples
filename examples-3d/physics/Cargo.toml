@@ -12,3 +12,4 @@ openxr = ["nightshade/openxr"]
 
 [dependencies]
 nightshade = { workspace = true, features = ["physics", "tracing", "gamepad"] }
+stateless = { path = "../../../stateless" }

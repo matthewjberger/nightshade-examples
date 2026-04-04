@@ -19,6 +19,23 @@ use nightshade::ecs::world::{
 };
 use nightshade::prelude::*;
 
+stateless::statemachine! {
+    name: Movement,
+    transitions: {
+        *Grounded + Jump = Airborne,
+        Grounded + Dash = GroundDash,
+        GroundDash + Land = Grounded,
+        GroundDash + BecomeAirborne = Airborne,
+        Airborne + DoubleJump = DoubleJumped,
+        Airborne + Dash = AirDash,
+        DoubleJumped + Dash = AirDash,
+        AirDash + DashEnd = Falling,
+        Falling + Land = Grounded,
+        Airborne + Land = Grounded,
+        DoubleJumped + Land = Grounded,
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(PhysicsDemo::default())
 }
@@ -42,6 +59,9 @@ const LEAN_SPEED: f32 = 8.0;
 const MAX_SHOT_BAUBLES: usize = 200;
 const BAUBLE_LIFETIME_MS: u64 = 30000;
 const BAUBLE_SHRINK_DURATION_MS: u64 = 2000;
+const DASH_SPEED: f32 = 12.0;
+const DASH_DURATION: f32 = 0.15;
+const DOUBLE_JUMP_IMPULSE: f32 = 4.5;
 
 #[derive(Default)]
 struct PhysicsDemo {
@@ -2014,7 +2034,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_fixed_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Fixed Joint",
             nalgebra_glm::vec3(center.x + 1.0, 3.5, center.z),
@@ -2079,7 +2099,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_spherical_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Spherical Joint",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2190,7 +2210,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_rope_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Rope Joint",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2301,7 +2321,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_spring_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Spring Joint",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2417,7 +2437,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_prismatic_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Prismatic Joint",
             nalgebra_glm::vec3(center.x, 2.5, center.z),
@@ -2680,7 +2700,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_revolute_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Revolute Joint",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2751,7 +2771,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_velocity_friction_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Velocity Friction",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2830,7 +2850,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_coulomb_friction_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Coulomb Friction",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -3113,7 +3133,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         self.spawn_room_walls(world, &config);
 
         let front_z = center.z - config.depth / 2.0;
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Curiosity Cabinet",
             nalgebra_glm::vec3(center.x, config.doorway_height + 0.25, front_z - 0.3),
@@ -3129,7 +3149,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         );
 
         let back_wall_z = center.z + config.depth / 2.0 - config.wall_thickness - 0.05;
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Take only what you need",
             nalgebra_glm::vec3(center.x, 2.0, back_wall_z),
@@ -3270,7 +3290,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         self.spawn_room_walls(world, &config);
 
         let front_z = center.z - config.depth / 2.0;
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Workshop",
             nalgebra_glm::vec3(center.x, config.doorway_height + 0.25, front_z - 0.3),
@@ -3286,7 +3306,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         );
 
         let back_wall_z = center.z + config.depth / 2.0 - config.wall_thickness - 0.05;
-        spawn_3d_text_with_properties(
+        spawn_label(
             world,
             "Mind the sharp edges",
             nalgebra_glm::vec3(center.x, 2.0, back_wall_z),
@@ -5951,6 +5971,15 @@ fn build_crosshair(world: &mut World) -> (Entity, Vec<Entity>) {
     tree.finish();
 
     (container, vec![left, right, top, bottom])
+}
+
+fn spawn_label(world: &mut World, text: &str, position: Vec3, properties: TextProperties) {
+    let entity = spawn_3d_text_with_properties(world, text, position, properties);
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
+        transform.rotation =
+            nalgebra_glm::quat_angle_axis(std::f32::consts::PI, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
+    }
+    nightshade::ecs::transform::commands::mark_local_transform_dirty(world, entity);
 }
 
 fn spawn_flashlight(world: &mut World) -> Entity {

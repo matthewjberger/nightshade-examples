@@ -172,8 +172,8 @@ impl State for FireworksDemo {
                 target_focus: Vec3::new(0.0, 40.0, 0.0),
                 radius: 150.0,
                 target_radius: 150.0,
-                pitch: -0.2,
-                target_pitch: -0.2,
+                pitch: 0.2,
+                target_pitch: 0.2,
                 yaw: 0.0,
                 target_yaw: 0.0,
                 ..Default::default()

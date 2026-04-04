@@ -87,8 +87,8 @@ impl State for AsteroidBeltWorld {
                 target_focus: Vec3::new(0.0, 0.0, 0.0),
                 radius: 200.0,
                 target_radius: 200.0,
-                pitch: -0.3,
-                target_pitch: -0.3,
+                pitch: 0.3,
+                target_pitch: 0.3,
                 yaw: 0.0,
                 target_yaw: 0.0,
                 ..Default::default()

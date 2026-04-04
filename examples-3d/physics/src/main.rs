@@ -11,7 +11,7 @@ use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
 use nightshade::ecs::text::commands::spawn_ui_text;
 use nightshade::ecs::text::components::{TextAlignment, TextProperties, VerticalAlignment};
 use nightshade::ecs::transform::components::Parent;
-use nightshade::ecs::world::commands::spawn_3d_billboard_text_with_properties;
+use nightshade::ecs::world::commands::spawn_3d_text_with_properties;
 use nightshade::ecs::world::resources::MouseState;
 use nightshade::ecs::world::{
     BOUNDING_VOLUME, CASTS_SHADOW, GLOBAL_TRANSFORM, LIGHT, LOCAL_TRANSFORM, LOCAL_TRANSFORM_DIRTY,
@@ -77,6 +77,10 @@ struct PhysicsDemo {
     spring_joint_visuals: Vec<SpringJointVisual>,
     coulomb_friction_joints: Vec<CoulombFrictionJointState>,
     velocity_friction_joints: Vec<VelocityFrictionJointState>,
+    weapon_entity: Option<Entity>,
+    weapon_sway: nalgebra_glm::Vec2,
+    weapon_previous_yaw: f32,
+    weapon_previous_pitch: f32,
     flashlight_entity: Option<Entity>,
     flashlight_on: bool,
     flashlight_key_was_pressed: bool,
@@ -295,6 +299,12 @@ impl State for PhysicsDemo {
         self.player_entity = Some(player_entity);
         self.camera_entity = Some(camera_entity);
 
+        world.resources.graphics.render_layer_world_enabled = true;
+        world.resources.graphics.render_layer_overlay_enabled = true;
+
+        let weapon = spawn_weapon(world, camera_entity);
+        self.weapon_entity = Some(weapon);
+
         let flashlight = spawn_flashlight(world);
         self.flashlight_entity = Some(flashlight);
         self.flashlight_on = false;
@@ -385,6 +395,7 @@ impl State for PhysicsDemo {
         self.crouch_camera_system(world);
         #[cfg(feature = "openxr")]
         self.xr_hand_tracking_system(world);
+        self.update_weapon_sway(world);
         nightshade::ecs::transform::systems::update_global_transforms_system(world);
         self.interaction_system(world);
         self.update_shot_baubles(world);
@@ -2003,7 +2014,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_fixed_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Fixed Joint",
             nalgebra_glm::vec3(center.x + 1.0, 3.5, center.z),
@@ -2068,7 +2079,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_spherical_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Spherical Joint",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2179,7 +2190,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_rope_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Rope Joint",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2290,7 +2301,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_spring_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Spring Joint",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2406,7 +2417,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_prismatic_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Prismatic Joint",
             nalgebra_glm::vec3(center.x, 2.5, center.z),
@@ -2669,7 +2680,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_revolute_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Revolute Joint",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2740,7 +2751,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_velocity_friction_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Velocity Friction",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -2819,7 +2830,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn spawn_coulomb_friction_joint_exhibit(&mut self, world: &mut World, center: Vec3) {
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Coulomb Friction",
             nalgebra_glm::vec3(center.x, 4.0, center.z),
@@ -3102,7 +3113,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         self.spawn_room_walls(world, &config);
 
         let front_z = center.z - config.depth / 2.0;
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Curiosity Cabinet",
             nalgebra_glm::vec3(center.x, config.doorway_height + 0.25, front_z - 0.3),
@@ -3118,7 +3129,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         );
 
         let back_wall_z = center.z + config.depth / 2.0 - config.wall_thickness - 0.05;
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Take only what you need",
             nalgebra_glm::vec3(center.x, 2.0, back_wall_z),
@@ -3259,7 +3270,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         self.spawn_room_walls(world, &config);
 
         let front_z = center.z - config.depth / 2.0;
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Workshop",
             nalgebra_glm::vec3(center.x, config.doorway_height + 0.25, front_z - 0.3),
@@ -3275,7 +3286,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         );
 
         let back_wall_z = center.z + config.depth / 2.0 - config.wall_thickness - 0.05;
-        spawn_3d_billboard_text_with_properties(
+        spawn_3d_text_with_properties(
             world,
             "Mind the sharp edges",
             nalgebra_glm::vec3(center.x, 2.0, back_wall_z),
@@ -4166,7 +4177,15 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             }
         };
         #[cfg(not(feature = "openxr"))]
-        let (shoot_origin, shoot_direction) = (camera_position, camera_forward);
+        let (shoot_origin, shoot_direction) = if let Some(weapon) = self.weapon_entity
+            && let Some(weapon_transform) = world.core.get_global_transform(weapon)
+        {
+            let muzzle_local = nalgebra_glm::vec4(0.0, 0.005, -0.20, 1.0);
+            let muzzle_world = weapon_transform.0 * muzzle_local;
+            (muzzle_world.xyz(), camera_forward)
+        } else {
+            (camera_position, camera_forward)
+        };
 
         let current_time_ms = world.resources.window.timing.uptime_milliseconds;
         let shoot_just_pressed = shoot_pressed && !self.interaction.shoot_was_pressed;
@@ -4176,8 +4195,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             if shoot_just_pressed {
                 self.interaction.shoot_hold_start_ms = Some(current_time_ms);
                 self.interaction.last_rapid_fire_ms = current_time_ms;
-                let shoot_position = shoot_origin + shoot_direction * 0.1;
-                self.shoot_bauble(world, shoot_position, shoot_direction);
+                self.shoot_bauble(world, shoot_origin, shoot_direction);
             } else if shoot_pressed {
                 if let Some(hold_start) = self.interaction.shoot_hold_start_ms {
                     let hold_duration = current_time_ms.saturating_sub(hold_start);
@@ -4186,8 +4204,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                             current_time_ms.saturating_sub(self.interaction.last_rapid_fire_ms);
                         if time_since_last_shot >= 80 {
                             self.interaction.last_rapid_fire_ms = current_time_ms;
-                            let shoot_position = shoot_origin + shoot_direction * 0.1;
-                            self.shoot_bauble(world, shoot_position, shoot_direction);
+                            self.shoot_bauble(world, shoot_origin, shoot_direction);
                         }
                     }
                 }
@@ -4970,28 +4987,53 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         };
 
         let f_pressed = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyF);
+        let gamepad_flashlight_pressed =
+            if let Some(gamepad) = query_active_gamepad(world) {
+                gamepad.is_pressed(gilrs::Button::DPadDown)
+            } else {
+                false
+            };
+        let flashlight_input = f_pressed || gamepad_flashlight_pressed;
 
-        if f_pressed && !self.flashlight_key_was_pressed {
+        if flashlight_input && !self.flashlight_key_was_pressed {
             self.flashlight_on = !self.flashlight_on;
             if let Some(light) = world.core.get_light_mut(flashlight_entity) {
                 light.intensity = if self.flashlight_on { 60.0 } else { 0.0 };
             }
         }
-        self.flashlight_key_was_pressed = f_pressed;
+        self.flashlight_key_was_pressed = flashlight_input;
 
-        if let Some(camera_transform) = world.core.get_global_transform(camera).cloned() {
-            let camera_position = camera_transform.translation();
-            let camera_forward = camera_transform.forward_vector();
-
-            let offset_position = camera_position + camera_forward * 0.3;
-
-            let flashlight_transform = LocalTransform {
-                translation: offset_position,
-                rotation: world
+        let (light_position, light_rotation) =
+            if let Some(weapon) = self.weapon_entity
+                && let Some(weapon_transform) = world.core.get_global_transform(weapon)
+            {
+                let muzzle_local = nalgebra_glm::vec4(0.0, 0.005, -0.20, 1.0);
+                let muzzle_world = weapon_transform.0 * muzzle_local;
+                let rotation = world
                     .core
                     .get_local_transform(camera)
                     .map(|t| t.rotation)
-                    .unwrap_or(Quat::identity()),
+                    .unwrap_or(Quat::identity());
+                (muzzle_world.xyz(), rotation)
+            } else if let Some(camera_transform) =
+                world.core.get_global_transform(camera).cloned()
+            {
+                let position =
+                    camera_transform.translation() + camera_transform.forward_vector() * 0.3;
+                let rotation = world
+                    .core
+                    .get_local_transform(camera)
+                    .map(|t| t.rotation)
+                    .unwrap_or(Quat::identity());
+                (position, rotation)
+            } else {
+                return;
+            };
+
+        {
+            let flashlight_transform = LocalTransform {
+                translation: light_position,
+                rotation: light_rotation,
                 scale: Vec3::new(1.0, 1.0, 1.0),
             };
 
@@ -5062,6 +5104,53 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                 ));
             }
         }
+    }
+
+    fn update_weapon_sway(&mut self, world: &mut World) {
+        let Some(weapon_entity) = self.weapon_entity else {
+            return;
+        };
+        let Some(camera_entity) = self.camera_entity else {
+            return;
+        };
+
+        let camera_rotation = world
+            .core
+            .get_local_transform(camera_entity)
+            .map(|t| t.rotation)
+            .unwrap_or(nalgebra_glm::quat_identity());
+
+        let forward = nalgebra_glm::quat_rotate_vec3(
+            &camera_rotation,
+            &nalgebra_glm::vec3(0.0, 0.0, -1.0),
+        );
+        let current_yaw = forward.x.atan2(-forward.z);
+        let current_pitch = forward.y.asin();
+
+        let yaw_delta = current_yaw - self.weapon_previous_yaw;
+        let pitch_delta = current_pitch - self.weapon_previous_pitch;
+        self.weapon_previous_yaw = current_yaw;
+        self.weapon_previous_pitch = current_pitch;
+
+        let sway_strength = 0.6;
+        self.weapon_sway.x -= yaw_delta * sway_strength;
+        self.weapon_sway.y -= pitch_delta * sway_strength;
+
+        let max_sway = 0.08;
+        self.weapon_sway.x = self.weapon_sway.x.clamp(-max_sway, max_sway);
+        self.weapon_sway.y = self.weapon_sway.y.clamp(-max_sway, max_sway);
+
+        let delta_time = world.resources.window.timing.delta_time;
+        let recovery_speed = 8.0;
+        let decay = (-recovery_speed * delta_time).exp();
+        self.weapon_sway.x *= decay;
+        self.weapon_sway.y *= decay;
+
+        if let Some(transform) = world.core.get_local_transform_mut(weapon_entity) {
+            transform.translation =
+                nalgebra_glm::vec3(0.15 + self.weapon_sway.x, -0.10 + self.weapon_sway.y, -0.25);
+        }
+        nightshade::ecs::transform::commands::mark_local_transform_dirty(world, weapon_entity);
     }
 
     fn recall_baubles(&mut self, world: &mut World) {
@@ -5566,6 +5655,166 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             }
         }
     }
+}
+
+fn spawn_weapon_part(
+    world: &mut World,
+    parent: Entity,
+    position: Vec3,
+    scale: Vec3,
+    mesh_name: &str,
+    material: nightshade::ecs::material::components::Material,
+) -> Entity {
+    let entity = world.spawn_entities(
+        NAME | LOCAL_TRANSFORM
+            | GLOBAL_TRANSFORM
+            | LOCAL_TRANSFORM_DIRTY
+            | RENDER_MESH
+            | MATERIAL_REF
+            | BOUNDING_VOLUME
+            | PARENT
+            | VISIBILITY
+            | nightshade::ecs::world::RENDER_LAYER,
+        1,
+    )[0];
+
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
+        transform.translation = position;
+        transform.scale = scale;
+    }
+
+    if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
+        mesh.name = mesh_name.to_string();
+    }
+
+    let material_name = format!("WeaponPart_{}", entity.id);
+    material_registry_insert(
+        &mut world.resources.material_registry,
+        material_name.clone(),
+        material,
+    );
+    if let Some(&index) = world
+        .resources
+        .material_registry
+        .registry
+        .name_to_index
+        .get(&material_name)
+    {
+        world
+            .resources
+            .material_registry
+            .registry
+            .add_reference(index);
+    }
+    world
+        .core
+        .set_material_ref(entity, MaterialRef::new(material_name));
+
+    if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
+        *bounding_volume =
+            nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
+    }
+
+    if let Some(p) = world.core.get_parent_mut(entity) {
+        *p = Parent(Some(parent));
+    }
+
+    if let Some(render_layer) = world.core.get_render_layer_mut(entity) {
+        render_layer.0 = nightshade::ecs::render_layer::components::RenderLayer::OVERLAY;
+    }
+
+    world.resources.mesh_render_state.mark_entity_added(entity);
+
+    entity
+}
+
+fn spawn_weapon(world: &mut World, camera_entity: Entity) -> Entity {
+    let root = world.spawn_entities(
+        NAME | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | PARENT,
+        1,
+    )[0];
+
+    if let Some(name) = world.core.get_name_mut(root) {
+        name.0 = "Weapon".to_string();
+    }
+
+    if let Some(transform) = world.core.get_local_transform_mut(root) {
+        transform.translation = nalgebra_glm::vec3(0.15, -0.10, -0.25);
+    }
+
+    if let Some(parent) = world.core.get_parent_mut(root) {
+        *parent = Parent(Some(camera_entity));
+    }
+
+    let body_color = create_textured_material(nalgebra_glm::vec3(0.18, 0.18, 0.20), 0.45, 0.85);
+    let barrel_color = create_textured_material(nalgebra_glm::vec3(0.12, 0.12, 0.14), 0.3, 0.9);
+    let grip_color = create_textured_material(nalgebra_glm::vec3(0.08, 0.08, 0.06), 0.8, 0.1);
+    let accent_color = create_textured_material(nalgebra_glm::vec3(0.25, 0.25, 0.28), 0.35, 0.8);
+
+    spawn_weapon_part(
+        world,
+        root,
+        nalgebra_glm::vec3(0.0, 0.0, 0.0),
+        nalgebra_glm::vec3(0.025, 0.035, 0.10),
+        "Cube",
+        body_color.clone(),
+    );
+
+    spawn_weapon_part(
+        world,
+        root,
+        nalgebra_glm::vec3(0.0, 0.005, -0.09),
+        nalgebra_glm::vec3(0.012, 0.012, 0.08),
+        "Cube",
+        barrel_color.clone(),
+    );
+
+    spawn_weapon_part(
+        world,
+        root,
+        nalgebra_glm::vec3(0.0, 0.005, -0.135),
+        nalgebra_glm::vec3(0.016, 0.016, 0.01),
+        "Cube",
+        accent_color.clone(),
+    );
+
+    spawn_weapon_part(
+        world,
+        root,
+        nalgebra_glm::vec3(0.0, -0.045, 0.02),
+        nalgebra_glm::vec3(0.02, 0.055, 0.025),
+        "Cube",
+        grip_color,
+    );
+
+    spawn_weapon_part(
+        world,
+        root,
+        nalgebra_glm::vec3(0.0, 0.023, -0.01),
+        nalgebra_glm::vec3(0.012, 0.006, 0.06),
+        "Cube",
+        accent_color,
+    );
+
+    spawn_weapon_part(
+        world,
+        root,
+        nalgebra_glm::vec3(0.0, -0.018, 0.0),
+        nalgebra_glm::vec3(0.018, 0.008, 0.025),
+        "Cube",
+        body_color,
+    );
+
+    spawn_weapon_part(
+        world,
+        root,
+        nalgebra_glm::vec3(0.0, -0.006, -0.055),
+        nalgebra_glm::vec3(0.004, 0.004, 0.015),
+        "Cube",
+        barrel_color,
+    );
+
+    root
 }
 
 fn build_note_overlay(world: &mut World) -> (Entity, Entity, Entity) {

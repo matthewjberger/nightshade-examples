@@ -274,25 +274,6 @@ impl State for HorrorGame {
         self.game_world.resources.fade_amount += fade_diff * (fade_speed * dt).min(1.0);
     }
 
-    fn on_keyboard_input(&mut self, world: &mut World, _key_code: KeyCode, _key_state: KeyState) {
-        #[cfg(target_arch = "wasm32")]
-        {
-            if !world.resources.audio.is_initialized() {
-                nightshade::ecs::audio::systems::lazy_initialize_audio_system(world);
-            }
-        }
-        let _ = world;
-    }
-
-    fn on_mouse_input(&mut self, world: &mut World, _state: ElementState, _button: MouseButton) {
-        #[cfg(target_arch = "wasm32")]
-        {
-            if !world.resources.audio.is_initialized() {
-                nightshade::ecs::audio::systems::lazy_initialize_audio_system(world);
-            }
-        }
-        let _ = world;
-    }
 }
 
 fn update_footstep_audio(game_world: &mut GameWorld, world: &mut World) {

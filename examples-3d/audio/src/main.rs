@@ -58,14 +58,6 @@ impl State for AudioDemo {
             return;
         }
 
-        #[cfg(target_arch = "wasm32")]
-        {
-            if !world.resources.audio.is_initialized() {
-                use nightshade::ecs::audio::systems::lazy_initialize_audio_system;
-                lazy_initialize_audio_system(world);
-            }
-        }
-
         match key_code {
             KeyCode::Digit1 => {
                 if let Some(entity) = self.sound_entities.first() {

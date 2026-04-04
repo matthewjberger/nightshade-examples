@@ -18,9 +18,6 @@ use nightshade::ecs::world::{
     MATERIAL_REF, NAME, PARENT, RENDER_MESH, VISIBILITY,
 };
 use nightshade::prelude::*;
-use nightshade::render::wgpu::passes;
-use nightshade::render::wgpu::rendergraph::RenderGraph;
-use nightshade::run::RenderResources;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     launch(PhysicsDemo::default())
@@ -83,6 +80,12 @@ struct PhysicsDemo {
     flashlight_entity: Option<Entity>,
     flashlight_on: bool,
     flashlight_key_was_pressed: bool,
+    crosshair_entity: Option<Entity>,
+    crosshair_arms: Vec<Entity>,
+    note_overlay_entity: Option<Entity>,
+    note_title_entity: Option<Entity>,
+    note_content_entity: Option<Entity>,
+    last_shown_note: Option<usize>,
     #[cfg(feature = "openxr")]
     left_hand_cube: Option<Entity>,
     #[cfg(feature = "openxr")]
@@ -260,85 +263,11 @@ impl State for PhysicsDemo {
         "Physics Interaction Demo"
     }
 
-    fn configure_render_graph(
-        &mut self,
-        graph: &mut RenderGraph<World>,
-        device: &wgpu::Device,
-        surface_format: wgpu::TextureFormat,
-        resources: RenderResources,
-    ) {
-        let (width, height) = (1920, 1080);
-        let bloom_width = width / 2;
-        let bloom_height = height / 2;
-
-        let bloom_texture = graph
-            .add_color_texture("bloom")
-            .format(wgpu::TextureFormat::Rgba16Float)
-            .size(bloom_width, bloom_height)
-            .clear_color(wgpu::Color::BLACK)
-            .transient();
-
-        let bloom_pass = passes::BloomPass::new(device, width, height);
-        graph
-            .pass(Box::new(bloom_pass))
-            .read("hdr", resources.scene_color)
-            .write("bloom", bloom_texture);
-
-        let ssao_pass = passes::SsaoPass::new(device);
-        graph
-            .pass(Box::new(ssao_pass))
-            .read("depth", resources.depth)
-            .read("view_normals", resources.view_normals)
-            .write("ssao_raw", resources.ssao_raw);
-
-        let ssao_blur_pass = passes::SsaoBlurPass::new(device);
-        graph
-            .pass(Box::new(ssao_blur_pass))
-            .read("ssao_raw", resources.ssao_raw)
-            .read("depth", resources.depth)
-            .read("view_normals", resources.view_normals)
-            .write("ssao", resources.ssao);
-
-        let postprocess_pass = passes::PostProcessPass::new(device, surface_format, 0.08);
-        graph
-            .pass(Box::new(postprocess_pass))
-            .read("hdr", resources.scene_color)
-            .read("bloom", bloom_texture)
-            .read("ssao", resources.ssao)
-            .write("output", resources.compute_output);
-
-        let fxaa_output = graph
-            .add_color_texture("fxaa_output")
-            .format(surface_format)
-            .size(
-                resources.surface_width.max(1),
-                resources.surface_height.max(1),
-            )
-            .transient();
-
-        let fxaa_pass = passes::FxaaPass::new(device, surface_format);
-        graph
-            .pass(Box::new(fxaa_pass))
-            .read("input", resources.compute_output)
-            .write("output", fxaa_output);
-
-        let swapchain_blit_pass =
-            passes::BlitPass::new(device, surface_format).with_name("default_swapchain_blit");
-        graph
-            .pass(Box::new(swapchain_blit_pass))
-            .read("input", fxaa_output)
-            .write("output", resources.swapchain);
-    }
-
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = false;
         world.resources.graphics.atmosphere = Atmosphere::Sky;
         world.resources.graphics.show_grid = false;
         world.resources.graphics.use_fullscreen = true;
-        world.resources.graphics.ssao_enabled = true;
-        world.resources.graphics.ssao_radius = 0.5;
-        world.resources.graphics.ssao_bias = 0.025;
-        world.resources.graphics.ssao_intensity = 1.5;
 
         self.show_physics_debug = false;
         world.resources.physics.debug_draw = self.show_physics_debug;
@@ -396,10 +325,43 @@ impl State for PhysicsDemo {
             self.right_hand_cube = Some(right_hand);
             self.spawn_bauble_gun(world, right_hand);
         }
+
+        world.resources.retained_ui.enabled = true;
+        let (crosshair, crosshair_arms) = build_crosshair(world);
+        self.crosshair_entity = Some(crosshair);
+        self.crosshair_arms = crosshair_arms;
+        let (note_overlay, note_title, note_content) = build_note_overlay(world);
+        self.note_overlay_entity = Some(note_overlay);
+        self.note_title_entity = Some(note_title);
+        self.note_content_entity = Some(note_content);
     }
 
     fn run_systems(&mut self, world: &mut World) {
-        world.resources.user_interface.enabled = self.reading_note.is_some();
+        if let Some(crosshair) = self.crosshair_entity {
+            world.ui_set_visible(crosshair, self.reading_note.is_none());
+        }
+
+        if let Some(overlay) = self.note_overlay_entity {
+            if let Some(note_index) = self.reading_note {
+                world.ui_set_visible(overlay, true);
+                if self.last_shown_note != Some(note_index) {
+                    let title = self.notes[note_index].title.clone();
+                    let content = self.notes[note_index].content.clone();
+                    if let Some(entity) = self.note_title_entity {
+                        world.ui_set_text(entity, &title);
+                    }
+                    if let Some(entity) = self.note_content_entity {
+                        world.ui_set_text(entity, &content);
+                    }
+                    self.last_shown_note = Some(note_index);
+                }
+            } else {
+                world.ui_set_visible(overlay, false);
+                if self.last_shown_note.is_some() {
+                    self.last_shown_note = None;
+                }
+            }
+        }
 
         if self.reading_note.is_some() {
             self.note_reading_system(world);
@@ -439,66 +401,6 @@ impl State for PhysicsDemo {
         self.setup_velocity_friction_joints(world);
     }
 
-    fn ui(&mut self, _world: &mut World, ui_context: &egui::Context) {
-        if let Some(note_index) = self.reading_note {
-            let note = &self.notes[note_index];
-            let screen_rect = ui_context.input(|i| {
-                i.viewport().inner_rect.unwrap_or(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(800.0, 600.0),
-                ))
-            });
-            let panel_width = 500.0_f32.min(screen_rect.width() - 40.0);
-            let panel_height = 400.0_f32.min(screen_rect.height() - 80.0);
-
-            egui::Area::new(egui::Id::new("note_overlay"))
-                .fixed_pos(egui::pos2(
-                    (screen_rect.width() - panel_width) / 2.0,
-                    (screen_rect.height() - panel_height) / 2.0,
-                ))
-                .show(ui_context, |ui| {
-                    egui::Frame::new()
-                        .fill(egui::Color32::from_rgba_unmultiplied(245, 235, 210, 250))
-                        .inner_margin(egui::Margin::same(20))
-                        .stroke(egui::Stroke::new(
-                            2.0,
-                            egui::Color32::from_rgb(120, 100, 70),
-                        ))
-                        .show(ui, |ui| {
-                            ui.set_width(panel_width - 40.0);
-                            ui.set_height(panel_height - 40.0);
-
-                            ui.vertical(|ui| {
-                                ui.add(
-                                    egui::Label::new(
-                                        egui::RichText::new(&note.title)
-                                            .size(20.0)
-                                            .color(egui::Color32::from_rgb(50, 40, 30))
-                                            .strong(),
-                                    )
-                                    .wrap(),
-                                );
-                                ui.add_space(10.0);
-                                ui.separator();
-                                ui.add_space(10.0);
-
-                                egui::ScrollArea::vertical()
-                                    .max_height(panel_height - 120.0)
-                                    .show(ui, |ui| {
-                                        ui.add(
-                                            egui::Label::new(
-                                                egui::RichText::new(&note.content)
-                                                    .size(16.0)
-                                                    .color(egui::Color32::from_rgb(40, 35, 25)),
-                                            )
-                                            .wrap(),
-                                        );
-                                    });
-                            });
-                        });
-                });
-        }
-    }
 }
 
 impl PhysicsDemo {
@@ -3927,10 +3829,8 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         }
 
         if self.input_mode != previous_mode {
-            world.resources.graphics.show_cursor = self.input_mode == InputMode::MouseKeyboard;
-            if let Some(window_handle) = &world.resources.window.handle {
-                window_handle.set_cursor_visible(world.resources.graphics.show_cursor);
-            }
+            world.resources.graphics.show_cursor = false;
+            world.set_cursor_visible(false);
 
             if let Some(text_index) = self.input_mode_text_index {
                 let text = match self.input_mode {
@@ -3959,19 +3859,6 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             || self.interaction.manipulated_lever_index.is_some()
             || self.interaction.manipulated_wheel_index.is_some();
 
-        let is_interacting = self.interaction.grabbed_entity.is_some() || is_manipulating;
-
-        let right_clicked = if self.input_mode == InputMode::MouseKeyboard {
-            world
-                .resources
-                .input
-                .mouse
-                .state
-                .contains(MouseState::RIGHT_CLICKED)
-        } else {
-            false
-        };
-
         let (gamepad_right_stick_x, gamepad_right_stick_y) =
             if self.input_mode == InputMode::Gamepad && !is_manipulating {
                 if let Some(gamepad) = query_active_gamepad(world) {
@@ -3998,24 +3885,13 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         let has_gamepad_input =
             gamepad_right_stick_x.abs() > 0.0 || gamepad_right_stick_y.abs() > 0.0;
 
-        let should_lock_cursor = right_clicked || is_interacting;
-
-        if should_lock_cursor {
-            if let Some(window_handle) = &world.resources.window.handle {
-                if window_handle
-                    .set_cursor_grab(window::CursorGrabMode::Locked)
-                    .is_err()
-                {
-                    let _ = window_handle.set_cursor_grab(window::CursorGrabMode::Confined);
-                }
-                window_handle.set_cursor_visible(false);
-            }
-        } else if let Some(window_handle) = &world.resources.window.handle {
-            let _ = window_handle.set_cursor_grab(window::CursorGrabMode::None);
-            window_handle.set_cursor_visible(world.resources.graphics.show_cursor);
+        if self.input_mode == InputMode::MouseKeyboard {
+            world.set_cursor_locked(true);
+            world.set_cursor_visible(false);
         }
 
-        let can_look_mouse = right_clicked;
+        let can_look_mouse =
+            self.input_mode == InputMode::MouseKeyboard && !is_manipulating;
 
         if !can_look_mouse && !has_gamepad_input {
             return;
@@ -4160,7 +4036,7 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
     }
 
     fn interaction_system(&mut self, world: &mut World) {
-        let (left_clicked, _left_just_pressed, right_clicked, scroll_delta, mouse_pos) =
+        let (left_clicked, _left_just_pressed, right_clicked, scroll_delta) =
             if self.input_mode == InputMode::MouseKeyboard {
                 let mouse = &world.resources.input.mouse;
                 (
@@ -4168,16 +4044,9 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
                     mouse.state.contains(MouseState::LEFT_JUST_PRESSED),
                     mouse.state.contains(MouseState::RIGHT_CLICKED),
                     mouse.wheel_delta.y,
-                    mouse.position,
                 )
             } else {
-                (
-                    false,
-                    false,
-                    false,
-                    0.0,
-                    world.resources.input.mouse.position,
-                )
+                (false, false, false, 0.0)
             };
 
         let (gamepad_rt_held, gamepad_lt_held, _gamepad_rt_just_pressed, gamepad_dpad_distance) =
@@ -4385,16 +4254,13 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             return;
         }
 
-        let screen_pos = if self.input_mode == InputMode::Gamepad {
-            let viewport_size = world
-                .resources
-                .window
-                .cached_viewport_size
-                .unwrap_or((800, 600));
-            nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0)
-        } else {
-            mouse_pos
-        };
+        let viewport_size = world
+            .resources
+            .window
+            .cached_viewport_size
+            .unwrap_or((800, 600));
+        let screen_pos =
+            nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
 
         let options = PickingOptions {
             max_distance: GRAB_RANGE,
@@ -5233,7 +5099,6 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             return;
         };
 
-        let mouse_pos = world.resources.input.mouse.position;
         let viewport_size = world
             .resources
             .window
@@ -5255,11 +5120,8 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             return;
         }
 
-        let screen_pos = if self.input_mode == InputMode::Gamepad {
-            nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0)
-        } else {
-            mouse_pos
-        };
+        let screen_pos =
+            nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
 
         let options = PickingOptions {
             max_distance: GRAB_RANGE,
@@ -5353,6 +5215,18 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
         world.resources.text_cache.set_text(text_index, prompt_text);
         if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
             hud_text.dirty = true;
+        }
+
+        let crosshair_color = if can_interact || can_read {
+            nalgebra_glm::Vec4::new(0.2, 1.0, 0.2, 0.9)
+        } else {
+            nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 0.7)
+        };
+        for &arm in &self.crosshair_arms {
+            if let Some(color) = world.ui.get_ui_node_color_mut(arm) {
+                color.colors[0] = Some(crosshair_color);
+                color.computed_color = crosshair_color;
+            }
         }
     }
 
@@ -5692,6 +5566,142 @@ Don't go to the lower levels. Don't follow the sounds.\n\n\
             }
         }
     }
+}
+
+fn build_note_overlay(world: &mut World) -> (Entity, Entity, Entity) {
+    let mut tree = UiTreeBuilder::new(world);
+
+    let panel_width = 500.0;
+    let panel_height = 400.0;
+
+    let overlay = tree
+        .add_node()
+        .boundary(
+            Vp(nalgebra_glm::Vec2::new(50.0, 50.0))
+                + Ab(nalgebra_glm::Vec2::new(
+                    -panel_width / 2.0,
+                    -panel_height / 2.0,
+                )),
+            Vp(nalgebra_glm::Vec2::new(50.0, 50.0))
+                + Ab(nalgebra_glm::Vec2::new(
+                    panel_width / 2.0,
+                    panel_height / 2.0,
+                )),
+        )
+        .with_rect(6.0, 2.0, nalgebra_glm::Vec4::new(0.471, 0.392, 0.275, 1.0))
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.961, 0.922, 0.824, 0.98))
+        .with_visible(false)
+        .without_pointer_events()
+        .with_clip()
+        .entity();
+
+    tree.push_parent(overlay);
+
+    let title_entity = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(20.0, 20.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(-20.0, 50.0)),
+        )
+        .with_text("", 20.0)
+        .with_text_wrap()
+        .with_text_alignment(TextAlignment::Center, VerticalAlignment::Top)
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.196, 0.157, 0.118, 1.0))
+        .without_pointer_events()
+        .done();
+
+    tree.add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(20.0, 56.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 0.0)) + Ab(nalgebra_glm::Vec2::new(-20.0, 57.0)),
+        )
+        .with_rect(0.0, 0.0, nalgebra_glm::Vec4::zeros())
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.471, 0.392, 0.275, 0.5))
+        .without_pointer_events();
+
+    let content_entity = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(20.0, 70.0)),
+            Rl(nalgebra_glm::Vec2::new(100.0, 100.0)) + Ab(nalgebra_glm::Vec2::new(-20.0, -20.0)),
+        )
+        .with_text("", 16.0)
+        .with_text_wrap()
+        .with_text_alignment(TextAlignment::Left, VerticalAlignment::Top)
+        .with_color::<UiBase>(nalgebra_glm::Vec4::new(0.157, 0.137, 0.098, 1.0))
+        .without_pointer_events()
+        .done();
+
+    tree.pop_parent();
+    tree.finish();
+
+    (overlay, title_entity, content_entity)
+}
+
+fn build_crosshair(world: &mut World) -> (Entity, Vec<Entity>) {
+    let mut tree = UiTreeBuilder::new(world);
+    let center = nalgebra_glm::Vec2::new(50.0, 50.0);
+    let color = nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 0.7);
+
+    let container = tree
+        .add_node()
+        .boundary(
+            Vp(center) + Ab(nalgebra_glm::Vec2::new(-10.0, -10.0)),
+            Vp(center) + Ab(nalgebra_glm::Vec2::new(10.0, 10.0)),
+        )
+        .without_pointer_events()
+        .entity();
+
+    tree.push_parent(container);
+
+    let left = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(2.0, 9.0)),
+            Ab(nalgebra_glm::Vec2::new(7.0, 11.0)),
+        )
+        .with_rect(0.0, 0.0, nalgebra_glm::Vec4::zeros())
+        .with_color::<UiBase>(color)
+        .without_pointer_events()
+        .done();
+
+    let right = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(13.0, 9.0)),
+            Ab(nalgebra_glm::Vec2::new(18.0, 11.0)),
+        )
+        .with_rect(0.0, 0.0, nalgebra_glm::Vec4::zeros())
+        .with_color::<UiBase>(color)
+        .without_pointer_events()
+        .done();
+
+    let top = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(9.0, 2.0)),
+            Ab(nalgebra_glm::Vec2::new(11.0, 7.0)),
+        )
+        .with_rect(0.0, 0.0, nalgebra_glm::Vec4::zeros())
+        .with_color::<UiBase>(color)
+        .without_pointer_events()
+        .done();
+
+    let bottom = tree
+        .add_node()
+        .boundary(
+            Ab(nalgebra_glm::Vec2::new(9.0, 13.0)),
+            Ab(nalgebra_glm::Vec2::new(11.0, 18.0)),
+        )
+        .with_rect(0.0, 0.0, nalgebra_glm::Vec4::zeros())
+        .with_color::<UiBase>(color)
+        .without_pointer_events()
+        .done();
+
+    tree.pop_parent();
+    tree.finish();
+
+    (container, vec![left, right, top, bottom])
 }
 
 fn spawn_flashlight(world: &mut World) -> Entity {

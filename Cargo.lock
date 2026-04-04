@@ -4305,7 +4305,6 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 [[package]]
 name = "nightshade"
 version = "0.10.0"
-source = "git+https://github.com/matthewjberger/nightshade.git#b184d3b3fa36404cad9a8496f0d0ea830562603a"
 dependencies = [
  "ash",
  "axum",

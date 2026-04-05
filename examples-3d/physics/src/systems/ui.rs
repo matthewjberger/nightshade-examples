@@ -149,6 +149,21 @@ pub fn spawn_label(
     );
 }
 
+pub fn spawn_wall_label(
+    world: &mut World,
+    text: &str,
+    position: Vec3,
+    properties: nightshade::ecs::text::components::TextProperties,
+) {
+    let entity = nightshade::ecs::world::commands::spawn_3d_text_with_properties(
+        world, text, position, properties,
+    );
+    if let Some(transform) = world.core.get_local_transform_mut(entity) {
+        transform.rotate(std::f32::consts::PI, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
+    }
+    nightshade::ecs::transform::commands::mark_local_transform_dirty(world, entity);
+}
+
 pub fn update_note_overlay(game_world: &mut GameWorld, world: &mut World) {
     if let Some(crosshair) = game_world.resources.crosshair_entity {
         world.ui_set_visible(crosshair, game_world.resources.reading_note.is_none());

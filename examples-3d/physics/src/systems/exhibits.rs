@@ -5,7 +5,7 @@ use crate::ecs::{
     LEVER, NOTE, PRISMATIC_SLIDER, ROPE_JOINT_VISUAL, SPHERICAL_JOINT_VISUAL,
     SPRING_JOINT_VISUAL, VELOCITY_FRICTION_JOINT, WHEEL,
 };
-use crate::systems::ui::spawn_label;
+use crate::systems::ui::{spawn_label, spawn_wall_label};
 use nightshade::ecs::light::components::{Light, LightType};
 use nightshade::ecs::material::resources::material_registry_insert;
 
@@ -3032,7 +3032,7 @@ fn spawn_curiosity_room(game_world: &mut GameWorld, world: &mut World, center: V
     spawn_room_walls(world, &config);
 
     let front_z = center.z - config.depth / 2.0;
-    spawn_label(
+    spawn_wall_label(
         world,
         "Curiosity Cabinet",
         nalgebra_glm::vec3(center.x, config.doorway_height + 0.25, front_z - 0.3),
@@ -3048,10 +3048,10 @@ fn spawn_curiosity_room(game_world: &mut GameWorld, world: &mut World, center: V
     );
 
     let back_wall_z = center.z + config.depth / 2.0 - config.wall_thickness - 0.05;
-    spawn_label(
+    spawn_wall_label(
         world,
         "Take only what you need",
-        nalgebra_glm::vec3(center.x, 2.0, back_wall_z),
+        nalgebra_glm::vec3(center.x, 2.0, back_wall_z - 0.05),
         TextProperties {
             font_size: 12.0,
             color: Vec4::new(0.8, 0.75, 0.6, 0.9),
@@ -3181,7 +3181,7 @@ fn spawn_workshop_room(game_world: &mut GameWorld, world: &mut World, center: Ve
     spawn_room_walls(world, &config);
 
     let front_z = center.z - config.depth / 2.0;
-    spawn_label(
+    spawn_wall_label(
         world,
         "Workshop",
         nalgebra_glm::vec3(center.x, config.doorway_height + 0.25, front_z - 0.3),
@@ -3197,10 +3197,10 @@ fn spawn_workshop_room(game_world: &mut GameWorld, world: &mut World, center: Ve
     );
 
     let back_wall_z = center.z + config.depth / 2.0 - config.wall_thickness - 0.05;
-    spawn_label(
+    spawn_wall_label(
         world,
         "Mind the sharp edges",
-        nalgebra_glm::vec3(center.x, 2.0, back_wall_z),
+        nalgebra_glm::vec3(center.x, 2.0, back_wall_z - 0.05),
         TextProperties {
             font_size: 12.0,
             color: Vec4::new(0.85, 0.85, 0.9, 0.9),

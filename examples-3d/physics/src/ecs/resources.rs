@@ -19,6 +19,7 @@ stateless::statemachine! {
         Sliding + Release = Grounded,
         Sliding + Jump = Airborne,
         Sliding + Dash = GroundDash,
+        Sliding + BecomeAirborne = Airborne,
         GroundDash + Jump = Airborne,
         GroundDash + Land = Grounded,
         GroundDash + BecomeAirborne = Airborne,

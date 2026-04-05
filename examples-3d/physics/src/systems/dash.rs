@@ -50,14 +50,6 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             .process_event(land_event)
         {
             game_world.resources.player_state = new_state;
-            if new_state == PlayerState::Sliding
-                && let Some(controller) = world.core.get_character_controller(player_entity)
-            {
-                let velocity = controller.velocity;
-                game_world.resources.slide_direction = nalgebra_glm::normalize(
-                    &nalgebra_glm::vec3(velocity.x, 0.0, velocity.z),
-                );
-            }
         }
     } else if !grounded
         && matches!(
@@ -71,6 +63,17 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             .process_event(PlayerEvent::Jump)
         {
             game_world.resources.player_state = new_state;
+        }
+    } else if !grounded && game_world.resources.player_state == PlayerState::Sliding {
+        if let Some(new_state) = game_world
+            .resources
+            .player_state
+            .process_event(PlayerEvent::BecomeAirborne)
+        {
+            game_world.resources.player_state = new_state;
+            if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
+                controller.is_crouching = false;
+            }
         }
     } else if !grounded && game_world.resources.player_state == PlayerState::GroundDash
         && let Some(new_state) = game_world
@@ -150,22 +153,31 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
 
     if jump_just_pressed {
         let player_state = game_world.resources.player_state;
-        let jump_impulse = game_world.resources.config.double_jump_impulse;
+        let is_airborne = matches!(
+            player_state,
+            PlayerState::Airborne
+                | PlayerState::DoubleJumped
+                | PlayerState::AirDash
+                | PlayerState::Falling
+        );
 
-        let jumped = if let Some(new_state) = player_state.process_event(PlayerEvent::Jump) {
-            game_world.resources.player_state = new_state;
-            true
-        } else if let Some(new_state) = player_state.process_event(PlayerEvent::DoubleJump) {
-            game_world.resources.player_state = new_state;
-            true
-        } else {
-            false
-        };
+        if is_airborne {
+            let jumped =
+                if let Some(new_state) = player_state.process_event(PlayerEvent::DoubleJump) {
+                    game_world.resources.player_state = new_state;
+                    true
+                } else if let Some(new_state) = player_state.process_event(PlayerEvent::Jump) {
+                    game_world.resources.player_state = new_state;
+                    true
+                } else {
+                    false
+                };
 
-        if jumped
-            && let Some(controller) = world.core.get_character_controller_mut(player_entity)
-        {
-            controller.velocity.y = jump_impulse;
+            if jumped
+                && let Some(controller) = world.core.get_character_controller_mut(player_entity)
+            {
+                controller.velocity.y = game_world.resources.config.double_jump_impulse;
+            }
         }
     }
 
@@ -203,12 +215,6 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
                 .process_event(PlayerEvent::Slide)
         {
             game_world.resources.player_state = new_state;
-            if let Some(controller) = world.core.get_character_controller(player_entity) {
-                let velocity = controller.velocity;
-                game_world.resources.slide_direction = nalgebra_glm::normalize(
-                    &nalgebra_glm::vec3(velocity.x, 0.0, velocity.z),
-                );
-            }
             if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
                 controller.is_crouching = true;
             }

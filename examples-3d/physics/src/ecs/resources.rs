@@ -76,9 +76,9 @@ impl Default for GameConfig {
             max_shot_baubles: 200,
             bauble_lifetime_ms: 30000,
             bauble_shrink_duration_ms: 2000,
-            dash_impulse: 20.0,
-            dash_air_impulse: 15.0,
-            double_jump_impulse: 4.5,
+            dash_impulse: 45.0,
+            dash_air_impulse: 40.0,
+            double_jump_impulse: 6.0,
             max_dash_charges: 2,
             dash_cooldown: 1.5,
         }

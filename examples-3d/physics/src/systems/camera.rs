@@ -150,6 +150,7 @@ pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
     let target_lean = match game_world.resources.player_state {
         PlayerState::LeaningLeft => -1.0,
         PlayerState::LeaningRight => 1.0,
+        PlayerState::Sliding => game_world.resources.config.slide_camera_tilt,
         _ => 0.0,
     };
 

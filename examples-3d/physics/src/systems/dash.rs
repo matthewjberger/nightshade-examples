@@ -21,15 +21,43 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             | PlayerState::GroundDash
             | PlayerState::LeaningLeft
             | PlayerState::LeaningRight
+            | PlayerState::Sliding
     );
 
     if grounded && !was_grounded_state {
+        let horizontal_speed = world
+            .core
+            .get_character_controller(player_entity)
+            .map(|controller| {
+                nalgebra_glm::length(&nalgebra_glm::vec3(
+                    controller.velocity.x,
+                    0.0,
+                    controller.velocity.z,
+                ))
+            })
+            .unwrap_or(0.0);
+
+        let landed_fast = horizontal_speed > game_world.resources.config.slide_min_speed;
+        let land_event = if landed_fast {
+            PlayerEvent::SlideLand
+        } else {
+            PlayerEvent::Land
+        };
+
         if let Some(new_state) = game_world
             .resources
             .player_state
-            .process_event(PlayerEvent::Land)
+            .process_event(land_event)
         {
             game_world.resources.player_state = new_state;
+            if new_state == PlayerState::Sliding
+                && let Some(controller) = world.core.get_character_controller(player_entity)
+            {
+                let velocity = controller.velocity;
+                game_world.resources.slide_direction = nalgebra_glm::normalize(
+                    &nalgebra_glm::vec3(velocity.x, 0.0, velocity.z),
+                );
+            }
         }
     } else if !grounded
         && matches!(
@@ -124,23 +152,12 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         let player_state = game_world.resources.player_state;
         let jump_impulse = game_world.resources.config.double_jump_impulse;
 
-        let jumped = if matches!(
-            player_state,
-            PlayerState::GroundDash | PlayerState::AirDash
-        ) {
-            if let Some(new_state) = player_state.process_event(PlayerEvent::Jump) {
-                game_world.resources.player_state = new_state;
-                true
-            } else {
-                false
-            }
-        } else if player_state == PlayerState::Airborne {
-            if let Some(new_state) = player_state.process_event(PlayerEvent::DoubleJump) {
-                game_world.resources.player_state = new_state;
-                true
-            } else {
-                false
-            }
+        let jumped = if let Some(new_state) = player_state.process_event(PlayerEvent::Jump) {
+            game_world.resources.player_state = new_state;
+            true
+        } else if let Some(new_state) = player_state.process_event(PlayerEvent::DoubleJump) {
+            game_world.resources.player_state = new_state;
+            true
         } else {
             false
         };
@@ -149,6 +166,82 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             && let Some(controller) = world.core.get_character_controller_mut(player_entity)
         {
             controller.velocity.y = jump_impulse;
+        }
+    }
+
+    let slide_pressed = world
+        .resources
+        .input
+        .keyboard
+        .is_key_pressed(KeyCode::KeyC)
+        || query_active_gamepad(world)
+            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::LeftThumb));
+    let slide_just_pressed = slide_pressed && !game_world.resources.slide_button_was_pressed;
+    game_world.resources.slide_button_was_pressed = slide_pressed;
+
+    if slide_just_pressed && game_world.resources.player_state == PlayerState::Grounded {
+        let is_sprinting = world
+            .core
+            .get_character_controller(player_entity)
+            .is_some_and(|controller| controller.is_sprinting);
+        let horizontal_speed = world
+            .core
+            .get_character_controller(player_entity)
+            .map(|controller| {
+                nalgebra_glm::length(&nalgebra_glm::vec3(
+                    controller.velocity.x,
+                    0.0,
+                    controller.velocity.z,
+                ))
+            })
+            .unwrap_or(0.0);
+
+        if (is_sprinting || horizontal_speed > game_world.resources.config.slide_min_speed)
+            && let Some(new_state) = game_world
+                .resources
+                .player_state
+                .process_event(PlayerEvent::Slide)
+        {
+            game_world.resources.player_state = new_state;
+            if let Some(controller) = world.core.get_character_controller(player_entity) {
+                let velocity = controller.velocity;
+                game_world.resources.slide_direction = nalgebra_glm::normalize(
+                    &nalgebra_glm::vec3(velocity.x, 0.0, velocity.z),
+                );
+            }
+            if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
+                controller.is_crouching = true;
+            }
+        }
+    }
+
+    if game_world.resources.player_state == PlayerState::Sliding {
+        let config = &game_world.resources.config;
+        let slide_friction = config.slide_friction;
+        let slide_min_speed = config.slide_min_speed;
+        let delta_time = world.resources.window.timing.delta_time;
+
+        if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
+            let friction = (-slide_friction * delta_time).exp();
+            controller.velocity.x *= friction;
+            controller.velocity.z *= friction;
+            controller.is_crouching = true;
+
+            let horizontal_speed = nalgebra_glm::length(&nalgebra_glm::vec3(
+                controller.velocity.x,
+                0.0,
+                controller.velocity.z,
+            ));
+
+            if horizontal_speed < slide_min_speed && !slide_pressed
+                && let Some(new_state) = game_world
+                    .resources
+                    .player_state
+                    .process_event(PlayerEvent::Release)
+            {
+                game_world.resources.player_state = new_state;
+                controller.is_crouching = false;
+            }
         }
     }
 
@@ -276,6 +369,7 @@ fn update_dash_hud(game_world: &mut GameWorld, world: &mut World) {
             PlayerState::Grounded => "GROUNDED",
             PlayerState::LeaningLeft => "LEAN LEFT",
             PlayerState::LeaningRight => "LEAN RIGHT",
+            PlayerState::Sliding => "SLIDING",
             PlayerState::GroundDash => "DASH",
             PlayerState::Airborne => "AIRBORNE",
             PlayerState::DoubleJumped => "DOUBLE JUMP",
@@ -289,6 +383,7 @@ fn update_dash_hud(game_world: &mut GameWorld, world: &mut World) {
             PlayerState::LeaningLeft | PlayerState::LeaningRight => {
                 nalgebra_glm::Vec4::new(0.5, 0.7, 0.9, 0.8)
             }
+            PlayerState::Sliding => nalgebra_glm::Vec4::new(0.9, 0.6, 0.2, 0.9),
             PlayerState::GroundDash | PlayerState::AirDash => {
                 nalgebra_glm::Vec4::new(0.3, 0.9, 1.0, 1.0)
             }

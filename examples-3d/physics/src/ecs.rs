@@ -54,6 +54,8 @@ freecs::ecs! {
         dash_cooldown_timer: f32,
         dash_button_was_pressed: bool,
         jump_button_was_pressed: bool,
+        slide_button_was_pressed: bool,
+        slide_direction: Vec3,
         last_tap_key: Option<KeyCode>,
         last_tap_time_ms: u64,
         key_was_released: bool,

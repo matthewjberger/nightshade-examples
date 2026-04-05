@@ -9,7 +9,7 @@ const ADS_POSITION: Vec3 = Vec3::new(0.0, -0.055, -0.18);
 const ADS_LERP_SPEED: f32 = 12.0;
 const AUTO_AIM_RADIUS: f32 = 8.0;
 const AUTO_AIM_CONE: f32 = 0.15;
-const AUTO_AIM_STRENGTH: f32 = 0.03;
+const AUTO_AIM_STRENGTH: f32 = 0.15;
 
 pub fn spawn_weapon_part(
     world: &mut World,
@@ -285,44 +285,36 @@ fn apply_auto_aim(game_world: &mut GameWorld, world: &mut World) {
     }
 
     if let Some(direction) = closest_direction {
-        let current_rotation = world
-            .core
-            .get_local_transform(camera_entity)
-            .map(|transform| transform.rotation)
-            .unwrap_or(nalgebra_glm::quat_identity());
-
-        let target_yaw = direction.x.atan2(-direction.z);
-        let target_pitch = direction.y.asin();
+        let base_rotation = game_world.resources.lean.base_rotation;
 
         let current_forward = nalgebra_glm::quat_rotate_vec3(
-            &current_rotation,
+            &base_rotation,
             &nalgebra_glm::vec3(0.0, 0.0, -1.0),
         );
         let current_yaw = current_forward.x.atan2(-current_forward.z);
         let current_pitch = current_forward.y.asin();
 
-        let yaw_diff = target_yaw - current_yaw;
-        let pitch_diff = target_pitch - current_pitch;
+        let target_yaw = direction.x.atan2(-direction.z);
+        let target_pitch = direction.y.asin();
 
-        let nudge_yaw = yaw_diff * AUTO_AIM_STRENGTH;
-        let nudge_pitch = pitch_diff * AUTO_AIM_STRENGTH;
+        let nudge_yaw = (target_yaw - current_yaw) * AUTO_AIM_STRENGTH;
+        let nudge_pitch = (target_pitch - current_pitch) * AUTO_AIM_STRENGTH;
 
-        let yaw_rotation =
-            nalgebra_glm::quat_angle_axis(-nudge_yaw, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
-        let new_rotation = yaw_rotation * current_rotation;
+        let new_yaw = current_yaw + nudge_yaw;
+        let new_pitch = (current_pitch + nudge_pitch).clamp(
+            -85_f32.to_radians(),
+            85_f32.to_radians(),
+        );
 
-        let pitch_rotation =
-            nalgebra_glm::quat_angle_axis(-nudge_pitch, &nalgebra_glm::vec3(1.0, 0.0, 0.0));
-        let new_rotation = new_rotation * pitch_rotation;
+        let yaw_quat =
+            nalgebra_glm::quat_angle_axis(new_yaw, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
+        let pitch_quat =
+            nalgebra_glm::quat_angle_axis(-new_pitch, &nalgebra_glm::vec3(1.0, 0.0, 0.0));
+        let new_rotation = yaw_quat * pitch_quat;
 
-        if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
-            transform.rotation = new_rotation;
-        }
+        game_world.resources.lean.base_rotation = new_rotation;
+
         mark_local_transform_dirty(world, camera_entity);
 
-        #[cfg(not(feature = "openxr"))]
-        {
-            game_world.resources.lean.base_rotation = new_rotation;
-        }
     }
 }

@@ -153,8 +153,8 @@ fn spawn_healthbar(world: &mut World, position: Vec3) -> (Entity, Entity) {
     )[0];
 
     if let Some(transform) = world.core.get_local_transform_mut(fill) {
-        transform.translation = nalgebra_glm::vec3(0.0, 0.0, 0.0);
-        transform.scale = nalgebra_glm::vec3(1.0, 1.0, 1.0);
+        transform.translation = nalgebra_glm::vec3(0.0, 0.0, 0.01);
+        transform.scale = nalgebra_glm::vec3(1.0, 1.0, 1.1);
     }
 
     if let Some(mesh) = world.core.get_render_mesh_mut(fill) {

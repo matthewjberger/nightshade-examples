@@ -63,6 +63,8 @@ freecs::ecs! {
         dash_hud_state_text_entity: Option<Entity>,
         dash_hud_charge_entities: Vec<Entity>,
         weapon_entity: Option<Entity>,
+        aiming_down_sights: bool,
+        aim_blend: f32,
         weapon_sway: nalgebra_glm::Vec2,
         weapon_previous_yaw: f32,
         weapon_previous_pitch: f32,

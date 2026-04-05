@@ -235,16 +235,19 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
     let current_time = world.resources.window.timing.uptime_milliseconds;
     let delta_time = world.resources.window.timing.delta_time;
 
-    let bauble_positions: Vec<Vec3> = game_world
+    let baubles: Vec<(freecs::Entity, Entity, Vec3)> = game_world
         .query_entities(SHOT_BAUBLE)
         .filter_map(|game_entity| {
             let bauble = game_world.get_shot_bauble(game_entity)?;
-            world
+            let position = world
                 .core
                 .get_global_transform(bauble.entity)
-                .map(|transform| transform.translation())
+                .map(|transform| transform.translation())?;
+            Some((game_entity, bauble.entity, position))
         })
         .collect();
+
+    let mut consumed_baubles: Vec<(freecs::Entity, Entity)> = Vec::new();
 
     let target_entities: Vec<freecs::Entity> = game_world.query_entities(TARGET).collect();
 
@@ -326,12 +329,16 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
             .unwrap_or(saved_position);
 
         let hit_radius = base_scale * 1.5;
-        let hit_count = bauble_positions
-            .iter()
-            .filter(|bauble_position| {
-                nalgebra_glm::distance(&target_position, bauble_position) < hit_radius
-            })
-            .count();
+        let mut hit_count = 0;
+        for &(bauble_game_entity, bauble_engine_entity, bauble_position) in &baubles {
+            if consumed_baubles.iter().any(|(ge, _)| *ge == bauble_game_entity) {
+                continue;
+            }
+            if nalgebra_glm::distance(&target_position, &bauble_position) < hit_radius {
+                consumed_baubles.push((bauble_game_entity, bauble_engine_entity));
+                hit_count += 1;
+            }
+        }
 
         if hit_count > 0
             && let Some(target) = game_world.get_target_mut(game_entity)
@@ -402,6 +409,11 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
             }
             mark_local_transform_dirty(world, target.health.bar_entity);
         }
+    }
+
+    for (bauble_game_entity, bauble_engine_entity) in consumed_baubles {
+        super::shooting::despawn_bauble_public(game_world, world, bauble_engine_entity);
+        game_world.despawn_entities(&[bauble_game_entity]);
     }
 }
 

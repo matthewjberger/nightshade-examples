@@ -66,6 +66,9 @@ pub fn spawn_bauble_gun(
     world: &mut World,
     hand_entity: Entity,
 ) -> Entity {
+    let hand_cube_scale = 0.08_f32;
+    let inverse_scale = 1.0 / hand_cube_scale;
+
     let root = world.spawn_entities(
         NAME | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | PARENT,
         1,
@@ -78,25 +81,26 @@ pub fn spawn_bauble_gun(
         *parent = Parent(Some(hand_entity));
     }
     if let Some(transform) = world.core.get_local_transform_mut(root) {
-        let rot_x = nalgebra_glm::quat_angle_axis(
-            std::f32::consts::FRAC_PI_2,
-            &nalgebra_glm::vec3(1.0, 0.0, 0.0),
+        let rot_y = nalgebra_glm::quat_angle_axis(
+            std::f32::consts::PI,
+            &nalgebra_glm::vec3(0.0, 1.0, 0.0),
         );
         let rot_z = nalgebra_glm::quat_angle_axis(
             std::f32::consts::PI,
             &nalgebra_glm::vec3(0.0, 0.0, 1.0),
         );
-        transform.rotation = rot_z * rot_x;
+        transform.rotation = rot_z * rot_y;
+        transform.scale = nalgebra_glm::vec3(inverse_scale, inverse_scale, inverse_scale);
     }
 
-    let gun_body_material =
-        create_textured_material(nalgebra_glm::vec3(0.15, 0.15, 0.18), 0.6, 0.8);
-    let gun_barrel_material =
-        create_textured_material(nalgebra_glm::vec3(0.25, 0.25, 0.28), 0.4, 0.9);
-    let gun_grip_material =
-        create_textured_material(nalgebra_glm::vec3(0.12, 0.08, 0.06), 0.9, 0.0);
-    let gun_accent_material =
-        create_textured_material(nalgebra_glm::vec3(0.9, 0.4, 0.1), 0.3, 0.7);
+    let body_color =
+        create_textured_material(nalgebra_glm::vec3(0.18, 0.18, 0.20), 0.45, 0.85);
+    let barrel_color =
+        create_textured_material(nalgebra_glm::vec3(0.12, 0.12, 0.14), 0.3, 0.9);
+    let grip_color =
+        create_textured_material(nalgebra_glm::vec3(0.08, 0.08, 0.06), 0.8, 0.1);
+    let accent_color =
+        create_textured_material(nalgebra_glm::vec3(0.25, 0.25, 0.28), 0.35, 0.8);
 
     let parts: Vec<(
         &str,
@@ -106,32 +110,53 @@ pub fn spawn_bauble_gun(
         nightshade::ecs::material::components::Material,
     )> = vec![
         (
-            "GunBody",
+            "WeaponBody",
             "Cube",
-            nalgebra_glm::vec3(0.0, 0.06, 0.0),
-            nalgebra_glm::vec3(0.025, 0.015, 0.04),
-            gun_body_material,
+            nalgebra_glm::vec3(0.0, 0.0, 0.0),
+            nalgebra_glm::vec3(0.025, 0.035, 0.10),
+            body_color.clone(),
         ),
         (
-            "GunBarrel",
-            "Cylinder",
-            nalgebra_glm::vec3(0.0, 0.12, 0.0),
-            nalgebra_glm::vec3(0.008, 0.04, 0.008),
-            gun_barrel_material,
-        ),
-        (
-            "GunGrip",
+            "WeaponBarrel",
             "Cube",
-            nalgebra_glm::vec3(0.0, 0.0, 0.01),
-            nalgebra_glm::vec3(0.015, 0.03, 0.012),
-            gun_grip_material,
+            nalgebra_glm::vec3(0.0, 0.005, -0.09),
+            nalgebra_glm::vec3(0.012, 0.012, 0.08),
+            barrel_color.clone(),
         ),
         (
-            "GunMuzzle",
-            "Sphere",
-            nalgebra_glm::vec3(0.0, 0.165, 0.0),
-            nalgebra_glm::vec3(0.012, 0.012, 0.012),
-            gun_accent_material,
+            "WeaponMuzzle",
+            "Cube",
+            nalgebra_glm::vec3(0.0, 0.005, -0.135),
+            nalgebra_glm::vec3(0.016, 0.016, 0.01),
+            accent_color.clone(),
+        ),
+        (
+            "WeaponGrip",
+            "Cube",
+            nalgebra_glm::vec3(0.0, -0.045, 0.02),
+            nalgebra_glm::vec3(0.02, 0.055, 0.025),
+            grip_color,
+        ),
+        (
+            "WeaponRail",
+            "Cube",
+            nalgebra_glm::vec3(0.0, 0.023, -0.01),
+            nalgebra_glm::vec3(0.012, 0.006, 0.06),
+            accent_color,
+        ),
+        (
+            "WeaponTriggerGuard",
+            "Cube",
+            nalgebra_glm::vec3(0.0, -0.018, 0.0),
+            nalgebra_glm::vec3(0.018, 0.008, 0.025),
+            body_color,
+        ),
+        (
+            "WeaponSight",
+            "Cube",
+            nalgebra_glm::vec3(0.0, -0.006, -0.055),
+            nalgebra_glm::vec3(0.004, 0.004, 0.015),
+            barrel_color,
         ),
     ];
 
@@ -228,25 +253,21 @@ pub fn xr_hand_tracking_system(game_world: &mut GameWorld, world: &mut World) {
         world.mark_local_transform_dirty(right_hand_entity);
     }
 
-    let left_trigger = xr_input.left_trigger_pressed();
-    let right_trigger = xr_input.right_trigger_pressed();
-    let left_just_pressed = left_trigger && !game_world.resources.xr_lt_was_pressed;
-    let right_just_pressed = right_trigger && !game_world.resources.xr_rt_was_pressed;
-    game_world.resources.xr_lt_was_pressed = left_trigger;
-    game_world.resources.xr_rt_was_pressed = right_trigger;
+    let a_button = xr_input.a_button_pressed();
+    let a_just_pressed = a_button && !game_world.resources.xr_a_was_pressed;
+    game_world.resources.xr_a_was_pressed = a_button;
 
     if let Some(gun_root) = game_world.resources.gun_root_entity {
-        let new_hand = if left_just_pressed {
-            Some(crate::ecs::GunHand::Left)
-        } else if right_just_pressed {
-            Some(crate::ecs::GunHand::Right)
+        let new_hand = if a_just_pressed {
+            Some(match game_world.resources.gun_hand {
+                crate::ecs::GunHand::Left => crate::ecs::GunHand::Right,
+                crate::ecs::GunHand::Right => crate::ecs::GunHand::Left,
+            })
         } else {
             None
         };
 
-        if let Some(hand) = new_hand
-            && hand != game_world.resources.gun_hand
-        {
+        if let Some(hand) = new_hand {
             let new_parent = match hand {
                 crate::ecs::GunHand::Left => game_world.resources.left_hand_cube,
                 crate::ecs::GunHand::Right => game_world.resources.right_hand_cube,

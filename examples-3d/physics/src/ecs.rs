@@ -86,8 +86,6 @@ freecs::ecs! {
         #[cfg(feature = "openxr")]
         gun_hand: GunHand,
         #[cfg(feature = "openxr")]
-        xr_rt_was_pressed: bool,
-        #[cfg(feature = "openxr")]
-        xr_lt_was_pressed: bool,
+        xr_a_was_pressed: bool,
     }
 }

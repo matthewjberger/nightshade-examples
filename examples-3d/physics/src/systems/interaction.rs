@@ -75,36 +75,36 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         };
 
     #[cfg(feature = "openxr")]
-    let (xr_interact_grip_held, xr_shoot_trigger_held, xr_throw_trigger_held, xr_thumbstick_y) = {
+    let (xr_interact_held, xr_shoot_trigger_held, xr_throw_grip_held, xr_thumbstick_y) = {
         if let Some(xr_input) = &world.resources.xr.input {
-            let (interact_grip, shoot_trigger, throw_trigger, thumbstick) =
+            let (interact_trigger, shoot_trigger, throw_grip, thumbstick) =
                 match game_world.resources.gun_hand {
                     crate::ecs::GunHand::Right => (
-                        xr_input.left_grip_pressed(),
-                        xr_input.right_trigger_pressed(),
                         xr_input.left_trigger_pressed(),
+                        xr_input.right_trigger_pressed(),
+                        xr_input.left_grip_pressed(),
                         xr_input.right_thumbstick.y,
                     ),
                     crate::ecs::GunHand::Left => (
-                        xr_input.right_grip_pressed(),
-                        xr_input.left_trigger_pressed(),
                         xr_input.right_trigger_pressed(),
+                        xr_input.left_trigger_pressed(),
+                        xr_input.right_grip_pressed(),
                         xr_input.right_thumbstick.y,
                     ),
                 };
-            (interact_grip, shoot_trigger, throw_trigger, thumbstick)
+            (interact_trigger, shoot_trigger, throw_grip, thumbstick)
         } else {
             (false, false, false, 0.0)
         }
     };
 
     #[cfg(not(feature = "openxr"))]
-    let (xr_interact_grip_held, xr_shoot_trigger_held, xr_throw_trigger_held, xr_thumbstick_y) =
+    let (xr_interact_held, xr_shoot_trigger_held, xr_throw_grip_held, xr_thumbstick_y) =
         (false, false, false, 0.0_f32);
-    let _ = xr_throw_trigger_held;
+    let _ = xr_throw_grip_held;
 
-    let interact_held = right_clicked || gamepad_lt_held || xr_interact_grip_held;
-    let throw_pressed = left_clicked || gamepad_rt_held || xr_throw_trigger_held;
+    let interact_held = right_clicked || gamepad_lt_held || xr_interact_held;
+    let throw_pressed = left_clicked || gamepad_rt_held || xr_throw_grip_held;
 
     let keyboard_shoot_pressed =
         if game_world.resources.input_mode == InputMode::MouseKeyboard {
@@ -232,16 +232,45 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     }
 
     if game_world.resources.interaction.grabbed_entity.is_some() {
+        #[cfg(feature = "openxr")]
+        let (grab_origin, grab_forward) = {
+            if let Some(xr_input) = &world.resources.xr.input {
+                let (hand_pos, hand_rot) = match game_world.resources.gun_hand {
+                    crate::ecs::GunHand::Right => (
+                        xr_input.left_hand_position(),
+                        xr_input.left_hand_rotation(),
+                    ),
+                    crate::ecs::GunHand::Left => (
+                        xr_input.right_hand_position(),
+                        xr_input.right_hand_rotation(),
+                    ),
+                };
+                if let (Some(pos), Some(rot)) = (hand_pos, hand_rot) {
+                    let fwd = nalgebra_glm::quat_rotate_vec3(
+                        &rot,
+                        &nalgebra_glm::vec3(0.0, 0.0, 1.0),
+                    );
+                    (pos, fwd)
+                } else {
+                    (camera_position, camera_forward)
+                }
+            } else {
+                (camera_position, camera_forward)
+            }
+        };
+        #[cfg(not(feature = "openxr"))]
+        let (grab_origin, grab_forward) = (camera_position, camera_forward);
+
         update_grabbed_object(
             game_world,
             world,
-            camera_position,
-            camera_forward,
+            grab_origin,
+            grab_forward,
             effective_scroll_delta,
         );
 
         if throw_pressed {
-            throw_grabbed_object(game_world, world, camera_forward);
+            throw_grabbed_object(game_world, world, grab_forward);
             game_world.resources.interaction.require_interact_release = true;
         }
         return;

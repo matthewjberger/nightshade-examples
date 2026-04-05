@@ -222,6 +222,10 @@ pub fn update_shot_baubles(game_world: &mut GameWorld, world: &mut World) {
     }
 }
 
+pub fn despawn_bauble_public(game_world: &mut GameWorld, world: &mut World, entity: Entity) {
+    despawn_bauble(game_world, world, entity);
+}
+
 fn despawn_bauble(game_world: &mut GameWorld, world: &mut World, entity: Entity) {
     if let Some(rigid_body) = world.core.get_rigid_body(entity)
         && let Some(handle) = rigid_body.handle

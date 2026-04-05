@@ -1,6 +1,5 @@
 use crate::constants::{
-    DASH_COOLDOWN, DASH_DECAY_RATE, DASH_DURATION, DASH_INITIAL_SPEED, DOUBLE_JUMP_IMPULSE,
-    MAX_DASH_CHARGES,
+    DASH_AIR_IMPULSE, DASH_COOLDOWN, DASH_IMPULSE, DOUBLE_JUMP_IMPULSE, MAX_DASH_CHARGES,
 };
 use crate::ecs::{GameWorld, PlayerEvent, PlayerState};
 use nightshade::ecs::input::queries::query_active_gamepad;
@@ -57,13 +56,62 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         game_world.resources.player_state = new_state;
     }
 
-    let dash_pressed = if let Some(gamepad) = query_active_gamepad(world) {
+    let gamepad_dash_pressed = if let Some(gamepad) = query_active_gamepad(world) {
         gamepad.is_pressed(gilrs::Button::East)
     } else {
         false
     };
-    let dash_just_pressed = dash_pressed && !game_world.resources.dash_button_was_pressed;
-    game_world.resources.dash_button_was_pressed = dash_pressed;
+    let gamepad_dash_just_pressed =
+        gamepad_dash_pressed && !game_world.resources.dash_button_was_pressed;
+    game_world.resources.dash_button_was_pressed = gamepad_dash_pressed;
+
+    let keyboard = &world.resources.input.keyboard;
+    let current_time_ms = world.resources.window.timing.uptime_milliseconds;
+    let double_tap_window_ms = 250;
+
+    let movement_keys = [
+        (KeyCode::KeyW, nalgebra_glm::vec3(0.0, 0.0, -1.0)),
+        (KeyCode::KeyS, nalgebra_glm::vec3(0.0, 0.0, 1.0)),
+        (KeyCode::KeyA, nalgebra_glm::vec3(-1.0, 0.0, 0.0)),
+        (KeyCode::KeyD, nalgebra_glm::vec3(1.0, 0.0, 0.0)),
+    ];
+
+    let mut keyboard_dash_direction = None;
+    let any_movement_pressed = movement_keys
+        .iter()
+        .any(|(key, _)| keyboard.is_key_pressed(*key));
+
+    if !any_movement_pressed {
+        game_world.resources.key_was_released = true;
+    }
+
+    for &(key, ref local_direction) in &movement_keys {
+        if keyboard.is_key_pressed(key) && game_world.resources.key_was_released {
+            if game_world.resources.last_tap_key == Some(key)
+                && current_time_ms.saturating_sub(game_world.resources.last_tap_time_ms)
+                    < double_tap_window_ms
+            {
+                let camera_rotation = world
+                    .core
+                    .get_local_transform(camera_entity)
+                    .map(|transform| transform.rotation)
+                    .unwrap_or(nalgebra_glm::quat_identity());
+                let world_direction =
+                    nalgebra_glm::quat_rotate_vec3(&camera_rotation, local_direction);
+                keyboard_dash_direction = Some(nalgebra_glm::normalize(&nalgebra_glm::vec3(
+                    world_direction.x,
+                    0.0,
+                    world_direction.z,
+                )));
+                game_world.resources.last_tap_key = None;
+            } else {
+                game_world.resources.last_tap_key = Some(key);
+                game_world.resources.last_tap_time_ms = current_time_ms;
+            }
+            game_world.resources.key_was_released = false;
+            break;
+        }
+    }
 
     let jump_pressed = world
         .resources
@@ -87,7 +135,9 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         }
     }
 
-    if dash_just_pressed
+    let dash_triggered = gamepad_dash_just_pressed || keyboard_dash_direction.is_some();
+
+    if dash_triggered
         && game_world.resources.dash_charges > 0
         && let Some(new_state) = game_world
             .resources
@@ -97,19 +147,35 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         game_world.resources.dash_charges -= 1;
         game_world.resources.dash_cooldown_timer = DASH_COOLDOWN;
         game_world.resources.player_state = new_state;
-        game_world.resources.dash_timer = DASH_DURATION;
 
-        let velocity = world
-            .core
-            .get_character_controller(player_entity)
-            .map(|controller| controller.velocity)
-            .unwrap_or(Vec3::zeros());
-
-        let horizontal_velocity = nalgebra_glm::vec3(velocity.x, 0.0, velocity.z);
-        let horizontal_speed = nalgebra_glm::length(&horizontal_velocity);
-
-        game_world.resources.dash_direction = if horizontal_speed > 0.1 {
-            nalgebra_glm::normalize(&horizontal_velocity)
+        let dash_direction = if let Some(direction) = keyboard_dash_direction {
+            direction
+        } else if let Some(gamepad) = query_active_gamepad(world) {
+            let stick_x = gamepad.value(gilrs::Axis::LeftStickX);
+            let stick_y = gamepad.value(gilrs::Axis::LeftStickY);
+            let stick_magnitude = (stick_x * stick_x + stick_y * stick_y).sqrt();
+            if stick_magnitude > 0.3 {
+                let camera_rotation = world
+                    .core
+                    .get_local_transform(camera_entity)
+                    .map(|transform| transform.rotation)
+                    .unwrap_or(nalgebra_glm::quat_identity());
+                let local_direction = nalgebra_glm::vec3(stick_x, 0.0, -stick_y);
+                let world_direction =
+                    nalgebra_glm::quat_rotate_vec3(&camera_rotation, &local_direction);
+                nalgebra_glm::normalize(&nalgebra_glm::vec3(
+                    world_direction.x,
+                    0.0,
+                    world_direction.z,
+                ))
+            } else {
+                let forward = world
+                    .core
+                    .get_local_transform(camera_entity)
+                    .map(|transform| transform.forward_vector())
+                    .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, -1.0));
+                nalgebra_glm::normalize(&nalgebra_glm::vec3(forward.x, 0.0, forward.z))
+            }
         } else {
             let forward = world
                 .core
@@ -118,46 +184,52 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
                 .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, -1.0));
             nalgebra_glm::normalize(&nalgebra_glm::vec3(forward.x, 0.0, forward.z))
         };
-    }
 
-    let is_dashing = matches!(
-        game_world.resources.player_state,
-        PlayerState::GroundDash | PlayerState::AirDash
-    );
-
-    if is_dashing {
-        let delta_time = world.resources.window.timing.delta_time;
-        game_world.resources.dash_timer -= delta_time;
-
-        let elapsed = DASH_DURATION - game_world.resources.dash_timer;
-        let speed = DASH_INITIAL_SPEED * (-DASH_DECAY_RATE * elapsed).exp();
+        let is_air_dash = new_state == PlayerState::AirDash;
+        let impulse = if is_air_dash {
+            DASH_AIR_IMPULSE
+        } else {
+            DASH_IMPULSE
+        };
 
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-            controller.velocity.x = game_world.resources.dash_direction.x * speed;
-            controller.velocity.z = game_world.resources.dash_direction.z * speed;
-            if game_world.resources.player_state == PlayerState::AirDash {
-                if elapsed < 0.05 {
-                    controller.velocity.y = 2.0;
-                } else {
-                    controller.velocity.y = controller.velocity.y.max(-1.0);
-                }
+            controller.velocity.x = dash_direction.x * impulse;
+            controller.velocity.z = dash_direction.z * impulse;
+            if is_air_dash {
+                controller.velocity.y = controller.velocity.y.max(1.0);
             }
         }
+    }
 
-        if game_world.resources.dash_timer <= 0.0 {
-            if game_world.resources.player_state == PlayerState::AirDash {
-                if let Some(new_state) = game_world
-                    .resources
-                    .player_state
-                    .process_event(PlayerEvent::DashEnd)
-                {
-                    game_world.resources.player_state = new_state;
-                }
-            } else if grounded
+    if matches!(
+        game_world.resources.player_state,
+        PlayerState::GroundDash | PlayerState::AirDash
+    ) {
+        if grounded && game_world.resources.player_state == PlayerState::GroundDash {
+            if let Some(new_state) = game_world
+                .resources
+                .player_state
+                .process_event(PlayerEvent::Land)
+            {
+                game_world.resources.player_state = new_state;
+            }
+        } else if game_world.resources.player_state == PlayerState::AirDash {
+            let speed = world
+                .core
+                .get_character_controller(player_entity)
+                .map(|controller| {
+                    nalgebra_glm::length(&nalgebra_glm::vec3(
+                        controller.velocity.x,
+                        0.0,
+                        controller.velocity.z,
+                    ))
+                })
+                .unwrap_or(0.0);
+            if speed < 3.0
                 && let Some(new_state) = game_world
                     .resources
                     .player_state
-                    .process_event(PlayerEvent::Land)
+                    .process_event(PlayerEvent::DashEnd)
             {
                 game_world.resources.player_state = new_state;
             }

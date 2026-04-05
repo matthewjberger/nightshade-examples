@@ -5,6 +5,7 @@ pub use components::*;
 pub use resources::*;
 
 use nightshade::prelude::Entity;
+use nightshade::prelude::KeyCode;
 use nightshade::prelude::Vec3;
 use nightshade::prelude::freecs;
 use nightshade::prelude::nalgebra_glm;
@@ -48,12 +49,13 @@ freecs::ecs! {
         lantern_entity: Option<Entity>,
         lantern_light_entity: Option<Entity>,
         player_state: PlayerState,
-        dash_timer: f32,
-        dash_direction: Vec3,
         dash_charges: u32,
         dash_cooldown_timer: f32,
         dash_button_was_pressed: bool,
         jump_button_was_pressed: bool,
+        last_tap_key: Option<KeyCode>,
+        last_tap_time_ms: u64,
+        key_was_released: bool,
         dash_hud_entity: Option<Entity>,
         dash_hud_state_text_entity: Option<Entity>,
         dash_hud_charge_entities: Vec<Entity>,

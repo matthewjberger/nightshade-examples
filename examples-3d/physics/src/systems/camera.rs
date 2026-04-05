@@ -66,7 +66,7 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
     let dt = world.resources.window.timing.delta_time;
 
     let delta = if game_world.resources.input_mode == InputMode::Gamepad && has_gamepad_input {
-        let gamepad_sensitivity = 1.2;
+        let gamepad_sensitivity = 2.5;
         nalgebra_glm::vec2(
             gamepad_right_stick_x * gamepad_sensitivity * dt,
             -gamepad_right_stick_y * gamepad_sensitivity * dt,

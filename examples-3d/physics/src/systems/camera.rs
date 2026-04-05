@@ -1,4 +1,6 @@
-use crate::constants::{CROUCHING_CAMERA_HEIGHT, LEAN_AMOUNT, LEAN_ANGLE, LEAN_SPEED, STANDING_CAMERA_HEIGHT};
+use crate::constants::{
+    CROUCHING_CAMERA_HEIGHT, LEAN_AMOUNT, LEAN_ANGLE, LEAN_SPEED, STANDING_CAMERA_HEIGHT,
+};
 use crate::ecs::{GameWorld, InputMode};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;

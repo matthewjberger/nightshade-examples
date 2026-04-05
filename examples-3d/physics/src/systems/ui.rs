@@ -1,6 +1,5 @@
 use crate::ecs::GameWorld;
 use nightshade::ecs::text::components::{TextAlignment, VerticalAlignment};
-use nightshade::ecs::world::commands::spawn_3d_text_with_properties;
 use nightshade::prelude::*;
 
 pub fn build_crosshair(world: &mut World) -> (Entity, Vec<Entity>) {
@@ -145,7 +144,9 @@ pub fn spawn_label(
     position: Vec3,
     properties: nightshade::ecs::text::components::TextProperties,
 ) {
-    spawn_3d_text_with_properties(world, text, position, properties);
+    nightshade::ecs::world::commands::spawn_3d_billboard_text_with_properties(
+        world, text, position, properties,
+    );
 }
 
 pub fn update_note_overlay(game_world: &mut GameWorld, world: &mut World) {

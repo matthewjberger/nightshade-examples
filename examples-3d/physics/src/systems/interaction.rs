@@ -83,13 +83,12 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     let (xr_grip_held, xr_rt_held, xr_lt_held, xr_thumbstick_y) = (false, false, false, 0.0_f32);
     let _ = xr_lt_held;
 
-    let interact_held = left_clicked || gamepad_lt_held || xr_grip_held;
-    let throw_pressed = right_clicked || gamepad_rt_held || xr_lt_held;
+    let interact_held = right_clicked || gamepad_lt_held || xr_grip_held;
+    let throw_pressed = left_clicked || gamepad_rt_held || xr_lt_held;
 
     let keyboard_shoot_pressed =
         if game_world.resources.input_mode == InputMode::MouseKeyboard {
-            let keyboard = &world.resources.input.keyboard;
-            keyboard.is_key_pressed(KeyCode::Enter)
+            left_clicked
         } else {
             false
         };

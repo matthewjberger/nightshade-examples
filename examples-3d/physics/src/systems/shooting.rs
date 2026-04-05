@@ -146,17 +146,30 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
 pub fn update_shot_baubles(game_world: &mut GameWorld, world: &mut World) {
     let current_time = world.resources.window.timing.uptime_milliseconds;
 
-    let shot_bauble_entities: Vec<freecs::Entity> =
+    let mut shot_bauble_entities: Vec<freecs::Entity> =
         game_world.query_entities(SHOT_BAUBLE).collect();
 
-    if shot_bauble_entities.len() > MAX_SHOT_BAUBLES
-        && let Some(&game_entity) = shot_bauble_entities.first()
-    {
-        if let Some(bauble) = game_world.get_shot_bauble(game_entity) {
-            let engine_entity = bauble.entity;
-            despawn_bauble(game_world, world, engine_entity);
+    while shot_bauble_entities.len() > MAX_SHOT_BAUBLES {
+        let oldest = shot_bauble_entities
+            .iter()
+            .copied()
+            .min_by_key(|&game_entity| {
+                game_world
+                    .get_shot_bauble(game_entity)
+                    .map(|bauble| bauble.spawn_time_ms)
+                    .unwrap_or(u64::MAX)
+            });
+
+        if let Some(oldest_entity) = oldest {
+            if let Some(bauble) = game_world.get_shot_bauble(oldest_entity) {
+                let engine_entity = bauble.entity;
+                despawn_bauble(game_world, world, engine_entity);
+            }
+            game_world.despawn_entities(&[oldest_entity]);
+            shot_bauble_entities.retain(|&entity| entity != oldest_entity);
+        } else {
+            break;
         }
-        game_world.despawn_entities(&[game_entity]);
     }
 
     let shot_bauble_entities: Vec<freecs::Entity> =
@@ -221,5 +234,5 @@ fn despawn_bauble(game_world: &mut GameWorld, world: &mut World, entity: Entity)
     }
 
     game_world.resources.physics_objects.retain(|e| *e != entity);
-    world.despawn_entities(&[entity]);
+    nightshade::ecs::world::commands::despawn_entities_with_cache_cleanup(world, &[entity]);
 }

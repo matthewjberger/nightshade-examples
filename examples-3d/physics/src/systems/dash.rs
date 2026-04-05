@@ -120,15 +120,35 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     let jump_just_pressed = jump_pressed && !game_world.resources.jump_button_was_pressed;
     game_world.resources.jump_button_was_pressed = jump_pressed;
 
-    if jump_just_pressed && game_world.resources.player_state == PlayerState::Airborne
-        && let Some(new_state) = game_world
-            .resources
-            .player_state
-            .process_event(PlayerEvent::DoubleJump)
-    {
-        game_world.resources.player_state = new_state;
-        if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-            controller.velocity.y = game_world.resources.config.double_jump_impulse;
+    if jump_just_pressed {
+        let player_state = game_world.resources.player_state;
+        let jump_impulse = game_world.resources.config.double_jump_impulse;
+
+        let jumped = if matches!(
+            player_state,
+            PlayerState::GroundDash | PlayerState::AirDash
+        ) {
+            if let Some(new_state) = player_state.process_event(PlayerEvent::Jump) {
+                game_world.resources.player_state = new_state;
+                true
+            } else {
+                false
+            }
+        } else if player_state == PlayerState::Airborne {
+            if let Some(new_state) = player_state.process_event(PlayerEvent::DoubleJump) {
+                game_world.resources.player_state = new_state;
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if jumped
+            && let Some(controller) = world.core.get_character_controller_mut(player_entity)
+        {
+            controller.velocity.y = jump_impulse;
         }
     }
 

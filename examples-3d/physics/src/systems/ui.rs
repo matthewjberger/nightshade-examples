@@ -145,12 +145,7 @@ pub fn spawn_label(
     position: Vec3,
     properties: nightshade::ecs::text::components::TextProperties,
 ) {
-    let entity = spawn_3d_text_with_properties(world, text, position, properties);
-    if let Some(transform) = world.core.get_local_transform_mut(entity) {
-        transform.rotation =
-            nalgebra_glm::quat_angle_axis(std::f32::consts::PI, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
-    }
-    nightshade::ecs::transform::commands::mark_local_transform_dirty(world, entity);
+    spawn_3d_text_with_properties(world, text, position, properties);
 }
 
 pub fn update_note_overlay(game_world: &mut GameWorld, world: &mut World) {

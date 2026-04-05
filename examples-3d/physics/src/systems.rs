@@ -1,6 +1,5 @@
 pub mod camera;
 pub mod dash;
-pub mod daynight;
 pub mod exhibits;
 pub mod flashlight;
 pub mod input;

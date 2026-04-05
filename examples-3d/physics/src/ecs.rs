@@ -206,9 +206,6 @@ freecs::ecs! {
     Resources {
         player_entity: Option<Entity>,
         camera_entity: Option<Entity>,
-        sun_entity: Option<Entity>,
-        current_hour: f32,
-        time_speed: f32,
         physics_objects: Vec<Entity>,
         interaction: InteractionState,
         interaction_prompt_entity: Option<Entity>,

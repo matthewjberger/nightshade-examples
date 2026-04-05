@@ -44,11 +44,6 @@ pub struct GameConfig {
     pub max_grab_distance: f32,
     pub scroll_distance_speed: f32,
     pub throw_strength: f32,
-    pub grab_pid_p: f32,
-    pub grab_pid_i: f32,
-    pub grab_pid_d: f32,
-    pub grab_max_force: f32,
-    pub grab_angular_damping: f32,
     pub standing_camera_height: f32,
     #[cfg(not(feature = "openxr"))]
     pub crouching_camera_height: f32,
@@ -83,11 +78,6 @@ impl Default for GameConfig {
             max_grab_distance: 3.0,
             scroll_distance_speed: 0.3,
             throw_strength: 12.0,
-            grab_pid_p: 300.0,
-            grab_pid_i: 50.0,
-            grab_pid_d: 30.0,
-            grab_max_force: 200.0,
-            grab_angular_damping: 0.92,
             standing_camera_height: 0.8,
             #[cfg(not(feature = "openxr"))]
             crouching_camera_height: 0.3,
@@ -118,8 +108,6 @@ impl Default for GameConfig {
 pub struct InteractionState {
     pub grabbed_entity: Option<Entity>,
     pub grab_distance: f32,
-    pub grab_pid_integral: nalgebra_glm::Vec3,
-    pub grab_previous_error: nalgebra_glm::Vec3,
     pub manipulated_door: Option<freecs::Entity>,
     pub manipulated_drawer: Option<freecs::Entity>,
     pub manipulated_lever: Option<freecs::Entity>,

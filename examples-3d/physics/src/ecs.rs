@@ -35,6 +35,7 @@ freecs::ecs! {
         camera_entity: Option<Entity>,
         physics_objects: Vec<Entity>,
         interaction: InteractionState,
+        grab: nightshade::ecs::physics::grab::GrabState,
         interaction_prompt_entity: Option<Entity>,
         interaction_prompt_text_index: Option<usize>,
         #[cfg(not(feature = "openxr"))]

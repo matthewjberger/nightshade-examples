@@ -199,6 +199,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
             release_button(game_world, world, button_index);
         }
         game_world.resources.interaction.grabbed_entity = None;
+        nightshade::ecs::physics::grab::release_grab(&mut game_world.resources.grab, world);
         game_world.resources.interaction.manipulated_door = None;
         game_world.resources.interaction.manipulated_drawer = None;
         game_world.resources.interaction.manipulated_lever = None;
@@ -309,10 +310,10 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         }
     };
 
-    try_start_interaction(game_world, &pick_results);
+    try_start_interaction(game_world, world, &pick_results);
 }
 
-fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResult]) {
+fn try_start_interaction(game_world: &mut GameWorld, world: &World, pick_results: &[PickingResult]) {
     let config = &game_world.resources.config;
     let max_grab_distance = config.max_grab_distance;
     let interact_range = config.interact_range;
@@ -335,8 +336,34 @@ fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResu
             game_world.resources.interaction.grabbed_entity = Some(result.entity);
             game_world.resources.interaction.grab_distance =
                 result.distance.min(max_grab_distance);
-            game_world.resources.interaction.grab_pid_integral = nalgebra_glm::Vec3::zeros();
-            game_world.resources.interaction.grab_previous_error = nalgebra_glm::Vec3::zeros();
+
+            let (local_offset, original_damping) = if let Some(rb) =
+                world.core.get_rigid_body(result.entity)
+                && let Some(handle) = rb.handle
+                && let Some(rigid_body) =
+                    world.resources.physics.rigid_body_set.get(handle.into())
+            {
+                let body_pos = rigid_body.translation();
+                let body_rot = rigid_body.rotation();
+                let world_offset = result.world_position
+                    - nalgebra_glm::vec3(body_pos.x, body_pos.y, body_pos.z);
+                let inv_rot = nalgebra_glm::quat_conjugate(
+                    &nalgebra_glm::quat(body_rot.w, body_rot.i, body_rot.j, body_rot.k),
+                );
+                let local = nalgebra_glm::quat_rotate_vec3(&inv_rot, &world_offset);
+                (local, rigid_body.linear_damping())
+            } else {
+                (nalgebra_glm::Vec3::zeros(), 0.0)
+            };
+
+            game_world.resources.grab.grab(
+                result.entity,
+                result.distance,
+                game_world.resources.config.min_grab_distance,
+                game_world.resources.config.max_grab_distance,
+                local_offset,
+                original_damping,
+            );
             return;
         }
 
@@ -412,115 +439,23 @@ fn update_grabbed_object(
     scroll_delta: f32,
 ) {
     let scroll_speed = game_world.resources.config.scroll_distance_speed;
-    let min_dist = game_world.resources.config.min_grab_distance;
-    let max_dist = game_world.resources.config.max_grab_distance;
-    game_world.resources.interaction.grab_distance =
-        (game_world.resources.interaction.grab_distance + scroll_delta * scroll_speed)
-            .clamp(min_dist, max_dist);
+    game_world.resources.grab.adjust_distance(scroll_delta * scroll_speed);
 
     let target_position =
-        camera_position + camera_forward * game_world.resources.interaction.grab_distance;
+        camera_position + camera_forward * game_world.resources.grab.distance;
+    game_world.resources.grab.target_position = target_position;
 
-    let Some(grabbed_entity) = game_world.resources.interaction.grabbed_entity else {
-        return;
-    };
-
-    let Some(rigid_body_component) = world.core.get_rigid_body(grabbed_entity) else {
-        return;
-    };
-    let Some(handle) = rigid_body_component.handle else {
-        return;
-    };
-    let Some(rigid_body) = world
-        .resources
-        .physics
-        .rigid_body_set
-        .get_mut(handle.into())
-    else {
-        return;
-    };
-
-    let current_pos = rigid_body.translation();
-    let current_position = nalgebra_glm::vec3(current_pos.x, current_pos.y, current_pos.z);
-
-    let error = target_position - current_position;
-
-    let dt = world.resources.window.timing.delta_time.max(0.001);
-    let mass = rigid_body.mass().max(0.1);
-
-    let pid_p = game_world.resources.config.grab_pid_p;
-    let pid_i = game_world.resources.config.grab_pid_i;
-    let pid_d = game_world.resources.config.grab_pid_d;
-    let max_force = game_world.resources.config.grab_max_force;
-    let angular_damping = game_world.resources.config.grab_angular_damping;
-
-    game_world.resources.interaction.grab_pid_integral += error * dt;
-
-    let integral_max = 5.0;
-    let integral = &mut game_world.resources.interaction.grab_pid_integral;
-    integral.x = integral.x.clamp(-integral_max, integral_max);
-    integral.y = integral.y.clamp(-integral_max, integral_max);
-    integral.z = integral.z.clamp(-integral_max, integral_max);
-
-    let derivative = (error - game_world.resources.interaction.grab_previous_error) / dt;
-    game_world.resources.interaction.grab_previous_error = error;
-
-    let proportional_force = error * pid_p;
-    let integral_force = game_world.resources.interaction.grab_pid_integral * pid_i;
-    let derivative_force = derivative * pid_d;
-
-    let mut total_force = proportional_force + integral_force + derivative_force;
-
-    let current_vel = rigid_body.linvel();
-    let current_velocity = nalgebra_glm::vec3(current_vel.x, current_vel.y, current_vel.z);
-    let velocity_damping = -current_velocity * 2.0 * (pid_p * mass).sqrt();
-    total_force += velocity_damping;
-
-    let force_magnitude = nalgebra_glm::length(&total_force);
-    let max_force_for_mass = max_force * mass;
-    if force_magnitude > max_force_for_mass {
-        total_force *= max_force_for_mass / force_magnitude;
-    }
-
-    let target_velocity = total_force / mass * dt + current_velocity;
-
-    rigid_body.set_linvel(
-        rapier3d::math::Vector::new(target_velocity.x, target_velocity.y, target_velocity.z),
-        true,
-    );
-
-    let current_angvel = rigid_body.angvel();
-    let physics_dt = world.resources.physics.fixed_timestep;
-    let angular_decay_factor = (-angular_damping * physics_dt * 60.0).exp();
-    rigid_body.set_angvel(current_angvel * angular_decay_factor, true);
+    nightshade::ecs::physics::grab::update_grab(&mut game_world.resources.grab, world);
 }
 
 fn throw_grabbed_object(game_world: &mut GameWorld, world: &mut World, camera_forward: Vec3) {
-    let Some(grabbed_entity) = game_world.resources.interaction.grabbed_entity else {
-        return;
-    };
-
-    let Some(rigid_body_component) = world.core.get_rigid_body(grabbed_entity) else {
-        return;
-    };
-    let Some(handle) = rigid_body_component.handle else {
-        return;
-    };
-    let Some(rigid_body) = world
-        .resources
-        .physics
-        .rigid_body_set
-        .get_mut(handle.into())
-    else {
-        return;
-    };
-
-    let throw_velocity = camera_forward * game_world.resources.config.throw_strength;
-    rigid_body.set_linvel(
-        rapier3d::math::Vector::new(throw_velocity.x, throw_velocity.y, throw_velocity.z),
-        true,
+    let throw_strength = game_world.resources.config.throw_strength;
+    nightshade::ecs::physics::grab::throw_grab(
+        &mut game_world.resources.grab,
+        world,
+        camera_forward,
+        throw_strength,
     );
-
     game_world.resources.interaction.grabbed_entity = None;
 }
 

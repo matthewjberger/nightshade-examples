@@ -1,5 +1,4 @@
 use crate::ecs::GameWorld;
-use nightshade::ecs::generational_registry::registry_entry_by_name_mut;
 use nightshade::ecs::transform::components::Parent;
 use nightshade::prelude::*;
 
@@ -61,36 +60,17 @@ pub fn spawn_hand_cube(world: &mut World, color: Vec3) -> Entity {
     entity
 }
 
-pub fn spawn_bauble_gun(
-    game_world: &mut GameWorld,
-    world: &mut World,
-    hand_entity: Entity,
-) -> Entity {
-    let hand_cube_scale = 0.08_f32;
-    let inverse_scale = 1.0 / hand_cube_scale;
-
+pub fn spawn_weapon(_game_world: &mut GameWorld, world: &mut World) -> Entity {
     let root = world.spawn_entities(
-        NAME | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | PARENT,
+        NAME | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY,
         1,
     )[0];
 
     if let Some(name) = world.core.get_name_mut(root) {
-        name.0 = "BaubleGun".to_string();
-    }
-    if let Some(parent) = world.core.get_parent_mut(root) {
-        *parent = Parent(Some(hand_entity));
+        name.0 = "XrWeapon".to_string();
     }
     if let Some(transform) = world.core.get_local_transform_mut(root) {
-        let rot_y = nalgebra_glm::quat_angle_axis(
-            std::f32::consts::PI,
-            &nalgebra_glm::vec3(0.0, 1.0, 0.0),
-        );
-        let rot_z = nalgebra_glm::quat_angle_axis(
-            std::f32::consts::PI,
-            &nalgebra_glm::vec3(0.0, 0.0, 1.0),
-        );
-        transform.rotation = rot_z * rot_y;
-        transform.scale = nalgebra_glm::vec3(inverse_scale, inverse_scale, inverse_scale);
+        transform.translation = nalgebra_glm::vec3(0.0, -100.0, 0.0);
     }
 
     let body_color =
@@ -190,7 +170,7 @@ pub fn spawn_bauble_gun(
             *bv = BoundingVolume::from_mesh_type(mesh_name);
         }
 
-        let material_name = format!("BaubleGun_{}_{}", name, entity.id);
+        let material_name = format!("XrWeapon_{}_{}", name, entity.id);
         material_registry_insert(
             &mut world.resources.material_registry,
             material_name.clone(),
@@ -214,7 +194,6 @@ pub fn spawn_bauble_gun(
             .set_material_ref(entity, MaterialRef::new(material_name));
 
         world.resources.mesh_render_state.mark_entity_added(entity);
-        game_world.resources.bauble_gun_entities.push(entity);
     }
 
     root
@@ -239,92 +218,33 @@ pub fn xr_hand_tracking_system(game_world: &mut GameWorld, world: &mut World) {
         world.mark_local_transform_dirty(left_hand_entity);
     }
 
-    if let Some(right_hand_entity) = game_world.resources.right_hand_cube
-        && let Some(right_pos) = xr_input.right_hand_position()
-    {
-        if let Some(transform) = world.core.get_local_transform_mut(right_hand_entity) {
-            transform.translation = right_pos;
-        }
-        if let Some(rotation) = xr_input.right_hand_rotation()
-            && let Some(transform) = world.core.get_local_transform_mut(right_hand_entity)
-        {
-            transform.rotation = rotation;
-        }
-        world.mark_local_transform_dirty(right_hand_entity);
-    }
-
-    let a_button = xr_input.a_button_pressed();
-    let a_just_pressed = a_button && !game_world.resources.xr_a_was_pressed;
-    game_world.resources.xr_a_was_pressed = a_button;
-
-    if let Some(gun_root) = game_world.resources.gun_root_entity {
-        let new_hand = if a_just_pressed {
-            Some(match game_world.resources.gun_hand {
-                crate::ecs::GunHand::Left => crate::ecs::GunHand::Right,
-                crate::ecs::GunHand::Right => crate::ecs::GunHand::Left,
-            })
-        } else {
-            None
-        };
-
-        if let Some(hand) = new_hand {
-            let new_parent = match hand {
-                crate::ecs::GunHand::Left => game_world.resources.left_hand_cube,
-                crate::ecs::GunHand::Right => game_world.resources.right_hand_cube,
-            };
-            if let Some(parent_entity) = new_parent
-                && let Some(parent) = world.core.get_parent_mut(gun_root)
-            {
-                *parent = Parent(Some(parent_entity));
-                world.mark_local_transform_dirty(gun_root);
-                game_world.resources.gun_hand = hand;
-            }
-        }
-    }
-
-    update_hand_color(game_world, world, true);
-    update_hand_color(game_world, world, false);
-}
-
-fn update_hand_color(game_world: &GameWorld, world: &mut World, is_left: bool) {
-    let hand_entity = if is_left {
-        game_world.resources.left_hand_cube
-    } else {
-        game_world.resources.right_hand_cube
-    };
-
-    let Some(entity) = hand_entity else {
-        return;
-    };
-
-    let has_gun = if is_left {
-        game_world.resources.gun_hand == crate::ecs::GunHand::Left
-    } else {
-        game_world.resources.gun_hand == crate::ecs::GunHand::Right
-    };
-
-    let base_color = if is_left {
-        [0.2, 0.6, 0.9, 1.0]
-    } else {
-        [0.9, 0.6, 0.2, 1.0]
-    };
-
-    let hand_color = if has_gun {
-        [base_color[0] * 0.3, base_color[1] * 0.3, base_color[2] * 0.3, 1.0]
-    } else {
-        base_color
-    };
-
-    let mat_name = world
-        .core
-        .get_material_ref(entity)
-        .map(|r| r.name.clone());
-    if let Some(name) = mat_name
-        && let Some(mat) = registry_entry_by_name_mut(
-            &mut world.resources.material_registry.registry,
-            &name,
+    if let Some(gun_root) = game_world.resources.gun_root_entity
+        && let (Some(hand_pos), Some(hand_rot)) = (
+            xr_input.right_hand_position(),
+            xr_input.right_hand_rotation(),
         )
     {
-        mat.base_color = hand_color;
+        let aim = nalgebra_glm::quat_rotate_vec3(
+            &hand_rot,
+            &nalgebra_glm::vec3(0.0, 0.0, 1.0),
+        );
+        let up = nalgebra_glm::quat_rotate_vec3(
+            &hand_rot,
+            &nalgebra_glm::vec3(0.0, -1.0, 0.0),
+        );
+        let right = nalgebra_glm::cross(&aim, &up);
+
+        let mat = nalgebra_glm::Mat3::new(
+            right.x, up.x, -aim.x,
+            right.y, up.y, -aim.y,
+            right.z, up.z, -aim.z,
+        );
+        let gun_rotation = nalgebra_glm::mat3_to_quat(&mat);
+
+        if let Some(transform) = world.core.get_local_transform_mut(gun_root) {
+            transform.translation = hand_pos;
+            transform.rotation = gun_rotation;
+        }
+        world.mark_local_transform_dirty(gun_root);
     }
 }

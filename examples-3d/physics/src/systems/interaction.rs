@@ -77,22 +77,12 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     #[cfg(feature = "openxr")]
     let (xr_interact_held, xr_shoot_trigger_held, xr_throw_grip_held, xr_thumbstick_y) = {
         if let Some(xr_input) = &world.resources.xr.input {
-            let (interact_trigger, shoot_trigger, throw_grip, thumbstick) =
-                match game_world.resources.gun_hand {
-                    crate::ecs::GunHand::Right => (
-                        xr_input.left_trigger_pressed(),
-                        xr_input.right_trigger_pressed(),
-                        xr_input.left_grip_pressed(),
-                        xr_input.right_thumbstick.y,
-                    ),
-                    crate::ecs::GunHand::Left => (
-                        xr_input.right_trigger_pressed(),
-                        xr_input.left_trigger_pressed(),
-                        xr_input.right_grip_pressed(),
-                        xr_input.right_thumbstick.y,
-                    ),
-                };
-            (interact_trigger, shoot_trigger, throw_grip, thumbstick)
+            (
+                xr_input.left_trigger_pressed(),
+                xr_input.right_trigger_pressed(),
+                xr_input.left_grip_pressed(),
+                xr_input.right_thumbstick.y,
+            )
         } else {
             (false, false, false, 0.0)
         }
@@ -148,17 +138,10 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     #[cfg(feature = "openxr")]
     let (shoot_origin, shoot_direction) = {
         if let Some(xr_input) = &world.resources.xr.input {
-            let (hand_pos, hand_rot) = match game_world.resources.gun_hand {
-                crate::ecs::GunHand::Left => (
-                    xr_input.left_hand_position(),
-                    xr_input.left_hand_rotation(),
-                ),
-                crate::ecs::GunHand::Right => (
-                    xr_input.right_hand_position(),
-                    xr_input.right_hand_rotation(),
-                ),
-            };
-            if let (Some(pos), Some(rot)) = (hand_pos, hand_rot) {
+            if let (Some(pos), Some(rot)) = (
+                xr_input.right_hand_position(),
+                xr_input.right_hand_rotation(),
+            ) {
                 let forward =
                     nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
                 let muzzle_offset = forward * 0.18;
@@ -235,17 +218,10 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         #[cfg(feature = "openxr")]
         let (grab_origin, grab_forward) = {
             if let Some(xr_input) = &world.resources.xr.input {
-                let (hand_pos, hand_rot) = match game_world.resources.gun_hand {
-                    crate::ecs::GunHand::Right => (
-                        xr_input.left_hand_position(),
-                        xr_input.left_hand_rotation(),
-                    ),
-                    crate::ecs::GunHand::Left => (
-                        xr_input.right_hand_position(),
-                        xr_input.right_hand_rotation(),
-                    ),
-                };
-                if let (Some(pos), Some(rot)) = (hand_pos, hand_rot) {
+                if let (Some(pos), Some(rot)) = (
+                    xr_input.left_hand_position(),
+                    xr_input.left_hand_rotation(),
+                ) {
                     let fwd = nalgebra_glm::quat_rotate_vec3(
                         &rot,
                         &nalgebra_glm::vec3(0.0, 0.0, 1.0),
@@ -310,17 +286,10 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     #[cfg(feature = "openxr")]
     let pick_results = {
         if let Some(xr_input) = &world.resources.xr.input {
-            let (hand_pos, hand_rot) = match game_world.resources.gun_hand {
-                crate::ecs::GunHand::Right => (
-                    xr_input.left_hand_position(),
-                    xr_input.left_hand_rotation(),
-                ),
-                crate::ecs::GunHand::Left => (
-                    xr_input.right_hand_position(),
-                    xr_input.right_hand_rotation(),
-                ),
-            };
-            if let (Some(origin), Some(rot)) = (hand_pos, hand_rot) {
+            if let (Some(origin), Some(rot)) = (
+                xr_input.left_hand_position(),
+                xr_input.left_hand_rotation(),
+            ) {
                 let direction =
                     nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
                 pick_entities_from_ray(world, origin, direction, options)

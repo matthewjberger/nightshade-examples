@@ -152,11 +152,3 @@ pub enum InputMode {
     #[cfg(feature = "openxr")]
     Xr,
 }
-
-#[cfg(feature = "openxr")]
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-pub enum GunHand {
-    Left,
-    #[default]
-    Right,
-}

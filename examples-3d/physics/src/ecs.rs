@@ -78,14 +78,6 @@ freecs::ecs! {
         #[cfg(feature = "openxr")]
         left_hand_cube: Option<Entity>,
         #[cfg(feature = "openxr")]
-        right_hand_cube: Option<Entity>,
-        #[cfg(feature = "openxr")]
-        bauble_gun_entities: Vec<Entity>,
-        #[cfg(feature = "openxr")]
         gun_root_entity: Option<Entity>,
-        #[cfg(feature = "openxr")]
-        gun_hand: GunHand,
-        #[cfg(feature = "openxr")]
-        xr_a_was_pressed: bool,
     }
 }

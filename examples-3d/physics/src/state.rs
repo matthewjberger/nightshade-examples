@@ -63,6 +63,8 @@ impl State for PhysicsGame {
         {
             world.resources.xr.locomotion_enabled = false;
             self.game_world.resources.input_mode = crate::ecs::InputMode::Xr;
+            world.resources.xr.initial_player_position =
+                Some(nalgebra_glm::vec3(0.0, 0.0, 8.0));
         }
 
         let sun = spawn_sun_overhead(world);
@@ -121,11 +123,8 @@ impl State for PhysicsGame {
             let left_hand =
                 crate::systems::xr::spawn_hand_cube(world, nalgebra_glm::vec3(0.2, 0.6, 0.9));
             self.game_world.resources.left_hand_cube = Some(left_hand);
-            let right_hand =
-                crate::systems::xr::spawn_hand_cube(world, nalgebra_glm::vec3(0.9, 0.6, 0.2));
-            self.game_world.resources.right_hand_cube = Some(right_hand);
             let gun_root =
-                crate::systems::xr::spawn_bauble_gun(&mut self.game_world, world, right_hand);
+                crate::systems::xr::spawn_weapon(&mut self.game_world, world);
             self.game_world.resources.gun_root_entity = Some(gun_root);
         }
 

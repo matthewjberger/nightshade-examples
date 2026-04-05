@@ -335,6 +335,8 @@ fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResu
             game_world.resources.interaction.grabbed_entity = Some(result.entity);
             game_world.resources.interaction.grab_distance =
                 result.distance.min(max_grab_distance);
+            game_world.resources.interaction.grab_pid_integral = nalgebra_glm::Vec3::zeros();
+            game_world.resources.interaction.grab_previous_error = nalgebra_glm::Vec3::zeros();
             return;
         }
 
@@ -441,38 +443,56 @@ fn update_grabbed_object(
     let current_pos = rigid_body.translation();
     let current_position = nalgebra_glm::vec3(current_pos.x, current_pos.y, current_pos.z);
 
-    let displacement = target_position - current_position;
+    let error = target_position - current_position;
+
+    let dt = world.resources.window.timing.delta_time.max(0.001);
+    let mass = rigid_body.mass().max(0.1);
+
+    let pid_p = game_world.resources.config.grab_pid_p;
+    let pid_i = game_world.resources.config.grab_pid_i;
+    let pid_d = game_world.resources.config.grab_pid_d;
+    let max_force = game_world.resources.config.grab_max_force;
+    let angular_damping = game_world.resources.config.grab_angular_damping;
+
+    game_world.resources.interaction.grab_pid_integral += error * dt;
+
+    let integral_max = 5.0;
+    let integral = &mut game_world.resources.interaction.grab_pid_integral;
+    integral.x = integral.x.clamp(-integral_max, integral_max);
+    integral.y = integral.y.clamp(-integral_max, integral_max);
+    integral.z = integral.z.clamp(-integral_max, integral_max);
+
+    let derivative = (error - game_world.resources.interaction.grab_previous_error) / dt;
+    game_world.resources.interaction.grab_previous_error = error;
+
+    let proportional_force = error * pid_p;
+    let integral_force = game_world.resources.interaction.grab_pid_integral * pid_i;
+    let derivative_force = derivative * pid_d;
+
+    let mut total_force = proportional_force + integral_force + derivative_force;
 
     let current_vel = rigid_body.linvel();
     let current_velocity = nalgebra_glm::vec3(current_vel.x, current_vel.y, current_vel.z);
-
-    let config = &game_world.resources.config;
-    let mass = rigid_body.mass();
-    let critical_damping = 2.0 * (config.grab_stiffness * mass).sqrt();
-    let damping = critical_damping * config.grab_damping_ratio;
-
-    let spring_force = displacement * config.grab_stiffness;
-    let damping_force = -current_velocity * damping;
-    let mut total_force = spring_force + damping_force;
+    let velocity_damping = -current_velocity * 2.0 * (pid_p * mass).sqrt();
+    total_force += velocity_damping;
 
     let force_magnitude = nalgebra_glm::length(&total_force);
-    let max_force_for_mass = config.max_grab_force * mass.max(0.5);
+    let max_force_for_mass = max_force * mass;
     if force_magnitude > max_force_for_mass {
         total_force *= max_force_for_mass / force_magnitude;
     }
 
-    let acceleration = total_force / mass;
-    let dt = world.resources.physics.fixed_timestep;
-    let new_velocity = current_velocity + acceleration * dt;
+    let target_velocity = total_force / mass * dt + current_velocity;
 
     rigid_body.set_linvel(
-        rapier3d::math::Vector::new(new_velocity.x, new_velocity.y, new_velocity.z),
+        rapier3d::math::Vector::new(target_velocity.x, target_velocity.y, target_velocity.z),
         true,
     );
 
     let current_angvel = rigid_body.angvel();
-    let angular_decay = (-config.angular_damping * dt * 60.0).exp();
-    rigid_body.set_angvel(current_angvel * angular_decay, true);
+    let physics_dt = world.resources.physics.fixed_timestep;
+    let angular_decay_factor = (-angular_damping * physics_dt * 60.0).exp();
+    rigid_body.set_angvel(current_angvel * angular_decay_factor, true);
 }
 
 fn throw_grabbed_object(game_world: &mut GameWorld, world: &mut World, camera_forward: Vec3) {

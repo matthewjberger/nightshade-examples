@@ -61,7 +61,6 @@ impl State for PhysicsGame {
 
         #[cfg(feature = "openxr")]
         {
-            world.resources.xr.locomotion_enabled = false;
             self.game_world.resources.input_mode = crate::ecs::InputMode::Xr;
             world.resources.xr.initial_player_position =
                 Some(nalgebra_glm::vec3(0.0, 0.0, 8.0));

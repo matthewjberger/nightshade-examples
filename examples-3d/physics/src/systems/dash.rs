@@ -187,15 +187,19 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         .keyboard
         .is_key_pressed(KeyCode::KeyC)
         || query_active_gamepad(world)
-            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::LeftThumb));
+            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::RightThumb));
     let slide_just_pressed = slide_pressed && !game_world.resources.slide_button_was_pressed;
     game_world.resources.slide_button_was_pressed = slide_pressed;
 
+    let sprint_held = world
+        .resources
+        .input
+        .keyboard
+        .is_key_pressed(KeyCode::ShiftLeft)
+        || query_active_gamepad(world)
+            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::LeftThumb));
+
     if slide_just_pressed && game_world.resources.player_state == PlayerState::Grounded {
-        let is_sprinting = world
-            .core
-            .get_character_controller(player_entity)
-            .is_some_and(|controller| controller.is_sprinting);
         let horizontal_speed = world
             .core
             .get_character_controller(player_entity)
@@ -208,7 +212,7 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             })
             .unwrap_or(0.0);
 
-        if (is_sprinting || horizontal_speed > game_world.resources.config.slide_min_speed)
+        if (sprint_held || horizontal_speed > game_world.resources.config.slide_min_speed)
             && let Some(new_state) = game_world
                 .resources
                 .player_state
@@ -217,6 +221,15 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             game_world.resources.player_state = new_state;
             if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
                 controller.is_crouching = true;
+                let horizontal_velocity =
+                    nalgebra_glm::vec3(controller.velocity.x, 0.0, controller.velocity.z);
+                let horizontal_speed = nalgebra_glm::length(&horizontal_velocity);
+                if horizontal_speed > 0.1 {
+                    let direction = nalgebra_glm::normalize(&horizontal_velocity);
+                    let slide_boost = game_world.resources.config.slide_boost;
+                    controller.velocity.x = direction.x * (horizontal_speed + slide_boost);
+                    controller.velocity.z = direction.z * (horizontal_speed + slide_boost);
+                }
             }
         }
     }

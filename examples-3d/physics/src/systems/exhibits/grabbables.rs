@@ -4,13 +4,8 @@ use crate::ecs::{
 };
 use super::environment::spawn_visual_cube;
 use nightshade::ecs::light::components::{Light, LightType};
-use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::physics::*;
 use nightshade::ecs::transform::components::Parent;
-use nightshade::ecs::world::{
-    BOUNDING_VOLUME, CASTS_SHADOW, GLOBAL_TRANSFORM, LIGHT, LOCAL_TRANSFORM,
-    LOCAL_TRANSFORM_DIRTY, MATERIAL_REF, NAME, PARENT, RENDER_MESH, VISIBILITY,
-};
 use nightshade::prelude::*;
 
 pub(super) fn spawn_grabbables_exhibit(
@@ -106,8 +101,8 @@ pub(super) fn spawn_door_exhibit(
             | BOUNDING_VOLUME
             | CASTS_SHADOW
             | VISIBILITY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER,
+            | RIGID_BODY
+            | COLLIDER,
         1,
     )[0];
 
@@ -148,7 +143,7 @@ pub(super) fn spawn_door_exhibit(
         .set_material_ref(door_entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(door_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+        *bv = BoundingVolume::from_mesh_type("Cube");
     }
 
     if let Some(rigid_body) = world.core.get_rigid_body_mut(door_entity) {
@@ -282,8 +277,8 @@ pub(super) fn spawn_drawer_exhibit(
             NAME | LOCAL_TRANSFORM
                 | GLOBAL_TRANSFORM
                 | LOCAL_TRANSFORM_DIRTY
-                | nightshade::ecs::world::RIGID_BODY
-                | nightshade::ecs::world::COLLIDER,
+                | RIGID_BODY
+                | COLLIDER,
             1,
         )[0];
 
@@ -362,7 +357,7 @@ pub(super) fn spawn_drawer_exhibit(
             .set_material_ref(front_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(front_entity) {
-            *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+            *bv = BoundingVolume::from_mesh_type("Cube");
         }
 
         if let Some(parent) = world.core.get_parent_mut(front_entity) {
@@ -523,7 +518,7 @@ pub(super) fn spawn_lever_exhibit(
         .set_material_ref(arm_entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(arm_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+        *bv = BoundingVolume::from_mesh_type("Cube");
     }
 
     if let Some(parent) = world.core.get_parent_mut(arm_entity) {
@@ -588,7 +583,7 @@ pub(super) fn spawn_lever_exhibit(
         .set_material_ref(handle_visual_entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(handle_visual_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");
+        *bv = BoundingVolume::from_mesh_type("Sphere");
     }
 
     if let Some(parent) = world.core.get_parent_mut(handle_visual_entity) {
@@ -607,10 +602,10 @@ pub(super) fn spawn_lever_exhibit(
         NAME | LOCAL_TRANSFORM
             | GLOBAL_TRANSFORM
             | LOCAL_TRANSFORM_DIRTY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER
-            | nightshade::ecs::world::BOUNDING_VOLUME
-            | nightshade::ecs::world::VISIBILITY,
+            | RIGID_BODY
+            | COLLIDER
+            | BOUNDING_VOLUME
+            | VISIBILITY,
         1,
     )[0];
 
@@ -646,7 +641,7 @@ pub(super) fn spawn_lever_exhibit(
     }
 
     if let Some(bv) = world.core.get_bounding_volume_mut(collider_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+        *bv = BoundingVolume::from_mesh_type("Cube");
     }
 
     let collider_rb_handle = {
@@ -718,8 +713,8 @@ pub(super) fn spawn_wheel_exhibit(
             | BOUNDING_VOLUME
             | CASTS_SHADOW
             | VISIBILITY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER,
+            | RIGID_BODY
+            | COLLIDER,
         1,
     )[0];
 
@@ -766,7 +761,7 @@ pub(super) fn spawn_wheel_exhibit(
         .set_material_ref(wheel_entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(wheel_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+        *bv = BoundingVolume::from_mesh_type("Cylinder");
     }
 
     if let Some(rigid_body) = world.core.get_rigid_body_mut(wheel_entity) {
@@ -843,7 +838,7 @@ pub(super) fn spawn_wheel_exhibit(
             .set_material_ref(spoke_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(spoke_entity) {
-            *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+            *bv = BoundingVolume::from_mesh_type("Cube");
         }
 
         if let Some(parent) = world.core.get_parent_mut(spoke_entity) {
@@ -885,6 +880,7 @@ pub(super) fn spawn_chain_exhibit(
     world: &mut World,
     center: Vec3,
 ) {
+    use nightshade::ecs::bounding_volume::components::BoundingVolume;
     use rapier3d::prelude::*;
 
     let anchor_height = 2.5;
@@ -903,7 +899,7 @@ pub(super) fn spawn_chain_exhibit(
         NAME | LOCAL_TRANSFORM
             | GLOBAL_TRANSFORM
             | LOCAL_TRANSFORM_DIRTY
-            | nightshade::ecs::world::RIGID_BODY,
+            | RIGID_BODY,
         1,
     )[0];
 
@@ -956,9 +952,9 @@ pub(super) fn spawn_chain_exhibit(
                 | BOUNDING_VOLUME
                 | CASTS_SHADOW
                 | VISIBILITY
-                | nightshade::ecs::world::RIGID_BODY
-                | nightshade::ecs::world::COLLIDER
-                | nightshade::ecs::world::PHYSICS_INTERPOLATION,
+                | RIGID_BODY
+                | COLLIDER
+                | PHYSICS_INTERPOLATION,
             1,
         )[0];
 
@@ -1000,7 +996,7 @@ pub(super) fn spawn_chain_exhibit(
             .set_material_ref(entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-            *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+            *bv = BoundingVolume::from_mesh_type("Cylinder");
         }
 
         if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
@@ -1082,9 +1078,9 @@ pub(super) fn spawn_chain_exhibit(
             | BOUNDING_VOLUME
             | CASTS_SHADOW
             | VISIBILITY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER
-            | nightshade::ecs::world::PHYSICS_INTERPOLATION,
+            | RIGID_BODY
+            | COLLIDER
+            | PHYSICS_INTERPOLATION,
         1,
     )[0];
 
@@ -1125,7 +1121,7 @@ pub(super) fn spawn_chain_exhibit(
         .set_material_ref(lantern_entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(lantern_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+        *bv = BoundingVolume::from_mesh_type("Cube");
     }
 
     if let Some(rigid_body) = world.core.get_rigid_body_mut(lantern_entity) {
@@ -1275,7 +1271,7 @@ fn spawn_drawer_panel(
         .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+        *bv = BoundingVolume::from_mesh_type("Cube");
     }
 
     if let Some(p) = world.core.get_parent_mut(entity) {
@@ -1300,8 +1296,8 @@ fn spawn_bauble(
             | BOUNDING_VOLUME
             | CASTS_SHADOW
             | VISIBILITY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER,
+            | RIGID_BODY
+            | COLLIDER,
         1,
     )[0];
 
@@ -1342,7 +1338,7 @@ fn spawn_bauble(
         .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");
+        *bv = BoundingVolume::from_mesh_type("Sphere");
     }
 
     if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
@@ -1527,8 +1523,8 @@ pub(super) fn spawn_note_table(
             | BOUNDING_VOLUME
             | CASTS_SHADOW
             | VISIBILITY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER,
+            | RIGID_BODY
+            | COLLIDER,
         1,
     )[0];
 
@@ -1570,7 +1566,7 @@ pub(super) fn spawn_note_table(
 
     if let Some(bounding_volume) = world.core.get_bounding_volume_mut(note_entity) {
         *bounding_volume =
-            nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+            BoundingVolume::from_mesh_type("Cube");
     }
 
     if let Some(rigid_body) = world.core.get_rigid_body_mut(note_entity) {
@@ -1643,8 +1639,8 @@ fn spawn_recall_pedestal(game_world: &mut GameWorld, world: &mut World, center: 
             | BOUNDING_VOLUME
             | CASTS_SHADOW
             | VISIBILITY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER,
+            | RIGID_BODY
+            | COLLIDER,
         1,
     )[0];
 
@@ -1685,7 +1681,7 @@ fn spawn_recall_pedestal(game_world: &mut GameWorld, world: &mut World, center: 
         .set_material_ref(button_entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(button_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+        *bv = BoundingVolume::from_mesh_type("Cylinder");
     }
 
     if let Some(rigid_body) = world.core.get_rigid_body_mut(button_entity) {

@@ -1,11 +1,6 @@
 use crate::ecs::GameWorld;
-use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::transform::components::Parent;
 use nightshade::prelude::*;
-use nightshade::ecs::world::{
-    BOUNDING_VOLUME, GLOBAL_TRANSFORM, LOCAL_TRANSFORM, LOCAL_TRANSFORM_DIRTY, MATERIAL_REF, NAME,
-    PARENT, VISIBILITY,
-};
 
 pub fn spawn_weapon_part(
     world: &mut World,
@@ -19,12 +14,12 @@ pub fn spawn_weapon_part(
         NAME | LOCAL_TRANSFORM
             | GLOBAL_TRANSFORM
             | LOCAL_TRANSFORM_DIRTY
-            | nightshade::ecs::world::RENDER_MESH
+            | RENDER_MESH
             | MATERIAL_REF
             | BOUNDING_VOLUME
             | PARENT
             | VISIBILITY
-            | nightshade::ecs::world::RENDER_LAYER,
+            | RENDER_LAYER,
         1,
     )[0];
 
@@ -62,7 +57,7 @@ pub fn spawn_weapon_part(
 
     if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume =
-            nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
+            BoundingVolume::from_mesh_type(mesh_name);
     }
 
     if let Some(p) = world.core.get_parent_mut(entity) {

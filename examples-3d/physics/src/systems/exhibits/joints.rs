@@ -4,18 +4,12 @@ use crate::ecs::{
     ROPE_JOINT_VISUAL, SPHERICAL_JOINT_VISUAL, SPRING_JOINT_VISUAL, VELOCITY_FRICTION_JOINT,
 };
 use crate::systems::ui::spawn_label;
-use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::physics::joints::{
     FixedJoint, JointAxisDirection, JointLimits, PrismaticJoint, RevoluteJoint, RopeJoint,
     SphericalJoint, SpringJoint, create_fixed_joint, create_prismatic_joint, create_revolute_joint,
     create_rope_joint, create_spherical_joint, create_spring_joint,
 };
 use nightshade::ecs::physics::*;
-use nightshade::ecs::text::components::{TextAlignment, TextProperties, VerticalAlignment};
-use nightshade::ecs::world::{
-    BOUNDING_VOLUME, CASTS_SHADOW, GLOBAL_TRANSFORM, LOCAL_TRANSFORM, LOCAL_TRANSFORM_DIRTY,
-    MATERIAL_REF, NAME, RENDER_MESH, VISIBILITY,
-};
 use nightshade::prelude::*;
 
 pub(super) fn spawn_fixed_joint_exhibit(
@@ -192,7 +186,7 @@ pub(super) fn spawn_spherical_joint_exhibit(
         .set_material_ref(rod_entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(rod_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+        *bv = BoundingVolume::from_mesh_type("Cylinder");
     }
 
     let game_entity = game_world.spawn_entities(SPHERICAL_JOINT_VISUAL, 1)[0];
@@ -311,7 +305,7 @@ pub(super) fn spawn_rope_joint_exhibit(
         .set_material_ref(rope_entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(rope_entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+        *bv = BoundingVolume::from_mesh_type("Cylinder");
     }
 
     let game_entity = game_world.spawn_entities(ROPE_JOINT_VISUAL, 1)[0];
@@ -431,7 +425,7 @@ pub(super) fn spawn_spring_joint_exhibit(
             .set_material_ref(coil_entity, MaterialRef::new(material_name));
 
         if let Some(bv) = world.core.get_bounding_volume_mut(coil_entity) {
-            *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cylinder");
+            *bv = BoundingVolume::from_mesh_type("Cylinder");
         }
 
         spring_visual_entities.push(coil_entity);

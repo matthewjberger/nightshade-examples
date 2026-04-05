@@ -144,7 +144,7 @@ pub fn spawn_label(
     position: Vec3,
     properties: nightshade::ecs::text::components::TextProperties,
 ) {
-    nightshade::ecs::world::commands::spawn_3d_billboard_text_with_properties(
+    spawn_3d_billboard_text_with_properties(
         world, text, position, properties,
     );
 }
@@ -155,7 +155,7 @@ pub fn spawn_wall_label(
     position: Vec3,
     properties: nightshade::ecs::text::components::TextProperties,
 ) {
-    let entity = nightshade::ecs::world::commands::spawn_3d_text_with_properties(
+    let entity = spawn_3d_text_with_properties(
         world, text, position, properties,
     );
     if let Some(transform) = world.core.get_local_transform_mut(entity) {

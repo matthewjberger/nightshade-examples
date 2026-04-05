@@ -1,11 +1,7 @@
 use crate::ecs::GameWorld;
-use nightshade::ecs::material::resources::{material_registry_insert, registry_entry_by_name_mut};
+use nightshade::ecs::material::resources::registry_entry_by_name_mut;
 use nightshade::ecs::transform::components::Parent;
 use nightshade::prelude::*;
-use nightshade::ecs::world::{
-    BOUNDING_VOLUME, GLOBAL_TRANSFORM, LOCAL_TRANSFORM, LOCAL_TRANSFORM_DIRTY, MATERIAL_REF, NAME,
-    PARENT, RENDER_MESH, VISIBILITY,
-};
 
 pub fn spawn_hand_cube(world: &mut World, color: Vec3) -> Entity {
     let cube_size = 0.08;
@@ -59,7 +55,7 @@ pub fn spawn_hand_cube(world: &mut World, color: Vec3) -> Entity {
         .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+        *bv = BoundingVolume::from_mesh_type("Cube");
     }
 
     entity
@@ -139,7 +135,7 @@ pub fn spawn_bauble_gun(game_world: &mut GameWorld, world: &mut World, hand_enti
             *parent = Parent(Some(hand_entity));
         }
         if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-            *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type(mesh_name);
+            *bv = BoundingVolume::from_mesh_type(mesh_name);
         }
 
         let material_name = format!("BaubleGun_{}_{}", name, entity.id);

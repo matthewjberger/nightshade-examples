@@ -2,7 +2,7 @@ use crate::constants::{
     DASH_COOLDOWN, DASH_DECAY_RATE, DASH_DURATION, DASH_INITIAL_SPEED, DOUBLE_JUMP_IMPULSE,
     MAX_DASH_CHARGES,
 };
-use crate::ecs::{GameWorld, MovementEvent, MovementState};
+use crate::ecs::{GameWorld, PlayerEvent, PlayerState};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
 
@@ -20,33 +20,41 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         .is_some_and(|controller| controller.grounded);
 
     let was_grounded_state = matches!(
-        game_world.resources.movement_state,
-        MovementState::Grounded | MovementState::GroundDash
+        game_world.resources.player_state,
+        PlayerState::Grounded
+            | PlayerState::GroundDash
+            | PlayerState::LeaningLeft
+            | PlayerState::LeaningRight
     );
 
     if grounded && !was_grounded_state {
         if let Some(new_state) = game_world
             .resources
-            .movement_state
-            .process_event(MovementEvent::Land)
+            .player_state
+            .process_event(PlayerEvent::Land)
         {
-            game_world.resources.movement_state = new_state;
+            game_world.resources.player_state = new_state;
         }
-    } else if !grounded && game_world.resources.movement_state == MovementState::Grounded {
+    } else if !grounded
+        && matches!(
+            game_world.resources.player_state,
+            PlayerState::Grounded | PlayerState::LeaningLeft | PlayerState::LeaningRight
+        )
+    {
         if let Some(new_state) = game_world
             .resources
-            .movement_state
-            .process_event(MovementEvent::Jump)
+            .player_state
+            .process_event(PlayerEvent::Jump)
         {
-            game_world.resources.movement_state = new_state;
+            game_world.resources.player_state = new_state;
         }
-    } else if !grounded && game_world.resources.movement_state == MovementState::GroundDash
+    } else if !grounded && game_world.resources.player_state == PlayerState::GroundDash
         && let Some(new_state) = game_world
             .resources
-            .movement_state
-            .process_event(MovementEvent::BecomeAirborne)
+            .player_state
+            .process_event(PlayerEvent::BecomeAirborne)
     {
-        game_world.resources.movement_state = new_state;
+        game_world.resources.player_state = new_state;
     }
 
     let dash_pressed = if let Some(gamepad) = query_active_gamepad(world) {
@@ -67,13 +75,13 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     let jump_just_pressed = jump_pressed && !game_world.resources.jump_button_was_pressed;
     game_world.resources.jump_button_was_pressed = jump_pressed;
 
-    if jump_just_pressed && game_world.resources.movement_state == MovementState::Airborne
+    if jump_just_pressed && game_world.resources.player_state == PlayerState::Airborne
         && let Some(new_state) = game_world
             .resources
-            .movement_state
-            .process_event(MovementEvent::DoubleJump)
+            .player_state
+            .process_event(PlayerEvent::DoubleJump)
     {
-        game_world.resources.movement_state = new_state;
+        game_world.resources.player_state = new_state;
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
             controller.velocity.y = DOUBLE_JUMP_IMPULSE;
         }
@@ -83,12 +91,12 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         && game_world.resources.dash_charges > 0
         && let Some(new_state) = game_world
             .resources
-            .movement_state
-            .process_event(MovementEvent::Dash)
+            .player_state
+            .process_event(PlayerEvent::Dash)
     {
         game_world.resources.dash_charges -= 1;
         game_world.resources.dash_cooldown_timer = DASH_COOLDOWN;
-        game_world.resources.movement_state = new_state;
+        game_world.resources.player_state = new_state;
         game_world.resources.dash_timer = DASH_DURATION;
 
         let velocity = world
@@ -113,8 +121,8 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     }
 
     let is_dashing = matches!(
-        game_world.resources.movement_state,
-        MovementState::GroundDash | MovementState::AirDash
+        game_world.resources.player_state,
+        PlayerState::GroundDash | PlayerState::AirDash
     );
 
     if is_dashing {
@@ -127,7 +135,7 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
             controller.velocity.x = game_world.resources.dash_direction.x * speed;
             controller.velocity.z = game_world.resources.dash_direction.z * speed;
-            if game_world.resources.movement_state == MovementState::AirDash {
+            if game_world.resources.player_state == PlayerState::AirDash {
                 if elapsed < 0.05 {
                     controller.velocity.y = 2.0;
                 } else {
@@ -137,21 +145,21 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         }
 
         if game_world.resources.dash_timer <= 0.0 {
-            if game_world.resources.movement_state == MovementState::AirDash {
+            if game_world.resources.player_state == PlayerState::AirDash {
                 if let Some(new_state) = game_world
                     .resources
-                    .movement_state
-                    .process_event(MovementEvent::DashEnd)
+                    .player_state
+                    .process_event(PlayerEvent::DashEnd)
                 {
-                    game_world.resources.movement_state = new_state;
+                    game_world.resources.player_state = new_state;
                 }
             } else if grounded
                 && let Some(new_state) = game_world
                     .resources
-                    .movement_state
-                    .process_event(MovementEvent::Land)
+                    .player_state
+                    .process_event(PlayerEvent::Land)
             {
-                game_world.resources.movement_state = new_state;
+                game_world.resources.player_state = new_state;
             }
         }
     }
@@ -172,24 +180,29 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
 
 fn update_dash_hud(game_world: &mut GameWorld, world: &mut World) {
     if let Some(state_text) = game_world.resources.dash_hud_state_text_entity {
-        let label = match game_world.resources.movement_state {
-            MovementState::Grounded => "GROUNDED",
-            MovementState::GroundDash => "DASH",
-            MovementState::Airborne => "AIRBORNE",
-            MovementState::DoubleJumped => "DOUBLE JUMP",
-            MovementState::AirDash => "AIR DASH",
-            MovementState::Falling => "FALLING",
+        let label = match game_world.resources.player_state {
+            PlayerState::Grounded => "GROUNDED",
+            PlayerState::LeaningLeft => "LEAN LEFT",
+            PlayerState::LeaningRight => "LEAN RIGHT",
+            PlayerState::GroundDash => "DASH",
+            PlayerState::Airborne => "AIRBORNE",
+            PlayerState::DoubleJumped => "DOUBLE JUMP",
+            PlayerState::AirDash => "AIR DASH",
+            PlayerState::Falling => "FALLING",
         };
         world.ui_set_text(state_text, label);
 
-        let text_color = match game_world.resources.movement_state {
-            MovementState::Grounded => nalgebra_glm::Vec4::new(0.6, 0.8, 0.6, 0.8),
-            MovementState::GroundDash | MovementState::AirDash => {
+        let text_color = match game_world.resources.player_state {
+            PlayerState::Grounded => nalgebra_glm::Vec4::new(0.6, 0.8, 0.6, 0.8),
+            PlayerState::LeaningLeft | PlayerState::LeaningRight => {
+                nalgebra_glm::Vec4::new(0.5, 0.7, 0.9, 0.8)
+            }
+            PlayerState::GroundDash | PlayerState::AirDash => {
                 nalgebra_glm::Vec4::new(0.3, 0.9, 1.0, 1.0)
             }
-            MovementState::Airborne => nalgebra_glm::Vec4::new(0.8, 0.8, 0.5, 0.8),
-            MovementState::DoubleJumped => nalgebra_glm::Vec4::new(1.0, 0.7, 0.3, 0.9),
-            MovementState::Falling => nalgebra_glm::Vec4::new(0.7, 0.5, 0.5, 0.7),
+            PlayerState::Airborne => nalgebra_glm::Vec4::new(0.8, 0.8, 0.5, 0.8),
+            PlayerState::DoubleJumped => nalgebra_glm::Vec4::new(1.0, 0.7, 0.3, 0.9),
+            PlayerState::Falling => nalgebra_glm::Vec4::new(0.7, 0.5, 0.5, 0.7),
         };
         if let Some(node_color) = world.ui.get_ui_node_color_mut(state_text) {
             node_color.colors[0] = Some(text_color);
@@ -267,7 +280,7 @@ pub fn build_dash_hud(world: &mut World) -> (Entity, Entity, Vec<Entity>) {
     let start_x = (panel_width - total_width) / 2.0;
 
     let mut charge_entities = Vec::new();
-    for charge_index in 0..MAX_DASH_CHARGES {
+    for charge_index in 0..crate::constants::MAX_DASH_CHARGES {
         let offset_x = start_x + charge_index as f32 * (charge_size + gap);
         let charge = tree
             .add_node()

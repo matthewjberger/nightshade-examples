@@ -1,12 +1,7 @@
 use crate::constants::{BAUBLE_LIFETIME_MS, BAUBLE_SHRINK_DURATION_MS, MAX_SHOT_BAUBLES};
 use crate::ecs::{GameWorld, ShotBauble, SHOT_BAUBLE};
-use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::physics::*;
 use nightshade::prelude::*;
-use nightshade::ecs::world::{
-    BOUNDING_VOLUME, CASTS_SHADOW, GLOBAL_TRANSFORM, LOCAL_TRANSFORM, LOCAL_TRANSFORM_DIRTY,
-    MATERIAL_REF, NAME, RENDER_MESH, VISIBILITY,
-};
 
 pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec3, direction: Vec3) {
     let bauble_radius = 0.05;
@@ -30,10 +25,10 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
             | BOUNDING_VOLUME
             | CASTS_SHADOW
             | VISIBILITY
-            | nightshade::ecs::world::RIGID_BODY
-            | nightshade::ecs::world::COLLIDER
-            | nightshade::ecs::world::COLLISION_LISTENER
-            | nightshade::ecs::world::PHYSICS_INTERPOLATION,
+            | RIGID_BODY
+            | COLLIDER
+            | COLLISION_LISTENER
+            | PHYSICS_INTERPOLATION,
         1,
     )[0];
 
@@ -74,7 +69,7 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
         .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Sphere");
+        *bv = BoundingVolume::from_mesh_type("Sphere");
     }
 
     if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
@@ -234,5 +229,5 @@ fn despawn_bauble(game_world: &mut GameWorld, world: &mut World, entity: Entity)
     }
 
     game_world.resources.physics_objects.retain(|e| *e != entity);
-    nightshade::ecs::world::commands::despawn_entities_with_cache_cleanup(world, &[entity]);
+    despawn_entities_with_cache_cleanup(world, &[entity]);
 }

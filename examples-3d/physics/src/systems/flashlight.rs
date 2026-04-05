@@ -5,10 +5,10 @@ use nightshade::prelude::*;
 
 pub fn spawn_flashlight(world: &mut World) -> Entity {
     let entity = world.spawn_entities(
-        nightshade::ecs::world::LIGHT
-            | nightshade::ecs::world::LOCAL_TRANSFORM
-            | nightshade::ecs::world::LOCAL_TRANSFORM_DIRTY
-            | nightshade::ecs::world::GLOBAL_TRANSFORM,
+        LIGHT
+            | LOCAL_TRANSFORM
+            | LOCAL_TRANSFORM_DIRTY
+            | GLOBAL_TRANSFORM,
         1,
     )[0];
 

@@ -1,10 +1,5 @@
 use nightshade::ecs::light::components::{Light, LightType};
-use nightshade::ecs::material::resources::material_registry_insert;
 use nightshade::ecs::physics::*;
-use nightshade::ecs::world::{
-    BOUNDING_VOLUME, CASTS_SHADOW, GLOBAL_TRANSFORM, LIGHT, LOCAL_TRANSFORM,
-    LOCAL_TRANSFORM_DIRTY, MATERIAL_REF, NAME, RENDER_MESH, VISIBILITY,
-};
 use nightshade::prelude::*;
 
 pub(super) struct RoomConfig {
@@ -20,11 +15,6 @@ pub(super) struct RoomConfig {
 }
 
 pub fn spawn_sun_overhead(world: &mut World) -> Entity {
-    use nightshade::ecs::world::components;
-    use nightshade::ecs::world::{
-        GLOBAL_TRANSFORM, LIGHT, LOCAL_TRANSFORM, LOCAL_TRANSFORM_DIRTY, NAME,
-    };
-
     let entity = world.spawn_entities(
         NAME | LOCAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY | GLOBAL_TRANSFORM | LIGHT,
         1,
@@ -32,10 +22,10 @@ pub fn spawn_sun_overhead(world: &mut World) -> Entity {
 
     world
         .core
-        .set_name(entity, components::Name("Sun".to_string()));
+        .set_name(entity, Name("Sun".to_string()));
     world.core.set_local_transform(
         entity,
-        components::LocalTransform {
+        LocalTransform {
             translation: nalgebra_glm::Vec3::new(5.0, 10.0, 5.0),
             rotation: nalgebra_glm::quat_angle_axis(
                 std::f32::consts::FRAC_PI_4,
@@ -49,10 +39,10 @@ pub fn spawn_sun_overhead(world: &mut World) -> Entity {
     );
     world
         .core
-        .set_local_transform_dirty(entity, components::LocalTransformDirty);
+        .set_local_transform_dirty(entity, LocalTransformDirty);
     world
         .core
-        .set_global_transform(entity, components::GlobalTransform::default());
+        .set_global_transform(entity, GlobalTransform::default());
     world.core.set_light(
         entity,
         Light {
@@ -161,7 +151,7 @@ pub(super) fn spawn_visual_cube(
         .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-        *bv = nightshade::ecs::world::components::BoundingVolume::from_mesh_type("Cube");
+        *bv = BoundingVolume::from_mesh_type("Cube");
     }
 }
 

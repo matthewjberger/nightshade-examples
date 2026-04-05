@@ -1,7 +1,7 @@
 use crate::constants::{
     CROUCHING_CAMERA_HEIGHT, LEAN_AMOUNT, LEAN_ANGLE, LEAN_SPEED, STANDING_CAMERA_HEIGHT,
 };
-use crate::ecs::{GameWorld, InputMode};
+use crate::ecs::{GameWorld, InputMode, PlayerEvent, PlayerState};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
 
@@ -82,10 +82,10 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
     };
 
     let yaw = nalgebra_glm::quat_angle_axis(-delta.x, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
-    game_world.resources.lean_state.base_rotation = yaw * game_world.resources.lean_state.base_rotation;
+    game_world.resources.lean.base_rotation = yaw * game_world.resources.lean.base_rotation;
 
     let forward = nalgebra_glm::quat_rotate_vec3(
-        &game_world.resources.lean_state.base_rotation,
+        &game_world.resources.lean.base_rotation,
         &nalgebra_glm::vec3(0.0, 0.0, -1.0),
     );
     let current_pitch = forward.y.asin();
@@ -93,7 +93,7 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
 
     if new_pitch.abs() <= 85_f32.to_radians() {
         let pitch = nalgebra_glm::quat_angle_axis(-delta.y, &nalgebra_glm::vec3(1.0, 0.0, 0.0));
-        game_world.resources.lean_state.base_rotation *= pitch;
+        game_world.resources.lean.base_rotation *= pitch;
     }
 
     nightshade::ecs::transform::commands::mark_local_transform_dirty(world, camera_entity);
@@ -104,58 +104,76 @@ pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     };
 
-    let (lean_left_key, lean_right_key) = if game_world.resources.input_mode == InputMode::MouseKeyboard {
-        let keyboard = &world.resources.input.keyboard;
-        (
-            keyboard.is_key_pressed(KeyCode::KeyQ),
-            keyboard.is_key_pressed(KeyCode::KeyE),
-        )
-    } else {
-        (false, false)
-    };
-
-    let (gamepad_lean_left, gamepad_lean_right) = if game_world.resources.input_mode == InputMode::Gamepad {
-        if let Some(gamepad) = query_active_gamepad(world) {
+    let (lean_left_key, lean_right_key) =
+        if game_world.resources.input_mode == InputMode::MouseKeyboard {
+            let keyboard = &world.resources.input.keyboard;
             (
-                gamepad.is_pressed(gilrs::Button::LeftTrigger),
-                gamepad.is_pressed(gilrs::Button::RightTrigger),
+                keyboard.is_key_pressed(KeyCode::KeyQ),
+                keyboard.is_key_pressed(KeyCode::KeyE),
             )
         } else {
             (false, false)
-        }
-    } else {
-        (false, false)
-    };
+        };
+
+    let (gamepad_lean_left, gamepad_lean_right) =
+        if game_world.resources.input_mode == InputMode::Gamepad {
+            if let Some(gamepad) = query_active_gamepad(world) {
+                (
+                    gamepad.is_pressed(gilrs::Button::LeftTrigger),
+                    gamepad.is_pressed(gilrs::Button::RightTrigger),
+                )
+            } else {
+                (false, false)
+            }
+        } else {
+            (false, false)
+        };
 
     let lean_left = lean_left_key || gamepad_lean_left;
     let lean_right = lean_right_key || gamepad_lean_right;
 
-    game_world.resources.lean_state.target_lean = if lean_left && !lean_right {
-        -1.0
+    let player_state = game_world.resources.player_state;
+
+    if lean_left && !lean_right {
+        if let Some(new_state) = player_state.process_event(PlayerEvent::LeanLeft) {
+            game_world.resources.player_state = new_state;
+        }
     } else if lean_right && !lean_left {
-        1.0
-    } else {
-        0.0
+        if let Some(new_state) = player_state.process_event(PlayerEvent::LeanRight) {
+            game_world.resources.player_state = new_state;
+        }
+    } else if matches!(
+        player_state,
+        PlayerState::LeaningLeft | PlayerState::LeaningRight
+    ) && let Some(new_state) = player_state.process_event(PlayerEvent::Release)
+    {
+        game_world.resources.player_state = new_state;
+    }
+
+    let target_lean = match game_world.resources.player_state {
+        PlayerState::LeaningLeft => -1.0,
+        PlayerState::LeaningRight => 1.0,
+        _ => 0.0,
     };
 
     let dt = world.resources.window.timing.delta_time;
-    let lean_diff = game_world.resources.lean_state.target_lean - game_world.resources.lean_state.current_lean;
-    game_world.resources.lean_state.current_lean += lean_diff * (LEAN_SPEED * dt).min(1.0);
+    let lean_diff = target_lean - game_world.resources.lean.current_lean;
+    game_world.resources.lean.current_lean += lean_diff * (LEAN_SPEED * dt).min(1.0);
 
     let right_vector = nalgebra_glm::quat_rotate_vec3(
-        &game_world.resources.lean_state.base_rotation,
+        &game_world.resources.lean.base_rotation,
         &nalgebra_glm::vec3(1.0, 0.0, 0.0),
     );
     let horizontal_right =
         nalgebra_glm::normalize(&nalgebra_glm::vec3(right_vector.x, 0.0, right_vector.z));
 
-    let lean_offset = horizontal_right * (game_world.resources.lean_state.current_lean * LEAN_AMOUNT);
+    let lean_offset = horizontal_right * (game_world.resources.lean.current_lean * LEAN_AMOUNT);
 
-    let lean_roll = -game_world.resources.lean_state.current_lean * LEAN_ANGLE;
+    let lean_roll = -game_world.resources.lean.current_lean * LEAN_ANGLE;
     let roll_quat =
         nalgebra_glm::quat_angle_axis(lean_roll, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
 
-    let final_rotation = game_world.resources.lean_state.base_rotation * roll_quat;
+    let final_rotation = game_world.resources.lean.base_rotation * roll_quat;
 
     let Some(camera_transform) = world.core.get_local_transform_mut(camera_entity) else {
         return;

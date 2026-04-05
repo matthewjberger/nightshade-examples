@@ -3,10 +3,18 @@ use nightshade::prelude::freecs;
 use nightshade::prelude::nalgebra_glm;
 
 stateless::statemachine! {
-    name: Movement,
+    name: Player,
     transitions: {
         *Grounded + Jump = Airborne,
         Grounded + Dash = GroundDash,
+        Grounded + LeanLeft = LeaningLeft,
+        Grounded + LeanRight = LeaningRight,
+        LeaningLeft + Release = Grounded,
+        LeaningRight + Release = Grounded,
+        LeaningLeft + Jump = Airborne,
+        LeaningRight + Jump = Airborne,
+        LeaningLeft + Dash = GroundDash,
+        LeaningRight + Dash = GroundDash,
         GroundDash + Land = Grounded,
         GroundDash + BecomeAirborne = Airborne,
         Airborne + DoubleJump = DoubleJumped,
@@ -37,7 +45,6 @@ pub struct InteractionState {
 
 pub struct LeanState {
     pub current_lean: f32,
-    pub target_lean: f32,
     pub base_rotation: nalgebra_glm::Quat,
 }
 
@@ -45,7 +52,6 @@ impl Default for LeanState {
     fn default() -> Self {
         Self {
             current_lean: 0.0,
-            target_lean: 0.0,
             base_rotation: nalgebra_glm::quat_identity(),
         }
     }

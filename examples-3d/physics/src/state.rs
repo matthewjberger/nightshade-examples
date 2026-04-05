@@ -41,12 +41,12 @@ impl State for PhysicsGame {
         world.resources.graphics.day_night.hour = 8.0;
         world.resources.graphics.day_night.speed = 0.15;
         world.resources.graphics.day_night.auto_cycle = true;
-        nightshade::ecs::world::commands::capture_procedural_atmosphere_ibl(
+        capture_procedural_atmosphere_ibl(
             world,
             Atmosphere::DayNight,
             8.0,
         );
-        nightshade::ecs::world::commands::capture_ibl_snapshots(
+        capture_ibl_snapshots(
             world,
             Atmosphere::DayNight,
             vec![0.0, 6.0, 8.0, 12.0, 17.0, 18.5, 20.0],

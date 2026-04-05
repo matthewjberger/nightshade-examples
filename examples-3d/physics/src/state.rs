@@ -3,6 +3,7 @@ use crate::ecs::GameWorld;
 use crate::systems::{
     camera::{camera_look_system, crouch_camera_system, lean_system},
     dash::{build_dash_hud, dash_system},
+    daynight::update_day_night_cycle,
     exhibits::{
         spawn_environment, spawn_exhibits, spawn_sun_overhead, setup_velocity_friction_joints,
         update_coulomb_friction_joints, update_joint_visuals, update_prismatic_sliders,
@@ -34,9 +35,23 @@ impl State for PhysicsGame {
 
     fn initialize(&mut self, world: &mut World) {
         world.resources.user_interface.enabled = false;
-        world.resources.graphics.atmosphere = Atmosphere::Sky;
+        world.resources.graphics.atmosphere = Atmosphere::DayNight;
         world.resources.graphics.show_grid = false;
         world.resources.graphics.use_fullscreen = true;
+
+        self.game_world.resources.current_hour = 8.0;
+        self.game_world.resources.time_speed = 0.15;
+        world.resources.graphics.day_night_hour = 8.0;
+        nightshade::ecs::world::commands::capture_procedural_atmosphere_ibl(
+            world,
+            Atmosphere::DayNight,
+            8.0,
+        );
+        nightshade::ecs::world::commands::capture_ibl_snapshots(
+            world,
+            Atmosphere::DayNight,
+            vec![0.0, 6.0, 8.0, 12.0, 17.0, 18.5, 20.0],
+        );
 
         self.game_world.resources.show_physics_debug = false;
         self.game_world.resources.dash_charges = MAX_DASH_CHARGES;
@@ -48,7 +63,8 @@ impl State for PhysicsGame {
             self.game_world.resources.input_mode = crate::ecs::InputMode::Xr;
         }
 
-        spawn_sun_overhead(world);
+        let sun = spawn_sun_overhead(world);
+        self.game_world.resources.sun_entity = Some(sun);
 
         let player_position = nalgebra_glm::vec3(0.0, 1.2, 8.0);
         let (player_entity, camera_entity) = spawn_first_person_player(world, player_position);
@@ -134,6 +150,7 @@ impl State for PhysicsGame {
             world.resources.window.should_exit = true;
         }
         debug_toggle_system(&mut self.game_world, world);
+        update_day_night_cycle(&mut self.game_world, world);
         #[cfg(not(feature = "openxr"))]
         detect_input_mode(&mut self.game_world, world);
         check_fall_reset(&self.game_world, world);

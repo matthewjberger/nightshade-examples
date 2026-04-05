@@ -138,12 +138,10 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     #[cfg(feature = "openxr")]
     let (shoot_origin, shoot_direction) = {
         if let Some(xr_input) = &world.resources.xr.input {
-            if let (Some(pos), Some(rot)) = (
+            if let (Some(pos), Some(forward)) = (
                 xr_input.right_hand_position(),
-                xr_input.right_hand_rotation(),
+                xr_input.right_hand_aim_direction(),
             ) {
-                let forward =
-                    nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
                 let muzzle_offset = forward * 0.18;
                 (pos + muzzle_offset, forward)
             } else {
@@ -218,14 +216,10 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         #[cfg(feature = "openxr")]
         let (grab_origin, grab_forward) = {
             if let Some(xr_input) = &world.resources.xr.input {
-                if let (Some(pos), Some(rot)) = (
+                if let (Some(pos), Some(fwd)) = (
                     xr_input.left_hand_position(),
-                    xr_input.left_hand_rotation(),
+                    xr_input.left_hand_aim_direction(),
                 ) {
-                    let fwd = nalgebra_glm::quat_rotate_vec3(
-                        &rot,
-                        &nalgebra_glm::vec3(0.0, 0.0, 1.0),
-                    );
                     (pos, fwd)
                 } else {
                     (camera_position, camera_forward)
@@ -286,12 +280,10 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     #[cfg(feature = "openxr")]
     let pick_results = {
         if let Some(xr_input) = &world.resources.xr.input {
-            if let (Some(origin), Some(rot)) = (
+            if let (Some(origin), Some(direction)) = (
                 xr_input.left_hand_position(),
-                xr_input.left_hand_rotation(),
+                xr_input.left_hand_aim_direction(),
             ) {
-                let direction =
-                    nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
                 pick_entities_from_ray(world, origin, direction, options)
             } else {
                 Vec::new()

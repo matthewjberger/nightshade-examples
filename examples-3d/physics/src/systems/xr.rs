@@ -219,18 +219,16 @@ pub fn xr_hand_tracking_system(game_world: &mut GameWorld, world: &mut World) {
     }
 
     if let Some(gun_root) = game_world.resources.gun_root_entity
-        && let (Some(hand_pos), Some(hand_rot)) = (
-            xr_input.right_hand_position(),
-            xr_input.right_hand_rotation(),
-        )
+        && let Some(hand_pos) = xr_input.right_hand_position()
+        && let Some(aim_rot) = xr_input.right_hand_aim_rotation()
     {
         let aim = nalgebra_glm::quat_rotate_vec3(
-            &hand_rot,
+            &aim_rot,
             &nalgebra_glm::vec3(0.0, 0.0, 1.0),
         );
         let up = nalgebra_glm::quat_rotate_vec3(
-            &hand_rot,
-            &nalgebra_glm::vec3(0.0, -1.0, 0.0),
+            &aim_rot,
+            &nalgebra_glm::vec3(0.0, 1.0, 0.0),
         );
         let right = nalgebra_glm::cross(&aim, &up);
 

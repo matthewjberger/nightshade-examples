@@ -103,9 +103,9 @@ impl Default for GameConfig {
             slide_min_speed: 5.0,
             #[cfg(not(feature = "openxr"))]
             slide_camera_tilt: 0.05,
-            dash_impulse: 45.0,
-            dash_air_impulse: 40.0,
-            double_jump_impulse: 6.0,
+            dash_impulse: 25.0,
+            dash_air_impulse: 18.0,
+            double_jump_impulse: 5.5,
             max_dash_charges: 2,
             dash_cooldown: 1.5,
         }

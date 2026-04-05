@@ -369,6 +369,14 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         }
     }
 
+    let needs_external = !matches!(
+        game_world.resources.player_state,
+        PlayerState::Grounded | PlayerState::LeaningLeft | PlayerState::LeaningRight
+    );
+    if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
+        controller.external_movement = needs_external;
+    }
+
     update_dash_hud(game_world, world);
 }
 

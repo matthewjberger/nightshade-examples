@@ -77,6 +77,17 @@ pub fn spawn_bauble_gun(
     if let Some(parent) = world.core.get_parent_mut(root) {
         *parent = Parent(Some(hand_entity));
     }
+    if let Some(transform) = world.core.get_local_transform_mut(root) {
+        let rot_x = nalgebra_glm::quat_angle_axis(
+            std::f32::consts::FRAC_PI_2,
+            &nalgebra_glm::vec3(1.0, 0.0, 0.0),
+        );
+        let rot_z = nalgebra_glm::quat_angle_axis(
+            std::f32::consts::PI,
+            &nalgebra_glm::vec3(0.0, 0.0, 1.0),
+        );
+        transform.rotation = rot_z * rot_x;
+    }
 
     let gun_body_material =
         create_textured_material(nalgebra_glm::vec3(0.15, 0.15, 0.18), 0.6, 0.8);
@@ -177,6 +188,7 @@ pub fn spawn_bauble_gun(
             .core
             .set_material_ref(entity, MaterialRef::new(material_name));
 
+        world.resources.mesh_render_state.mark_entity_added(entity);
         game_world.resources.bauble_gun_entities.push(entity);
     }
 

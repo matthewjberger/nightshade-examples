@@ -72,57 +72,36 @@ pub fn spawn_environment(world: &mut World) {
 
     spawn_static_physics_cube_with_material(
         world,
-        nalgebra_glm::vec3(0.0, -0.25, 0.0),
-        nalgebra_glm::vec3(30.0, 0.5, 30.0),
-        floor_material.clone(),
-    );
-
-    spawn_static_physics_cube_with_material(
-        world,
-        nalgebra_glm::vec3(0.0, 2.0, -15.0),
-        nalgebra_glm::vec3(30.0, 4.0, 0.5),
-        wall_material.clone(),
-    );
-
-    spawn_static_physics_cube_with_material(
-        world,
-        nalgebra_glm::vec3(-15.0, 2.0, 0.0),
-        nalgebra_glm::vec3(0.5, 4.0, 30.0),
-        wall_material.clone(),
-    );
-
-    spawn_static_physics_cube_with_material(
-        world,
-        nalgebra_glm::vec3(15.0, 2.0, 0.0),
-        nalgebra_glm::vec3(0.5, 4.0, 30.0),
-        wall_material.clone(),
-    );
-
-    spawn_static_physics_cube_with_material(
-        world,
-        nalgebra_glm::vec3(0.0, -0.25, 22.0),
-        nalgebra_glm::vec3(60.0, 0.5, 30.0),
+        nalgebra_glm::vec3(0.0, -0.25, 11.0),
+        nalgebra_glm::vec3(60.0, 0.5, 52.0),
         floor_material,
     );
 
     spawn_static_physics_cube_with_material(
         world,
-        nalgebra_glm::vec3(0.0, 2.0, 37.0),
-        nalgebra_glm::vec3(60.0, 4.0, 0.5),
+        nalgebra_glm::vec3(0.0, 5.0, -15.0),
+        nalgebra_glm::vec3(60.0, 10.0, 0.5),
         wall_material.clone(),
     );
 
     spawn_static_physics_cube_with_material(
         world,
-        nalgebra_glm::vec3(-30.0, 2.0, 22.0),
-        nalgebra_glm::vec3(0.5, 4.0, 30.0),
+        nalgebra_glm::vec3(0.0, 5.0, 37.0),
+        nalgebra_glm::vec3(60.0, 10.0, 0.5),
         wall_material.clone(),
     );
 
     spawn_static_physics_cube_with_material(
         world,
-        nalgebra_glm::vec3(30.0, 2.0, 22.0),
-        nalgebra_glm::vec3(0.5, 4.0, 30.0),
+        nalgebra_glm::vec3(-30.0, 5.0, 11.0),
+        nalgebra_glm::vec3(0.5, 10.0, 52.0),
+        wall_material.clone(),
+    );
+
+    spawn_static_physics_cube_with_material(
+        world,
+        nalgebra_glm::vec3(30.0, 5.0, 11.0),
+        nalgebra_glm::vec3(0.5, 10.0, 52.0),
         wall_material,
     );
 

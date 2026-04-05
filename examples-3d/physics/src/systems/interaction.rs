@@ -160,7 +160,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
             };
             if let (Some(pos), Some(rot)) = (hand_pos, hand_rot) {
                 let forward =
-                    nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
+                    nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
                 let muzzle_offset = forward * 0.18;
                 (pos + muzzle_offset, forward)
             } else {
@@ -293,7 +293,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
             };
             if let (Some(origin), Some(rot)) = (hand_pos, hand_rot) {
                 let direction =
-                    nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
+                    nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
                 pick_entities_from_ray(world, origin, direction, options)
             } else {
                 Vec::new()

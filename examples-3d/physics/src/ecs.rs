@@ -143,18 +143,6 @@ pub struct VelocityFrictionJoint {
     pub initialized: bool,
 }
 
-pub struct RoomConfig {
-    pub center: Vec3,
-    pub width: f32,
-    pub depth: f32,
-    pub height: f32,
-    pub wall_thickness: f32,
-    pub doorway_width: f32,
-    pub doorway_height: f32,
-    pub wall_material: nightshade::ecs::material::components::Material,
-    pub ceiling_material: nightshade::ecs::material::components::Material,
-}
-
 #[derive(Default)]
 pub struct InteractionState {
     pub grabbed_entity: Option<Entity>,

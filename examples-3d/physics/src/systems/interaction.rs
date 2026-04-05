@@ -1405,15 +1405,15 @@ pub fn note_reading_system(game_world: &mut GameWorld, world: &mut World) {
     let keyboard = &world.resources.input.keyboard;
     let f_pressed = keyboard.is_key_pressed(KeyCode::KeyF);
 
-    let gamepad_rt_pressed = if let Some(gamepad) = query_active_gamepad(world) {
-        let rt_axis = gamepad.value(gilrs::Axis::RightZ);
-        let rt_button = gamepad.is_pressed(gilrs::Button::RightTrigger2);
-        rt_axis > 0.5 || rt_button
+    let gamepad_lt_pressed = if let Some(gamepad) = query_active_gamepad(world) {
+        let lt_axis = gamepad.value(gilrs::Axis::LeftZ);
+        let lt_button = gamepad.is_pressed(gilrs::Button::LeftTrigger2);
+        lt_axis > 0.5 || lt_button
     } else {
         false
     };
 
-    let interact_pressed = f_pressed || gamepad_rt_pressed;
+    let interact_pressed = f_pressed || gamepad_lt_pressed;
 
     if !game_world.resources.note_close_key_released && !interact_pressed {
         game_world.resources.note_close_key_released = true;

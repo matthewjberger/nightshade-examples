@@ -127,8 +127,12 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
             controller.velocity.x = game_world.resources.dash_direction.x * speed;
             controller.velocity.z = game_world.resources.dash_direction.z * speed;
-            if game_world.resources.movement_state == MovementState::AirDash && elapsed < 0.08 {
-                controller.velocity.y = controller.velocity.y.max(0.0);
+            if game_world.resources.movement_state == MovementState::AirDash {
+                if elapsed < 0.05 {
+                    controller.velocity.y = 2.0;
+                } else {
+                    controller.velocity.y = controller.velocity.y.max(-1.0);
+                }
             }
         }
 

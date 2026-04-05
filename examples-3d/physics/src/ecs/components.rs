@@ -159,6 +159,7 @@ pub struct Target {
     pub pop_time_ms: u64,
     pub respawn_delay_ms: u64,
     pub pulse_phase: f32,
+    pub pop_emitter_entity: Option<Entity>,
 }
 
 #[derive(Default, Clone, Debug)]

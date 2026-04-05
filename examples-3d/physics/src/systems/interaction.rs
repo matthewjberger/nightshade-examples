@@ -75,24 +75,36 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         };
 
     #[cfg(feature = "openxr")]
-    let (xr_grip_held, xr_rt_held, xr_lt_held, xr_thumbstick_y) = {
+    let (xr_interact_grip_held, xr_shoot_trigger_held, xr_throw_trigger_held, xr_thumbstick_y) = {
         if let Some(xr_input) = &world.resources.xr.input {
-            let grip_held = xr_input.right_grip_pressed();
-            let rt_held = xr_input.right_trigger_pressed();
-            let lt_held = xr_input.left_trigger_pressed();
-            let thumbstick_y = xr_input.right_thumbstick.y;
-            (grip_held, rt_held, lt_held, thumbstick_y)
+            let (interact_grip, shoot_trigger, throw_trigger, thumbstick) =
+                match game_world.resources.gun_hand {
+                    crate::ecs::GunHand::Right => (
+                        xr_input.left_grip_pressed(),
+                        xr_input.right_trigger_pressed(),
+                        xr_input.left_trigger_pressed(),
+                        xr_input.right_thumbstick.y,
+                    ),
+                    crate::ecs::GunHand::Left => (
+                        xr_input.right_grip_pressed(),
+                        xr_input.left_trigger_pressed(),
+                        xr_input.right_trigger_pressed(),
+                        xr_input.right_thumbstick.y,
+                    ),
+                };
+            (interact_grip, shoot_trigger, throw_trigger, thumbstick)
         } else {
             (false, false, false, 0.0)
         }
     };
 
     #[cfg(not(feature = "openxr"))]
-    let (xr_grip_held, xr_rt_held, xr_lt_held, xr_thumbstick_y) = (false, false, false, 0.0_f32);
-    let _ = xr_lt_held;
+    let (xr_interact_grip_held, xr_shoot_trigger_held, xr_throw_trigger_held, xr_thumbstick_y) =
+        (false, false, false, 0.0_f32);
+    let _ = xr_throw_trigger_held;
 
-    let interact_held = right_clicked || gamepad_lt_held || xr_grip_held;
-    let throw_pressed = left_clicked || gamepad_rt_held || xr_lt_held;
+    let interact_held = right_clicked || gamepad_lt_held || xr_interact_grip_held;
+    let throw_pressed = left_clicked || gamepad_rt_held || xr_throw_trigger_held;
 
     let keyboard_shoot_pressed =
         if game_world.resources.input_mode == InputMode::MouseKeyboard {
@@ -100,7 +112,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         } else {
             false
         };
-    let shoot_pressed = keyboard_shoot_pressed || gamepad_rt_held || xr_rt_held;
+    let shoot_pressed = keyboard_shoot_pressed || gamepad_rt_held || xr_shoot_trigger_held;
 
     let delta_time = world.resources.window.timing.delta_time;
     #[cfg(feature = "openxr")]
@@ -136,15 +148,21 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     #[cfg(feature = "openxr")]
     let (shoot_origin, shoot_direction) = {
         if let Some(xr_input) = &world.resources.xr.input {
-            if let (Some(hand_pos), Some(hand_rot)) = (
-                xr_input.right_hand_position(),
-                xr_input.right_hand_rotation(),
-            ) {
-                let forward = nalgebra_glm::quat_rotate_vec3(
-                    &hand_rot,
-                    &nalgebra_glm::vec3(0.0, 1.0, 0.0),
-                );
-                (hand_pos, forward)
+            let (hand_pos, hand_rot) = match game_world.resources.gun_hand {
+                crate::ecs::GunHand::Left => (
+                    xr_input.left_hand_position(),
+                    xr_input.left_hand_rotation(),
+                ),
+                crate::ecs::GunHand::Right => (
+                    xr_input.right_hand_position(),
+                    xr_input.right_hand_rotation(),
+                ),
+            };
+            if let (Some(pos), Some(rot)) = (hand_pos, hand_rot) {
+                let forward =
+                    nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
+                let muzzle_offset = forward * 0.18;
+                (pos + muzzle_offset, forward)
             } else {
                 (camera_position, camera_forward)
             }
@@ -254,24 +272,51 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     }
 
-    let viewport_size = world
-        .resources
-        .window
-        .cached_viewport_size
-        .unwrap_or((800, 600));
-    let screen_pos =
-        nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
-
     let config = &game_world.resources.config;
     let options = PickingOptions {
         max_distance: config.grab_range,
         ignore_invisible: true,
     };
 
-    let pick_results = if game_world.resources.input_mode == InputMode::Gamepad {
-        pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
-    } else {
-        pick_entities(world, screen_pos, options)
+    #[cfg(feature = "openxr")]
+    let pick_results = {
+        if let Some(xr_input) = &world.resources.xr.input {
+            let (hand_pos, hand_rot) = match game_world.resources.gun_hand {
+                crate::ecs::GunHand::Right => (
+                    xr_input.left_hand_position(),
+                    xr_input.left_hand_rotation(),
+                ),
+                crate::ecs::GunHand::Left => (
+                    xr_input.right_hand_position(),
+                    xr_input.right_hand_rotation(),
+                ),
+            };
+            if let (Some(origin), Some(rot)) = (hand_pos, hand_rot) {
+                let direction =
+                    nalgebra_glm::quat_rotate_vec3(&rot, &nalgebra_glm::vec3(0.0, 1.0, 0.0));
+                pick_entities_from_ray(world, origin, direction, options)
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        }
+    };
+
+    #[cfg(not(feature = "openxr"))]
+    let pick_results = {
+        let viewport_size = world
+            .resources
+            .window
+            .cached_viewport_size
+            .unwrap_or((800, 600));
+        let screen_pos =
+            nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
+        if game_world.resources.input_mode == InputMode::Gamepad {
+            pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
+        } else {
+            pick_entities(world, screen_pos, options)
+        }
     };
 
     try_start_interaction(game_world, &pick_results);
@@ -824,6 +869,67 @@ pub fn pick_entities_cone(
 
     all_results.sort_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
     all_results
+}
+
+#[cfg(feature = "openxr")]
+fn pick_entities_from_ray(
+    world: &World,
+    origin: Vec3,
+    direction: Vec3,
+    options: PickingOptions,
+) -> Vec<PickingResult> {
+    use nightshade::ecs::picking::PickingResult;
+
+    let mut results = Vec::new();
+
+    for entity in world
+        .core
+        .query_entities(nightshade::ecs::world::BOUNDING_VOLUME)
+    {
+        let Some(bounding_volume) = world.core.get_bounding_volume(entity) else {
+            continue;
+        };
+        let Some(global_transform) = world.core.get_global_transform(entity) else {
+            continue;
+        };
+
+        if options.ignore_invisible
+            && let Some(visible) = world.core.get_visibility(entity)
+            && !visible.visible
+        {
+            continue;
+        }
+
+        let transformed_bv = bounding_volume.transform(&global_transform.0);
+
+        let to_center = transformed_bv.obb.center - origin;
+        let projection = nalgebra_glm::dot(&to_center, &direction);
+        let closest_point = if projection < 0.0 {
+            origin
+        } else {
+            origin + direction * projection
+        };
+
+        let distance_to_sphere =
+            nalgebra_glm::distance(&closest_point, &transformed_bv.obb.center);
+        if distance_to_sphere > transformed_bv.sphere_radius {
+            continue;
+        }
+
+        if let Some(distance) = transformed_bv.obb.intersect_ray(origin, direction)
+            && distance <= options.max_distance
+        {
+            let world_position = origin + direction * distance;
+            results.push(PickingResult {
+                entity,
+                distance,
+                world_position,
+            });
+        }
+    }
+
+    results.sort_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
+    results
 }
 
 pub fn note_reading_system(game_world: &mut GameWorld, world: &mut World) {

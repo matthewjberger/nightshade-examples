@@ -35,6 +35,7 @@ pub fn spawn_targets(game_world: &mut GameWorld, world: &mut World) {
                 pop_time_ms: 0,
                 respawn_delay_ms: 3000,
                 pulse_phase: position.x * 2.0 + position.z,
+                pop_emitter_entity: None,
             },
         );
     }
@@ -260,9 +261,18 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
                 let bar_entity = target.health.bar_entity;
                 let max_health = target.health.max;
 
+                let emitter_to_despawn = game_world
+                    .get_target(game_entity)
+                    .and_then(|target| target.pop_emitter_entity);
+
                 if let Some(target) = game_world.get_target_mut(game_entity) {
                     target.popped = false;
                     target.health.current = max_health;
+                    target.pop_emitter_entity = None;
+                }
+
+                if let Some(emitter) = emitter_to_despawn {
+                    despawn_entities_with_cache_cleanup(world, &[emitter]);
                 }
 
                 world
@@ -352,7 +362,10 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
                     .set_visibility(target.health.fill_entity, Visibility { visible: false });
             }
 
-            spawn_pop_effect(world, target_position, color);
+            let emitter = spawn_pop_effect(world, target_position, color);
+            if let Some(target) = game_world.get_target_mut(game_entity) {
+                target.pop_emitter_entity = Some(emitter);
+            }
         } else if hit_count > 0
             && let Some(target) = game_world.get_target(game_entity)
         {
@@ -367,17 +380,32 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
                 target_position.y + base_scale + 0.15,
                 target_position.z,
             );
+
+            let camera_position = game_world
+                .resources
+                .camera_entity
+                .and_then(|camera| world.core.get_global_transform(camera))
+                .map(|transform| transform.translation())
+                .unwrap_or(Vec3::zeros());
+
+            let to_camera = camera_position - bar_position;
+            let yaw = to_camera.x.atan2(to_camera.z);
+
             if let Some(transform) =
                 world.core.get_local_transform_mut(target.health.bar_entity)
             {
                 transform.translation = bar_position;
+                transform.rotation = nalgebra_glm::quat_angle_axis(
+                    yaw,
+                    &nalgebra_glm::vec3(0.0, 1.0, 0.0),
+                );
             }
             mark_local_transform_dirty(world, target.health.bar_entity);
         }
     }
 }
 
-fn spawn_pop_effect(world: &mut World, position: Vec3, color: Vec3) {
+fn spawn_pop_effect(world: &mut World, position: Vec3, color: Vec3) -> Entity {
     let entity = world.spawn_entities(
         PARTICLE_EMITTER | LOCAL_TRANSFORM | GLOBAL_TRANSFORM | LOCAL_TRANSFORM_DIRTY,
         1,
@@ -411,4 +439,6 @@ fn spawn_pop_effect(world: &mut World, position: Vec3, color: Vec3) {
     };
 
     world.core.set_particle_emitter(entity, emitter);
+
+    entity
 }

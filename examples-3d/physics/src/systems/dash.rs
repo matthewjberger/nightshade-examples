@@ -25,36 +25,12 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     );
 
     if grounded && !was_grounded_state {
-        let horizontal_speed = world
-            .core
-            .get_character_controller(player_entity)
-            .map(|controller| {
-                nalgebra_glm::length(&nalgebra_glm::vec3(
-                    controller.velocity.x,
-                    0.0,
-                    controller.velocity.z,
-                ))
-            })
-            .unwrap_or(0.0);
-
-        let landed_fast = horizontal_speed > game_world.resources.config.slide_min_speed;
-        let land_event = if landed_fast {
-            PlayerEvent::SlideLand
-        } else {
-            PlayerEvent::Land
-        };
-
         if let Some(new_state) = game_world
             .resources
             .player_state
-            .process_event(land_event)
+            .process_event(PlayerEvent::Land)
         {
             game_world.resources.player_state = new_state;
-            if new_state == PlayerState::Sliding
-                && let Some(controller) = world.core.get_character_controller_mut(player_entity)
-            {
-                controller.is_crouching = true;
-            }
         }
     } else if !grounded
         && matches!(
@@ -99,52 +75,53 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     game_world.resources.dash_button_was_pressed = gamepad_dash_pressed;
 
     let keyboard = &world.resources.input.keyboard;
-    let current_time_ms = world.resources.window.timing.uptime_milliseconds;
-    let double_tap_window_ms = 250;
 
-    let movement_keys = [
-        (KeyCode::KeyW, nalgebra_glm::vec3(0.0, 0.0, -1.0)),
-        (KeyCode::KeyS, nalgebra_glm::vec3(0.0, 0.0, 1.0)),
-        (KeyCode::KeyA, nalgebra_glm::vec3(-1.0, 0.0, 0.0)),
-        (KeyCode::KeyD, nalgebra_glm::vec3(1.0, 0.0, 0.0)),
-    ];
+    let keyboard_dash_direction = if keyboard.is_key_pressed(KeyCode::KeyV) {
+        let camera_rotation = world
+            .core
+            .get_local_transform(camera_entity)
+            .map(|transform| transform.rotation)
+            .unwrap_or(nalgebra_glm::quat_identity());
 
-    let mut keyboard_dash_direction = None;
-    let any_movement_pressed = movement_keys
-        .iter()
-        .any(|(key, _)| keyboard.is_key_pressed(*key));
-
-    if !any_movement_pressed {
-        game_world.resources.key_was_released = true;
-    }
-
-    for &(key, ref local_direction) in &movement_keys {
-        if keyboard.is_key_pressed(key) && game_world.resources.key_was_released {
-            if game_world.resources.last_tap_key == Some(key)
-                && current_time_ms.saturating_sub(game_world.resources.last_tap_time_ms)
-                    < double_tap_window_ms
-            {
-                let camera_rotation = world
-                    .core
-                    .get_local_transform(camera_entity)
-                    .map(|transform| transform.rotation)
-                    .unwrap_or(nalgebra_glm::quat_identity());
-                let world_direction =
-                    nalgebra_glm::quat_rotate_vec3(&camera_rotation, local_direction);
-                keyboard_dash_direction = Some(nalgebra_glm::normalize(&nalgebra_glm::vec3(
-                    world_direction.x,
-                    0.0,
-                    world_direction.z,
-                )));
-                game_world.resources.last_tap_key = None;
-            } else {
-                game_world.resources.last_tap_key = Some(key);
-                game_world.resources.last_tap_time_ms = current_time_ms;
-            }
-            game_world.resources.key_was_released = false;
-            break;
+        let mut direction = nalgebra_glm::vec3(0.0, 0.0, 0.0);
+        if keyboard.is_key_pressed(KeyCode::KeyW) {
+            direction += nalgebra_glm::vec3(0.0, 0.0, -1.0);
         }
-    }
+        if keyboard.is_key_pressed(KeyCode::KeyS) {
+            direction += nalgebra_glm::vec3(0.0, 0.0, 1.0);
+        }
+        if keyboard.is_key_pressed(KeyCode::KeyA) {
+            direction += nalgebra_glm::vec3(-1.0, 0.0, 0.0);
+        }
+        if keyboard.is_key_pressed(KeyCode::KeyD) {
+            direction += nalgebra_glm::vec3(1.0, 0.0, 0.0);
+        }
+
+        if nalgebra_glm::length(&direction) > 0.01 {
+            let world_direction =
+                nalgebra_glm::quat_rotate_vec3(&camera_rotation, &nalgebra_glm::normalize(&direction));
+            Some(nalgebra_glm::normalize(&nalgebra_glm::vec3(
+                world_direction.x,
+                0.0,
+                world_direction.z,
+            )))
+        } else {
+            let forward = nalgebra_glm::quat_rotate_vec3(
+                &camera_rotation,
+                &nalgebra_glm::vec3(0.0, 0.0, -1.0),
+            );
+            Some(nalgebra_glm::normalize(&nalgebra_glm::vec3(
+                forward.x, 0.0, forward.z,
+            )))
+        }
+    } else {
+        None
+    };
+
+    let keyboard_v_pressed = keyboard_dash_direction.is_some();
+    let keyboard_dash_just_pressed =
+        keyboard_v_pressed && !game_world.resources.keyboard_dash_was_pressed;
+    game_world.resources.keyboard_dash_was_pressed = keyboard_v_pressed;
 
     let jump_pressed = world
         .resources
@@ -158,6 +135,11 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
 
     if jump_just_pressed {
         let player_state = game_world.resources.player_state;
+
+        let is_grounded_action = matches!(
+            player_state,
+            PlayerState::Sliding | PlayerState::GroundDash
+        );
         let is_airborne = matches!(
             player_state,
             PlayerState::Airborne
@@ -166,7 +148,16 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
                 | PlayerState::Falling
         );
 
-        if is_airborne {
+        if is_grounded_action {
+            if let Some(new_state) = player_state.process_event(PlayerEvent::Jump) {
+                game_world.resources.player_state = new_state;
+                if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
+                    controller.velocity.y = controller.jump_impulse;
+                    controller.can_jump = false;
+                    controller.is_crouching = false;
+                }
+            }
+        } else if is_airborne {
             let jumped =
                 if let Some(new_state) = player_state.process_event(PlayerEvent::DoubleJump) {
                     game_world.resources.player_state = new_state;
@@ -248,7 +239,9 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
                 controller.velocity.z,
             ));
 
-            if horizontal_speed < slide_min_speed && !slide_pressed
+            let should_end =
+                !slide_pressed || horizontal_speed < slide_min_speed;
+            if should_end
                 && let Some(new_state) = game_world
                     .resources
                     .player_state
@@ -260,7 +253,7 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         }
     }
 
-    let dash_triggered = gamepad_dash_just_pressed || keyboard_dash_direction.is_some();
+    let dash_triggered = gamepad_dash_just_pressed || keyboard_dash_just_pressed;
 
     if dash_triggered
         && game_world.resources.dash_charges > 0
@@ -330,7 +323,8 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     if matches!(
         game_world.resources.player_state,
         PlayerState::GroundDash | PlayerState::AirDash
-    ) {
+    ) && !dash_triggered
+    {
         if grounded && game_world.resources.player_state == PlayerState::GroundDash {
             if let Some(new_state) = game_world
                 .resources

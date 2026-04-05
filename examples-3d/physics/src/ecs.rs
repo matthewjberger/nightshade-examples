@@ -5,7 +5,6 @@ pub use components::*;
 pub use resources::*;
 
 use nightshade::prelude::Entity;
-use nightshade::prelude::KeyCode;
 use nightshade::prelude::Vec3;
 use nightshade::prelude::freecs;
 use nightshade::prelude::nalgebra_glm;
@@ -38,6 +37,7 @@ freecs::ecs! {
         interaction: InteractionState,
         interaction_prompt_entity: Option<Entity>,
         interaction_prompt_text_index: Option<usize>,
+        #[cfg(not(feature = "openxr"))]
         lean: LeanState,
         input_mode: InputMode,
         input_mode_text_entity: Option<Entity>,
@@ -56,9 +56,7 @@ freecs::ecs! {
         dash_button_was_pressed: bool,
         jump_button_was_pressed: bool,
         slide_button_was_pressed: bool,
-        last_tap_key: Option<KeyCode>,
-        last_tap_time_ms: u64,
-        key_was_released: bool,
+        keyboard_dash_was_pressed: bool,
         dash_hud_entity: Option<Entity>,
         dash_hud_state_text_entity: Option<Entity>,
         dash_hud_charge_entities: Vec<Entity>,
@@ -83,6 +81,10 @@ freecs::ecs! {
         right_hand_cube: Option<Entity>,
         #[cfg(feature = "openxr")]
         bauble_gun_entities: Vec<Entity>,
+        #[cfg(feature = "openxr")]
+        gun_root_entity: Option<Entity>,
+        #[cfg(feature = "openxr")]
+        gun_hand: GunHand,
         #[cfg(feature = "openxr")]
         xr_rt_was_pressed: bool,
         #[cfg(feature = "openxr")]

@@ -1,13 +1,15 @@
 use crate::ecs::GameWorld;
+#[cfg(not(feature = "openxr"))]
+use crate::systems::camera::{camera_look_system, crouch_camera_system, lean_system};
+#[cfg(not(feature = "openxr"))]
+use crate::systems::input::detect_input_mode;
 use crate::systems::{
-    camera::{camera_look_system, crouch_camera_system, lean_system},
     dash::{build_dash_hud, dash_system},
     exhibits::{
         spawn_environment, spawn_exhibits, spawn_sun_overhead, setup_velocity_friction_joints,
         update_coulomb_friction_joints, update_joint_visuals, update_prismatic_sliders,
     },
     flashlight::{spawn_flashlight, update_flashlight},
-    input::detect_input_mode,
     interaction::{
         check_fall_reset, interaction_system, note_reading_system, update_doors_momentum,
         update_drawers_momentum, update_interaction_prompt, update_lantern_light,
@@ -16,8 +18,9 @@ use crate::systems::{
     shooting::update_shot_baubles,
     targets::{spawn_targets, update_targets},
     ui::{build_crosshair, build_note_overlay, debug_toggle_system, update_note_overlay},
-    weapon::{spawn_weapon, update_weapon_sway},
 };
+#[cfg(not(feature = "openxr"))]
+use crate::systems::weapon::{spawn_weapon, update_weapon_sway};
 use nightshade::ecs::physics::spawn_first_person_player;
 use nightshade::ecs::text::commands::spawn_ui_text;
 use nightshade::prelude::*;
@@ -83,8 +86,11 @@ impl State for PhysicsGame {
         world.resources.graphics.render_layer_world_enabled = true;
         world.resources.graphics.render_layer_overlay_enabled = true;
 
-        let weapon = spawn_weapon(world, camera_entity);
-        self.game_world.resources.weapon_entity = Some(weapon);
+        #[cfg(not(feature = "openxr"))]
+        {
+            let weapon = spawn_weapon(world, camera_entity);
+            self.game_world.resources.weapon_entity = Some(weapon);
+        }
 
         let flashlight = spawn_flashlight(world);
         self.game_world.resources.flashlight_entity = Some(flashlight);
@@ -118,7 +124,9 @@ impl State for PhysicsGame {
             let right_hand =
                 crate::systems::xr::spawn_hand_cube(world, nalgebra_glm::vec3(0.9, 0.6, 0.2));
             self.game_world.resources.right_hand_cube = Some(right_hand);
-            crate::systems::xr::spawn_bauble_gun(&mut self.game_world, world, right_hand);
+            let gun_root =
+                crate::systems::xr::spawn_bauble_gun(&mut self.game_world, world, right_hand);
+            self.game_world.resources.gun_root_entity = Some(gun_root);
         }
 
         world.resources.retained_ui.enabled = true;
@@ -162,6 +170,7 @@ impl State for PhysicsGame {
         #[cfg(feature = "openxr")]
         crate::systems::xr::xr_hand_tracking_system(&mut self.game_world, world);
         dash_system(&mut self.game_world, world);
+        #[cfg(not(feature = "openxr"))]
         update_weapon_sway(&mut self.game_world, world);
         nightshade::ecs::transform::systems::update_global_transforms_system(world);
         interaction_system(&mut self.game_world, world);

@@ -320,6 +320,9 @@ fn apply_auto_aim(game_world: &mut GameWorld, world: &mut World) {
         }
         mark_local_transform_dirty(world, camera_entity);
 
-        game_world.resources.lean.base_rotation = new_rotation;
+        #[cfg(not(feature = "openxr"))]
+        {
+            game_world.resources.lean.base_rotation = new_rotation;
+        }
     }
 }

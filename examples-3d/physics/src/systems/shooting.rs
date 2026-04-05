@@ -3,8 +3,16 @@ use nightshade::ecs::physics::*;
 use nightshade::prelude::*;
 
 pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec3, direction: Vec3) {
-    let bauble_radius = 0.03;
-    let color = nalgebra_glm::vec3(0.45, 0.43, 0.4);
+    let bauble_radius = 0.05;
+    let bauble_colors = [
+        nalgebra_glm::vec3(0.9, 0.2, 0.2),
+        nalgebra_glm::vec3(0.2, 0.8, 0.3),
+        nalgebra_glm::vec3(0.2, 0.4, 0.9),
+        nalgebra_glm::vec3(0.9, 0.8, 0.1),
+    ];
+    let color_index = (world.resources.window.timing.uptime_milliseconds / 100) as usize
+        % bauble_colors.len();
+    let color = bauble_colors[color_index];
 
     let entity = world.spawn_entities(
         NAME | LOCAL_TRANSFORM
@@ -39,7 +47,7 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
     material_registry_insert(
         &mut world.resources.material_registry,
         material_name.clone(),
-        create_textured_material(color, 0.3, 0.95),
+        create_textured_material(color, 0.2, 0.8),
     );
     if let Some(&index) = world
         .resources
@@ -65,7 +73,7 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
     if let Some(rigid_body) = world.core.get_rigid_body_mut(entity) {
         *rigid_body = RigidBodyComponent::new_dynamic()
             .with_translation(position.x, position.y, position.z)
-            .with_mass(0.3);
+            .with_mass(0.05);
     }
 
     if let Some(collider) = world.core.get_collider_mut(entity) {
@@ -107,7 +115,7 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
         interpolation.enabled = true;
     }
 
-    let shoot_speed = 80.0;
+    let shoot_speed = 15.0;
     let velocity = direction * shoot_speed;
     if let Some(rb) = world.resources.physics.rigid_body_set.get_mut(handle) {
         rb.set_linvel(

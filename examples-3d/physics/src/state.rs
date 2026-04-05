@@ -14,6 +14,7 @@ use crate::systems::{
         update_levers_momentum, update_wheels_momentum,
     },
     shooting::update_shot_baubles,
+    targets::{spawn_targets, update_targets},
     ui::{build_crosshair, build_note_overlay, debug_toggle_system, update_note_overlay},
     weapon::{spawn_weapon, update_weapon_sway},
 };
@@ -94,6 +95,7 @@ impl State for PhysicsGame {
 
         spawn_environment(world);
         spawn_exhibits(&mut self.game_world, world);
+        spawn_targets(&mut self.game_world, world);
 
         let prompt_entity = spawn_ui_text(world, "", nalgebra_glm::Vec2::zeros());
         if let Some(hud_text) = world.core.get_text(prompt_entity) {
@@ -164,6 +166,7 @@ impl State for PhysicsGame {
         nightshade::ecs::transform::systems::update_global_transforms_system(world);
         interaction_system(&mut self.game_world, world);
         update_shot_baubles(&mut self.game_world, world);
+        update_targets(&mut self.game_world, world);
         update_doors_momentum(&mut self.game_world, world);
         update_drawers_momentum(&mut self.game_world, world);
         update_levers_momentum(&mut self.game_world, world);

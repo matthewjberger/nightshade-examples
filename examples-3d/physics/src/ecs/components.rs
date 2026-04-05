@@ -118,6 +118,18 @@ pub struct CoulombFrictionJoint {
 }
 
 #[derive(Default, Clone, Debug)]
+pub struct Target {
+    pub entity: Entity,
+    pub position: Vec3,
+    pub base_scale: f32,
+    pub color: Vec3,
+    pub popped: bool,
+    pub pop_time_ms: u64,
+    pub respawn_delay_ms: u64,
+    pub pulse_phase: f32,
+}
+
+#[derive(Default, Clone, Debug)]
 pub struct VelocityFrictionJoint {
     pub arm_entity: Entity,
     pub damping_factor: f32,

@@ -5,6 +5,7 @@ pub mod flashlight;
 pub mod input;
 pub mod interaction;
 pub mod shooting;
+pub mod targets;
 pub mod ui;
 pub mod weapon;
 #[cfg(feature = "openxr")]

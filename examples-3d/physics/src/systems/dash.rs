@@ -192,7 +192,7 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         .keyboard
         .is_key_pressed(KeyCode::KeyC)
         || query_active_gamepad(world)
-            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::RightThumb));
+            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::LeftThumb));
     let slide_just_pressed = slide_pressed && !game_world.resources.slide_button_was_pressed;
     game_world.resources.slide_button_was_pressed = slide_pressed;
 
@@ -201,40 +201,31 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         .input
         .keyboard
         .is_key_pressed(KeyCode::ShiftLeft)
-        || query_active_gamepad(world)
-            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::LeftThumb));
+        || query_active_gamepad(world).is_some_and(|gamepad| {
+            let stick_x = gamepad.value(gilrs::Axis::LeftStickX);
+            let stick_y = gamepad.value(gilrs::Axis::LeftStickY);
+            (stick_x * stick_x + stick_y * stick_y).sqrt() > 0.85
+        });
 
-    if slide_just_pressed && game_world.resources.player_state == PlayerState::Grounded {
-        let horizontal_speed = world
-            .core
-            .get_character_controller(player_entity)
-            .map(|controller| {
-                nalgebra_glm::length(&nalgebra_glm::vec3(
-                    controller.velocity.x,
-                    0.0,
-                    controller.velocity.z,
-                ))
-            })
-            .unwrap_or(0.0);
-
-        if sprint_held
-            && let Some(new_state) = game_world
-                .resources
-                .player_state
-                .process_event(PlayerEvent::Slide)
-        {
-            game_world.resources.player_state = new_state;
-            if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-                controller.is_crouching = true;
-                let horizontal_velocity =
-                    nalgebra_glm::vec3(controller.velocity.x, 0.0, controller.velocity.z);
-                let horizontal_speed = nalgebra_glm::length(&horizontal_velocity);
-                if horizontal_speed > 0.1 {
-                    let direction = nalgebra_glm::normalize(&horizontal_velocity);
-                    let slide_boost = game_world.resources.config.slide_boost;
-                    controller.velocity.x = direction.x * (horizontal_speed + slide_boost);
-                    controller.velocity.z = direction.z * (horizontal_speed + slide_boost);
-                }
+    if slide_just_pressed
+        && game_world.resources.player_state == PlayerState::Grounded
+        && sprint_held
+        && let Some(new_state) = game_world
+            .resources
+            .player_state
+            .process_event(PlayerEvent::Slide)
+    {
+        game_world.resources.player_state = new_state;
+        if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
+            controller.is_crouching = true;
+            let horizontal_velocity =
+                nalgebra_glm::vec3(controller.velocity.x, 0.0, controller.velocity.z);
+            let horizontal_speed = nalgebra_glm::length(&horizontal_velocity);
+            if horizontal_speed > 0.1 {
+                let direction = nalgebra_glm::normalize(&horizontal_velocity);
+                let slide_boost = game_world.resources.config.slide_boost;
+                controller.velocity.x = direction.x * (horizontal_speed + slide_boost);
+                controller.velocity.z = direction.z * (horizontal_speed + slide_boost);
             }
         }
     }

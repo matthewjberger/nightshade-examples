@@ -25,6 +25,7 @@ freecs::ecs! {
         rope_joint_visual: RopeJointVisual => ROPE_JOINT_VISUAL,
         spring_joint_visual: SpringJointVisual => SPRING_JOINT_VISUAL,
         coulomb_friction_joint: CoulombFrictionJoint => COULOMB_FRICTION_JOINT,
+        target: Target => TARGET,
         velocity_friction_joint: VelocityFrictionJoint => VELOCITY_FRICTION_JOINT,
     }
     Tags {

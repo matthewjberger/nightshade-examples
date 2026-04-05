@@ -50,6 +50,11 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             .process_event(land_event)
         {
             game_world.resources.player_state = new_state;
+            if new_state == PlayerState::Sliding
+                && let Some(controller) = world.core.get_character_controller_mut(player_entity)
+            {
+                controller.is_crouching = true;
+            }
         }
     } else if !grounded
         && matches!(
@@ -212,7 +217,7 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             })
             .unwrap_or(0.0);
 
-        if (sprint_held || horizontal_speed > game_world.resources.config.slide_min_speed)
+        if sprint_held
             && let Some(new_state) = game_world
                 .resources
                 .player_state

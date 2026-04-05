@@ -27,6 +27,64 @@ stateless::statemachine! {
     }
 }
 
+pub struct GameConfig {
+    pub grab_range: f32,
+    pub interact_range: f32,
+    pub interact_cone_radius: f32,
+    pub min_grab_distance: f32,
+    pub max_grab_distance: f32,
+    pub scroll_distance_speed: f32,
+    pub throw_strength: f32,
+    pub grab_stiffness: f32,
+    pub grab_damping_ratio: f32,
+    pub max_grab_force: f32,
+    pub angular_damping: f32,
+    pub standing_camera_height: f32,
+    pub crouching_camera_height: f32,
+    pub lean_amount: f32,
+    pub lean_angle: f32,
+    pub lean_speed: f32,
+    pub max_shot_baubles: usize,
+    pub bauble_lifetime_ms: u64,
+    pub bauble_shrink_duration_ms: u64,
+    pub dash_impulse: f32,
+    pub dash_air_impulse: f32,
+    pub double_jump_impulse: f32,
+    pub max_dash_charges: u32,
+    pub dash_cooldown: f32,
+}
+
+impl Default for GameConfig {
+    fn default() -> Self {
+        Self {
+            grab_range: 3.0,
+            interact_range: 2.5,
+            interact_cone_radius: 40.0,
+            min_grab_distance: 0.8,
+            max_grab_distance: 3.0,
+            scroll_distance_speed: 0.3,
+            throw_strength: 12.0,
+            grab_stiffness: 150.0,
+            grab_damping_ratio: 1.0,
+            max_grab_force: 80.0,
+            angular_damping: 0.95,
+            standing_camera_height: 0.8,
+            crouching_camera_height: 0.3,
+            lean_amount: 0.4,
+            lean_angle: 0.15,
+            lean_speed: 8.0,
+            max_shot_baubles: 200,
+            bauble_lifetime_ms: 30000,
+            bauble_shrink_duration_ms: 2000,
+            dash_impulse: 20.0,
+            dash_air_impulse: 15.0,
+            double_jump_impulse: 4.5,
+            max_dash_charges: 2,
+            dash_cooldown: 1.5,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct InteractionState {
     pub grabbed_entity: Option<Entity>,

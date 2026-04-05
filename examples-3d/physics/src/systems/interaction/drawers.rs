@@ -1,4 +1,3 @@
-use crate::constants::INTERACT_RANGE;
 use crate::ecs::{DRAWER, GameWorld, InputMode};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
@@ -28,7 +27,7 @@ pub(super) fn update_manipulated_drawer(
     );
     let distance_to_drawer = nalgebra_glm::distance(&camera_position, &current_pos);
 
-    if distance_to_drawer > INTERACT_RANGE * 3.0 {
+    if distance_to_drawer > game_world.resources.config.interact_range * 3.0 {
         game_world.resources.interaction.manipulated_drawer = None;
         return;
     }

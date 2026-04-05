@@ -1,4 +1,3 @@
-use crate::constants::{BAUBLE_LIFETIME_MS, BAUBLE_SHRINK_DURATION_MS, MAX_SHOT_BAUBLES};
 use crate::ecs::{GameWorld, ShotBauble, SHOT_BAUBLE};
 use nightshade::ecs::physics::*;
 use nightshade::prelude::*;
@@ -144,7 +143,10 @@ pub fn update_shot_baubles(game_world: &mut GameWorld, world: &mut World) {
     let mut shot_bauble_entities: Vec<freecs::Entity> =
         game_world.query_entities(SHOT_BAUBLE).collect();
 
-    while shot_bauble_entities.len() > MAX_SHOT_BAUBLES {
+    let max_shot_baubles = game_world.resources.config.max_shot_baubles;
+    let bauble_lifetime_ms = game_world.resources.config.bauble_lifetime_ms;
+    let bauble_shrink_duration_ms = game_world.resources.config.bauble_shrink_duration_ms;
+    while shot_bauble_entities.len() > max_shot_baubles {
         let oldest = shot_bauble_entities
             .iter()
             .copied()
@@ -191,10 +193,10 @@ pub fn update_shot_baubles(game_world: &mut GameWorld, world: &mut World) {
             baubles_just_landed.push((game_entity, bauble.entity));
         }
 
-        if age_ms >= BAUBLE_LIFETIME_MS {
-            let shrink_progress_ms = age_ms - BAUBLE_LIFETIME_MS;
+        if age_ms >= bauble_lifetime_ms {
+            let shrink_progress_ms = age_ms - bauble_lifetime_ms;
             let shrink_factor =
-                1.0 - (shrink_progress_ms as f32 / BAUBLE_SHRINK_DURATION_MS as f32);
+                1.0 - (shrink_progress_ms as f32 / bauble_shrink_duration_ms as f32);
 
             if shrink_factor <= 0.0 {
                 baubles_to_remove.push((game_entity, bauble.entity));

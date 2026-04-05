@@ -1,4 +1,3 @@
-use crate::constants::INTERACT_RANGE;
 use crate::ecs::{GameWorld, InputMode, LEVER};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
@@ -19,7 +18,7 @@ pub(super) fn update_manipulated_lever(
         return;
     };
 
-    if nalgebra_glm::distance(&camera_position, &pivot_position) > INTERACT_RANGE * 3.0 {
+    if nalgebra_glm::distance(&camera_position, &pivot_position) > game_world.resources.config.interact_range * 3.0 {
         game_world.resources.interaction.manipulated_lever = None;
         return;
     }

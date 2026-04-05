@@ -1,6 +1,3 @@
-use crate::constants::{
-    DASH_AIR_IMPULSE, DASH_COOLDOWN, DASH_IMPULSE, DOUBLE_JUMP_IMPULSE, MAX_DASH_CHARGES,
-};
 use crate::ecs::{GameWorld, PlayerEvent, PlayerState};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
@@ -131,7 +128,7 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     {
         game_world.resources.player_state = new_state;
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-            controller.velocity.y = DOUBLE_JUMP_IMPULSE;
+            controller.velocity.y = game_world.resources.config.double_jump_impulse;
         }
     }
 
@@ -145,7 +142,7 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             .process_event(PlayerEvent::Dash)
     {
         game_world.resources.dash_charges -= 1;
-        game_world.resources.dash_cooldown_timer = DASH_COOLDOWN;
+        game_world.resources.dash_cooldown_timer = game_world.resources.config.dash_cooldown;
         game_world.resources.player_state = new_state;
 
         let dash_direction = if let Some(direction) = keyboard_dash_direction {
@@ -185,11 +182,12 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
             nalgebra_glm::normalize(&nalgebra_glm::vec3(forward.x, 0.0, forward.z))
         };
 
+        let config = &game_world.resources.config;
         let is_air_dash = new_state == PlayerState::AirDash;
         let impulse = if is_air_dash {
-            DASH_AIR_IMPULSE
+            config.dash_air_impulse
         } else {
-            DASH_IMPULSE
+            config.dash_impulse
         };
 
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
@@ -237,12 +235,14 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     }
 
     let delta_time = world.resources.window.timing.delta_time;
-    if game_world.resources.dash_charges < MAX_DASH_CHARGES {
+    let max_dash_charges = game_world.resources.config.max_dash_charges;
+    let dash_cooldown = game_world.resources.config.dash_cooldown;
+    if game_world.resources.dash_charges < max_dash_charges {
         game_world.resources.dash_cooldown_timer -= delta_time;
         if game_world.resources.dash_cooldown_timer <= 0.0 {
             game_world.resources.dash_charges += 1;
-            if game_world.resources.dash_charges < MAX_DASH_CHARGES {
-                game_world.resources.dash_cooldown_timer = DASH_COOLDOWN;
+            if game_world.resources.dash_charges < max_dash_charges {
+                game_world.resources.dash_cooldown_timer = dash_cooldown;
             }
         }
     }
@@ -282,8 +282,9 @@ fn update_dash_hud(game_world: &mut GameWorld, world: &mut World) {
         }
     }
 
-    let cooldown_fraction = if game_world.resources.dash_charges < MAX_DASH_CHARGES {
-        1.0 - (game_world.resources.dash_cooldown_timer / DASH_COOLDOWN).clamp(0.0, 1.0)
+    let config = &game_world.resources.config;
+    let cooldown_fraction = if game_world.resources.dash_charges < config.max_dash_charges {
+        1.0 - (game_world.resources.dash_cooldown_timer / config.dash_cooldown).clamp(0.0, 1.0)
     } else {
         1.0
     };
@@ -313,7 +314,7 @@ fn update_dash_hud(game_world: &mut GameWorld, world: &mut World) {
     }
 }
 
-pub fn build_dash_hud(world: &mut World) -> (Entity, Entity, Vec<Entity>) {
+pub fn build_dash_hud(world: &mut World, max_dash_charges: u32) -> (Entity, Entity, Vec<Entity>) {
     let mut tree = UiTreeBuilder::new(world);
 
     let panel_width = 140.0;
@@ -352,7 +353,7 @@ pub fn build_dash_hud(world: &mut World) -> (Entity, Entity, Vec<Entity>) {
     let start_x = (panel_width - total_width) / 2.0;
 
     let mut charge_entities = Vec::new();
-    for charge_index in 0..crate::constants::MAX_DASH_CHARGES {
+    for charge_index in 0..max_dash_charges {
         let offset_x = start_x + charge_index as f32 * (charge_size + gap);
         let charge = tree
             .add_node()

@@ -30,6 +30,7 @@ freecs::ecs! {
     Tags {
     }
     Resources {
+        config: GameConfig,
         player_entity: Option<Entity>,
         camera_entity: Option<Entity>,
         physics_objects: Vec<Entity>,

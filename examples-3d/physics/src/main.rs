@@ -1,4 +1,3 @@
-mod constants;
 mod ecs;
 mod state;
 mod systems;

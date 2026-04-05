@@ -1,6 +1,3 @@
-use crate::constants::{
-    CROUCHING_CAMERA_HEIGHT, LEAN_AMOUNT, LEAN_ANGLE, LEAN_SPEED, STANDING_CAMERA_HEIGHT,
-};
 use crate::ecs::{GameWorld, InputMode, PlayerEvent, PlayerState};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
@@ -156,9 +153,14 @@ pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
         _ => 0.0,
     };
 
+    let config = &game_world.resources.config;
+    let lean_speed = config.lean_speed;
+    let lean_amount = config.lean_amount;
+    let lean_angle = config.lean_angle;
+
     let dt = world.resources.window.timing.delta_time;
     let lean_diff = target_lean - game_world.resources.lean.current_lean;
-    game_world.resources.lean.current_lean += lean_diff * (LEAN_SPEED * dt).min(1.0);
+    game_world.resources.lean.current_lean += lean_diff * (lean_speed * dt).min(1.0);
 
     let right_vector = nalgebra_glm::quat_rotate_vec3(
         &game_world.resources.lean.base_rotation,
@@ -167,9 +169,9 @@ pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
     let horizontal_right =
         nalgebra_glm::normalize(&nalgebra_glm::vec3(right_vector.x, 0.0, right_vector.z));
 
-    let lean_offset = horizontal_right * (game_world.resources.lean.current_lean * LEAN_AMOUNT);
+    let lean_offset = horizontal_right * (game_world.resources.lean.current_lean * lean_amount);
 
-    let lean_roll = -game_world.resources.lean.current_lean * LEAN_ANGLE;
+    let lean_roll = -game_world.resources.lean.current_lean * lean_angle;
     let roll_quat =
         nalgebra_glm::quat_angle_axis(lean_roll, &nalgebra_glm::vec3(0.0, 0.0, 1.0));
 
@@ -200,10 +202,11 @@ pub fn crouch_camera_system(game_world: &GameWorld, world: &mut World) {
         .map(|cc| cc.is_crouching)
         .unwrap_or(false);
 
+    let config = &game_world.resources.config;
     let target_height = if is_crouching {
-        CROUCHING_CAMERA_HEIGHT
+        config.crouching_camera_height
     } else {
-        STANDING_CAMERA_HEIGHT
+        config.standing_camera_height
     };
 
     let dt = world.resources.window.timing.delta_time;

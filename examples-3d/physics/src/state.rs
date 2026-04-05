@@ -1,4 +1,3 @@
-use crate::constants::*;
 use crate::ecs::GameWorld;
 use crate::systems::{
     camera::{camera_look_system, crouch_camera_system, lean_system},
@@ -53,7 +52,7 @@ impl State for PhysicsGame {
         );
 
         self.game_world.resources.show_physics_debug = false;
-        self.game_world.resources.dash_charges = MAX_DASH_CHARGES;
+        self.game_world.resources.dash_charges = self.game_world.resources.config.max_dash_charges;
         world.resources.physics.debug_draw = false;
 
         #[cfg(feature = "openxr")]
@@ -69,7 +68,7 @@ impl State for PhysicsGame {
         let (player_entity, camera_entity) = spawn_first_person_player(world, player_position);
 
         if let Some(transform) = world.core.get_local_transform_mut(camera_entity) {
-            transform.translation.y = STANDING_CAMERA_HEIGHT;
+            transform.translation.y = self.game_world.resources.config.standing_camera_height;
         }
 
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
@@ -129,7 +128,7 @@ impl State for PhysicsGame {
         self.game_world.resources.note_title_entity = Some(note_title);
         self.game_world.resources.note_content_entity = Some(note_content);
 
-        let (dash_hud, dash_state_text, dash_charges) = build_dash_hud(world);
+        let (dash_hud, dash_state_text, dash_charges) = build_dash_hud(world, self.game_world.resources.config.max_dash_charges);
         self.game_world.resources.dash_hud_entity = Some(dash_hud);
         self.game_world.resources.dash_hud_state_text_entity = Some(dash_state_text);
         self.game_world.resources.dash_hud_charge_entities = dash_charges;

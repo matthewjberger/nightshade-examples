@@ -8,11 +8,6 @@ pub use drawers::update_drawers_momentum;
 pub use levers::{apply_lever_transform, update_levers_momentum};
 pub use wheels::update_wheels_momentum;
 
-use crate::constants::{
-    ANGULAR_DAMPING, GRAB_DAMPING_RATIO, GRAB_RANGE, GRAB_STIFFNESS, INTERACT_CONE_RADIUS,
-    INTERACT_RANGE, MAX_GRAB_DISTANCE, MAX_GRAB_FORCE, MIN_GRAB_DISTANCE, SCROLL_DISTANCE_SPEED,
-    THROW_STRENGTH,
-};
 use crate::ecs::{
     BAUBLE_SPAWN, BUTTON, DOOR, DRAWER, ButtonAction, GameWorld, InputMode, LEVER, NOTE, WHEEL,
 };
@@ -267,13 +262,14 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     let screen_pos =
         nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
 
+    let config = &game_world.resources.config;
     let options = PickingOptions {
-        max_distance: GRAB_RANGE,
+        max_distance: config.grab_range,
         ignore_invisible: true,
     };
 
     let pick_results = if game_world.resources.input_mode == InputMode::Gamepad {
-        pick_entities_cone(world, screen_pos, INTERACT_CONE_RADIUS, options)
+        pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
     } else {
         pick_entities(world, screen_pos, options)
     };
@@ -282,6 +278,10 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
 }
 
 fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResult]) {
+    let config = &game_world.resources.config;
+    let max_grab_distance = config.max_grab_distance;
+    let interact_range = config.interact_range;
+
     let door_entities: Vec<freecs::Entity> =
         game_world.query_entities(DOOR).collect();
     let drawer_entities: Vec<freecs::Entity> =
@@ -299,14 +299,14 @@ fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResu
         if game_world.resources.physics_objects.contains(&result.entity) {
             game_world.resources.interaction.grabbed_entity = Some(result.entity);
             game_world.resources.interaction.grab_distance =
-                result.distance.min(MAX_GRAB_DISTANCE);
+                result.distance.min(max_grab_distance);
             return;
         }
 
         for &game_entity in &door_entities {
             if let Some(door) = game_world.get_door(game_entity)
                 && result.entity == door.entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 game_world.resources.interaction.manipulated_door = Some(game_entity);
                 return;
@@ -316,7 +316,7 @@ fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResu
         for &game_entity in &drawer_entities {
             if let Some(drawer) = game_world.get_drawer(game_entity)
                 && result.entity == drawer.front_entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 game_world.resources.interaction.manipulated_drawer = Some(game_entity);
                 return;
@@ -326,7 +326,7 @@ fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResu
         for &game_entity in &lever_entities {
             if let Some(lever) = game_world.get_lever(game_entity)
                 && result.entity == lever.collider_entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 game_world.resources.interaction.manipulated_lever = Some(game_entity);
                 return;
@@ -336,7 +336,7 @@ fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResu
         for &game_entity in &wheel_entities {
             if let Some(wheel) = game_world.get_wheel(game_entity)
                 && result.entity == wheel.entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 game_world.resources.interaction.manipulated_wheel = Some(game_entity);
                 return;
@@ -346,7 +346,7 @@ fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResu
         for &game_entity in &button_entities {
             if let Some(button) = game_world.get_button(game_entity)
                 && result.entity == button.entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 game_world.resources.interaction.manipulated_button = Some(game_entity);
                 return;
@@ -356,7 +356,7 @@ fn try_start_interaction(game_world: &mut GameWorld, pick_results: &[PickingResu
         for &game_entity in &note_entities {
             if let Some(note) = game_world.get_note(game_entity)
                 && result.entity == note.entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 game_world.resources.reading_note = Some(game_entity);
                 game_world.resources.note_close_key_released = false;
@@ -374,9 +374,12 @@ fn update_grabbed_object(
     camera_forward: Vec3,
     scroll_delta: f32,
 ) {
+    let scroll_speed = game_world.resources.config.scroll_distance_speed;
+    let min_dist = game_world.resources.config.min_grab_distance;
+    let max_dist = game_world.resources.config.max_grab_distance;
     game_world.resources.interaction.grab_distance =
-        (game_world.resources.interaction.grab_distance + scroll_delta * SCROLL_DISTANCE_SPEED)
-            .clamp(MIN_GRAB_DISTANCE, MAX_GRAB_DISTANCE);
+        (game_world.resources.interaction.grab_distance + scroll_delta * scroll_speed)
+            .clamp(min_dist, max_dist);
 
     let target_position =
         camera_position + camera_forward * game_world.resources.interaction.grab_distance;
@@ -408,16 +411,17 @@ fn update_grabbed_object(
     let current_vel = rigid_body.linvel();
     let current_velocity = nalgebra_glm::vec3(current_vel.x, current_vel.y, current_vel.z);
 
+    let config = &game_world.resources.config;
     let mass = rigid_body.mass();
-    let critical_damping = 2.0 * (GRAB_STIFFNESS * mass).sqrt();
-    let damping = critical_damping * GRAB_DAMPING_RATIO;
+    let critical_damping = 2.0 * (config.grab_stiffness * mass).sqrt();
+    let damping = critical_damping * config.grab_damping_ratio;
 
-    let spring_force = displacement * GRAB_STIFFNESS;
+    let spring_force = displacement * config.grab_stiffness;
     let damping_force = -current_velocity * damping;
     let mut total_force = spring_force + damping_force;
 
     let force_magnitude = nalgebra_glm::length(&total_force);
-    let max_force_for_mass = MAX_GRAB_FORCE * mass.max(0.5);
+    let max_force_for_mass = config.max_grab_force * mass.max(0.5);
     if force_magnitude > max_force_for_mass {
         total_force *= max_force_for_mass / force_magnitude;
     }
@@ -432,7 +436,7 @@ fn update_grabbed_object(
     );
 
     let current_angvel = rigid_body.angvel();
-    let angular_decay = (-ANGULAR_DAMPING * dt * 60.0).exp();
+    let angular_decay = (-config.angular_damping * dt * 60.0).exp();
     rigid_body.set_angvel(current_angvel * angular_decay, true);
 }
 
@@ -456,7 +460,7 @@ fn throw_grabbed_object(game_world: &mut GameWorld, world: &mut World, camera_fo
         return;
     };
 
-    let throw_velocity = camera_forward * THROW_STRENGTH;
+    let throw_velocity = camera_forward * game_world.resources.config.throw_strength;
     rigid_body.set_linvel(
         rapier3d::math::Vector::new(throw_velocity.x, throw_velocity.y, throw_velocity.z),
         true,
@@ -657,16 +661,19 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
     let screen_pos =
         nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
 
+    let config = &game_world.resources.config;
     let options = PickingOptions {
-        max_distance: GRAB_RANGE,
+        max_distance: config.grab_range,
         ignore_invisible: true,
     };
 
     let pick_results = if game_world.resources.input_mode == InputMode::Gamepad {
-        pick_entities_cone(world, screen_pos, INTERACT_CONE_RADIUS, options)
+        pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
     } else {
         pick_entities(world, screen_pos, options)
     };
+
+    let interact_range = config.interact_range;
 
     let door_entities: Vec<freecs::Entity> =
         game_world.query_entities(DOOR).collect();
@@ -693,7 +700,7 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
         for &game_entity in &door_entities {
             if let Some(door) = game_world.get_door(game_entity)
                 && result.entity == door.entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 can_interact = true;
                 break 'outer;
@@ -703,7 +710,7 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
         for &game_entity in &drawer_entities {
             if let Some(drawer) = game_world.get_drawer(game_entity)
                 && result.entity == drawer.front_entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 can_interact = true;
                 break 'outer;
@@ -713,7 +720,7 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
         for &game_entity in &lever_entities {
             if let Some(lever) = game_world.get_lever(game_entity)
                 && result.entity == lever.collider_entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 can_interact = true;
                 break 'outer;
@@ -723,7 +730,7 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
         for &game_entity in &wheel_entities {
             if let Some(wheel) = game_world.get_wheel(game_entity)
                 && result.entity == wheel.entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 can_interact = true;
                 break 'outer;
@@ -733,7 +740,7 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
         for &game_entity in &button_entities {
             if let Some(button) = game_world.get_button(game_entity)
                 && result.entity == button.entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 can_interact = true;
                 break 'outer;
@@ -743,7 +750,7 @@ pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
         for &game_entity in &note_entities {
             if let Some(note) = game_world.get_note(game_entity)
                 && result.entity == note.entity
-                && result.distance <= INTERACT_RANGE
+                && result.distance <= interact_range
             {
                 can_read = true;
                 break 'outer;

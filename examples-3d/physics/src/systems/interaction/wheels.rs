@@ -7,7 +7,7 @@ pub(super) fn update_manipulated_wheel(
     world: &mut World,
     camera_position: Vec3,
 ) {
-    let Some(wheel_game_entity) = game_world.resources.interaction.manipulated_wheel else {
+    let Some(wheel_game_entity) = game_world.resources.interaction.manipulated_entity_of_kind(&crate::ecs::InteractableKind::Wheel) else {
         return;
     };
 
@@ -19,7 +19,7 @@ pub(super) fn update_manipulated_wheel(
     };
 
     if nalgebra_glm::distance(&camera_position, &center_position) > game_world.resources.config.interact_range * 3.0 {
-        game_world.resources.interaction.manipulated_wheel = None;
+        game_world.resources.interaction.manipulated = None;
         return;
     }
 
@@ -112,7 +112,7 @@ pub fn update_wheels_momentum(game_world: &mut GameWorld, world: &mut World) {
     let wheel_entities: Vec<freecs::Entity> =
         game_world.query_entities(WHEEL).collect();
 
-    let manipulated_wheel = game_world.resources.interaction.manipulated_wheel;
+    let manipulated_wheel = game_world.resources.interaction.manipulated_entity_of_kind(&crate::ecs::InteractableKind::Wheel);
 
     for game_entity in wheel_entities {
         if manipulated_wheel == Some(game_entity) {

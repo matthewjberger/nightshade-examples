@@ -304,57 +304,7 @@ pub(super) fn spawn_visual_cube(
     material: nightshade::ecs::material::components::Material,
     name: String,
 ) {
-    let entity = world.spawn_entities(
-        NAME | LOCAL_TRANSFORM
-            | GLOBAL_TRANSFORM
-            | LOCAL_TRANSFORM_DIRTY
-            | RENDER_MESH
-            | MATERIAL_REF
-            | BOUNDING_VOLUME
-            | CASTS_SHADOW
-            | VISIBILITY,
-        1,
-    )[0];
-
-    if let Some(n) = world.core.get_name_mut(entity) {
-        n.0 = name;
-    }
-
-    if let Some(transform) = world.core.get_local_transform_mut(entity) {
-        transform.translation = position;
-        transform.scale = scale;
-    }
-
-    if let Some(mesh) = world.core.get_render_mesh_mut(entity) {
-        mesh.name = "Cube".to_string();
-    }
-
-    let material_name = format!("VisualCube_{}", entity.id);
-    material_registry_insert(
-        &mut world.resources.material_registry,
-        material_name.clone(),
-        material,
-    );
-    if let Some(&mat_index) = world
-        .resources
-        .material_registry
-        .registry
-        .name_to_index
-        .get(&material_name)
-    {
-        world
-            .resources
-            .material_registry
-            .registry
-            .add_reference(mat_index);
-    }
-    world
-        .core
-        .set_material_ref(entity, MaterialRef::new(material_name));
-
-    if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
-        *bv = BoundingVolume::from_mesh_type("Cube");
-    }
+    crate::systems::spawn::spawn_visual_entity_with_shadow(world, position, scale, "Cube", material, name);
 }
 
 pub(super) fn spawn_room_walls(world: &mut World, config: &RoomConfig) {

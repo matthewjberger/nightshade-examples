@@ -1,22 +1,23 @@
 mod doors;
 mod drawers;
 mod levers;
+mod picking;
+mod shooting_input;
 mod wheels;
 
 pub use doors::update_doors_momentum;
 pub use drawers::update_drawers_momentum;
 pub use levers::{apply_lever_transform, update_levers_momentum};
+pub use picking::update_interaction_prompt;
 pub use wheels::update_wheels_momentum;
 
-use crate::ecs::{
-    BAUBLE_SPAWN, BUTTON, DOOR, DRAWER, ButtonAction, GameWorld, InputMode, LEVER, NOTE, WHEEL,
-};
+use crate::ecs::{BAUBLE_SPAWN, ButtonAction, GameWorld, InputMode, InteractableKind};
 use doors::update_manipulated_door;
 use drawers::update_manipulated_drawer;
 use levers::update_manipulated_lever;
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::ecs::input::resources::MouseState;
-use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
+use nightshade::ecs::picking::{PickingOptions, pick_entities};
 use nightshade::prelude::*;
 use wheels::update_manipulated_wheel;
 
@@ -125,7 +126,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         scroll_delta
     };
 
-    let Some(camera_entity) = game_world.resources.camera_entity else {
+    let Some(camera_entity) = game_world.resources.player.camera_entity else {
         return;
     };
     let Some(camera_transform) = world.core.get_global_transform(camera_entity) else {
@@ -135,76 +136,21 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     let camera_position = camera_transform.translation();
     let camera_forward = camera_transform.forward_vector();
 
-    #[cfg(feature = "openxr")]
-    let (shoot_origin, shoot_direction) = {
-        if let Some(xr_input) = &world.resources.xr.input {
-            if let (Some(pos), Some(forward)) = (
-                xr_input.right_hand_position(),
-                xr_input.right_hand_aim_direction(),
-            ) {
-                let muzzle_offset = forward * 0.18;
-                (pos + muzzle_offset, forward)
-            } else {
-                (camera_position, camera_forward)
-            }
-        } else {
-            (camera_position, camera_forward)
-        }
-    };
-    #[cfg(not(feature = "openxr"))]
-    let (shoot_origin, shoot_direction) =
-        if let Some(weapon) = game_world.resources.weapon_entity
-            && let Some(weapon_transform) = world.core.get_global_transform(weapon)
-        {
-            let muzzle_local = nalgebra_glm::vec4(0.0, 0.005, -0.20, 1.0);
-            let muzzle_world = weapon_transform.0 * muzzle_local;
-            (muzzle_world.xyz(), camera_forward)
-        } else {
-            (camera_position, camera_forward)
-        };
-
-    let current_time_ms = world.resources.window.timing.uptime_milliseconds;
-    let shoot_just_pressed = shoot_pressed && !game_world.resources.interaction.shoot_was_pressed;
-    game_world.resources.interaction.shoot_was_pressed = shoot_pressed;
-
-    if game_world.resources.interaction.grabbed_entity.is_none() {
-        if shoot_just_pressed {
-            game_world.resources.interaction.shoot_hold_start_ms = Some(current_time_ms);
-            game_world.resources.interaction.last_rapid_fire_ms = current_time_ms;
-            super::shooting::shoot_bauble(game_world, world, shoot_origin, shoot_direction);
-        } else if shoot_pressed {
-            if let Some(hold_start) = game_world.resources.interaction.shoot_hold_start_ms {
-                let hold_duration = current_time_ms.saturating_sub(hold_start);
-                if hold_duration > 200 {
-                    let time_since_last_shot = current_time_ms
-                        .saturating_sub(game_world.resources.interaction.last_rapid_fire_ms);
-                    if time_since_last_shot >= 80 {
-                        game_world.resources.interaction.last_rapid_fire_ms = current_time_ms;
-                        super::shooting::shoot_bauble(
-                            game_world,
-                            world,
-                            shoot_origin,
-                            shoot_direction,
-                        );
-                    }
-                }
-            }
-        } else {
-            game_world.resources.interaction.shoot_hold_start_ms = None;
-        }
-    }
+    shooting_input::handle_shooting_input(
+        game_world,
+        world,
+        shoot_pressed,
+        camera_position,
+        camera_forward,
+    );
 
     if !interact_held {
-        if let Some(button_index) = game_world.resources.interaction.manipulated_button {
-            release_button(game_world, world, button_index);
+        if let Some((button_entity, InteractableKind::Button)) = &game_world.resources.interaction.manipulated {
+            release_button(game_world, world, *button_entity);
         }
         game_world.resources.interaction.grabbed_entity = None;
         nightshade::ecs::physics::grab::release_grab(&mut game_world.resources.grab, world);
-        game_world.resources.interaction.manipulated_door = None;
-        game_world.resources.interaction.manipulated_drawer = None;
-        game_world.resources.interaction.manipulated_lever = None;
-        game_world.resources.interaction.manipulated_wheel = None;
-        game_world.resources.interaction.manipulated_button = None;
+        game_world.resources.interaction.manipulated = None;
         game_world.resources.interaction.require_interact_release = false;
         return;
     }
@@ -247,28 +193,15 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     }
 
-    if game_world.resources.interaction.manipulated_door.is_some() {
-        update_manipulated_door(game_world, world, camera_position);
-        return;
-    }
-
-    if game_world.resources.interaction.manipulated_drawer.is_some() {
-        update_manipulated_drawer(game_world, world, camera_position);
-        return;
-    }
-
-    if game_world.resources.interaction.manipulated_lever.is_some() {
-        update_manipulated_lever(game_world, world, camera_position);
-        return;
-    }
-
-    if game_world.resources.interaction.manipulated_wheel.is_some() {
-        update_manipulated_wheel(game_world, world, camera_position);
-        return;
-    }
-
-    if let Some(button_index) = game_world.resources.interaction.manipulated_button {
-        update_pressed_button(game_world, world, button_index);
+    if let Some((entity, kind)) = game_world.resources.interaction.manipulated.clone() {
+        match kind {
+            InteractableKind::Door => update_manipulated_door(game_world, world, camera_position),
+            InteractableKind::Drawer => update_manipulated_drawer(game_world, world, camera_position),
+            InteractableKind::Lever => update_manipulated_lever(game_world, world, camera_position),
+            InteractableKind::Wheel => update_manipulated_wheel(game_world, world, camera_position),
+            InteractableKind::Button => update_pressed_button(game_world, world, entity),
+            _ => {}
+        }
         return;
     }
 
@@ -285,7 +218,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
                 xr_input.left_hand_position(),
                 xr_input.left_hand_aim_direction(),
             ) {
-                pick_entities_from_ray(world, origin, direction, options)
+                picking::pick_entities_from_ray(world, origin, direction, options)
             } else {
                 Vec::new()
             }
@@ -304,131 +237,13 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         let screen_pos =
             nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
         if game_world.resources.input_mode == InputMode::Gamepad {
-            pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
+            picking::pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
         } else {
             pick_entities(world, screen_pos, options)
         }
     };
 
-    try_start_interaction(game_world, world, &pick_results);
-}
-
-fn try_start_interaction(game_world: &mut GameWorld, world: &World, pick_results: &[PickingResult]) {
-    let config = &game_world.resources.config;
-    let max_grab_distance = config.max_grab_distance;
-    let interact_range = config.interact_range;
-
-    let door_entities: Vec<freecs::Entity> =
-        game_world.query_entities(DOOR).collect();
-    let drawer_entities: Vec<freecs::Entity> =
-        game_world.query_entities(DRAWER).collect();
-    let lever_entities: Vec<freecs::Entity> =
-        game_world.query_entities(LEVER).collect();
-    let wheel_entities: Vec<freecs::Entity> =
-        game_world.query_entities(WHEEL).collect();
-    let button_entities: Vec<freecs::Entity> =
-        game_world.query_entities(BUTTON).collect();
-    let note_entities: Vec<freecs::Entity> =
-        game_world.query_entities(NOTE).collect();
-
-    for result in pick_results {
-        if game_world.resources.physics_objects.contains(&result.entity) {
-            game_world.resources.interaction.grabbed_entity = Some(result.entity);
-            game_world.resources.interaction.grab_distance =
-                result.distance.min(max_grab_distance);
-
-            let (local_offset, original_damping) = if let Some(rb) =
-                world.core.get_rigid_body(result.entity)
-                && let Some(handle) = rb.handle
-                && let Some(rigid_body) =
-                    world.resources.physics.rigid_body_set.get(handle.into())
-            {
-                let body_pos = rigid_body.translation();
-                let body_rot = rigid_body.rotation();
-                let world_offset = result.world_position
-                    - nalgebra_glm::vec3(body_pos.x, body_pos.y, body_pos.z);
-                let inv_rot = nalgebra_glm::quat_conjugate(
-                    &nalgebra_glm::quat(body_rot.w, body_rot.i, body_rot.j, body_rot.k),
-                );
-                let local = nalgebra_glm::quat_rotate_vec3(&inv_rot, &world_offset);
-                (local, rigid_body.linear_damping())
-            } else {
-                (nalgebra_glm::Vec3::zeros(), 0.0)
-            };
-
-            game_world.resources.grab.grab(
-                result.entity,
-                result.distance,
-                game_world.resources.config.min_grab_distance,
-                game_world.resources.config.max_grab_distance,
-                local_offset,
-                original_damping,
-            );
-            return;
-        }
-
-        for &game_entity in &door_entities {
-            if let Some(door) = game_world.get_door(game_entity)
-                && result.entity == door.entity
-                && result.distance <= interact_range
-            {
-                game_world.resources.interaction.manipulated_door = Some(game_entity);
-                return;
-            }
-        }
-
-        for &game_entity in &drawer_entities {
-            if let Some(drawer) = game_world.get_drawer(game_entity)
-                && result.entity == drawer.front_entity
-                && result.distance <= interact_range
-            {
-                game_world.resources.interaction.manipulated_drawer = Some(game_entity);
-                return;
-            }
-        }
-
-        for &game_entity in &lever_entities {
-            if let Some(lever) = game_world.get_lever(game_entity)
-                && result.entity == lever.collider_entity
-                && result.distance <= interact_range
-            {
-                game_world.resources.interaction.manipulated_lever = Some(game_entity);
-                return;
-            }
-        }
-
-        for &game_entity in &wheel_entities {
-            if let Some(wheel) = game_world.get_wheel(game_entity)
-                && result.entity == wheel.entity
-                && result.distance <= interact_range
-            {
-                game_world.resources.interaction.manipulated_wheel = Some(game_entity);
-                return;
-            }
-        }
-
-        for &game_entity in &button_entities {
-            if let Some(button) = game_world.get_button(game_entity)
-                && result.entity == button.entity
-                && result.distance <= interact_range
-            {
-                game_world.resources.interaction.manipulated_button = Some(game_entity);
-                return;
-            }
-        }
-
-        for &game_entity in &note_entities {
-            if let Some(note) = game_world.get_note(game_entity)
-                && result.entity == note.entity
-                && result.distance <= interact_range
-            {
-                game_world.resources.reading_note = Some(game_entity);
-                game_world.resources.note_close_key_released = false;
-                game_world.resources.interaction.require_interact_release = true;
-                return;
-            }
-        }
-    }
+    picking::try_start_interaction(game_world, world, &pick_results);
 }
 
 fn update_grabbed_object(
@@ -599,284 +414,6 @@ fn recall_baubles(game_world: &mut GameWorld, world: &mut World) {
     }
 }
 
-pub fn update_interaction_prompt(game_world: &GameWorld, world: &mut World) {
-    let Some(text_index) = game_world.resources.interaction_prompt_text_index else {
-        return;
-    };
-    let Some(prompt_entity) = game_world.resources.interaction_prompt_entity else {
-        return;
-    };
-
-    let viewport_size = world
-        .resources
-        .window
-        .cached_viewport_size
-        .unwrap_or((800, 600));
-
-    if game_world.resources.interaction.grabbed_entity.is_some()
-        || game_world
-            .resources
-            .interaction
-            .manipulated_door
-            .is_some()
-        || game_world
-            .resources
-            .interaction
-            .manipulated_drawer
-            .is_some()
-        || game_world
-            .resources
-            .interaction
-            .manipulated_lever
-            .is_some()
-        || game_world
-            .resources
-            .interaction
-            .manipulated_wheel
-            .is_some()
-        || game_world
-            .resources
-            .interaction
-            .manipulated_button
-            .is_some()
-        || game_world.resources.reading_note.is_some()
-    {
-        world.resources.text_cache.set_text(text_index, "");
-        if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
-            hud_text.dirty = true;
-        }
-        return;
-    }
-
-    let screen_pos =
-        nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
-
-    let config = &game_world.resources.config;
-    let options = PickingOptions {
-        max_distance: config.grab_range,
-        ignore_invisible: true,
-    };
-
-    let pick_results = if game_world.resources.input_mode == InputMode::Gamepad {
-        pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
-    } else {
-        pick_entities(world, screen_pos, options)
-    };
-
-    let interact_range = config.interact_range;
-
-    let door_entities: Vec<freecs::Entity> =
-        game_world.query_entities(DOOR).collect();
-    let drawer_entities: Vec<freecs::Entity> =
-        game_world.query_entities(DRAWER).collect();
-    let lever_entities: Vec<freecs::Entity> =
-        game_world.query_entities(LEVER).collect();
-    let wheel_entities: Vec<freecs::Entity> =
-        game_world.query_entities(WHEEL).collect();
-    let button_entities: Vec<freecs::Entity> =
-        game_world.query_entities(BUTTON).collect();
-    let note_entities: Vec<freecs::Entity> =
-        game_world.query_entities(NOTE).collect();
-
-    let mut can_interact = false;
-    let mut can_read = false;
-
-    'outer: for result in &pick_results {
-        if game_world.resources.physics_objects.contains(&result.entity) {
-            can_interact = true;
-            break;
-        }
-
-        for &game_entity in &door_entities {
-            if let Some(door) = game_world.get_door(game_entity)
-                && result.entity == door.entity
-                && result.distance <= interact_range
-            {
-                can_interact = true;
-                break 'outer;
-            }
-        }
-
-        for &game_entity in &drawer_entities {
-            if let Some(drawer) = game_world.get_drawer(game_entity)
-                && result.entity == drawer.front_entity
-                && result.distance <= interact_range
-            {
-                can_interact = true;
-                break 'outer;
-            }
-        }
-
-        for &game_entity in &lever_entities {
-            if let Some(lever) = game_world.get_lever(game_entity)
-                && result.entity == lever.collider_entity
-                && result.distance <= interact_range
-            {
-                can_interact = true;
-                break 'outer;
-            }
-        }
-
-        for &game_entity in &wheel_entities {
-            if let Some(wheel) = game_world.get_wheel(game_entity)
-                && result.entity == wheel.entity
-                && result.distance <= interact_range
-            {
-                can_interact = true;
-                break 'outer;
-            }
-        }
-
-        for &game_entity in &button_entities {
-            if let Some(button) = game_world.get_button(game_entity)
-                && result.entity == button.entity
-                && result.distance <= interact_range
-            {
-                can_interact = true;
-                break 'outer;
-            }
-        }
-
-        for &game_entity in &note_entities {
-            if let Some(note) = game_world.get_note(game_entity)
-                && result.entity == note.entity
-                && result.distance <= interact_range
-            {
-                can_read = true;
-                break 'outer;
-            }
-        }
-    }
-
-    let prompt_text = if can_read {
-        "Read"
-    } else if can_interact {
-        "Interact"
-    } else {
-        ""
-    };
-
-    world.resources.text_cache.set_text(text_index, prompt_text);
-    if let Some(hud_text) = world.core.get_text_mut(prompt_entity) {
-        hud_text.dirty = true;
-    }
-
-    let crosshair_color = if can_interact || can_read {
-        nalgebra_glm::Vec4::new(0.2, 1.0, 0.2, 0.9)
-    } else {
-        nalgebra_glm::Vec4::new(1.0, 1.0, 1.0, 0.7)
-    };
-    for &arm in &game_world.resources.crosshair_arms {
-        if let Some(color) = world.ui.get_ui_node_color_mut(arm) {
-            color.colors[0] = Some(crosshair_color);
-            color.computed_color = crosshair_color;
-        }
-    }
-}
-
-pub fn pick_entities_cone(
-    world: &World,
-    center: Vec2,
-    radius: f32,
-    options: PickingOptions,
-) -> Vec<PickingResult> {
-    let mut all_results: Vec<PickingResult> = Vec::new();
-    let mut seen_entities = std::collections::HashSet::new();
-
-    let offsets = [
-        (0.0, 0.0),
-        (1.0, 0.0),
-        (-1.0, 0.0),
-        (0.0, 1.0),
-        (0.0, -1.0),
-        (0.707, 0.707),
-        (-0.707, 0.707),
-        (0.707, -0.707),
-        (-0.707, -0.707),
-        (0.5, 0.0),
-        (-0.5, 0.0),
-        (0.0, 0.5),
-        (0.0, -0.5),
-    ];
-
-    for (offset_x, offset_y) in offsets {
-        let screen_pos =
-            nalgebra_glm::vec2(center.x + offset_x * radius, center.y + offset_y * radius);
-
-        let results = pick_entities(world, screen_pos, options);
-        for result in results {
-            if !seen_entities.contains(&result.entity) {
-                seen_entities.insert(result.entity);
-                all_results.push(result);
-            }
-        }
-    }
-
-    all_results.sort_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
-    all_results
-}
-
-#[cfg(feature = "openxr")]
-fn pick_entities_from_ray(
-    world: &World,
-    origin: Vec3,
-    direction: Vec3,
-    options: PickingOptions,
-) -> Vec<PickingResult> {
-    use nightshade::ecs::picking::PickingResult;
-
-    let mut results = Vec::new();
-
-    for entity in world
-        .core
-        .query_entities(nightshade::ecs::world::BOUNDING_VOLUME)
-    {
-        let Some(bounding_volume) = world.core.get_bounding_volume(entity) else {
-            continue;
-        };
-        let Some(global_transform) = world.core.get_global_transform(entity) else {
-            continue;
-        };
-
-        if options.ignore_invisible
-            && let Some(visible) = world.core.get_visibility(entity)
-            && !visible.visible
-        {
-            continue;
-        }
-
-        let transformed_bv = bounding_volume.transform(&global_transform.0);
-
-        let to_center = transformed_bv.obb.center - origin;
-        let projection = nalgebra_glm::dot(&to_center, &direction);
-        let closest_point = if projection < 0.0 {
-            origin
-        } else {
-            origin + direction * projection
-        };
-
-        let distance_to_sphere =
-            nalgebra_glm::distance(&closest_point, &transformed_bv.obb.center);
-        if distance_to_sphere > transformed_bv.sphere_radius {
-            continue;
-        }
-
-        if let Some(distance) = transformed_bv.obb.intersect_ray(origin, direction)
-            && distance <= options.max_distance
-        {
-            let world_position = origin + direction * distance;
-            results.push(PickingResult {
-                entity,
-                distance,
-                world_position,
-            });
-        }
-    }
-
-    results.sort_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
-    results
-}
-
 pub fn note_reading_system(game_world: &mut GameWorld, world: &mut World) {
     let keyboard = &world.resources.input.keyboard;
     let f_pressed = keyboard.is_key_pressed(KeyCode::KeyF);
@@ -891,17 +428,17 @@ pub fn note_reading_system(game_world: &mut GameWorld, world: &mut World) {
 
     let interact_pressed = f_pressed || gamepad_lt_pressed;
 
-    if !game_world.resources.note_close_key_released && !interact_pressed {
-        game_world.resources.note_close_key_released = true;
+    if !game_world.resources.ui.note_close_key_released && !interact_pressed {
+        game_world.resources.ui.note_close_key_released = true;
     }
 
-    if game_world.resources.note_close_key_released && interact_pressed {
-        game_world.resources.reading_note = None;
+    if game_world.resources.ui.note_close_key_released && interact_pressed {
+        game_world.resources.ui.reading_note = None;
     }
 }
 
 pub fn check_fall_reset(game_world: &GameWorld, world: &mut World) {
-    let Some(player_entity) = game_world.resources.player_entity else {
+    let Some(player_entity) = game_world.resources.player.entity else {
         return;
     };
 

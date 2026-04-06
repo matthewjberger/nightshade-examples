@@ -7,7 +7,6 @@ pub use resources::*;
 use nightshade::prelude::Entity;
 use nightshade::prelude::Vec3;
 use nightshade::prelude::freecs;
-use nightshade::prelude::nalgebra_glm;
 
 freecs::ecs! {
     GameWorld {
@@ -26,56 +25,33 @@ freecs::ecs! {
         coulomb_friction_joint: CoulombFrictionJoint => COULOMB_FRICTION_JOINT,
         target: Target => TARGET,
         velocity_friction_joint: VelocityFrictionJoint => VELOCITY_FRICTION_JOINT,
+        interactable: Interactable => INTERACTABLE,
     }
     Tags {
+        grabbable => GRABBABLE,
+    }
+    Events {
+        target_killed: TargetKilledEvent,
     }
     Resources {
         config: GameConfig,
-        player_entity: Option<Entity>,
-        camera_entity: Option<Entity>,
-        physics_objects: Vec<Entity>,
+        player: PlayerResources,
         interaction: InteractionState,
         grab: nightshade::ecs::physics::grab::GrabState,
-        interaction_prompt_entity: Option<Entity>,
-        interaction_prompt_text_index: Option<usize>,
+        #[cfg(not(feature = "openxr"))]
+        weapon: WeaponState,
+        flashlight: FlashlightState,
+        ui: UiHandles,
+        prompt_cache: PromptCache,
+        input_actions: InputActions,
         #[cfg(not(feature = "openxr"))]
         lean: LeanState,
         input_mode: InputMode,
-        input_mode_text_entity: Option<Entity>,
-        input_mode_text_index: Option<usize>,
         show_physics_debug: bool,
-        key4_was_pressed: bool,
-        reading_note: Option<freecs::Entity>,
-        note_close_key_released: bool,
         bauble_table_center: Vec3,
         bauble_table_top_y: f32,
         lantern_entity: Option<Entity>,
         lantern_light_entity: Option<Entity>,
-        player_state: PlayerState,
-        dash_charges: u32,
-        dash_cooldown_timer: f32,
-        dash_button_was_pressed: bool,
-        jump_button_was_pressed: bool,
-        slide_button_was_pressed: bool,
-        keyboard_dash_was_pressed: bool,
-        dash_hud_entity: Option<Entity>,
-        dash_hud_state_text_entity: Option<Entity>,
-        dash_hud_charge_entities: Vec<Entity>,
-        weapon_entity: Option<Entity>,
-        aiming_down_sights: bool,
-        aim_blend: f32,
-        weapon_sway: nalgebra_glm::Vec2,
-        weapon_previous_yaw: f32,
-        weapon_previous_pitch: f32,
-        flashlight_entity: Option<Entity>,
-        flashlight_on: bool,
-        flashlight_key_was_pressed: bool,
-        crosshair_entity: Option<Entity>,
-        crosshair_arms: Vec<Entity>,
-        note_overlay_entity: Option<Entity>,
-        note_title_entity: Option<Entity>,
-        note_content_entity: Option<Entity>,
-        last_shown_note: Option<freecs::Entity>,
         #[cfg(feature = "openxr")]
         left_hand_cube: Option<Entity>,
         #[cfg(feature = "openxr")]

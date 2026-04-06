@@ -3,26 +3,11 @@ use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
 
 pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
-    let Some(camera_entity) = game_world.resources.camera_entity else {
+    let Some(camera_entity) = game_world.resources.player.camera_entity else {
         return;
     };
 
-    let is_manipulating = game_world.resources.interaction.manipulated_door.is_some()
-        || game_world
-            .resources
-            .interaction
-            .manipulated_drawer
-            .is_some()
-        || game_world
-            .resources
-            .interaction
-            .manipulated_lever
-            .is_some()
-        || game_world
-            .resources
-            .interaction
-            .manipulated_wheel
-            .is_some();
+    let is_manipulating = game_world.resources.interaction.is_any_active();
 
     let (gamepad_right_stick_x, gamepad_right_stick_y) =
         if game_world.resources.input_mode == InputMode::Gamepad && !is_manipulating {
@@ -97,7 +82,7 @@ pub fn camera_look_system(game_world: &mut GameWorld, world: &mut World) {
 }
 
 pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
-    let Some(camera_entity) = game_world.resources.camera_entity else {
+    let Some(camera_entity) = game_world.resources.player.camera_entity else {
         return;
     };
 
@@ -129,25 +114,25 @@ pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
     let lean_left = lean_left_key || gamepad_lean_left;
     let lean_right = lean_right_key || gamepad_lean_right;
 
-    let player_state = game_world.resources.player_state;
+    let player_state = game_world.resources.player.state;
 
     if lean_left && !lean_right {
         if let Some(new_state) = player_state.process_event(PlayerEvent::LeanLeft) {
-            game_world.resources.player_state = new_state;
+            game_world.resources.player.state = new_state;
         }
     } else if lean_right && !lean_left {
         if let Some(new_state) = player_state.process_event(PlayerEvent::LeanRight) {
-            game_world.resources.player_state = new_state;
+            game_world.resources.player.state = new_state;
         }
     } else if matches!(
         player_state,
         PlayerState::LeaningLeft | PlayerState::LeaningRight
     ) && let Some(new_state) = player_state.process_event(PlayerEvent::Release)
     {
-        game_world.resources.player_state = new_state;
+        game_world.resources.player.state = new_state;
     }
 
-    let target_lean = match game_world.resources.player_state {
+    let target_lean = match game_world.resources.player.state {
         PlayerState::LeaningLeft => -1.0,
         PlayerState::LeaningRight => 1.0,
         PlayerState::Sliding => game_world.resources.config.slide_camera_tilt,
@@ -190,10 +175,10 @@ pub fn lean_system(game_world: &mut GameWorld, world: &mut World) {
 }
 
 pub fn crouch_camera_system(game_world: &GameWorld, world: &mut World) {
-    let Some(player_entity) = game_world.resources.player_entity else {
+    let Some(player_entity) = game_world.resources.player.entity else {
         return;
     };
-    let Some(camera_entity) = game_world.resources.camera_entity else {
+    let Some(camera_entity) = game_world.resources.player.camera_entity else {
         return;
     };
 

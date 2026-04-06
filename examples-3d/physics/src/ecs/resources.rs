@@ -1,6 +1,5 @@
 use nightshade::prelude::Entity;
 use nightshade::prelude::freecs;
-#[cfg(not(feature = "openxr"))]
 use nightshade::prelude::nalgebra_glm;
 
 stateless::statemachine! {
@@ -105,19 +104,113 @@ impl Default for GameConfig {
 }
 
 #[derive(Default)]
+pub struct PlayerResources {
+    pub entity: Option<Entity>,
+    pub camera_entity: Option<Entity>,
+    pub state: PlayerState,
+    pub dash_charges: u32,
+    pub dash_cooldown_timer: f32,
+}
+
+#[cfg(not(feature = "openxr"))]
+#[derive(Default)]
+pub struct WeaponState {
+    pub entity: Option<Entity>,
+    pub aiming_down_sights: bool,
+    pub aim_blend: f32,
+    pub sway: nalgebra_glm::Vec2,
+    pub previous_yaw: f32,
+    pub previous_pitch: f32,
+}
+
+#[derive(Default)]
+pub struct FlashlightState {
+    pub entity: Option<Entity>,
+    pub on: bool,
+    pub key_was_pressed: bool,
+}
+
+#[derive(Default)]
+pub struct PromptCache {
+    pub camera_position: nalgebra_glm::Vec3,
+    pub camera_forward: nalgebra_glm::Vec3,
+    pub can_interact: bool,
+    pub can_read: bool,
+}
+
+#[derive(Default)]
+pub struct UiHandles {
+    pub crosshair_entity: Option<Entity>,
+    pub crosshair_arms: Vec<Entity>,
+    pub note_overlay_entity: Option<Entity>,
+    pub note_title_entity: Option<Entity>,
+    pub note_content_entity: Option<Entity>,
+    pub last_shown_note: Option<freecs::Entity>,
+    pub reading_note: Option<freecs::Entity>,
+    pub note_close_key_released: bool,
+    pub interaction_prompt_entity: Option<Entity>,
+    pub interaction_prompt_text_index: Option<usize>,
+    pub input_mode_text_entity: Option<Entity>,
+    pub input_mode_text_index: Option<usize>,
+    pub dash_hud_entity: Option<Entity>,
+    pub dash_hud_state_text_entity: Option<Entity>,
+    pub dash_hud_charge_entities: Vec<Entity>,
+}
+
+#[derive(Default, Clone, Copy)]
+pub struct ActionEdge {
+    held: bool,
+    previous: bool,
+}
+
+impl ActionEdge {
+    pub fn update(&mut self, pressed: bool) {
+        self.previous = self.held;
+        self.held = pressed;
+    }
+
+    pub fn just_pressed(&self) -> bool {
+        self.held && !self.previous
+    }
+
+    pub fn held(&self) -> bool {
+        self.held
+    }
+}
+
+#[derive(Default)]
+pub struct InputActions {
+    pub dash: ActionEdge,
+    pub jump: ActionEdge,
+    pub slide: ActionEdge,
+}
+
+#[derive(Default)]
 pub struct InteractionState {
     pub grabbed_entity: Option<Entity>,
     pub grab_distance: f32,
-    pub manipulated_door: Option<freecs::Entity>,
-    pub manipulated_drawer: Option<freecs::Entity>,
-    pub manipulated_lever: Option<freecs::Entity>,
-    pub manipulated_wheel: Option<freecs::Entity>,
-    pub manipulated_button: Option<freecs::Entity>,
+    pub manipulated: Option<(freecs::Entity, super::InteractableKind)>,
     pub gamepad_rt_was_pressed: bool,
     pub shoot_was_pressed: bool,
     pub shoot_hold_start_ms: Option<u64>,
     pub last_rapid_fire_ms: u64,
     pub require_interact_release: bool,
+}
+
+impl InteractionState {
+    pub fn is_any_active(&self) -> bool {
+        self.grabbed_entity.is_some() || self.manipulated.is_some()
+    }
+
+    pub fn manipulated_entity_of_kind(&self, kind: &super::InteractableKind) -> Option<freecs::Entity> {
+        self.manipulated.as_ref().and_then(|(entity, k)| {
+            if std::mem::discriminant(k) == std::mem::discriminant(kind) {
+                Some(*entity)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 #[cfg(not(feature = "openxr"))]

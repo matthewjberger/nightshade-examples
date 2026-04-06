@@ -7,7 +7,7 @@ pub(super) fn update_manipulated_drawer(
     world: &mut World,
     camera_position: Vec3,
 ) {
-    let Some(drawer_game_entity) = game_world.resources.interaction.manipulated_drawer else {
+    let Some(drawer_game_entity) = game_world.resources.interaction.manipulated_entity_of_kind(&crate::ecs::InteractableKind::Drawer) else {
         return;
     };
 
@@ -28,7 +28,7 @@ pub(super) fn update_manipulated_drawer(
     let distance_to_drawer = nalgebra_glm::distance(&camera_position, &current_pos);
 
     if distance_to_drawer > game_world.resources.config.interact_range * 3.0 {
-        game_world.resources.interaction.manipulated_drawer = None;
+        game_world.resources.interaction.manipulated = None;
         return;
     }
 
@@ -117,7 +117,7 @@ pub fn update_drawers_momentum(game_world: &mut GameWorld, world: &mut World) {
     let drawer_entities: Vec<freecs::Entity> =
         game_world.query_entities(DRAWER).collect();
 
-    let manipulated_drawer = game_world.resources.interaction.manipulated_drawer;
+    let manipulated_drawer = game_world.resources.interaction.manipulated_entity_of_kind(&crate::ecs::InteractableKind::Drawer);
 
     for game_entity in drawer_entities {
         if manipulated_drawer == Some(game_entity) {

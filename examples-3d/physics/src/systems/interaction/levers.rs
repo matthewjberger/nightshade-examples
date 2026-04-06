@@ -7,7 +7,7 @@ pub(super) fn update_manipulated_lever(
     world: &mut World,
     camera_position: Vec3,
 ) {
-    let Some(lever_game_entity) = game_world.resources.interaction.manipulated_lever else {
+    let Some(lever_game_entity) = game_world.resources.interaction.manipulated_entity_of_kind(&crate::ecs::InteractableKind::Lever) else {
         return;
     };
 
@@ -19,7 +19,7 @@ pub(super) fn update_manipulated_lever(
     };
 
     if nalgebra_glm::distance(&camera_position, &pivot_position) > game_world.resources.config.interact_range * 3.0 {
-        game_world.resources.interaction.manipulated_lever = None;
+        game_world.resources.interaction.manipulated = None;
         return;
     }
 
@@ -132,7 +132,7 @@ pub fn update_levers_momentum(game_world: &mut GameWorld, world: &mut World) {
     let lever_entities: Vec<freecs::Entity> =
         game_world.query_entities(LEVER).collect();
 
-    let manipulated_lever = game_world.resources.interaction.manipulated_lever;
+    let manipulated_lever = game_world.resources.interaction.manipulated_entity_of_kind(&crate::ecs::InteractableKind::Lever);
 
     for game_entity in lever_entities {
         if manipulated_lever == Some(game_entity) {

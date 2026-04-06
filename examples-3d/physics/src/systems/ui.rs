@@ -165,43 +165,40 @@ pub fn spawn_wall_label(
 }
 
 pub fn update_note_overlay(game_world: &mut GameWorld, world: &mut World) {
-    if let Some(crosshair) = game_world.resources.crosshair_entity {
-        world.ui_set_visible(crosshair, game_world.resources.reading_note.is_none());
+    if let Some(crosshair) = game_world.resources.ui.crosshair_entity {
+        world.ui_set_visible(crosshair, game_world.resources.ui.reading_note.is_none());
     }
 
-    if let Some(overlay) = game_world.resources.note_overlay_entity {
-        if let Some(note_game_entity) = game_world.resources.reading_note {
+    if let Some(overlay) = game_world.resources.ui.note_overlay_entity {
+        if let Some(note_game_entity) = game_world.resources.ui.reading_note {
             world.ui_set_visible(overlay, true);
-            if game_world.resources.last_shown_note != Some(note_game_entity) {
+            if game_world.resources.ui.last_shown_note != Some(note_game_entity) {
                 if let Some(note) = game_world.get_note(note_game_entity) {
                     let title = note.title.clone();
                     let content = note.content.clone();
-                    if let Some(entity) = game_world.resources.note_title_entity {
+                    if let Some(entity) = game_world.resources.ui.note_title_entity {
                         world.ui_set_text(entity, &title);
                     }
-                    if let Some(entity) = game_world.resources.note_content_entity {
+                    if let Some(entity) = game_world.resources.ui.note_content_entity {
                         world.ui_set_text(entity, &content);
                     }
                 }
-                game_world.resources.last_shown_note = Some(note_game_entity);
+                game_world.resources.ui.last_shown_note = Some(note_game_entity);
             }
         } else {
             world.ui_set_visible(overlay, false);
-            if game_world.resources.last_shown_note.is_some() {
-                game_world.resources.last_shown_note = None;
+            if game_world.resources.ui.last_shown_note.is_some() {
+                game_world.resources.ui.last_shown_note = None;
             }
         }
     }
 }
 
 pub fn debug_toggle_system(game_world: &mut GameWorld, world: &mut World) {
-    let keyboard = &world.resources.input.keyboard;
-    let key4_pressed = keyboard.is_key_pressed(KeyCode::Digit4);
+    let key4_just_pressed = world.resources.input.keyboard.just_pressed(KeyCode::Digit4);
 
-    if key4_pressed && !game_world.resources.key4_was_pressed {
+    if key4_just_pressed {
         game_world.resources.show_physics_debug = !game_world.resources.show_physics_debug;
         world.resources.physics.debug_draw = game_world.resources.show_physics_debug;
     }
-
-    game_world.resources.key4_was_pressed = key4_pressed;
 }

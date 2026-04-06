@@ -44,27 +44,8 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
     }
 
     let material_name = format!("ShotBauble_{}", entity.id);
-    material_registry_insert(
-        &mut world.resources.material_registry,
-        material_name.clone(),
-        create_textured_material(color, 0.2, 0.8),
-    );
-    if let Some(&index) = world
-        .resources
-        .material_registry
-        .registry
-        .name_to_index
-        .get(&material_name)
-    {
-        world
-            .resources
-            .material_registry
-            .registry
-            .add_reference(index);
-    }
-    world
-        .core
-        .set_material_ref(entity, MaterialRef::new(material_name));
+    let material = create_textured_material(color, 0.2, 0.8);
+    crate::systems::spawn::assign_material(world, entity, material_name, material);
 
     if let Some(bv) = world.core.get_bounding_volume_mut(entity) {
         *bv = BoundingVolume::from_mesh_type("Sphere");
@@ -105,7 +86,7 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
         .insert(entity, handle);
 
     world.resources.mesh_render_state.mark_entity_added(entity);
-    game_world.resources.physics_objects.push(entity);
+    game_world.add_grabbable(entity);
 
     if let Some(interpolation) = world.core.get_physics_interpolation_mut(entity) {
         interpolation.previous_translation = position;
@@ -213,7 +194,7 @@ pub fn update_shot_baubles(game_world: &mut GameWorld, world: &mut World) {
         if let Some(bauble) = game_world.get_shot_bauble_mut(game_entity) {
             bauble.landed = true;
         }
-        game_world.resources.physics_objects.push(engine_entity);
+        game_world.add_grabbable(engine_entity);
     }
 
     for (game_entity, engine_entity) in baubles_to_remove.into_iter().rev() {
@@ -233,6 +214,6 @@ fn despawn_bauble(game_world: &mut GameWorld, world: &mut World, entity: Entity)
         world.resources.physics.remove_rigid_body(handle.into());
     }
 
-    game_world.resources.physics_objects.retain(|e| *e != entity);
+    game_world.remove_grabbable(entity);
     despawn_entities_with_cache_cleanup(world, &[entity]);
 }

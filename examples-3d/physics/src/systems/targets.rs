@@ -1,4 +1,4 @@
-use crate::ecs::{GameWorld, Health, Target, SHOT_BAUBLE, TARGET};
+use crate::ecs::{GameWorld, Health, Target, TargetKilledEvent, SHOT_BAUBLE, TARGET};
 use nightshade::ecs::particles::components::{ColorGradient, EmitterShape, ParticleEmitter};
 use nightshade::ecs::transform::components::Parent;
 use nightshade::ecs::visibility::components::Visibility;
@@ -73,9 +73,10 @@ fn spawn_target_mesh(
     }
 
     let material_name = format!("Target_{}", entity.id);
-    material_registry_insert(
-        &mut world.resources.material_registry,
-        material_name.clone(),
+    crate::systems::spawn::assign_material(
+        world,
+        entity,
+        material_name,
         nightshade::ecs::material::components::Material {
             base_color: [color.x, color.y, color.z, 1.0],
             emissive_factor: [color.x * 2.0, color.y * 2.0, color.z * 2.0],
@@ -84,22 +85,6 @@ fn spawn_target_mesh(
             ..Default::default()
         },
     );
-    if let Some(&index) = world
-        .resources
-        .material_registry
-        .registry
-        .name_to_index
-        .get(&material_name)
-    {
-        world
-            .resources
-            .material_registry
-            .registry
-            .add_reference(index);
-    }
-    world
-        .core
-        .set_material_ref(entity, MaterialRef::new(material_name));
 
     if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume = BoundingVolume::from_mesh_type(mesh_name);
@@ -131,15 +116,12 @@ fn spawn_healthbar(world: &mut World, position: Vec3) -> (Entity, Entity) {
     }
 
     let bg_material_name = format!("HealthBarBg_{}", background.id);
-    material_registry_insert(
-        &mut world.resources.material_registry,
-        bg_material_name.clone(),
+    crate::systems::spawn::assign_material(
+        world,
+        background,
+        bg_material_name,
         create_textured_material(nalgebra_glm::vec3(0.1, 0.1, 0.1), 0.9, 0.0),
     );
-    if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&bg_material_name) {
-        world.resources.material_registry.registry.add_reference(index);
-    }
-    world.core.set_material_ref(background, MaterialRef::new(bg_material_name));
 
     if let Some(bounding_volume) = world.core.get_bounding_volume_mut(background) {
         *bounding_volume = BoundingVolume::from_mesh_type("Cube");
@@ -163,15 +145,12 @@ fn spawn_healthbar(world: &mut World, position: Vec3) -> (Entity, Entity) {
     }
 
     let fill_material_name = format!("HealthBarFill_{}", fill.id);
-    material_registry_insert(
-        &mut world.resources.material_registry,
-        fill_material_name.clone(),
+    crate::systems::spawn::assign_material(
+        world,
+        fill,
+        fill_material_name,
         create_textured_material(nalgebra_glm::vec3(0.2, 0.9, 0.2), 0.8, 0.0),
     );
-    if let Some(&index) = world.resources.material_registry.registry.name_to_index.get(&fill_material_name) {
-        world.resources.material_registry.registry.add_reference(index);
-    }
-    world.core.set_material_ref(fill, MaterialRef::new(fill_material_name));
 
     if let Some(bounding_volume) = world.core.get_bounding_volume_mut(fill) {
         *bounding_volume = BoundingVolume::from_mesh_type("Cube");
@@ -356,23 +335,11 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
                 target.pop_time_ms = current_time;
             }
 
-            world
-                .core
-                .set_visibility(entity, Visibility { visible: false });
-
-            if let Some(target) = game_world.get_target(game_entity) {
-                world
-                    .core
-                    .set_visibility(target.health.bar_entity, Visibility { visible: false });
-                world
-                    .core
-                    .set_visibility(target.health.fill_entity, Visibility { visible: false });
-            }
-
-            let emitter = spawn_pop_effect(world, target_position, color);
-            if let Some(target) = game_world.get_target_mut(game_entity) {
-                target.pop_emitter_entity = Some(emitter);
-            }
+            game_world.send_target_killed(TargetKilledEvent {
+                game_entity,
+                position: target_position,
+                color,
+            });
         } else if hit_count > 0
             && let Some(target) = game_world.get_target(game_entity)
         {
@@ -390,6 +357,7 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
 
             let camera_position = game_world
                 .resources
+                .player
                 .camera_entity
                 .and_then(|camera| world.core.get_global_transform(camera))
                 .map(|transform| transform.translation())
@@ -414,6 +382,45 @@ pub fn update_targets(game_world: &mut GameWorld, world: &mut World) {
     for (bauble_game_entity, bauble_engine_entity) in consumed_baubles {
         super::shooting::despawn_bauble_public(game_world, world, bauble_engine_entity);
         game_world.despawn_entities(&[bauble_game_entity]);
+    }
+}
+
+pub fn process_target_killed_events(game_world: &mut GameWorld, world: &mut World) {
+    let events: Vec<TargetKilledEvent> = game_world.drain_target_killed().collect();
+
+    for event in events {
+        let entity = game_world
+            .get_target(event.game_entity)
+            .map(|target| target.entity);
+        let bar_entity = game_world
+            .get_target(event.game_entity)
+            .map(|target| target.health.bar_entity);
+        let fill_entity = game_world
+            .get_target(event.game_entity)
+            .map(|target| target.health.fill_entity);
+
+        if let Some(entity) = entity {
+            world
+                .core
+                .set_visibility(entity, Visibility { visible: false });
+        }
+
+        if let Some(bar_entity) = bar_entity {
+            world
+                .core
+                .set_visibility(bar_entity, Visibility { visible: false });
+        }
+
+        if let Some(fill_entity) = fill_entity {
+            world
+                .core
+                .set_visibility(fill_entity, Visibility { visible: false });
+        }
+
+        let emitter = spawn_pop_effect(world, event.position, event.color);
+        if let Some(target) = game_world.get_target_mut(event.game_entity) {
+            target.pop_emitter_entity = Some(emitter);
+        }
     }
 }
 

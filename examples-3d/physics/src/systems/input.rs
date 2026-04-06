@@ -60,7 +60,7 @@ pub fn detect_input_mode(game_world: &mut GameWorld, world: &mut World) {
         world.resources.graphics.show_cursor = false;
         world.set_cursor_visible(false);
 
-        if let Some(text_index) = game_world.resources.input_mode_text_index {
+        if let Some(text_index) = game_world.resources.ui.input_mode_text_index {
             let text = match game_world.resources.input_mode {
                 InputMode::MouseKeyboard => "Mouse/Keyboard",
                 InputMode::Gamepad => "Gamepad",
@@ -68,7 +68,7 @@ pub fn detect_input_mode(game_world: &mut GameWorld, world: &mut World) {
                 InputMode::Xr => "VR",
             };
             world.resources.text_cache.set_text(text_index, text);
-            if let Some(entity) = game_world.resources.input_mode_text_entity
+            if let Some(entity) = game_world.resources.ui.input_mode_text_entity
                 && let Some(hud_text) = world.core.get_text_mut(entity)
             {
                 hud_text.dirty = true;

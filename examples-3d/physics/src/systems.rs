@@ -9,6 +9,7 @@ pub mod interaction;
 pub mod shooting;
 pub mod targets;
 pub mod ui;
+pub mod spawn;
 #[cfg(not(feature = "openxr"))]
 pub mod weapon;
 #[cfg(feature = "openxr")]

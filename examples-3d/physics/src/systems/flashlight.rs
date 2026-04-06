@@ -46,10 +46,10 @@ pub fn spawn_flashlight(world: &mut World) -> Entity {
 }
 
 pub fn update_flashlight(game_world: &mut GameWorld, world: &mut World) {
-    let Some(flashlight_entity) = game_world.resources.flashlight_entity else {
+    let Some(flashlight_entity) = game_world.resources.flashlight.entity else {
         return;
     };
-    let Some(camera) = game_world.resources.camera_entity else {
+    let Some(camera) = game_world.resources.player.camera_entity else {
         return;
     };
 
@@ -61,20 +61,20 @@ pub fn update_flashlight(game_world: &mut GameWorld, world: &mut World) {
     };
     let flashlight_input = f_pressed || gamepad_flashlight_pressed;
 
-    if flashlight_input && !game_world.resources.flashlight_key_was_pressed {
-        game_world.resources.flashlight_on = !game_world.resources.flashlight_on;
+    if flashlight_input && !game_world.resources.flashlight.key_was_pressed {
+        game_world.resources.flashlight.on = !game_world.resources.flashlight.on;
         if let Some(light) = world.core.get_light_mut(flashlight_entity) {
-            light.intensity = if game_world.resources.flashlight_on {
+            light.intensity = if game_world.resources.flashlight.on {
                 60.0
             } else {
                 0.0
             };
         }
     }
-    game_world.resources.flashlight_key_was_pressed = flashlight_input;
+    game_world.resources.flashlight.key_was_pressed = flashlight_input;
 
     let (light_position, light_rotation) =
-        if let Some(weapon) = game_world.resources.weapon_entity
+        if let Some(weapon) = game_world.resources.weapon.entity
             && let Some(weapon_transform) = world.core.get_global_transform(weapon)
         {
             let muzzle_local = nalgebra_glm::vec4(0.0, 0.005, -0.20, 1.0);

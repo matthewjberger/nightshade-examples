@@ -1,6 +1,33 @@
 use nightshade::prelude::Entity;
 use nightshade::prelude::Vec3;
+use nightshade::prelude::freecs;
 use nightshade::prelude::rapier3d;
+
+#[derive(Default, Clone, Debug)]
+pub enum InteractableKind {
+    #[default]
+    Grab,
+    Door,
+    Drawer,
+    Lever,
+    Wheel,
+    Button,
+    Note,
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct Interactable {
+    pub engine_entity: Entity,
+    pub game_entity: freecs::Entity,
+    pub kind: InteractableKind,
+}
+
+#[derive(Clone, Debug)]
+pub struct TargetKilledEvent {
+    pub game_entity: freecs::Entity,
+    pub position: Vec3,
+    pub color: Vec3,
+}
 
 #[derive(Default, Clone, Debug)]
 pub struct Door {
@@ -17,7 +44,6 @@ pub struct Door {
 #[derive(Default, Clone, Debug)]
 pub struct Drawer {
     pub entity: Entity,
-    pub front_entity: Entity,
     pub rigid_body_handle: rapier3d::prelude::RigidBodyHandle,
     pub closed_position: Vec3,
     pub current_offset: f32,
@@ -65,7 +91,6 @@ pub enum ButtonAction {
 
 #[derive(Default, Clone, Debug)]
 pub struct Note {
-    pub entity: Entity,
     pub title: String,
     pub content: String,
 }

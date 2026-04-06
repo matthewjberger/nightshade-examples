@@ -7,7 +7,7 @@ pub(super) fn update_manipulated_door(
     world: &mut World,
     camera_position: Vec3,
 ) {
-    let Some(door_game_entity) = game_world.resources.interaction.manipulated_door else {
+    let Some(door_game_entity) = game_world.resources.interaction.manipulated_entity_of_kind(&crate::ecs::InteractableKind::Door) else {
         return;
     };
 
@@ -19,7 +19,7 @@ pub(super) fn update_manipulated_door(
     };
 
     if nalgebra_glm::distance(&camera_position, &hinge_position) > game_world.resources.config.interact_range * 3.0 {
-        game_world.resources.interaction.manipulated_door = None;
+        game_world.resources.interaction.manipulated = None;
         return;
     }
 
@@ -120,7 +120,7 @@ pub fn update_doors_momentum(game_world: &mut GameWorld, world: &mut World) {
     let door_entities: Vec<freecs::Entity> =
         game_world.query_entities(DOOR).collect();
 
-    let manipulated_door = game_world.resources.interaction.manipulated_door;
+    let manipulated_door = game_world.resources.interaction.manipulated_entity_of_kind(&crate::ecs::InteractableKind::Door);
 
     for game_entity in door_entities {
         if manipulated_door == Some(game_entity) {

@@ -42,27 +42,7 @@ pub fn spawn_weapon_part(
     }
 
     let material_name = format!("WeaponPart_{}", entity.id);
-    material_registry_insert(
-        &mut world.resources.material_registry,
-        material_name.clone(),
-        material,
-    );
-    if let Some(&index) = world
-        .resources
-        .material_registry
-        .registry
-        .name_to_index
-        .get(&material_name)
-    {
-        world
-            .resources
-            .material_registry
-            .registry
-            .add_reference(index);
-    }
-    world
-        .core
-        .set_material_ref(entity, MaterialRef::new(material_name));
+    crate::systems::spawn::assign_material(world, entity, material_name, material);
 
     if let Some(bounding_volume) = world.core.get_bounding_volume_mut(entity) {
         *bounding_volume = BoundingVolume::from_mesh_type(mesh_name);
@@ -171,10 +151,10 @@ pub fn spawn_weapon(world: &mut World, camera_entity: Entity) -> Entity {
 }
 
 pub fn update_weapon_sway(game_world: &mut GameWorld, world: &mut World) {
-    let Some(weapon_entity) = game_world.resources.weapon_entity else {
+    let Some(weapon_entity) = game_world.resources.weapon.entity else {
         return;
     };
-    let Some(camera_entity) = game_world.resources.camera_entity else {
+    let Some(camera_entity) = game_world.resources.player.camera_entity else {
         return;
     };
 
@@ -187,12 +167,12 @@ pub fn update_weapon_sway(game_world: &mut GameWorld, world: &mut World) {
         || query_active_gamepad(world)
             .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::West));
 
-    game_world.resources.aiming_down_sights = ads_held;
+    game_world.resources.weapon.aiming_down_sights = ads_held;
 
     let delta_time = world.resources.window.timing.delta_time;
     let target_blend = if ads_held { 1.0 } else { 0.0 };
-    let blend_diff = target_blend - game_world.resources.aim_blend;
-    game_world.resources.aim_blend += blend_diff * (ADS_LERP_SPEED * delta_time).min(1.0);
+    let blend_diff = target_blend - game_world.resources.weapon.aim_blend;
+    game_world.resources.weapon.aim_blend += blend_diff * (ADS_LERP_SPEED * delta_time).min(1.0);
 
     let forward = world
         .core
@@ -203,31 +183,31 @@ pub fn update_weapon_sway(game_world: &mut GameWorld, world: &mut World) {
     let current_yaw = forward.x.atan2(-forward.z);
     let current_pitch = forward.y.asin();
 
-    let yaw_delta = current_yaw - game_world.resources.weapon_previous_yaw;
-    let pitch_delta = current_pitch - game_world.resources.weapon_previous_pitch;
-    game_world.resources.weapon_previous_yaw = current_yaw;
-    game_world.resources.weapon_previous_pitch = current_pitch;
+    let yaw_delta = current_yaw - game_world.resources.weapon.previous_yaw;
+    let pitch_delta = current_pitch - game_world.resources.weapon.previous_pitch;
+    game_world.resources.weapon.previous_yaw = current_yaw;
+    game_world.resources.weapon.previous_pitch = current_pitch;
 
-    let sway_strength = 0.6 * (1.0 - game_world.resources.aim_blend * 0.8);
-    game_world.resources.weapon_sway.x -= yaw_delta * sway_strength;
-    game_world.resources.weapon_sway.y -= pitch_delta * sway_strength;
+    let sway_strength = 0.6 * (1.0 - game_world.resources.weapon.aim_blend * 0.8);
+    game_world.resources.weapon.sway.x -= yaw_delta * sway_strength;
+    game_world.resources.weapon.sway.y -= pitch_delta * sway_strength;
 
-    let max_sway = 0.08 * (1.0 - game_world.resources.aim_blend * 0.7);
-    game_world.resources.weapon_sway.x = game_world.resources.weapon_sway.x.clamp(-max_sway, max_sway);
-    game_world.resources.weapon_sway.y = game_world.resources.weapon_sway.y.clamp(-max_sway, max_sway);
+    let max_sway = 0.08 * (1.0 - game_world.resources.weapon.aim_blend * 0.7);
+    game_world.resources.weapon.sway.x = game_world.resources.weapon.sway.x.clamp(-max_sway, max_sway);
+    game_world.resources.weapon.sway.y = game_world.resources.weapon.sway.y.clamp(-max_sway, max_sway);
 
-    let recovery_speed = 8.0 + game_world.resources.aim_blend * 8.0;
+    let recovery_speed = 8.0 + game_world.resources.weapon.aim_blend * 8.0;
     let decay = (-recovery_speed * delta_time).exp();
-    game_world.resources.weapon_sway.x *= decay;
-    game_world.resources.weapon_sway.y *= decay;
+    game_world.resources.weapon.sway.x *= decay;
+    game_world.resources.weapon.sway.y *= decay;
 
-    let blend = game_world.resources.aim_blend;
+    let blend = game_world.resources.weapon.aim_blend;
     let base_position = nalgebra_glm::lerp(&HIP_POSITION, &ADS_POSITION, blend);
 
     if let Some(transform) = world.core.get_local_transform_mut(weapon_entity) {
         transform.translation = nalgebra_glm::vec3(
-            base_position.x + game_world.resources.weapon_sway.x,
-            base_position.y + game_world.resources.weapon_sway.y,
+            base_position.x + game_world.resources.weapon.sway.x,
+            base_position.y + game_world.resources.weapon.sway.y,
             base_position.z,
         );
     }
@@ -239,7 +219,7 @@ pub fn update_weapon_sway(game_world: &mut GameWorld, world: &mut World) {
 }
 
 fn apply_auto_aim(game_world: &mut GameWorld, world: &mut World) {
-    let Some(camera_entity) = game_world.resources.camera_entity else {
+    let Some(camera_entity) = game_world.resources.player.camera_entity else {
         return;
     };
     let Some(camera_transform) = world.core.get_global_transform(camera_entity).cloned() else {
@@ -315,6 +295,5 @@ fn apply_auto_aim(game_world: &mut GameWorld, world: &mut World) {
         game_world.resources.lean.base_rotation = new_rotation;
 
         mark_local_transform_dirty(world, camera_entity);
-
     }
 }

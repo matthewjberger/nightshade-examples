@@ -88,6 +88,7 @@ fn sync_grounded_state(game_world: &mut GameWorld, world: &mut World, player_ent
             .process_event(PlayerEvent::BecomeAirborne)
     {
         game_world.resources.player.state = new_state;
+        restore_default_friction(world, player_entity);
     }
 }
 
@@ -256,6 +257,9 @@ fn handle_dash(
             config.dash_impulse
         };
 
+        let dash_friction = config.dash_friction;
+        set_friction(world, player_entity, dash_friction, dash_friction);
+
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
             controller.velocity.x = dash_direction.x * impulse;
             controller.velocity.z = dash_direction.z * impulse;
@@ -283,6 +287,7 @@ fn handle_dash(
                 .process_event(PlayerEvent::Land)
             {
                 game_world.resources.player.state = new_state;
+                restore_default_friction(world, player_entity);
             }
         } else if game_world.resources.player.state == PlayerState::AirDash {
             let speed = world
@@ -298,6 +303,7 @@ fn handle_dash(
                     .process_event(PlayerEvent::DashEnd)
             {
                 game_world.resources.player.state = new_state;
+                restore_default_friction(world, player_entity);
             }
         }
     }

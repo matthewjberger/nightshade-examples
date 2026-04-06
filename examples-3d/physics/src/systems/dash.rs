@@ -2,6 +2,20 @@ use crate::ecs::{GameWorld, PlayerEvent, PlayerState};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
 
+const DEFAULT_FRICTION_RATE: f32 = 8.0;
+const DEFAULT_ABOVE_MAX_FRICTION_RATE: f32 = 1.5;
+
+fn set_friction(world: &mut World, entity: Entity, rate: f32, above_max_rate: f32) {
+    if let Some(controller) = world.core.get_character_controller_mut(entity) {
+        controller.friction_rate = rate;
+        controller.above_max_friction_rate = above_max_rate;
+    }
+}
+
+fn restore_default_friction(world: &mut World, entity: Entity) {
+    set_friction(world, entity, DEFAULT_FRICTION_RATE, DEFAULT_ABOVE_MAX_FRICTION_RATE);
+}
+
 pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     let Some(player_entity) = game_world.resources.player.entity else {
         return;
@@ -10,15 +24,15 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     };
 
-    update_grounded_state(game_world, world, player_entity);
-    handle_jump_input(game_world, world, player_entity);
-    handle_slide_input(game_world, world, player_entity);
-    handle_dash_input(game_world, world, player_entity, camera_entity);
+    sync_grounded_state(game_world, world, player_entity);
+    handle_jump(game_world, world, player_entity);
+    handle_slide(game_world, world, player_entity);
+    handle_dash(game_world, world, player_entity, camera_entity);
     recharge_dash(game_world, world);
     update_dash_hud(game_world, world);
 }
 
-fn update_grounded_state(game_world: &mut GameWorld, world: &mut World, player_entity: Entity) {
+fn sync_grounded_state(game_world: &mut GameWorld, world: &mut World, player_entity: Entity) {
     let grounded = world
         .core
         .get_character_controller(player_entity)
@@ -64,9 +78,7 @@ fn update_grounded_state(game_world: &mut GameWorld, world: &mut World, player_e
             .process_event(PlayerEvent::BecomeAirborne)
         {
             game_world.resources.player.state = new_state;
-            if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-                controller.is_crouching = false;
-            }
+            restore_default_friction(world, player_entity);
         }
     } else if !grounded && game_world.resources.player.state == PlayerState::GroundDash
         && let Some(new_state) = game_world
@@ -79,7 +91,7 @@ fn update_grounded_state(game_world: &mut GameWorld, world: &mut World, player_e
     }
 }
 
-fn handle_jump_input(game_world: &mut GameWorld, world: &mut World, player_entity: Entity) {
+fn handle_jump(game_world: &mut GameWorld, world: &mut World, player_entity: Entity) {
     let jump_pressed = world
         .resources
         .input
@@ -110,10 +122,10 @@ fn handle_jump_input(game_world: &mut GameWorld, world: &mut World, player_entit
     if is_grounded_action {
         if let Some(new_state) = player_state.process_event(PlayerEvent::Jump) {
             game_world.resources.player.state = new_state;
+            restore_default_friction(world, player_entity);
             if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
                 controller.velocity.y = controller.jump_impulse;
                 controller.can_jump = false;
-                controller.is_crouching = false;
             }
         }
     } else if is_airborne {
@@ -136,7 +148,7 @@ fn handle_jump_input(game_world: &mut GameWorld, world: &mut World, player_entit
     }
 }
 
-fn handle_slide_input(game_world: &mut GameWorld, world: &mut World, player_entity: Entity) {
+fn handle_slide(game_world: &mut GameWorld, world: &mut World, player_entity: Entity) {
     let slide_pressed = world
         .resources
         .input
@@ -145,7 +157,6 @@ fn handle_slide_input(game_world: &mut GameWorld, world: &mut World, player_enti
         || query_active_gamepad(world)
             .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::LeftThumb));
     game_world.resources.input_actions.slide.update(slide_pressed);
-    let slide_just_pressed = game_world.resources.input_actions.slide.just_pressed();
 
     let sprint_held = world
         .resources
@@ -158,7 +169,7 @@ fn handle_slide_input(game_world: &mut GameWorld, world: &mut World, player_enti
             (stick_x * stick_x + stick_y * stick_y).sqrt() > 0.85
         });
 
-    if slide_just_pressed
+    if game_world.resources.input_actions.slide.just_pressed()
         && game_world.resources.player.state == PlayerState::Grounded
         && sprint_held
         && let Some(new_state) = game_world
@@ -168,54 +179,40 @@ fn handle_slide_input(game_world: &mut GameWorld, world: &mut World, player_enti
             .process_event(PlayerEvent::Slide)
     {
         game_world.resources.player.state = new_state;
+        let slide_friction = game_world.resources.config.slide_friction;
+        set_friction(world, player_entity, slide_friction, slide_friction);
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-            controller.is_crouching = true;
-            let horizontal_velocity =
-                nalgebra_glm::vec3(controller.velocity.x, 0.0, controller.velocity.z);
-            let horizontal_speed = nalgebra_glm::length(&horizontal_velocity);
-            if horizontal_speed > 0.1 {
-                let direction = nalgebra_glm::normalize(&horizontal_velocity);
-                let slide_boost = game_world.resources.config.slide_boost;
-                controller.velocity.x = direction.x * (horizontal_speed + slide_boost);
-                controller.velocity.z = direction.z * (horizontal_speed + slide_boost);
+            let speed = horizontal_speed(controller.velocity);
+            if speed > 0.1 {
+                let direction = horizontal_direction(controller.velocity);
+                let boosted = speed + game_world.resources.config.slide_boost;
+                controller.velocity.x = direction.x * boosted;
+                controller.velocity.z = direction.z * boosted;
             }
         }
     }
 
-    if game_world.resources.player.state == PlayerState::Sliding {
-        let config = &game_world.resources.config;
-        let slide_friction = config.slide_friction;
-        let slide_min_speed = config.slide_min_speed;
-        let delta_time = world.resources.window.timing.delta_time;
+    if game_world.resources.player.state == PlayerState::Sliding
+        && let Some(controller) = world.core.get_character_controller_mut(player_entity)
+    {
+        let speed = horizontal_speed(controller.velocity);
+        let should_end = !game_world.resources.input_actions.slide.held()
+            || speed < game_world.resources.config.slide_min_speed;
 
-        if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-            let friction = (-slide_friction * delta_time).exp();
-            controller.velocity.x *= friction;
-            controller.velocity.z *= friction;
-            controller.is_crouching = true;
-
-            let horizontal_speed = nalgebra_glm::length(&nalgebra_glm::vec3(
-                controller.velocity.x,
-                0.0,
-                controller.velocity.z,
-            ));
-
-            let should_end = !game_world.resources.input_actions.slide.held() || horizontal_speed < slide_min_speed;
-            if should_end
-                && let Some(new_state) = game_world
-                    .resources
-                    .player
-                    .state
-                    .process_event(PlayerEvent::Release)
-            {
-                game_world.resources.player.state = new_state;
-                controller.is_crouching = false;
-            }
+        if should_end
+            && let Some(new_state) = game_world
+                .resources
+                .player
+                .state
+                .process_event(PlayerEvent::Release)
+        {
+            game_world.resources.player.state = new_state;
+            restore_default_friction(world, player_entity);
         }
     }
 }
 
-fn handle_dash_input(
+fn handle_dash(
     game_world: &mut GameWorld,
     world: &mut World,
     player_entity: Entity,
@@ -223,62 +220,20 @@ fn handle_dash_input(
 ) {
     let gamepad_dash_pressed = query_active_gamepad(world)
         .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::East));
-    let keyboard_dash_pressed = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyV);
-    game_world.resources.input_actions.dash.update(gamepad_dash_pressed || keyboard_dash_pressed);
-    let gamepad_dash_just_pressed = gamepad_dash_pressed
-        && game_world.resources.input_actions.dash.just_pressed();
+    let keyboard_dash_pressed = world
+        .resources
+        .input
+        .keyboard
+        .is_key_pressed(KeyCode::KeyV);
+    game_world
+        .resources
+        .input_actions
+        .dash
+        .update(gamepad_dash_pressed || keyboard_dash_pressed);
 
-    let keyboard = &world.resources.input.keyboard;
+    let dash_just_pressed = game_world.resources.input_actions.dash.just_pressed();
 
-    let keyboard_dash_direction = if keyboard.is_key_pressed(KeyCode::KeyV) {
-        let camera_rotation = world
-            .core
-            .get_local_transform(camera_entity)
-            .map(|transform| transform.rotation)
-            .unwrap_or(nalgebra_glm::quat_identity());
-
-        let mut direction = nalgebra_glm::vec3(0.0, 0.0, 0.0);
-        if keyboard.is_key_pressed(KeyCode::KeyW) {
-            direction += nalgebra_glm::vec3(0.0, 0.0, -1.0);
-        }
-        if keyboard.is_key_pressed(KeyCode::KeyS) {
-            direction += nalgebra_glm::vec3(0.0, 0.0, 1.0);
-        }
-        if keyboard.is_key_pressed(KeyCode::KeyA) {
-            direction += nalgebra_glm::vec3(-1.0, 0.0, 0.0);
-        }
-        if keyboard.is_key_pressed(KeyCode::KeyD) {
-            direction += nalgebra_glm::vec3(1.0, 0.0, 0.0);
-        }
-
-        if nalgebra_glm::length(&direction) > 0.01 {
-            let world_direction = nalgebra_glm::quat_rotate_vec3(
-                &camera_rotation,
-                &nalgebra_glm::normalize(&direction),
-            );
-            Some(nalgebra_glm::normalize(&nalgebra_glm::vec3(
-                world_direction.x,
-                0.0,
-                world_direction.z,
-            )))
-        } else {
-            let forward = nalgebra_glm::quat_rotate_vec3(
-                &camera_rotation,
-                &nalgebra_glm::vec3(0.0, 0.0, -1.0),
-            );
-            Some(nalgebra_glm::normalize(&nalgebra_glm::vec3(
-                forward.x, 0.0, forward.z,
-            )))
-        }
-    } else {
-        None
-    };
-
-    let keyboard_dash_just_pressed = keyboard.just_pressed(KeyCode::KeyV);
-
-    let dash_triggered = gamepad_dash_just_pressed || keyboard_dash_just_pressed;
-
-    if dash_triggered
+    if dash_just_pressed
         && game_world.resources.player.dash_charges > 0
         && let Some(new_state) = game_world
             .resources
@@ -291,42 +246,7 @@ fn handle_dash_input(
             game_world.resources.config.dash_cooldown;
         game_world.resources.player.state = new_state;
 
-        let dash_direction = if let Some(direction) = keyboard_dash_direction {
-            direction
-        } else if let Some(gamepad) = query_active_gamepad(world) {
-            let stick_x = gamepad.value(gilrs::Axis::LeftStickX);
-            let stick_y = gamepad.value(gilrs::Axis::LeftStickY);
-            let stick_magnitude = (stick_x * stick_x + stick_y * stick_y).sqrt();
-            if stick_magnitude > 0.3 {
-                let camera_rotation = world
-                    .core
-                    .get_local_transform(camera_entity)
-                    .map(|transform| transform.rotation)
-                    .unwrap_or(nalgebra_glm::quat_identity());
-                let local_direction = nalgebra_glm::vec3(stick_x, 0.0, -stick_y);
-                let world_direction =
-                    nalgebra_glm::quat_rotate_vec3(&camera_rotation, &local_direction);
-                nalgebra_glm::normalize(&nalgebra_glm::vec3(
-                    world_direction.x,
-                    0.0,
-                    world_direction.z,
-                ))
-            } else {
-                let forward = world
-                    .core
-                    .get_local_transform(camera_entity)
-                    .map(|transform| transform.forward_vector())
-                    .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, -1.0));
-                nalgebra_glm::normalize(&nalgebra_glm::vec3(forward.x, 0.0, forward.z))
-            }
-        } else {
-            let forward = world
-                .core
-                .get_local_transform(camera_entity)
-                .map(|transform| transform.forward_vector())
-                .unwrap_or(nalgebra_glm::vec3(0.0, 0.0, -1.0));
-            nalgebra_glm::normalize(&nalgebra_glm::vec3(forward.x, 0.0, forward.z))
-        };
+        let dash_direction = compute_movement_direction(world, camera_entity);
 
         let config = &game_world.resources.config;
         let is_air_dash = new_state == PlayerState::AirDash;
@@ -340,7 +260,7 @@ fn handle_dash_input(
             controller.velocity.x = dash_direction.x * impulse;
             controller.velocity.z = dash_direction.z * impulse;
             if is_air_dash {
-                controller.velocity.y = controller.velocity.y.max(1.0);
+                controller.velocity.y = controller.velocity.y.max(2.0);
             }
         }
     }
@@ -348,7 +268,7 @@ fn handle_dash_input(
     if matches!(
         game_world.resources.player.state,
         PlayerState::GroundDash | PlayerState::AirDash
-    ) && !dash_triggered
+    ) && !dash_just_pressed
     {
         let grounded = world
             .core
@@ -368,15 +288,9 @@ fn handle_dash_input(
             let speed = world
                 .core
                 .get_character_controller(player_entity)
-                .map(|controller| {
-                    nalgebra_glm::length(&nalgebra_glm::vec3(
-                        controller.velocity.x,
-                        0.0,
-                        controller.velocity.z,
-                    ))
-                })
+                .map(|controller| horizontal_speed(controller.velocity))
                 .unwrap_or(0.0);
-            if speed < 3.0
+            if speed < 2.0
                 && let Some(new_state) = game_world
                     .resources
                     .player
@@ -386,6 +300,65 @@ fn handle_dash_input(
                 game_world.resources.player.state = new_state;
             }
         }
+    }
+}
+
+fn compute_movement_direction(world: &mut World, camera_entity: Entity) -> Vec3 {
+    let camera_rotation = world
+        .core
+        .get_local_transform(camera_entity)
+        .map(|transform| transform.rotation)
+        .unwrap_or(nalgebra_glm::quat_identity());
+
+    let keyboard = &world.resources.input.keyboard;
+    let mut local_direction = nalgebra_glm::vec3(0.0, 0.0, 0.0);
+    if keyboard.is_key_pressed(KeyCode::KeyW) {
+        local_direction += nalgebra_glm::vec3(0.0, 0.0, -1.0);
+    }
+    if keyboard.is_key_pressed(KeyCode::KeyS) {
+        local_direction += nalgebra_glm::vec3(0.0, 0.0, 1.0);
+    }
+    if keyboard.is_key_pressed(KeyCode::KeyA) {
+        local_direction += nalgebra_glm::vec3(-1.0, 0.0, 0.0);
+    }
+    if keyboard.is_key_pressed(KeyCode::KeyD) {
+        local_direction += nalgebra_glm::vec3(1.0, 0.0, 0.0);
+    }
+
+    if let Some(gamepad) = query_active_gamepad(world) {
+        let stick_x = gamepad.value(gilrs::Axis::LeftStickX);
+        let stick_y = gamepad.value(gilrs::Axis::LeftStickY);
+        let stick_magnitude = (stick_x * stick_x + stick_y * stick_y).sqrt();
+        if stick_magnitude > 0.3 {
+            local_direction = nalgebra_glm::vec3(stick_x, 0.0, -stick_y);
+        }
+    }
+
+    if nalgebra_glm::length(&local_direction) > 0.01 {
+        let world_direction =
+            nalgebra_glm::quat_rotate_vec3(&camera_rotation, &nalgebra_glm::normalize(&local_direction));
+        nalgebra_glm::normalize(&nalgebra_glm::vec3(
+            world_direction.x,
+            0.0,
+            world_direction.z,
+        ))
+    } else {
+        let forward =
+            nalgebra_glm::quat_rotate_vec3(&camera_rotation, &nalgebra_glm::vec3(0.0, 0.0, -1.0));
+        nalgebra_glm::normalize(&nalgebra_glm::vec3(forward.x, 0.0, forward.z))
+    }
+}
+
+fn horizontal_speed(velocity: Vec3) -> f32 {
+    nalgebra_glm::length(&nalgebra_glm::vec3(velocity.x, 0.0, velocity.z))
+}
+
+fn horizontal_direction(velocity: Vec3) -> Vec3 {
+    let horizontal = nalgebra_glm::vec3(velocity.x, 0.0, velocity.z);
+    if nalgebra_glm::length(&horizontal) > 0.01 {
+        nalgebra_glm::normalize(&horizontal)
+    } else {
+        nalgebra_glm::vec3(0.0, 0.0, -1.0)
     }
 }
 

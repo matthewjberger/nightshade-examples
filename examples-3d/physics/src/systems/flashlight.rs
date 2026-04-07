@@ -53,12 +53,12 @@ pub fn update_flashlight(game_world: &mut GameWorld, world: &mut World) {
         return;
     };
 
-    let f_pressed = world.resources.input.keyboard.is_key_pressed(KeyCode::KeyF);
-    let gamepad_flashlight_pressed = if let Some(gamepad) = query_active_gamepad(world) {
-        gamepad.is_pressed(gilrs::Button::DPadDown)
-    } else {
-        false
-    };
+    let reading_note = game_world.resources.ui.reading_note.is_some();
+
+    let f_pressed = !reading_note && world.resources.input.keyboard.is_key_pressed(KeyCode::KeyF);
+    let gamepad_flashlight_pressed = !reading_note
+        && query_active_gamepad(world)
+            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::North));
     let flashlight_input = f_pressed || gamepad_flashlight_pressed;
 
     if flashlight_input && !game_world.resources.flashlight.key_was_pressed {

@@ -158,14 +158,21 @@ pub fn update_weapon_sway(game_world: &mut GameWorld, world: &mut World) {
         return;
     };
 
-    let ads_held = world
+    let not_interacting = !game_world.resources.interaction.is_any_active()
+        && !game_world.resources.prompt_cache.interactable_in_range;
+    let mouse_ads = world
         .resources
         .input
         .mouse
         .state
-        .contains(MouseState::MIDDLE_CLICKED)
-        || query_active_gamepad(world)
-            .is_some_and(|gamepad| gamepad.is_pressed(gilrs::Button::West));
+        .contains(MouseState::RIGHT_CLICKED)
+        && not_interacting;
+    let gamepad_ads = query_active_gamepad(world).is_some_and(|gamepad| {
+        let lt_axis = gamepad.value(gilrs::Axis::LeftZ);
+        let lt_button = gamepad.is_pressed(gilrs::Button::LeftTrigger2);
+        lt_axis > 0.5 || lt_button
+    });
+    let ads_held = mouse_ads || gamepad_ads;
 
     game_world.resources.weapon.aiming_down_sights = ads_held;
 

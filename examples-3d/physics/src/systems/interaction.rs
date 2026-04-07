@@ -35,15 +35,13 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
             (false, false, false, 0.0)
         };
 
-    let (gamepad_rt_held, gamepad_lt_held, _gamepad_rt_just_pressed, gamepad_dpad_distance) =
+    let (gamepad_rt_held, gamepad_x_held, _gamepad_rt_just_pressed, gamepad_dpad_distance) =
         if game_world.resources.input_mode == InputMode::Gamepad {
             if let Some(gamepad) = query_active_gamepad(world) {
                 let rt_axis_value = gamepad.value(gilrs::Axis::RightZ);
-                let lt_axis_value = gamepad.value(gilrs::Axis::LeftZ);
                 let rt_button = gamepad.is_pressed(gilrs::Button::RightTrigger2);
-                let lt_button = gamepad.is_pressed(gilrs::Button::LeftTrigger2);
                 let rt_held = rt_axis_value > 0.5 || rt_button;
-                let lt_held = lt_axis_value > 0.5 || lt_button;
+                let x_held = gamepad.is_pressed(gilrs::Button::West);
                 let rt_just_pressed =
                     rt_held && !game_world.resources.interaction.gamepad_rt_was_pressed;
                 let dpad_up = gamepad.is_pressed(gilrs::Button::DPadUp);
@@ -55,7 +53,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
                 } else {
                     0.0
                 };
-                (rt_held, lt_held, rt_just_pressed, dpad_distance)
+                (rt_held, x_held, rt_just_pressed, dpad_distance)
             } else {
                 (false, false, false, 0.0)
             }
@@ -94,7 +92,11 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         (false, false, false, 0.0_f32);
     let _ = xr_throw_grip_held;
 
-    let interact_held = right_clicked || gamepad_lt_held || xr_interact_held;
+    let already_interacting = game_world.resources.interaction.is_any_active()
+        || game_world.resources.ui.reading_note.is_some();
+    let mouse_interact = right_clicked
+        && (game_world.resources.prompt_cache.interactable_in_range || already_interacting);
+    let interact_held = mouse_interact || gamepad_x_held || xr_interact_held;
     let throw_pressed = left_clicked || gamepad_rt_held || xr_throw_grip_held;
 
     let keyboard_shoot_pressed =

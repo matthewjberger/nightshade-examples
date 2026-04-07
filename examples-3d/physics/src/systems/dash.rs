@@ -2,20 +2,6 @@ use crate::ecs::{GameWorld, PlayerEvent, PlayerState};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
 
-const DEFAULT_FRICTION_RATE: f32 = 8.0;
-const DEFAULT_ABOVE_MAX_FRICTION_RATE: f32 = 1.5;
-
-fn set_friction(world: &mut World, entity: Entity, rate: f32, above_max_rate: f32) {
-    if let Some(controller) = world.core.get_character_controller_mut(entity) {
-        controller.friction_rate = rate;
-        controller.above_max_friction_rate = above_max_rate;
-    }
-}
-
-fn restore_default_friction(world: &mut World, entity: Entity) {
-    set_friction(world, entity, DEFAULT_FRICTION_RATE, DEFAULT_ABOVE_MAX_FRICTION_RATE);
-}
-
 pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     let Some(player_entity) = game_world.resources.player.entity else {
         return;
@@ -28,8 +14,24 @@ pub fn dash_system(game_world: &mut GameWorld, world: &mut World) {
     handle_jump(game_world, world, player_entity);
     handle_slide(game_world, world, player_entity);
     handle_dash(game_world, world, player_entity, camera_entity);
+    sync_friction(game_world, world, player_entity);
     recharge_dash(game_world, world);
     update_dash_hud(game_world, world);
+}
+
+fn sync_friction(game_world: &GameWorld, world: &mut World, player_entity: Entity) {
+    let config = &game_world.resources.config;
+    let (rate, above_max_rate) = match game_world.resources.player.state {
+        PlayerState::Sliding => (config.slide_friction, config.slide_friction),
+        PlayerState::GroundDash | PlayerState::AirDash => {
+            (config.dash_friction, config.dash_friction)
+        }
+        _ => (8.0, 1.5),
+    };
+    if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
+        controller.friction_rate = rate;
+        controller.above_max_friction_rate = above_max_rate;
+    }
 }
 
 fn sync_grounded_state(game_world: &mut GameWorld, world: &mut World, player_entity: Entity) {
@@ -78,7 +80,6 @@ fn sync_grounded_state(game_world: &mut GameWorld, world: &mut World, player_ent
             .process_event(PlayerEvent::BecomeAirborne)
         {
             game_world.resources.player.state = new_state;
-            restore_default_friction(world, player_entity);
         }
     } else if !grounded && game_world.resources.player.state == PlayerState::GroundDash
         && let Some(new_state) = game_world
@@ -88,7 +89,6 @@ fn sync_grounded_state(game_world: &mut GameWorld, world: &mut World, player_ent
             .process_event(PlayerEvent::BecomeAirborne)
     {
         game_world.resources.player.state = new_state;
-        restore_default_friction(world, player_entity);
     }
 }
 
@@ -123,7 +123,6 @@ fn handle_jump(game_world: &mut GameWorld, world: &mut World, player_entity: Ent
     if is_grounded_action {
         if let Some(new_state) = player_state.process_event(PlayerEvent::Jump) {
             game_world.resources.player.state = new_state;
-            restore_default_friction(world, player_entity);
             if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
                 controller.velocity.y = controller.jump_impulse;
                 controller.can_jump = false;
@@ -180,8 +179,6 @@ fn handle_slide(game_world: &mut GameWorld, world: &mut World, player_entity: En
             .process_event(PlayerEvent::Slide)
     {
         game_world.resources.player.state = new_state;
-        let slide_friction = game_world.resources.config.slide_friction;
-        set_friction(world, player_entity, slide_friction, slide_friction);
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
             let speed = horizontal_speed(controller.velocity);
             if speed > 0.1 {
@@ -208,7 +205,6 @@ fn handle_slide(game_world: &mut GameWorld, world: &mut World, player_entity: En
                 .process_event(PlayerEvent::Release)
         {
             game_world.resources.player.state = new_state;
-            restore_default_friction(world, player_entity);
         }
     }
 }
@@ -257,9 +253,6 @@ fn handle_dash(
             config.dash_impulse
         };
 
-        let dash_friction = config.dash_friction;
-        set_friction(world, player_entity, dash_friction, dash_friction);
-
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
             controller.velocity.x = dash_direction.x * impulse;
             controller.velocity.z = dash_direction.z * impulse;
@@ -287,7 +280,6 @@ fn handle_dash(
                 .process_event(PlayerEvent::Land)
             {
                 game_world.resources.player.state = new_state;
-                restore_default_friction(world, player_entity);
             }
         } else if game_world.resources.player.state == PlayerState::AirDash {
             let speed = world
@@ -303,7 +295,6 @@ fn handle_dash(
                     .process_event(PlayerEvent::DashEnd)
             {
                 game_world.resources.player.state = new_state;
-                restore_default_friction(world, player_entity);
             }
         }
     }

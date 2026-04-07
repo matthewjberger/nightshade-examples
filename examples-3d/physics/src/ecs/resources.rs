@@ -138,6 +138,7 @@ pub struct PromptCache {
     pub camera_forward: nalgebra_glm::Vec3,
     pub can_interact: bool,
     pub can_read: bool,
+    pub interactable_in_range: bool,
 }
 
 #[derive(Default)]

@@ -173,6 +173,7 @@ pub fn update_interaction_prompt(game_world: &mut GameWorld, world: &mut World) 
         game_world.resources.prompt_cache.camera_forward = camera_forward;
         game_world.resources.prompt_cache.can_interact = found_interact;
         game_world.resources.prompt_cache.can_read = found_read;
+        game_world.resources.prompt_cache.interactable_in_range = found_interact || found_read;
 
         (found_interact, found_read)
     } else {

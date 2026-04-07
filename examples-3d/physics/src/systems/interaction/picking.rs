@@ -26,7 +26,7 @@ pub(super) fn try_start_interaction(
                     game_world.resources.interaction.grab_distance =
                         result.distance.min(max_grab_distance);
 
-                    let (local_offset, original_damping) = if let Some(rb) =
+                    let local_offset = if let Some(rb) =
                         world.core.get_rigid_body(result.entity)
                         && let Some(handle) = rb.handle
                         && let Some(rigid_body) =
@@ -39,10 +39,9 @@ pub(super) fn try_start_interaction(
                         let inv_rot = nalgebra_glm::quat_conjugate(
                             &nalgebra_glm::quat(body_rot.w, body_rot.i, body_rot.j, body_rot.k),
                         );
-                        let local = nalgebra_glm::quat_rotate_vec3(&inv_rot, &world_offset);
-                        (local, rigid_body.linear_damping())
+                        nalgebra_glm::quat_rotate_vec3(&inv_rot, &world_offset)
                     } else {
-                        (nalgebra_glm::Vec3::zeros(), 0.0)
+                        nalgebra_glm::Vec3::zeros()
                     };
 
                     game_world.resources.grab.grab(
@@ -51,7 +50,6 @@ pub(super) fn try_start_interaction(
                         game_world.resources.config.min_grab_distance,
                         game_world.resources.config.max_grab_distance,
                         local_offset,
-                        original_damping,
                     );
                     return;
                 }

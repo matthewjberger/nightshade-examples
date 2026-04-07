@@ -28,7 +28,6 @@ freecs::ecs! {
         interactable: Interactable => INTERACTABLE,
     }
     Tags {
-        grabbable => GRABBABLE,
     }
     Events {
         target_killed: TargetKilledEvent,
@@ -42,11 +41,6 @@ freecs::ecs! {
         weapon: WeaponState,
         flashlight: FlashlightState,
         ui: UiHandles,
-        prompt_cache: PromptCache,
-        input_actions: InputActions,
-        #[cfg(not(feature = "openxr"))]
-        lean: LeanState,
-        input_mode: InputMode,
         show_physics_debug: bool,
         bauble_table_center: Vec3,
         bauble_table_top_y: f32,

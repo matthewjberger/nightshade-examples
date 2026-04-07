@@ -3159,7 +3159,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "nightshade",
- "stateless 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "stateless 0.4.1",
 ]
 
 [[package]]
@@ -5233,7 +5233,7 @@ name = "physics"
 version = "0.1.0"
 dependencies = [
  "nightshade",
- "stateless 0.4.1",
+ "stateless 0.5.0",
 ]
 
 [[package]]
@@ -6858,6 +6858,8 @@ dependencies = [
 [[package]]
 name = "stateless"
 version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "381368bd9daaf73d35353f942021b7d05380114e8b162ac39574a06ce3f12bdd"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6866,9 +6868,7 @@ dependencies = [
 
 [[package]]
 name = "stateless"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "381368bd9daaf73d35353f942021b7d05380114e8b162ac39574a06ce3f12bdd"
+version = "0.5.0"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -1,4 +1,4 @@
-use crate::ecs::{GameWorld, INTERACTABLE, InputMode, InteractableKind};
+use crate::ecs::{GameWorld, INTERACTABLE, InteractableKind};
 use nightshade::ecs::picking::{PickingOptions, PickingResult, pick_entities};
 use nightshade::prelude::*;
 
@@ -9,48 +9,8 @@ pub(super) fn try_start_interaction(
 ) {
     let config = &game_world.resources.config;
     let max_grab_distance = config.max_grab_distance;
-    let interact_range = config.interact_range;
 
     for result in pick_results {
-        if game_world.has_grabbable(result.entity) {
-            game_world.resources.interaction.grabbed_entity = Some(result.entity);
-            game_world.resources.interaction.grab_distance =
-                result.distance.min(max_grab_distance);
-
-            let (local_offset, original_damping) = if let Some(rb) =
-                world.core.get_rigid_body(result.entity)
-                && let Some(handle) = rb.handle
-                && let Some(rigid_body) =
-                    world.resources.physics.rigid_body_set.get(handle.into())
-            {
-                let body_pos = rigid_body.translation();
-                let body_rot = rigid_body.rotation();
-                let world_offset = result.world_position
-                    - nalgebra_glm::vec3(body_pos.x, body_pos.y, body_pos.z);
-                let inv_rot = nalgebra_glm::quat_conjugate(
-                    &nalgebra_glm::quat(body_rot.w, body_rot.i, body_rot.j, body_rot.k),
-                );
-                let local = nalgebra_glm::quat_rotate_vec3(&inv_rot, &world_offset);
-                (local, rigid_body.linear_damping())
-            } else {
-                (nalgebra_glm::Vec3::zeros(), 0.0)
-            };
-
-            game_world.resources.grab.grab(
-                result.entity,
-                result.distance,
-                game_world.resources.config.min_grab_distance,
-                game_world.resources.config.max_grab_distance,
-                local_offset,
-                original_damping,
-            );
-            return;
-        }
-
-        if result.distance > interact_range {
-            continue;
-        }
-
         let interactable_entities: Vec<freecs::Entity> =
             game_world.query_entities(INTERACTABLE).collect();
         for &ecs_entity in &interactable_entities {
@@ -61,10 +21,42 @@ pub(super) fn try_start_interaction(
                 continue;
             }
             match &interactable.kind {
-                InteractableKind::Grab => {}
+                InteractableKind::Grab => {
+                    game_world.resources.interaction.grabbed_entity = Some(result.entity);
+                    game_world.resources.interaction.grab_distance =
+                        result.distance.min(max_grab_distance);
+
+                    let (local_offset, original_damping) = if let Some(rb) =
+                        world.core.get_rigid_body(result.entity)
+                        && let Some(handle) = rb.handle
+                        && let Some(rigid_body) =
+                            world.resources.physics.rigid_body_set.get(handle.into())
+                    {
+                        let body_pos = rigid_body.translation();
+                        let body_rot = rigid_body.rotation();
+                        let world_offset = result.world_position
+                            - nalgebra_glm::vec3(body_pos.x, body_pos.y, body_pos.z);
+                        let inv_rot = nalgebra_glm::quat_conjugate(
+                            &nalgebra_glm::quat(body_rot.w, body_rot.i, body_rot.j, body_rot.k),
+                        );
+                        let local = nalgebra_glm::quat_rotate_vec3(&inv_rot, &world_offset);
+                        (local, rigid_body.linear_damping())
+                    } else {
+                        (nalgebra_glm::Vec3::zeros(), 0.0)
+                    };
+
+                    game_world.resources.grab.grab(
+                        result.entity,
+                        result.distance,
+                        game_world.resources.config.min_grab_distance,
+                        game_world.resources.config.max_grab_distance,
+                        local_offset,
+                        original_damping,
+                    );
+                    return;
+                }
                 InteractableKind::Note => {
                     game_world.resources.ui.reading_note = Some(interactable.game_entity);
-                    game_world.resources.ui.note_close_key_released = false;
                     game_world.resources.interaction.require_interact_release = true;
                     return;
                 }
@@ -99,86 +91,57 @@ pub fn update_interaction_prompt(game_world: &mut GameWorld, world: &mut World) 
     let Some(camera_entity) = game_world.resources.player.camera_entity else {
         return;
     };
-    let Some(camera_transform) = world.core.get_global_transform(camera_entity) else {
+    let Some(_camera_transform) = world.core.get_global_transform(camera_entity) else {
         return;
     };
 
-    let camera_position = camera_transform.translation();
-    let camera_forward = camera_transform.forward_vector();
+    let viewport_size = world
+        .resources
+        .window
+        .cached_viewport_size
+        .unwrap_or((800, 600));
+    let screen_pos =
+        nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
 
-    let cache = &game_world.resources.prompt_cache;
-    let position_moved = nalgebra_glm::distance(&camera_position, &cache.camera_position) > 0.01;
-    let forward_changed = nalgebra_glm::distance(&camera_forward, &cache.camera_forward) > 0.001;
+    let config = &game_world.resources.config;
+    let options = PickingOptions {
+        max_distance: config.grab_range,
+        ignore_invisible: true,
+    };
 
-    let (can_interact, can_read) = if position_moved || forward_changed {
-        let viewport_size = world
-            .resources
-            .window
-            .cached_viewport_size
-            .unwrap_or((800, 600));
-        let screen_pos =
-            nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
+    let pick_results = if world.resources.input.input_mode == InputMode::Gamepad {
+        pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
+    } else {
+        pick_entities(world, screen_pos, options)
+    };
 
-        let config = &game_world.resources.config;
-        let options = PickingOptions {
-            max_distance: config.grab_range,
-            ignore_invisible: true,
-        };
+    let interactable_entities: Vec<freecs::Entity> =
+        game_world.query_entities(INTERACTABLE).collect();
 
-        let pick_results = if game_world.resources.input_mode == InputMode::Gamepad {
-            pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
-        } else {
-            pick_entities(world, screen_pos, options)
-        };
+    let mut can_interact = false;
+    let mut can_read = false;
 
-        let interact_range = config.interact_range;
-        let interactable_entities: Vec<freecs::Entity> =
-            game_world.query_entities(INTERACTABLE).collect();
-
-        let mut found_interact = false;
-        let mut found_read = false;
-
-        'outer: for result in &pick_results {
-            if game_world.has_grabbable(result.entity) {
-                found_interact = true;
-                break;
-            }
-
-            if result.distance > interact_range {
+    'outer: for result in &pick_results {
+        for &ecs_entity in &interactable_entities {
+            let Some(interactable) = game_world.get_interactable(ecs_entity) else {
+                continue;
+            };
+            if interactable.engine_entity != result.entity {
                 continue;
             }
-
-            for &ecs_entity in &interactable_entities {
-                let Some(interactable) = game_world.get_interactable(ecs_entity) else {
-                    continue;
-                };
-                if interactable.engine_entity != result.entity {
-                    continue;
+            match &interactable.kind {
+                InteractableKind::Note => {
+                    can_read = true;
+                    break 'outer;
                 }
-                match &interactable.kind {
-                    InteractableKind::Note => {
-                        found_read = true;
-                        break 'outer;
-                    }
-                    InteractableKind::Grab => {}
-                    _ => {
-                        found_interact = true;
-                        break 'outer;
-                    }
+                InteractableKind::Grab => {}
+                _ => {
+                    can_interact = true;
+                    break 'outer;
                 }
             }
         }
-
-        game_world.resources.prompt_cache.camera_position = camera_position;
-        game_world.resources.prompt_cache.camera_forward = camera_forward;
-        game_world.resources.prompt_cache.can_interact = found_interact;
-        game_world.resources.prompt_cache.can_read = found_read;
-        game_world.resources.prompt_cache.interactable_in_range = found_interact || found_read;
-
-        (found_interact, found_read)
-    } else {
-        (cache.can_interact, cache.can_read)
-    };
+    }
 
     let prompt_text = if can_read {
         "Read"

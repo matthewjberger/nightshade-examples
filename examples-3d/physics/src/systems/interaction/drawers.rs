@@ -1,4 +1,4 @@
-use crate::ecs::{DRAWER, GameWorld, InputMode};
+use crate::ecs::{DRAWER, GameWorld};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
 
@@ -34,13 +34,13 @@ pub(super) fn update_manipulated_drawer(
 
     let dt = world.resources.physics.fixed_timestep;
 
-    let mouse_input = if game_world.resources.input_mode == InputMode::MouseKeyboard {
+    let mouse_input = if world.resources.input.input_mode == InputMode::MouseKeyboard {
         world.resources.input.mouse.raw_mouse_delta.y * 1.2
     } else {
         0.0
     };
 
-    let gamepad_input = if game_world.resources.input_mode == InputMode::Gamepad {
+    let gamepad_input = if world.resources.input.input_mode == InputMode::Gamepad {
         if let Some(gamepad) = query_active_gamepad(world) {
             let right_stick_y = gamepad.value(gilrs::Axis::RightStickY);
             let deadzone = 0.15;

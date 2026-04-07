@@ -1,6 +1,8 @@
+mod buttons;
 mod doors;
 mod drawers;
 mod levers;
+mod notes;
 mod picking;
 mod shooting_input;
 mod wheels;
@@ -8,10 +10,12 @@ mod wheels;
 pub use doors::update_doors_momentum;
 pub use drawers::update_drawers_momentum;
 pub use levers::{apply_lever_transform, update_levers_momentum};
+pub use notes::note_reading_system;
 pub use picking::update_interaction_prompt;
 pub use wheels::update_wheels_momentum;
 
-use crate::ecs::{BAUBLE_SPAWN, ButtonAction, GameWorld, InputMode, InteractableKind};
+use buttons::{release_button, update_pressed_button};
+use crate::ecs::{GameWorld, InteractableKind};
 use doors::update_manipulated_door;
 use drawers::update_manipulated_drawer;
 use levers::update_manipulated_lever;
@@ -23,7 +27,7 @@ use wheels::update_manipulated_wheel;
 
 pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     let (left_clicked, _left_just_pressed, right_clicked, scroll_delta) =
-        if game_world.resources.input_mode == InputMode::MouseKeyboard {
+        if world.resources.input.input_mode == InputMode::MouseKeyboard {
             let mouse = &world.resources.input.mouse;
             (
                 mouse.state.contains(MouseState::LEFT_CLICKED),
@@ -35,15 +39,15 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
             (false, false, false, 0.0)
         };
 
-    let (gamepad_rt_held, gamepad_x_held, _gamepad_rt_just_pressed, gamepad_dpad_distance) =
-        if game_world.resources.input_mode == InputMode::Gamepad {
+    let (gamepad_rt_held, gamepad_lt_held, gamepad_dpad_distance) =
+        if world.resources.input.input_mode == InputMode::Gamepad {
             if let Some(gamepad) = query_active_gamepad(world) {
                 let rt_axis_value = gamepad.value(gilrs::Axis::RightZ);
+                let lt_axis_value = gamepad.value(gilrs::Axis::LeftZ);
                 let rt_button = gamepad.is_pressed(gilrs::Button::RightTrigger2);
+                let lt_button = gamepad.is_pressed(gilrs::Button::LeftTrigger2);
                 let rt_held = rt_axis_value > 0.5 || rt_button;
-                let x_held = gamepad.is_pressed(gilrs::Button::West);
-                let rt_just_pressed =
-                    rt_held && !game_world.resources.interaction.gamepad_rt_was_pressed;
+                let lt_held = lt_axis_value > 0.5 || lt_button;
                 let dpad_up = gamepad.is_pressed(gilrs::Button::DPadUp);
                 let dpad_down = gamepad.is_pressed(gilrs::Button::DPadDown);
                 let dpad_distance: f32 = if dpad_up {
@@ -53,24 +57,12 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
                 } else {
                     0.0
                 };
-                (rt_held, x_held, rt_just_pressed, dpad_distance)
+                (rt_held, lt_held, dpad_distance)
             } else {
-                (false, false, false, 0.0)
+                (false, false, 0.0)
             }
         } else {
-            (false, false, false, 0.0)
-        };
-
-    game_world.resources.interaction.gamepad_rt_was_pressed =
-        if game_world.resources.input_mode == InputMode::Gamepad {
-            if let Some(gamepad) = query_active_gamepad(world) {
-                gamepad.value(gilrs::Axis::RightZ) > 0.5
-                    || gamepad.is_pressed(gilrs::Button::RightTrigger2)
-            } else {
-                false
-            }
-        } else {
-            false
+            (false, false, 0.0)
         };
 
     #[cfg(feature = "openxr")]
@@ -92,16 +84,12 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         (false, false, false, 0.0_f32);
     let _ = xr_throw_grip_held;
 
-    let already_interacting = game_world.resources.interaction.is_any_active()
-        || game_world.resources.ui.reading_note.is_some();
-    let mouse_interact = right_clicked
-        && (game_world.resources.prompt_cache.interactable_in_range || already_interacting);
-    let interact_held = mouse_interact || gamepad_x_held || xr_interact_held;
-    let throw_pressed = left_clicked || gamepad_rt_held || xr_throw_grip_held;
+    let interact_held = left_clicked || gamepad_lt_held || xr_interact_held;
+    let throw_pressed = right_clicked || gamepad_rt_held || xr_throw_grip_held;
 
     let keyboard_shoot_pressed =
-        if game_world.resources.input_mode == InputMode::MouseKeyboard {
-            left_clicked
+        if world.resources.input.input_mode == InputMode::MouseKeyboard {
+            right_clicked
         } else {
             false
         };
@@ -118,7 +106,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     let xr_distance_delta = 0.0_f32;
     let _ = xr_thumbstick_y;
 
-    let effective_scroll_delta = if game_world.resources.input_mode == InputMode::Gamepad
+    let effective_scroll_delta = if world.resources.input.input_mode == InputMode::Gamepad
         && gamepad_dpad_distance.abs() > 0.0
     {
         gamepad_dpad_distance * delta_time * 3.0
@@ -238,7 +226,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
             .unwrap_or((800, 600));
         let screen_pos =
             nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
-        if game_world.resources.input_mode == InputMode::Gamepad {
+        if world.resources.input.input_mode == InputMode::Gamepad {
             picking::pick_entities_cone(world, screen_pos, config.interact_cone_radius, options)
         } else {
             pick_entities(world, screen_pos, options)
@@ -274,189 +262,4 @@ fn throw_grabbed_object(game_world: &mut GameWorld, world: &mut World, camera_fo
         throw_strength,
     );
     game_world.resources.interaction.grabbed_entity = None;
-}
-
-pub fn update_lantern_light(game_world: &GameWorld, world: &mut World) {
-    let Some(lantern_entity) = game_world.resources.lantern_entity else {
-        return;
-    };
-    let Some(light_entity) = game_world.resources.lantern_light_entity else {
-        return;
-    };
-
-    let lantern_position =
-        if let Some(global_transform) = world.core.get_global_transform(lantern_entity) {
-            global_transform.translation()
-        } else {
-            return;
-        };
-
-    if let Some(transform) = world.core.get_local_transform_mut(light_entity) {
-        transform.translation = lantern_position;
-    }
-    world.mark_local_transform_dirty(light_entity);
-}
-
-fn update_pressed_button(
-    game_world: &mut GameWorld,
-    world: &mut World,
-    button_game_entity: freecs::Entity,
-) {
-    let delta_time = world.resources.window.timing.delta_time;
-    let press_speed = 8.0;
-    let max_press = 0.03;
-
-    let Some(button) = game_world.get_button_mut(button_game_entity) else {
-        return;
-    };
-    button.current_press = (button.current_press + press_speed * delta_time).min(max_press);
-
-    let pressed_y = button.base_position.y - button.current_press;
-    let current_press = button.current_press;
-    let is_pressed = button.is_pressed;
-    let entity = button.entity;
-    let base_position = button.base_position;
-
-    if let Some(transform) = world.core.get_local_transform_mut(entity) {
-        transform.translation.y = pressed_y;
-    }
-    world.mark_local_transform_dirty(entity);
-
-    if let Some(rb) = world.core.get_rigid_body_mut(entity)
-        && let Some(handle) = rb.handle
-    {
-        let physics = &mut world.resources.physics;
-        if let Some(rigid_body) = physics.rigid_body_set.get_mut(handle.into()) {
-            rigid_body.set_next_kinematic_translation(rapier3d::prelude::Vector::new(
-                base_position.x,
-                pressed_y,
-                base_position.z,
-            ));
-        }
-    }
-
-    if current_press >= max_press
-        && !is_pressed
-        && let Some(button) = game_world.get_button_mut(button_game_entity)
-    {
-        button.is_pressed = true;
-        let action = button.action.clone();
-        match action {
-            ButtonAction::RecallBaubles => recall_baubles(game_world, world),
-        }
-    }
-}
-
-fn release_button(
-    game_world: &mut GameWorld,
-    world: &mut World,
-    button_game_entity: freecs::Entity,
-) {
-    let Some(button) = game_world.get_button_mut(button_game_entity) else {
-        return;
-    };
-    button.current_press = 0.0;
-    button.is_pressed = false;
-    let entity = button.entity;
-    let base_position = button.base_position;
-
-    if let Some(transform) = world.core.get_local_transform_mut(entity) {
-        transform.translation.y = base_position.y;
-    }
-    world.mark_local_transform_dirty(entity);
-
-    if let Some(rb) = world.core.get_rigid_body_mut(entity)
-        && let Some(handle) = rb.handle
-    {
-        let physics = &mut world.resources.physics;
-        if let Some(rigid_body) = physics.rigid_body_set.get_mut(handle.into()) {
-            rigid_body.set_next_kinematic_translation(rapier3d::prelude::Vector::new(
-                base_position.x,
-                base_position.y,
-                base_position.z,
-            ));
-        }
-    }
-}
-
-fn recall_baubles(game_world: &mut GameWorld, world: &mut World) {
-    let bauble_entities: Vec<freecs::Entity> = game_world
-        .query_entities(BAUBLE_SPAWN)
-        .collect();
-
-    for game_entity in bauble_entities {
-        let Some(bauble) = game_world.get_bauble_spawn(game_entity) else {
-            continue;
-        };
-        let entity = bauble.entity;
-        let spawn_position = bauble.spawn_position;
-
-        if let Some(transform) = world.core.get_local_transform_mut(entity) {
-            transform.translation = spawn_position;
-        }
-        world.mark_local_transform_dirty(entity);
-
-        if let Some(rb) = world.core.get_rigid_body_mut(entity)
-            && let Some(handle) = rb.handle
-        {
-            let physics = &mut world.resources.physics;
-            if let Some(rigid_body) = physics.rigid_body_set.get_mut(handle.into()) {
-                rigid_body.set_translation(
-                    rapier3d::prelude::Vector::new(
-                        spawn_position.x,
-                        spawn_position.y,
-                        spawn_position.z,
-                    ),
-                    true,
-                );
-                rigid_body.set_linvel(rapier3d::prelude::Vector::zeros(), true);
-                rigid_body.set_angvel(rapier3d::prelude::Vector::zeros(), true);
-            }
-        }
-    }
-}
-
-pub fn note_reading_system(game_world: &mut GameWorld, world: &mut World) {
-    let keyboard = &world.resources.input.keyboard;
-    let f_pressed = keyboard.is_key_pressed(KeyCode::KeyF);
-
-    let gamepad_lt_pressed = if let Some(gamepad) = query_active_gamepad(world) {
-        let lt_axis = gamepad.value(gilrs::Axis::LeftZ);
-        let lt_button = gamepad.is_pressed(gilrs::Button::LeftTrigger2);
-        lt_axis > 0.5 || lt_button
-    } else {
-        false
-    };
-
-    let interact_pressed = f_pressed || gamepad_lt_pressed;
-
-    if !game_world.resources.ui.note_close_key_released && !interact_pressed {
-        game_world.resources.ui.note_close_key_released = true;
-    }
-
-    if game_world.resources.ui.note_close_key_released && interact_pressed {
-        game_world.resources.ui.reading_note = None;
-    }
-}
-
-pub fn check_fall_reset(game_world: &GameWorld, world: &mut World) {
-    let Some(player_entity) = game_world.resources.player.entity else {
-        return;
-    };
-
-    let Some(transform) = world.core.get_local_transform(player_entity) else {
-        return;
-    };
-
-    if transform.translation.y < -20.0 {
-        let spawn_position = nalgebra_glm::vec3(0.0, 1.2, 8.0);
-
-        if let Some(transform) = world.core.get_local_transform_mut(player_entity) {
-            transform.translation = spawn_position;
-        }
-
-        if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-            controller.velocity = nalgebra_glm::vec3(0.0, 0.0, 0.0);
-        }
-    }
 }

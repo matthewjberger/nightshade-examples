@@ -1,4 +1,17 @@
+use crate::ecs::{GameWorld, Interactable, InteractableKind, INTERACTABLE};
 use nightshade::prelude::*;
+
+pub fn register_grabbable(game_world: &mut GameWorld, engine_entity: Entity) {
+    let game_entity = game_world.spawn_entities(INTERACTABLE, 1)[0];
+    game_world.set_interactable(
+        game_entity,
+        Interactable {
+            engine_entity,
+            game_entity,
+            kind: InteractableKind::Grab,
+        },
+    );
+}
 
 pub fn assign_material(
     world: &mut World,

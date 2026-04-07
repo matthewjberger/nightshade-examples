@@ -45,7 +45,7 @@ pub(crate) fn spawn_spring_joint_exhibit(
         3.0,
         spring_cube_material,
     );
-    game_world.add_grabbable(spring_entity);
+    crate::systems::spawn::register_grabbable(game_world, spring_entity);
 
     create_spring_joint(
         world,

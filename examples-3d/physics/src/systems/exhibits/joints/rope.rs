@@ -44,7 +44,7 @@ pub(crate) fn spawn_rope_joint_exhibit(
         2.0,
         ball_material,
     );
-    game_world.add_grabbable(ball_entity);
+    crate::systems::spawn::register_grabbable(game_world, ball_entity);
 
     create_rope_joint(
         world,

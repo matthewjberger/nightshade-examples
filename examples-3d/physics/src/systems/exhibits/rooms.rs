@@ -1,6 +1,6 @@
 use crate::ecs::GameWorld;
 use crate::systems::ui::spawn_wall_label;
-use super::environment::{spawn_room_light, spawn_room_walls, RoomConfig};
+use super::environment::walls::{RoomConfig, spawn_room_light, spawn_room_walls};
 use nightshade::ecs::physics::*;
 use nightshade::ecs::text::components::{TextAlignment, TextProperties, VerticalAlignment};
 use nightshade::prelude::*;
@@ -91,7 +91,7 @@ pub(super) fn spawn_curiosity_room(
         world
             .core
             .set_name(entity, Name(format!("Gold Gem {}", index + 1)));
-        game_world.add_grabbable(entity);
+        crate::systems::spawn::register_grabbable(game_world, entity);
     }
 
     let crystal_material =
@@ -106,7 +106,7 @@ pub(super) fn spawn_curiosity_room(
     world
         .core
         .set_name(crystal_entity, Name("Crystal Orb".to_string()));
-    game_world.add_grabbable(crystal_entity);
+    crate::systems::spawn::register_grabbable(game_world, crystal_entity);
 
     let trinket_material =
         create_textured_material(nalgebra_glm::vec3(0.6, 0.5, 0.35), 0.7, 0.0);
@@ -126,7 +126,7 @@ pub(super) fn spawn_curiosity_room(
         world
             .core
             .set_name(entity, Name(format!("Trinket Box {}", index + 1)));
-        game_world.add_grabbable(entity);
+        crate::systems::spawn::register_grabbable(game_world, entity);
     }
 
     let vase_material = create_textured_material(nalgebra_glm::vec3(0.7, 0.3, 0.25), 0.5, 0.2);
@@ -141,7 +141,7 @@ pub(super) fn spawn_curiosity_room(
     world
         .core
         .set_name(vase_entity, Name("Ceramic Vase".to_string()));
-    game_world.add_grabbable(vase_entity);
+    crate::systems::spawn::register_grabbable(game_world, vase_entity);
 
     let emerald_material =
         create_textured_material(nalgebra_glm::vec3(0.1, 0.7, 0.3), 0.2, 0.6);
@@ -155,7 +155,7 @@ pub(super) fn spawn_curiosity_room(
     world
         .core
         .set_name(emerald_entity, Name("Emerald".to_string()));
-    game_world.add_grabbable(emerald_entity);
+    crate::systems::spawn::register_grabbable(game_world, emerald_entity);
 }
 
 pub(super) fn spawn_workshop_room(
@@ -260,7 +260,7 @@ pub(super) fn spawn_workshop_room(
         world
             .core
             .set_name(entity, Name(format!("Metal Part {}", index + 1)));
-        game_world.add_grabbable(entity);
+        crate::systems::spawn::register_grabbable(game_world, entity);
     }
 
     let brick_material =
@@ -281,7 +281,7 @@ pub(super) fn spawn_workshop_room(
         world
             .core
             .set_name(entity, Name(format!("Brick {}", index + 1)));
-        game_world.add_grabbable(entity);
+        crate::systems::spawn::register_grabbable(game_world, entity);
     }
 
     let orb_material = create_textured_material(nalgebra_glm::vec3(0.2, 0.7, 0.3), 0.4, 0.5);
@@ -295,7 +295,7 @@ pub(super) fn spawn_workshop_room(
     world
         .core
         .set_name(orb_entity, Name("Green Orb".to_string()));
-    game_world.add_grabbable(orb_entity);
+    crate::systems::spawn::register_grabbable(game_world, orb_entity);
 
     let gear_material = create_textured_material(nalgebra_glm::vec3(0.6, 0.55, 0.5), 0.25, 0.9);
     let gear_entity = spawn_dynamic_physics_cylinder_with_material(
@@ -309,7 +309,7 @@ pub(super) fn spawn_workshop_room(
     world
         .core
         .set_name(gear_entity, Name("Brass Gear".to_string()));
-    game_world.add_grabbable(gear_entity);
+    crate::systems::spawn::register_grabbable(game_world, gear_entity);
 
     let bolt_material = create_textured_material(nalgebra_glm::vec3(0.4, 0.4, 0.45), 0.2, 0.9);
     let bolt_positions = [
@@ -327,6 +327,6 @@ pub(super) fn spawn_workshop_room(
         world
             .core
             .set_name(entity, Name(format!("Bolt {}", index + 1)));
-        game_world.add_grabbable(entity);
+        crate::systems::spawn::register_grabbable(game_world, entity);
     }
 }

@@ -1,26 +1,24 @@
 use crate::ecs::GameWorld;
 #[cfg(not(feature = "openxr"))]
-use crate::systems::camera::{camera_look_system, crouch_camera_system, lean_system};
-#[cfg(not(feature = "openxr"))]
-use crate::systems::input::detect_input_mode;
+use crate::systems::camera::camera_look_system;
 use crate::systems::{
-    dash::{build_dash_hud, dash_system},
     exhibits::{
         spawn_environment, spawn_exhibits, spawn_sun_overhead, setup_velocity_friction_joints,
         update_coulomb_friction_joints, update_joint_visuals, update_prismatic_sliders,
     },
-    flashlight::{spawn_flashlight, update_flashlight},
+    flashlight::{spawn_flashlight, update_flashlight, update_lantern_light},
     interaction::{
-        check_fall_reset, interaction_system, note_reading_system, update_doors_momentum,
-        update_drawers_momentum, update_interaction_prompt, update_lantern_light,
+        interaction_system, note_reading_system, update_doors_momentum,
+        update_drawers_momentum, update_interaction_prompt,
         update_levers_momentum, update_wheels_momentum,
     },
+    player::check_fall_reset,
     shooting::update_shot_baubles,
     targets::{spawn_targets, update_targets, process_target_killed_events},
     ui::{build_crosshair, build_note_overlay, debug_toggle_system, update_note_overlay},
 };
 #[cfg(not(feature = "openxr"))]
-use crate::systems::weapon::{spawn_weapon, update_weapon_sway};
+use crate::systems::weapon::spawn_weapon;
 use nightshade::ecs::physics::spawn_first_person_player;
 use nightshade::ecs::text::commands::spawn_ui_text;
 use nightshade::prelude::*;
@@ -44,11 +42,7 @@ impl State for PhysicsGame {
         world.resources.graphics.day_night.hour = 8.0;
         world.resources.graphics.day_night.speed = 0.15;
         world.resources.graphics.day_night.auto_cycle = true;
-        capture_procedural_atmosphere_ibl(
-            world,
-            Atmosphere::DayNight,
-            8.0,
-        );
+        capture_procedural_atmosphere_ibl(world, Atmosphere::DayNight, 8.0);
         capture_ibl_snapshots(
             world,
             Atmosphere::DayNight,
@@ -56,14 +50,11 @@ impl State for PhysicsGame {
         );
 
         self.game_world.resources.show_physics_debug = false;
-        self.game_world.resources.player.dash_charges = self.game_world.resources.config.max_dash_charges;
         world.resources.physics.debug_draw = false;
 
         #[cfg(feature = "openxr")]
         {
-            self.game_world.resources.input_mode = crate::ecs::InputMode::Xr;
-            world.resources.xr.initial_player_position =
-                Some(nalgebra_glm::vec3(0.0, 0.0, 8.0));
+            world.resources.xr.initial_player_position = Some(nalgebra_glm::vec3(0.0, 0.0, 8.0));
         }
 
         let sun = spawn_sun_overhead(world);
@@ -77,8 +68,7 @@ impl State for PhysicsGame {
         }
 
         if let Some(controller) = world.core.get_character_controller_mut(player_entity) {
-            controller.max_speed = 2.5;
-            controller.sprint_speed_multiplier = 2.0;
+            controller.engine_input_enabled = false;
         }
 
         self.game_world.resources.player.entity = Some(player_entity);
@@ -106,7 +96,8 @@ impl State for PhysicsGame {
 
         let prompt_entity = spawn_ui_text(world, "", nalgebra_glm::Vec2::zeros());
         if let Some(hud_text) = world.core.get_text(prompt_entity) {
-            self.game_world.resources.ui.interaction_prompt_text_index = Some(hud_text.text_index);
+            self.game_world.resources.ui.interaction_prompt_text_index =
+                Some(hud_text.text_index);
         }
         self.game_world.resources.ui.interaction_prompt_entity = Some(prompt_entity);
 
@@ -122,8 +113,7 @@ impl State for PhysicsGame {
             let left_hand =
                 crate::systems::xr::spawn_hand_cube(world, nalgebra_glm::vec3(0.2, 0.6, 0.9));
             self.game_world.resources.left_hand_cube = Some(left_hand);
-            let gun_root =
-                crate::systems::xr::spawn_weapon(&mut self.game_world, world);
+            let gun_root = crate::systems::xr::spawn_weapon(&mut self.game_world, world);
             self.game_world.resources.gun_root_entity = Some(gun_root);
         }
 
@@ -136,10 +126,8 @@ impl State for PhysicsGame {
         self.game_world.resources.ui.note_title_entity = Some(note_title);
         self.game_world.resources.ui.note_content_entity = Some(note_content);
 
-        let (dash_hud, dash_state_text, dash_charges) = build_dash_hud(world, self.game_world.resources.config.max_dash_charges);
-        self.game_world.resources.ui.dash_hud_entity = Some(dash_hud);
-        self.game_world.resources.ui.dash_hud_state_text_entity = Some(dash_state_text);
-        self.game_world.resources.ui.dash_hud_charge_entities = dash_charges;
+        let state_hud = crate::systems::player::build_player_state_hud(world);
+        self.game_world.resources.ui.player_state_text_entity = Some(state_hud);
     }
 
     fn run_systems(&mut self, world: &mut World) {
@@ -151,7 +139,9 @@ impl State for PhysicsGame {
             note_reading_system(&mut self.game_world, world);
         }
 
-        escape_key_exit_system(world);
+        if self.game_world.resources.ui.reading_note.is_none() {
+            escape_key_exit_system(world);
+        }
         if let Some(gamepad) = nightshade::ecs::input::queries::query_active_gamepad(world)
             && gamepad.is_pressed(gilrs::Button::Select)
         {
@@ -159,19 +149,25 @@ impl State for PhysicsGame {
         }
         debug_toggle_system(&mut self.game_world, world);
         #[cfg(not(feature = "openxr"))]
-        detect_input_mode(&mut self.game_world, world);
-        check_fall_reset(&self.game_world, world);
+        detect_input_mode_system(world);
+        if let Some(text_index) = self.game_world.resources.ui.input_mode_text_index {
+            let text = match world.resources.input.input_mode {
+                InputMode::MouseKeyboard => "Mouse/Keyboard",
+                InputMode::Gamepad => "Gamepad",
+            };
+            world.resources.text_cache.set_text(text_index, text);
+            if let Some(entity) = self.game_world.resources.ui.input_mode_text_entity
+                && let Some(hud_text) = world.core.get_text_mut(entity)
+            {
+                hud_text.dirty = true;
+            }
+        }
+        check_fall_reset(&mut self.game_world, world);
+        crate::systems::player::player_state_system(&mut self.game_world, world);
         #[cfg(not(feature = "openxr"))]
         camera_look_system(&mut self.game_world, world);
-        #[cfg(not(feature = "openxr"))]
-        lean_system(&mut self.game_world, world);
-        #[cfg(not(feature = "openxr"))]
-        crouch_camera_system(&self.game_world, world);
         #[cfg(feature = "openxr")]
         crate::systems::xr::xr_hand_tracking_system(&mut self.game_world, world);
-        dash_system(&mut self.game_world, world);
-        #[cfg(not(feature = "openxr"))]
-        update_weapon_sway(&mut self.game_world, world);
         nightshade::ecs::transform::systems::update_global_transforms_system(world);
         interaction_system(&mut self.game_world, world);
         update_shot_baubles(&mut self.game_world, world);

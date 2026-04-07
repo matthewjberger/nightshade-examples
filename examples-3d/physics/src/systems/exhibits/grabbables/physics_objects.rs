@@ -35,7 +35,7 @@ pub(crate) fn spawn_grabbables_exhibit(
             2.0,
             box_material.clone(),
         );
-        game_world.add_grabbable(entity);
+        crate::systems::spawn::register_grabbable(game_world, entity);
     }
 
     let sphere_radius = 0.2;
@@ -47,7 +47,7 @@ pub(crate) fn spawn_grabbables_exhibit(
         1.5,
         sphere_material,
     );
-    game_world.add_grabbable(sphere_entity);
+    crate::systems::spawn::register_grabbable(game_world, sphere_entity);
 
     let cylinder_half_height = 0.2;
     let cylinder_radius = 0.12;
@@ -60,5 +60,5 @@ pub(crate) fn spawn_grabbables_exhibit(
         3.0,
         metal_material,
     );
-    game_world.add_grabbable(cylinder_entity);
+    crate::systems::spawn::register_grabbable(game_world, cylinder_entity);
 }

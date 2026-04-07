@@ -338,5 +338,5 @@ pub(crate) fn spawn_chain_exhibit(
 
     game_world.resources.lantern_entity = Some(lantern_entity);
     game_world.resources.lantern_light_entity = Some(light_entity);
-    game_world.add_grabbable(lantern_entity);
+    crate::systems::spawn::register_grabbable(game_world, lantern_entity);
 }

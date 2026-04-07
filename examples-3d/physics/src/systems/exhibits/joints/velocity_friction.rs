@@ -50,7 +50,7 @@ pub(crate) fn spawn_velocity_friction_joint_exhibit(
         1.5,
         arm_material,
     );
-    game_world.add_grabbable(arm_entity);
+    crate::systems::spawn::register_grabbable(game_world, arm_entity);
 
     let weight_y = hinge_height - arm_length;
     let weight_material = create_textured_material(nalgebra_glm::vec3(0.7, 0.5, 0.3), 0.4, 0.5);
@@ -61,7 +61,7 @@ pub(crate) fn spawn_velocity_friction_joint_exhibit(
         4.0,
         weight_material,
     );
-    game_world.add_grabbable(weight_entity);
+    crate::systems::spawn::register_grabbable(game_world, weight_entity);
 
     create_revolute_joint(
         world,

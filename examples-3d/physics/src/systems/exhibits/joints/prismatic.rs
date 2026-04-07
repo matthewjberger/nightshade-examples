@@ -45,7 +45,7 @@ pub(crate) fn spawn_prismatic_joint_exhibit(
         1.0,
         slider_material,
     );
-    game_world.add_grabbable(slider_entity);
+    crate::systems::spawn::register_grabbable(game_world, slider_entity);
 
     create_prismatic_joint(
         world,

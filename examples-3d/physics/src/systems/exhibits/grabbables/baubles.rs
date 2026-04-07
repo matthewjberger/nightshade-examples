@@ -191,7 +191,7 @@ fn spawn_bauble(
         .entity_to_handle
         .insert(entity, handle);
 
-    game_world.add_grabbable(entity);
+    crate::systems::spawn::register_grabbable(game_world, entity);
     entity
 }
 

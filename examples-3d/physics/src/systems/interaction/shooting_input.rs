@@ -1,4 +1,5 @@
 use crate::ecs::GameWorld;
+use nightshade::ecs::input::resources::MouseState;
 use nightshade::prelude::*;
 
 pub(super) fn handle_shooting_input(
@@ -37,14 +38,30 @@ pub(super) fn handle_shooting_input(
         };
 
     let current_time_ms = world.resources.window.timing.uptime_milliseconds;
-    let shoot_just_pressed = shoot_pressed && !game_world.resources.interaction.shoot_was_pressed;
-    game_world.resources.interaction.shoot_was_pressed = shoot_pressed;
+
+    let keyboard_shoot_just_pressed =
+        if world.resources.input.input_mode == InputMode::MouseKeyboard {
+            world
+                .resources
+                .input
+                .mouse
+                .state
+                .contains(MouseState::RIGHT_JUST_PRESSED)
+        } else {
+            false
+        };
+    let gamepad_shoot_just_pressed = world
+        .resources
+        .input
+        .gamepad
+        .just_pressed(gilrs::Button::RightTrigger2);
+    let shoot_just_pressed = keyboard_shoot_just_pressed || gamepad_shoot_just_pressed;
 
     if game_world.resources.interaction.grabbed_entity.is_none() {
         if shoot_just_pressed {
             game_world.resources.interaction.shoot_hold_start_ms = Some(current_time_ms);
             game_world.resources.interaction.last_rapid_fire_ms = current_time_ms;
-            super::super::shooting::shoot_bauble(game_world, world, shoot_origin, shoot_direction);
+            crate::systems::shooting::shoot_bauble(game_world, world, shoot_origin, shoot_direction);
         } else if shoot_pressed {
             if let Some(hold_start) = game_world.resources.interaction.shoot_hold_start_ms {
                 let hold_duration = current_time_ms.saturating_sub(hold_start);
@@ -53,7 +70,7 @@ pub(super) fn handle_shooting_input(
                         .saturating_sub(game_world.resources.interaction.last_rapid_fire_ms);
                     if time_since_last_shot >= 80 {
                         game_world.resources.interaction.last_rapid_fire_ms = current_time_ms;
-                        super::super::shooting::shoot_bauble(
+                        crate::systems::shooting::shoot_bauble(
                             game_world,
                             world,
                             shoot_origin,

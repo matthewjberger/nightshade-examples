@@ -58,7 +58,7 @@ pub(crate) fn spawn_fixed_joint_exhibit(
             1.5,
             block_material,
         );
-        game_world.add_grabbable(block_entity);
+        crate::systems::spawn::register_grabbable(game_world, block_entity);
 
         create_fixed_joint(
             world,

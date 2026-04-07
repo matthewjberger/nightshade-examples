@@ -45,7 +45,7 @@ pub(crate) fn spawn_spherical_joint_exhibit(
         3.0,
         pendulum_material,
     );
-    game_world.add_grabbable(pendulum_entity);
+    crate::systems::spawn::register_grabbable(game_world, pendulum_entity);
 
     create_spherical_joint(
         world,

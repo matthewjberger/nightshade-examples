@@ -1,10 +1,8 @@
 #[cfg(not(feature = "openxr"))]
 pub mod camera;
-pub mod dash;
 pub mod exhibits;
+pub mod player;
 pub mod flashlight;
-#[cfg(not(feature = "openxr"))]
-pub mod input;
 pub mod interaction;
 pub mod shooting;
 pub mod targets;

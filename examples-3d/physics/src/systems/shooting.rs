@@ -86,7 +86,7 @@ pub fn shoot_bauble(game_world: &mut GameWorld, world: &mut World, position: Vec
         .insert(entity, handle);
 
     world.resources.mesh_render_state.mark_entity_added(entity);
-    game_world.add_grabbable(entity);
+    crate::systems::spawn::register_grabbable(game_world, entity);
 
     if let Some(interpolation) = world.core.get_physics_interpolation_mut(entity) {
         interpolation.previous_translation = position;
@@ -194,7 +194,7 @@ pub fn update_shot_baubles(game_world: &mut GameWorld, world: &mut World) {
         if let Some(bauble) = game_world.get_shot_bauble_mut(game_entity) {
             bauble.landed = true;
         }
-        game_world.add_grabbable(engine_entity);
+        crate::systems::spawn::register_grabbable(game_world, engine_entity);
     }
 
     for (game_entity, engine_entity) in baubles_to_remove.into_iter().rev() {
@@ -214,6 +214,15 @@ fn despawn_bauble(game_world: &mut GameWorld, world: &mut World, entity: Entity)
         world.resources.physics.remove_rigid_body(handle.into());
     }
 
-    game_world.remove_grabbable(entity);
+    let interactable_to_remove: Option<freecs::Entity> = game_world
+        .query_entities(crate::ecs::INTERACTABLE)
+        .find(|&game_entity| {
+            game_world
+                .get_interactable(game_entity)
+                .is_some_and(|interactable| interactable.engine_entity == entity)
+        });
+    if let Some(game_entity) = interactable_to_remove {
+        game_world.despawn_entities(&[game_entity]);
+    }
     despawn_entities_with_cache_cleanup(world, &[entity]);
 }

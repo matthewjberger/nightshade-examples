@@ -1,4 +1,4 @@
-use crate::ecs::{GameWorld, InputMode, WHEEL};
+use crate::ecs::{GameWorld, WHEEL};
 use nightshade::ecs::input::queries::query_active_gamepad;
 use nightshade::prelude::*;
 
@@ -25,13 +25,13 @@ pub(super) fn update_manipulated_wheel(
 
     let dt = world.resources.physics.fixed_timestep;
 
-    let mouse_input = if game_world.resources.input_mode == InputMode::MouseKeyboard {
+    let mouse_input = if world.resources.input.input_mode == InputMode::MouseKeyboard {
         -world.resources.input.mouse.raw_mouse_delta.x * 2.0
     } else {
         0.0
     };
 
-    let gamepad_input = if game_world.resources.input_mode == InputMode::Gamepad {
+    let gamepad_input = if world.resources.input.input_mode == InputMode::Gamepad {
         if let Some(gamepad) = query_active_gamepad(world) {
             let right_stick_x = gamepad.value(gilrs::Axis::RightStickX);
             let deadzone = 0.15;

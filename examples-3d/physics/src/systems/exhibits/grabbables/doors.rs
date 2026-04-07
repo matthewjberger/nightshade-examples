@@ -1,5 +1,5 @@
 use crate::ecs::{Door, GameWorld, Interactable, InteractableKind, DOOR, INTERACTABLE};
-use super::super::environment::spawn_visual_cube;
+use super::super::environment::visual::spawn_visual_cube;
 use nightshade::ecs::physics::*;
 use nightshade::prelude::*;
 

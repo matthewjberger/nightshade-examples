@@ -138,7 +138,6 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         if let Some((button_entity, InteractableKind::Button)) = &game_world.resources.interaction.manipulated {
             release_button(game_world, world, *button_entity);
         }
-        game_world.resources.interaction.grabbed_entity = None;
         nightshade::ecs::physics::grab::release_grab_physics(world);
         game_world.resources.interaction.manipulated = None;
         game_world.resources.interaction.require_interact_release = false;
@@ -149,35 +148,26 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
         return;
     }
 
-    if game_world.resources.interaction.grabbed_entity.is_some() {
-        #[cfg(feature = "openxr")]
-        let (grab_origin, grab_forward) = {
-            if let Some(xr_input) = &world.resources.xr.input {
-                if let (Some(pos), Some(fwd)) = (
-                    xr_input.left_hand_position(),
-                    xr_input.left_hand_aim_direction(),
-                ) {
-                    (pos, fwd)
-                } else {
-                    (camera_position, camera_forward)
-                }
-            } else {
-                (camera_position, camera_forward)
-            }
-        };
-        #[cfg(not(feature = "openxr"))]
-        let (grab_origin, grab_forward) = (camera_position, camera_forward);
+    if world.resources.physics.grab.is_holding() {
+        update_grabbed_object(game_world, world, effective_scroll_delta);
 
-        update_grabbed_object(
-            game_world,
-            world,
-            grab_origin,
-            grab_forward,
-            effective_scroll_delta,
-        );
+        let throw_direction = {
+            #[cfg(feature = "openxr")]
+            {
+                if let Some(xr_input) = &world.resources.xr.input
+                    && let Some(fwd) = xr_input.left_hand_aim_direction()
+                {
+                    fwd
+                } else {
+                    camera_forward
+                }
+            }
+            #[cfg(not(feature = "openxr"))]
+            { camera_forward }
+        };
 
         if throw_pressed {
-            throw_grabbed_object(game_world, world, grab_forward);
+            throw_grabbed_object(game_world, world, throw_direction);
             game_world.resources.interaction.require_interact_release = true;
         }
         return;
@@ -236,23 +226,12 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
     picking::try_start_interaction(game_world, world, &pick_results);
 }
 
-fn update_grabbed_object(
-    game_world: &GameWorld,
-    world: &mut World,
-    camera_position: Vec3,
-    camera_forward: Vec3,
-    scroll_delta: f32,
-) {
+fn update_grabbed_object(game_world: &GameWorld, world: &mut World, scroll_delta: f32) {
     let scroll_speed = game_world.resources.config.scroll_distance_speed;
     world.resources.physics.grab.adjust_distance(scroll_delta * scroll_speed);
-
-    let target_position =
-        camera_position + camera_forward * world.resources.physics.grab.distance;
-    world.resources.physics.grab.target_position = target_position;
 }
 
 fn throw_grabbed_object(game_world: &mut GameWorld, world: &mut World, camera_forward: Vec3) {
     let throw_strength = game_world.resources.config.throw_strength;
     nightshade::ecs::physics::grab::throw_grab_physics(world, camera_forward, throw_strength);
-    game_world.resources.interaction.grabbed_entity = None;
 }

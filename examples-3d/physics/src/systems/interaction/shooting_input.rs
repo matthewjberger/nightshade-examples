@@ -57,7 +57,7 @@ pub(super) fn handle_shooting_input(
         .just_pressed(gilrs::Button::RightTrigger2);
     let shoot_just_pressed = keyboard_shoot_just_pressed || gamepad_shoot_just_pressed;
 
-    if game_world.resources.interaction.grabbed_entity.is_none() {
+    if !world.resources.physics.grab.is_holding() {
         if shoot_just_pressed {
             game_world.resources.interaction.shoot_hold_start_ms = Some(current_time_ms);
             game_world.resources.interaction.last_rapid_fire_ms = current_time_ms;

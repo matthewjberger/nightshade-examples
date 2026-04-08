@@ -77,7 +77,7 @@ pub fn update_prismatic_sliders(game_world: &mut GameWorld, world: &mut World) {
     let slider_entities: Vec<freecs::Entity> =
         game_world.query_entities(PRISMATIC_SLIDER).collect();
 
-    let grabbed = game_world.resources.interaction.grabbed_entity;
+    let grabbed = world.resources.physics.grab.entity;
 
     for game_entity in slider_entities {
         let Some(slider) = game_world.get_prismatic_slider_mut(game_entity) else {

@@ -85,8 +85,6 @@ pub struct UiHandles {
 
 #[derive(Default)]
 pub struct InteractionState {
-    pub grabbed_entity: Option<Entity>,
-    pub grab_distance: f32,
     pub manipulated: Option<(freecs::Entity, super::InteractableKind)>,
     pub shoot_hold_start_ms: Option<u64>,
     pub last_rapid_fire_ms: u64,
@@ -94,10 +92,6 @@ pub struct InteractionState {
 }
 
 impl InteractionState {
-    pub fn is_any_active(&self) -> bool {
-        self.grabbed_entity.is_some() || self.manipulated.is_some()
-    }
-
     pub fn manipulated_entity_of_kind(&self, kind: &super::InteractableKind) -> Option<freecs::Entity> {
         self.manipulated.as_ref().and_then(|(entity, k)| {
             if std::mem::discriminant(k) == std::mem::discriminant(kind) {
@@ -108,4 +102,3 @@ impl InteractionState {
         })
     }
 }
-

@@ -7,8 +7,6 @@ pub(super) fn try_start_interaction(
     world: &mut World,
     pick_results: &[PickingResult],
 ) {
-    let config = &game_world.resources.config;
-    let max_grab_distance = config.max_grab_distance;
 
     for result in pick_results {
         let interactable_entities: Vec<freecs::Entity> =
@@ -22,9 +20,6 @@ pub(super) fn try_start_interaction(
             }
             match &interactable.kind {
                 InteractableKind::Grab => {
-                    game_world.resources.interaction.grabbed_entity = Some(result.entity);
-                    game_world.resources.interaction.grab_distance =
-                        result.distance.min(max_grab_distance);
 
                     let local_offset = if let Some(rb) =
                         world.core.get_rigid_body(result.entity)
@@ -50,6 +45,8 @@ pub(super) fn try_start_interaction(
                         game_world.resources.config.max_grab_distance,
                         local_offset,
                     );
+                    world.resources.physics.grab.camera_entity =
+                        game_world.resources.player.camera_entity;
                     return;
                 }
                 InteractableKind::Note => {
@@ -75,7 +72,8 @@ pub fn update_interaction_prompt(game_world: &mut GameWorld, world: &mut World) 
         return;
     };
 
-    if game_world.resources.interaction.is_any_active()
+    if world.resources.physics.grab.is_holding()
+        || game_world.resources.interaction.manipulated.is_some()
         || game_world.resources.ui.reading_note.is_some()
     {
         world.resources.text_cache.set_text(text_index, "");
@@ -92,6 +90,8 @@ pub fn update_interaction_prompt(game_world: &mut GameWorld, world: &mut World) 
         return;
     };
 
+    let config = &game_world.resources.config;
+
     let viewport_size = world
         .resources
         .window
@@ -100,7 +100,6 @@ pub fn update_interaction_prompt(game_world: &mut GameWorld, world: &mut World) 
     let screen_pos =
         nalgebra_glm::vec2(viewport_size.0 as f32 / 2.0, viewport_size.1 as f32 / 2.0);
 
-    let config = &game_world.resources.config;
     let options = PickingOptions {
         max_distance: config.grab_range,
         ignore_invisible: true,

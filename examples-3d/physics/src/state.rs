@@ -51,7 +51,6 @@ impl State for PhysicsGame {
 
         self.game_world.resources.show_physics_debug = false;
         world.resources.physics.debug_draw = false;
-        world.resources.physics.max_substeps = 1;
 
         #[cfg(feature = "openxr")]
         {
@@ -132,7 +131,10 @@ impl State for PhysicsGame {
     }
 
     fn run_systems(&mut self, world: &mut World) {
-        world.resources.physics.fixed_timestep = world.resources.window.timing.delta_time;
+        let dt = world.resources.window.timing.delta_time.min(1.0 / 30.0);
+        world.resources.physics.fixed_timestep = dt;
+        world.resources.physics.integration_parameters.dt = dt;
+        world.resources.physics.max_substeps = 1;
         self.game_world.step();
 
         update_note_overlay(&mut self.game_world, world);

@@ -36,7 +36,6 @@ freecs::ecs! {
         config: GameConfig,
         player: PlayerResources,
         interaction: InteractionState,
-        grab: nightshade::ecs::physics::grab::GrabState,
         #[cfg(not(feature = "openxr"))]
         weapon: WeaponState,
         flashlight: FlashlightState,

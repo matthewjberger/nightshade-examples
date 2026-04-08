@@ -4,7 +4,7 @@ use nightshade::prelude::*;
 
 pub(super) fn try_start_interaction(
     game_world: &mut GameWorld,
-    world: &World,
+    world: &mut World,
     pick_results: &[PickingResult],
 ) {
     let config = &game_world.resources.config;
@@ -34,17 +34,16 @@ pub(super) fn try_start_interaction(
                     {
                         let body_pos = rigid_body.translation();
                         let body_rot = rigid_body.rotation();
+                        let body_quat = nalgebra_glm::quat(body_rot.w, body_rot.i, body_rot.j, body_rot.k);
                         let world_offset = result.world_position
                             - nalgebra_glm::vec3(body_pos.x, body_pos.y, body_pos.z);
-                        let inv_rot = nalgebra_glm::quat_conjugate(
-                            &nalgebra_glm::quat(body_rot.w, body_rot.i, body_rot.j, body_rot.k),
-                        );
+                        let inv_rot = nalgebra_glm::quat_conjugate(&body_quat);
                         nalgebra_glm::quat_rotate_vec3(&inv_rot, &world_offset)
                     } else {
                         nalgebra_glm::Vec3::zeros()
                     };
 
-                    game_world.resources.grab.grab(
+                    world.resources.physics.grab.grab(
                         result.entity,
                         result.distance,
                         game_world.resources.config.min_grab_distance,

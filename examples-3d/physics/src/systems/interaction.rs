@@ -139,7 +139,7 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
             release_button(game_world, world, *button_entity);
         }
         game_world.resources.interaction.grabbed_entity = None;
-        nightshade::ecs::physics::grab::release_grab(&mut game_world.resources.grab, world);
+        nightshade::ecs::physics::grab::release_grab_physics(world);
         game_world.resources.interaction.manipulated = None;
         game_world.resources.interaction.require_interact_release = false;
         return;
@@ -237,29 +237,22 @@ pub fn interaction_system(game_world: &mut GameWorld, world: &mut World) {
 }
 
 fn update_grabbed_object(
-    game_world: &mut GameWorld,
+    game_world: &GameWorld,
     world: &mut World,
     camera_position: Vec3,
     camera_forward: Vec3,
     scroll_delta: f32,
 ) {
     let scroll_speed = game_world.resources.config.scroll_distance_speed;
-    game_world.resources.grab.adjust_distance(scroll_delta * scroll_speed);
+    world.resources.physics.grab.adjust_distance(scroll_delta * scroll_speed);
 
     let target_position =
-        camera_position + camera_forward * game_world.resources.grab.distance;
-    game_world.resources.grab.target_position = target_position;
-
-    nightshade::ecs::physics::grab::update_grab(&mut game_world.resources.grab, world);
+        camera_position + camera_forward * world.resources.physics.grab.distance;
+    world.resources.physics.grab.target_position = target_position;
 }
 
 fn throw_grabbed_object(game_world: &mut GameWorld, world: &mut World, camera_forward: Vec3) {
     let throw_strength = game_world.resources.config.throw_strength;
-    nightshade::ecs::physics::grab::throw_grab(
-        &mut game_world.resources.grab,
-        world,
-        camera_forward,
-        throw_strength,
-    );
+    nightshade::ecs::physics::grab::throw_grab_physics(world, camera_forward, throw_strength);
     game_world.resources.interaction.grabbed_entity = None;
 }

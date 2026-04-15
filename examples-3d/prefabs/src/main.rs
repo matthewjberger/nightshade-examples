@@ -485,7 +485,7 @@ impl State for PrefabsState {
         #[cfg(feature = "openxr")]
         {
             world.resources.graphics.atmosphere = Atmosphere::DayNight;
-            world.resources.graphics.day_night_hour = self.day_night_hour;
+            world.resources.graphics.day_night.hour = self.day_night_hour;
         }
         #[cfg(not(feature = "openxr"))]
         {
@@ -659,7 +659,7 @@ impl State for PrefabsState {
             }
         }
 
-        world.resources.graphics.day_night_hour = self.day_night_hour;
+        world.resources.graphics.day_night.hour = self.day_night_hour;
         self.update_sun_for_hour(world);
         self.update_lens_flare(world);
 
@@ -1115,7 +1115,7 @@ impl PrefabsState {
             if current_atmosphere == Atmosphere::DayNight {
                 self.day_night_hour = 12.0;
                 self.last_ibl_hour = 12.0;
-                world.resources.graphics.day_night_hour = self.day_night_hour;
+                world.resources.graphics.day_night.hour = self.day_night_hour;
                 capture_procedural_atmosphere_ibl(world, Atmosphere::DayNight, self.day_night_hour);
                 capture_ibl_snapshots(
                     world,

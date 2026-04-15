@@ -1,0 +1,14 @@
+#[cfg(not(feature = "openxr"))]
+pub mod camera;
+pub mod exhibits;
+pub mod flashlight;
+pub mod interaction;
+pub mod player;
+pub mod shooting;
+pub mod spawn;
+pub mod targets;
+pub mod ui;
+#[cfg(not(feature = "openxr"))]
+pub mod weapon;
+#[cfg(feature = "openxr")]
+pub mod xr;

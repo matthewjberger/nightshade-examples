@@ -641,17 +641,15 @@ impl GameplayState {
 
     fn handle_double_select(&mut self) {
         match self.cursor {
-            CursorLocation::Waste => {
-                if !self.board.waste.is_empty() {
-                    let card_index = self.board.waste.len() - 1;
-                    if self
-                        .board
-                        .try_move_to_foundation(PileLocation::Waste, card_index)
-                    {
-                        self.moves_count += 1;
-                        self.selection = None;
-                        self.needs_redraw = true;
-                    }
+            CursorLocation::Waste if !self.board.waste.is_empty() => {
+                let card_index = self.board.waste.len() - 1;
+                if self
+                    .board
+                    .try_move_to_foundation(PileLocation::Waste, card_index)
+                {
+                    self.moves_count += 1;
+                    self.selection = None;
+                    self.needs_redraw = true;
                 }
             }
             CursorLocation::Tableau(column_index, _row_index) => {

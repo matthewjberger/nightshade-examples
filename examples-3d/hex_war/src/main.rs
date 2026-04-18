@@ -831,13 +831,13 @@ impl State for HexWarGame {
                     update_replay_display(self, world);
                 }
             }
-            KeyCode::ArrowLeft if self.menu_state == MenuState::Replay => {
-                if self.replay.cursor > 0 {
-                    replay_pause(self, world);
-                    self.replay.cursor -= 1;
-                    replay_restore_to_cursor(self, world);
-                    update_replay_display(self, world);
-                }
+            KeyCode::ArrowLeft
+                if self.menu_state == MenuState::Replay && self.replay.cursor > 0 =>
+            {
+                replay_pause(self, world);
+                self.replay.cursor -= 1;
+                replay_restore_to_cursor(self, world);
+                update_replay_display(self, world);
             }
             KeyCode::Escape if self.menu_state == MenuState::Replay => {
                 replay_restore_final_state(self, world);

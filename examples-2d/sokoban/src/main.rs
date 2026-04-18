@@ -800,11 +800,9 @@ impl State for Sokoban {
             KeyCode::KeyR => {
                 self.load_level(world);
             }
-            KeyCode::KeyN => {
-                if self.level_complete {
-                    self.current_level = (self.current_level + 1) % LEVELS.len();
-                    self.load_level(world);
-                }
+            KeyCode::KeyN if self.level_complete => {
+                self.current_level = (self.current_level + 1) % LEVELS.len();
+                self.load_level(world);
             }
             _ => {}
         }

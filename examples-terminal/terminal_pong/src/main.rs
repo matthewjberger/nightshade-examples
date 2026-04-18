@@ -669,10 +669,8 @@ impl State for GameplayState {
         match key {
             KeyCode::Up | KeyCode::Char('w') => self.move_up = pressed,
             KeyCode::Down | KeyCode::Char('s') => self.move_down = pressed,
-            KeyCode::Escape | KeyCode::Char('q') => {
-                if pressed {
-                    world.resources.should_exit = true;
-                }
+            KeyCode::Escape | KeyCode::Char('q') if pressed => {
+                world.resources.should_exit = true;
             }
             _ => {}
         }

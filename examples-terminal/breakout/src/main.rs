@@ -841,15 +841,11 @@ impl State for GameplayState {
             KeyCode::Right | KeyCode::Char('d') => {
                 self.move_right = pressed;
             }
-            KeyCode::Char(' ') => {
-                if pressed && self.ball_attached && !self.game_over {
-                    self.ball_attached = false;
-                }
+            KeyCode::Char(' ') if pressed && self.ball_attached && !self.game_over => {
+                self.ball_attached = false;
             }
-            KeyCode::Escape | KeyCode::Char('q') => {
-                if pressed {
-                    world.resources.should_exit = true;
-                }
+            KeyCode::Escape | KeyCode::Char('q') if pressed => {
+                world.resources.should_exit = true;
             }
             _ => {}
         }

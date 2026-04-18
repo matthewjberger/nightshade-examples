@@ -1217,17 +1217,15 @@ impl State for CombatState {
         }
 
         match key {
-            KeyCode::Left => {
-                if !self.hand.is_empty() && self.selected_card_index > 0 {
-                    self.selected_card_index -= 1;
-                    self.render_all(world);
-                }
+            KeyCode::Left if !self.hand.is_empty() && self.selected_card_index > 0 => {
+                self.selected_card_index -= 1;
+                self.render_all(world);
             }
-            KeyCode::Right => {
-                if !self.hand.is_empty() && self.selected_card_index + 1 < self.hand.len() {
-                    self.selected_card_index += 1;
-                    self.render_all(world);
-                }
+            KeyCode::Right
+                if !self.hand.is_empty() && self.selected_card_index + 1 < self.hand.len() =>
+            {
+                self.selected_card_index += 1;
+                self.render_all(world);
             }
             KeyCode::Enter => {
                 self.play_selected_card(world);
@@ -1594,17 +1592,13 @@ impl State for RewardState {
             return;
         }
         match key {
-            KeyCode::Left => {
-                if self.selected_reward_index > 0 {
-                    self.selected_reward_index -= 1;
-                    self.render(world);
-                }
+            KeyCode::Left if self.selected_reward_index > 0 => {
+                self.selected_reward_index -= 1;
+                self.render(world);
             }
-            KeyCode::Right => {
-                if self.selected_reward_index + 1 < self.reward_options.len() {
-                    self.selected_reward_index += 1;
-                    self.render(world);
-                }
+            KeyCode::Right if self.selected_reward_index + 1 < self.reward_options.len() => {
+                self.selected_reward_index += 1;
+                self.render(world);
             }
             KeyCode::Enter => {
                 let chosen_card = self.reward_options[self.selected_reward_index].clone();

@@ -566,10 +566,8 @@ impl State for DaySetupState {
                 }
                 self.render_all(world);
             }
-            KeyCode::Enter => {
-                if self.can_afford() {
-                    self.proceed = true;
-                }
+            KeyCode::Enter if self.can_afford() => {
+                self.proceed = true;
             }
             KeyCode::Escape => world.resources.should_exit = true,
             _ => {}

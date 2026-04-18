@@ -667,25 +667,17 @@ impl State for GameplayState {
         }
 
         match key {
-            KeyCode::Up | KeyCode::Char('w') => {
-                if self.cursor_row > 0 {
-                    self.cursor_row -= 1;
-                }
+            KeyCode::Up | KeyCode::Char('w') if self.cursor_row > 0 => {
+                self.cursor_row -= 1;
             }
-            KeyCode::Down | KeyCode::Char('s') => {
-                if self.cursor_row < BOARD_HEIGHT - 1 {
-                    self.cursor_row += 1;
-                }
+            KeyCode::Down | KeyCode::Char('s') if self.cursor_row < BOARD_HEIGHT - 1 => {
+                self.cursor_row += 1;
             }
-            KeyCode::Left | KeyCode::Char('a') => {
-                if self.cursor_column > 0 {
-                    self.cursor_column -= 1;
-                }
+            KeyCode::Left | KeyCode::Char('a') if self.cursor_column > 0 => {
+                self.cursor_column -= 1;
             }
-            KeyCode::Right | KeyCode::Char('d') => {
-                if self.cursor_column < BOARD_WIDTH - 1 {
-                    self.cursor_column += 1;
-                }
+            KeyCode::Right | KeyCode::Char('d') if self.cursor_column < BOARD_WIDTH - 1 => {
+                self.cursor_column += 1;
             }
             KeyCode::Char(' ') | KeyCode::Enter => {
                 if self.cell_states[self.cursor_row][self.cursor_column] == CellState::Flagged {

@@ -83,24 +83,20 @@ fn apply_location_damage(
     damage: f32,
 ) {
     match location {
-        LocationId::Armory => {
-            if game.resources.castle.armory_exists {
-                game.resources.castle.armory_stock =
-                    game.resources.castle.armory_stock.saturating_sub(1);
-                if game.resources.castle.armory_stock == 0 {
-                    game.resources.castle.armory_exists = false;
-                    rendering::darken_structure(world, "armory");
-                    rendering::darken_structure(world, "armory_roof");
-                    rendering::darken_structure(world, "arrow_bundle");
-                }
+        LocationId::Armory if game.resources.castle.armory_exists => {
+            game.resources.castle.armory_stock =
+                game.resources.castle.armory_stock.saturating_sub(1);
+            if game.resources.castle.armory_stock == 0 {
+                game.resources.castle.armory_exists = false;
+                rendering::darken_structure(world, "armory");
+                rendering::darken_structure(world, "armory_roof");
+                rendering::darken_structure(world, "arrow_bundle");
             }
         }
-        LocationId::HealingStation => {
-            if game.resources.castle.healing_station_exists {
-                game.resources.castle.healing_station_exists = false;
-                rendering::darken_structure(world, "healing_base");
-                rendering::darken_structure(world, "healing_cross");
-            }
+        LocationId::HealingStation if game.resources.castle.healing_station_exists => {
+            game.resources.castle.healing_station_exists = false;
+            rendering::darken_structure(world, "healing_base");
+            rendering::darken_structure(world, "healing_cross");
         }
         LocationId::RepairPile => {
             game.resources.castle.repair_pile_count =

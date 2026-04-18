@@ -560,18 +560,16 @@ impl State for GameplayState {
         }
 
         match key {
-            KeyCode::Char(character) if character.is_ascii_alphabetic() => {
-                if self.current_input.len() < WORD_LENGTH {
-                    self.current_input
-                        .push(character.to_lowercase().next().unwrap_or(character));
-                    self.render_all(world);
-                }
+            KeyCode::Char(character)
+                if character.is_ascii_alphabetic() && self.current_input.len() < WORD_LENGTH =>
+            {
+                self.current_input
+                    .push(character.to_lowercase().next().unwrap_or(character));
+                self.render_all(world);
             }
-            KeyCode::Backspace => {
-                if !self.current_input.is_empty() {
-                    self.current_input.pop();
-                    self.render_all(world);
-                }
+            KeyCode::Backspace if !self.current_input.is_empty() => {
+                self.current_input.pop();
+                self.render_all(world);
             }
             KeyCode::Enter => {
                 self.submit_guess();

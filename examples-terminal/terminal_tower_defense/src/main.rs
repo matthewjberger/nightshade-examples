@@ -872,10 +872,8 @@ impl State for GameplayState {
         match key {
             KeyCode::Up => self.tower_menu.up(),
             KeyCode::Down => self.tower_menu.down(),
-            KeyCode::Char(' ') => {
-                if !self.wave_active {
-                    self.start_wave();
-                }
+            KeyCode::Char(' ') if !self.wave_active => {
+                self.start_wave();
             }
             KeyCode::Escape => world.resources.should_exit = true,
             _ => {}

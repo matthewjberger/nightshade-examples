@@ -795,35 +795,25 @@ impl State for GameplayState {
         }
 
         match key {
-            KeyCode::Left | KeyCode::Char('a') => {
-                if pressed && self.move_cooldown <= 0.0 {
-                    self.try_move(-1, 0);
-                    self.move_cooldown = 0.08;
-                }
+            KeyCode::Left | KeyCode::Char('a') if pressed && self.move_cooldown <= 0.0 => {
+                self.try_move(-1, 0);
+                self.move_cooldown = 0.08;
             }
-            KeyCode::Right | KeyCode::Char('d') => {
-                if pressed && self.move_cooldown <= 0.0 {
-                    self.try_move(1, 0);
-                    self.move_cooldown = 0.08;
-                }
+            KeyCode::Right | KeyCode::Char('d') if pressed && self.move_cooldown <= 0.0 => {
+                self.try_move(1, 0);
+                self.move_cooldown = 0.08;
             }
-            KeyCode::Up | KeyCode::Char('w') => {
-                if pressed {
-                    self.try_rotate();
-                }
+            KeyCode::Up | KeyCode::Char('w') if pressed => {
+                self.try_rotate();
             }
             KeyCode::Down | KeyCode::Char('s') => {
                 self.soft_dropping = pressed;
             }
-            KeyCode::Char(' ') => {
-                if pressed {
-                    self.hard_drop();
-                }
+            KeyCode::Char(' ') if pressed => {
+                self.hard_drop();
             }
-            KeyCode::Escape | KeyCode::Char('q') => {
-                if pressed {
-                    world.resources.should_exit = true;
-                }
+            KeyCode::Escape | KeyCode::Char('q') if pressed => {
+                world.resources.should_exit = true;
             }
             _ => {}
         }

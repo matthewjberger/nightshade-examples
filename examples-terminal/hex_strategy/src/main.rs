@@ -1837,15 +1837,11 @@ impl State for GameplayState {
 
         if self.recruit_mode {
             match key {
-                KeyCode::Up => {
-                    if self.recruit_selection > 0 {
-                        self.recruit_selection -= 1;
-                    }
+                KeyCode::Up if self.recruit_selection > 0 => {
+                    self.recruit_selection -= 1;
                 }
-                KeyCode::Down => {
-                    if self.recruit_selection < 2 {
-                        self.recruit_selection += 1;
-                    }
+                KeyCode::Down if self.recruit_selection < 2 => {
+                    self.recruit_selection += 1;
                 }
                 KeyCode::Enter => {
                     let kind = match self.recruit_selection {
@@ -1869,25 +1865,17 @@ impl State for GameplayState {
         }
 
         match key {
-            KeyCode::Up => {
-                if self.cursor_row > 0 {
-                    self.cursor_row -= 1;
-                }
+            KeyCode::Up if self.cursor_row > 0 => {
+                self.cursor_row -= 1;
             }
-            KeyCode::Down => {
-                if self.cursor_row < HEX_ROWS - 1 {
-                    self.cursor_row += 1;
-                }
+            KeyCode::Down if self.cursor_row < HEX_ROWS - 1 => {
+                self.cursor_row += 1;
             }
-            KeyCode::Left => {
-                if self.cursor_column > 0 {
-                    self.cursor_column -= 1;
-                }
+            KeyCode::Left if self.cursor_column > 0 => {
+                self.cursor_column -= 1;
             }
-            KeyCode::Right => {
-                if self.cursor_column < HEX_COLUMNS - 1 {
-                    self.cursor_column += 1;
-                }
+            KeyCode::Right if self.cursor_column < HEX_COLUMNS - 1 => {
+                self.cursor_column += 1;
             }
             KeyCode::Enter => {
                 match self.phase {

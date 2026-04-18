@@ -129,7 +129,7 @@ fn pick_piece_at(
         }
     }
 
-    candidates.sort_by(|a, b| b.1.cmp(&a.1));
+    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.1));
     candidates.first().map(|(entity, _)| *entity)
 }
 

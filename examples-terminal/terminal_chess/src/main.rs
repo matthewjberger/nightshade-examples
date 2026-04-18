@@ -1689,25 +1689,17 @@ impl State for GameplayState {
         }
 
         match key {
-            KeyCode::Up => {
-                if self.cursor_row > 0 {
-                    self.cursor_row -= 1;
-                }
+            KeyCode::Up if self.cursor_row > 0 => {
+                self.cursor_row -= 1;
             }
-            KeyCode::Down => {
-                if self.cursor_row < BOARD_SIZE - 1 {
-                    self.cursor_row += 1;
-                }
+            KeyCode::Down if self.cursor_row < BOARD_SIZE - 1 => {
+                self.cursor_row += 1;
             }
-            KeyCode::Left => {
-                if self.cursor_column > 0 {
-                    self.cursor_column -= 1;
-                }
+            KeyCode::Left if self.cursor_column > 0 => {
+                self.cursor_column -= 1;
             }
-            KeyCode::Right => {
-                if self.cursor_column < BOARD_SIZE - 1 {
-                    self.cursor_column += 1;
-                }
+            KeyCode::Right if self.cursor_column < BOARD_SIZE - 1 => {
+                self.cursor_column += 1;
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
                 self.handle_click(self.cursor_column, self.cursor_row);

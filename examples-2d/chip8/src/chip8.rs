@@ -294,20 +294,14 @@ impl Chip8 {
                 self.sp += 1;
                 self.pc = nnn;
             }
-            0x3000 => {
-                if self.v[x] == kk {
-                    self.pc += 2;
-                }
+            0x3000 if self.v[x] == kk => {
+                self.pc += 2;
             }
-            0x4000 => {
-                if self.v[x] != kk {
-                    self.pc += 2;
-                }
+            0x4000 if self.v[x] != kk => {
+                self.pc += 2;
             }
-            0x5000 => {
-                if self.v[x] == self.v[y] {
-                    self.pc += 2;
-                }
+            0x5000 if self.v[x] == self.v[y] => {
+                self.pc += 2;
             }
             0x6000 => {
                 self.v[x] = kk;
@@ -353,10 +347,8 @@ impl Chip8 {
                 }
                 _ => {}
             },
-            0x9000 => {
-                if self.v[x] != self.v[y] {
-                    self.pc += 2;
-                }
+            0x9000 if self.v[x] != self.v[y] => {
+                self.pc += 2;
             }
             0xA000 => {
                 self.index = nnn;
@@ -383,15 +375,11 @@ impl Chip8 {
                 }
             }
             0xE000 => match kk {
-                0x9E => {
-                    if self.keypad[self.v[x] as usize & 0xF] {
-                        self.pc += 2;
-                    }
+                0x9E if self.keypad[self.v[x] as usize & 0xF] => {
+                    self.pc += 2;
                 }
-                0xA1 => {
-                    if !self.keypad[self.v[x] as usize & 0xF] {
-                        self.pc += 2;
-                    }
+                0xA1 if !self.keypad[self.v[x] as usize & 0xF] => {
+                    self.pc += 2;
                 }
                 _ => {}
             },

@@ -858,10 +858,8 @@ impl State for Survivors {
         }
 
         match key {
-            KeyCode::KeyR => {
-                if self.game_state == GameState::GameOver {
-                    self.restart_game(world);
-                }
+            KeyCode::KeyR if self.game_state == GameState::GameOver => {
+                self.restart_game(world);
             }
             KeyCode::Escape => match self.game_state {
                 GameState::Playing => {
@@ -884,27 +882,23 @@ impl State for Survivors {
                 }
                 _ => {}
             },
-            KeyCode::ArrowLeft | KeyCode::KeyA => {
-                if self.game_state == GameState::LevelUp && self.selected_upgrade_index > 0 {
-                    self.selected_upgrade_index -= 1;
-                }
+            KeyCode::ArrowLeft | KeyCode::KeyA
+                if self.game_state == GameState::LevelUp && self.selected_upgrade_index > 0 =>
+            {
+                self.selected_upgrade_index -= 1;
             }
-            KeyCode::ArrowRight | KeyCode::KeyD => {
+            KeyCode::ArrowRight | KeyCode::KeyD
                 if self.game_state == GameState::LevelUp
-                    && self.selected_upgrade_index < self.upgrade_choices.len().saturating_sub(1)
-                {
-                    self.selected_upgrade_index += 1;
-                }
+                    && self.selected_upgrade_index
+                        < self.upgrade_choices.len().saturating_sub(1) =>
+            {
+                self.selected_upgrade_index += 1;
             }
-            KeyCode::BracketRight | KeyCode::Equal => {
-                if self.game_state == GameState::Playing {
-                    self.game_speed = (self.game_speed * 2.0).min(8.0);
-                }
+            KeyCode::BracketRight | KeyCode::Equal if self.game_state == GameState::Playing => {
+                self.game_speed = (self.game_speed * 2.0).min(8.0);
             }
-            KeyCode::BracketLeft | KeyCode::Minus => {
-                if self.game_state == GameState::Playing {
-                    self.game_speed = (self.game_speed / 2.0).max(0.25);
-                }
+            KeyCode::BracketLeft | KeyCode::Minus if self.game_state == GameState::Playing => {
+                self.game_speed = (self.game_speed / 2.0).max(0.25);
             }
             _ => {}
         }
@@ -947,18 +941,17 @@ impl State for Survivors {
                     }
                     _ => {}
                 },
-                gilrs::Button::DPadLeft | gilrs::Button::DPadUp => {
-                    if self.game_state == GameState::LevelUp && self.selected_upgrade_index > 0 {
-                        self.selected_upgrade_index -= 1;
-                    }
+                gilrs::Button::DPadLeft | gilrs::Button::DPadUp
+                    if self.game_state == GameState::LevelUp && self.selected_upgrade_index > 0 =>
+                {
+                    self.selected_upgrade_index -= 1;
                 }
-                gilrs::Button::DPadRight | gilrs::Button::DPadDown => {
+                gilrs::Button::DPadRight | gilrs::Button::DPadDown
                     if self.game_state == GameState::LevelUp
                         && self.selected_upgrade_index
-                            < self.upgrade_choices.len().saturating_sub(1)
-                    {
-                        self.selected_upgrade_index += 1;
-                    }
+                            < self.upgrade_choices.len().saturating_sub(1) =>
+                {
+                    self.selected_upgrade_index += 1;
                 }
                 gilrs::Button::RightTrigger => {
                     self.game_speed = (self.game_speed + 0.25).min(3.0);

@@ -809,15 +809,11 @@ impl State for FallingSandState {
             KeyCode::Char('c') | KeyCode::Char('C') => {
                 self.clear();
             }
-            KeyCode::Char('+') | KeyCode::Char('=') => {
-                if self.brush_size < 10 {
-                    self.brush_size += 1;
-                }
+            KeyCode::Char('+') | KeyCode::Char('=') if self.brush_size < 10 => {
+                self.brush_size += 1;
             }
-            KeyCode::Char('-') | KeyCode::Char('_') => {
-                if self.brush_size > 1 {
-                    self.brush_size -= 1;
-                }
+            KeyCode::Char('-') | KeyCode::Char('_') if self.brush_size > 1 => {
+                self.brush_size -= 1;
             }
             KeyCode::Char('1') => self.selected_element = Element::Sand,
             KeyCode::Char('2') => self.selected_element = Element::Water,

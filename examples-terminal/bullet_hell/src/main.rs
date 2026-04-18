@@ -1300,10 +1300,8 @@ impl State for GameplayState {
             KeyCode::Left => self.move_left = pressed,
             KeyCode::Right => self.move_right = pressed,
             KeyCode::Char('z') | KeyCode::Char('Z') => self.shooting = pressed,
-            KeyCode::Char('x') | KeyCode::Char('X') => {
-                if pressed && !self.game_over {
-                    self.activate_bomb(world);
-                }
+            KeyCode::Char('x') | KeyCode::Char('X') if pressed && !self.game_over => {
+                self.activate_bomb(world);
             }
             KeyCode::Char('c') | KeyCode::Char('C') => self.focused = pressed,
             _ => {}

@@ -581,10 +581,8 @@ impl State for GameplayState {
             return;
         }
         match key {
-            KeyCode::Char(' ') | KeyCode::Up => {
-                if !self.game_over {
-                    self.flap();
-                }
+            KeyCode::Char(' ') | KeyCode::Up if !self.game_over => {
+                self.flap();
             }
             KeyCode::Escape | KeyCode::Char('q') => {
                 world.resources.should_exit = true;

@@ -713,11 +713,9 @@ impl State for GameplayState {
             KeyCode::Escape => {
                 world.resources.should_exit = true;
             }
-            KeyCode::Char(character) => {
-                if character.is_ascii_alphabetic() {
-                    self.input_buffer.push(character.to_ascii_lowercase());
-                    self.check_word_match(world);
-                }
+            KeyCode::Char(character) if character.is_ascii_alphabetic() => {
+                self.input_buffer.push(character.to_ascii_lowercase());
+                self.check_word_match(world);
             }
             KeyCode::Backspace => {
                 self.input_buffer.pop();

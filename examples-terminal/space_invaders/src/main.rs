@@ -1036,16 +1036,12 @@ impl State for GameplayState {
             KeyCode::Right | KeyCode::Char('d') => {
                 self.move_right = pressed;
             }
-            KeyCode::Char(' ') => {
-                if pressed && self.fire_cooldown <= 0.0 && !self.game_over {
-                    self.fire_player_bullet(world);
-                    self.fire_cooldown = 0.2;
-                }
+            KeyCode::Char(' ') if pressed && self.fire_cooldown <= 0.0 && !self.game_over => {
+                self.fire_player_bullet(world);
+                self.fire_cooldown = 0.2;
             }
-            KeyCode::Escape | KeyCode::Char('q') => {
-                if pressed {
-                    world.resources.should_exit = true;
-                }
+            KeyCode::Escape | KeyCode::Char('q') if pressed => {
+                world.resources.should_exit = true;
             }
             _ => {}
         }

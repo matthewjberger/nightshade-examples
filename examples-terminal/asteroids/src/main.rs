@@ -568,7 +568,7 @@ impl GameplayState {
             }
         }
 
-        asteroids_to_split.sort_by(|a, b| b.0.cmp(&a.0));
+        asteroids_to_split.sort_by_key(|entry| std::cmp::Reverse(entry.0));
         for (asteroid_idx, column, row) in &asteroids_to_split {
             let size = self.asteroids[*asteroid_idx].size;
             self.score += size.points();
@@ -780,16 +780,12 @@ impl State for GameplayState {
             KeyCode::Left | KeyCode::Char('a') => self.rotating_left = pressed,
             KeyCode::Right | KeyCode::Char('d') => self.rotating_right = pressed,
             KeyCode::Up | KeyCode::Char('w') => self.thrusting = pressed,
-            KeyCode::Char(' ') => {
-                if pressed && self.fire_cooldown <= 0.0 && !self.game_over {
-                    self.fire_bullet(world);
-                    self.fire_cooldown = SHIP_FIRE_COOLDOWN;
-                }
+            KeyCode::Char(' ') if pressed && self.fire_cooldown <= 0.0 && !self.game_over => {
+                self.fire_bullet(world);
+                self.fire_cooldown = SHIP_FIRE_COOLDOWN;
             }
-            KeyCode::Escape | KeyCode::Char('q') => {
-                if pressed {
-                    world.resources.should_exit = true;
-                }
+            KeyCode::Escape | KeyCode::Char('q') if pressed => {
+                world.resources.should_exit = true;
             }
             _ => {}
         }

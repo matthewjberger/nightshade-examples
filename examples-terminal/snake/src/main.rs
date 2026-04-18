@@ -359,25 +359,25 @@ impl State for SnakeGame {
             KeyCode::Char('r') if self.game_over => {
                 self.restart(world);
             }
-            KeyCode::Up | KeyCode::Char('w') if !self.game_over => {
-                if self.direction != Direction::Down {
-                    self.next_direction = Direction::Up;
-                }
+            KeyCode::Up | KeyCode::Char('w')
+                if !self.game_over && self.direction != Direction::Down =>
+            {
+                self.next_direction = Direction::Up;
             }
-            KeyCode::Down | KeyCode::Char('s') if !self.game_over => {
-                if self.direction != Direction::Up {
-                    self.next_direction = Direction::Down;
-                }
+            KeyCode::Down | KeyCode::Char('s')
+                if !self.game_over && self.direction != Direction::Up =>
+            {
+                self.next_direction = Direction::Down;
             }
-            KeyCode::Left | KeyCode::Char('a') if !self.game_over => {
-                if self.direction != Direction::Right {
-                    self.next_direction = Direction::Left;
-                }
+            KeyCode::Left | KeyCode::Char('a')
+                if !self.game_over && self.direction != Direction::Right =>
+            {
+                self.next_direction = Direction::Left;
             }
-            KeyCode::Right | KeyCode::Char('d') if !self.game_over => {
-                if self.direction != Direction::Left {
-                    self.next_direction = Direction::Right;
-                }
+            KeyCode::Right | KeyCode::Char('d')
+                if !self.game_over && self.direction != Direction::Left =>
+            {
+                self.next_direction = Direction::Right;
             }
             _ => {}
         }

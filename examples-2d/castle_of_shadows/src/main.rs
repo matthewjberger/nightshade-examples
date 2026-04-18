@@ -763,10 +763,8 @@ impl State for TextAdventureState {
                     self.scroll_offset = (self.scroll_offset + 1).min(max_scroll);
                 }
             }
-            KeyCode::PageDown | KeyCode::ArrowDown => {
-                if self.scroll_offset > 0 {
-                    self.scroll_offset -= 1;
-                }
+            KeyCode::PageDown | KeyCode::ArrowDown if self.scroll_offset > 0 => {
+                self.scroll_offset -= 1;
             }
             KeyCode::Home => {
                 let total_lines = self.terminal_lines.len();

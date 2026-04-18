@@ -970,6 +970,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "castle_of_shadows"
+version = "0.1.0"
+dependencies = [
+ "nightshade",
+ "stateless",
+]
+
+[[package]]
 name = "castle_siege"
 version = "0.1.0"
 dependencies = [
@@ -7385,14 +7393,6 @@ version = "0.0.0"
 dependencies = [
  "nightshade",
  "rand 0.9.4",
-]
-
-[[package]]
-name = "text_adventure"
-version = "0.1.0"
-dependencies = [
- "nightshade",
- "stateless",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 [package]
-name = "text_adventure"
+name = "castle_of_shadows"
 description = "Interactive fiction game with inventory system and puzzle mechanics"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"

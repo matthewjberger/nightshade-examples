@@ -111,7 +111,7 @@ These are TUI games that run in your terminal, in a window (via `just run-tui`),
 | Puzzle | `match3`, `minesweeper`, `puzzle_2048`, `solitaire`, `terminal_chess`, `terminal_sokoban`, `wordle` |
 | Action | `bomberman`, `bullet_hell`, `terminal_platformer`, `terminal_doom` |
 | Strategy | `colony`, `deck_builder`, `hex_strategy`, `terminal_tower_defense` |
-| RPG | `terminal_roguelike`, `terminal_text_adventure`, `wasteland` |
+| RPG | `terminal_roguelike`, `terminal_text_adventure`, `lighthouse`, `wasteland` |
 | Simulation | `falling_sand`, `game_of_life`, `lemonade`, `pathfinding_demo` |
 | Classic | `snake`, `tetris`, `terminal_pong`, `typing_game`, `rhythm` |
 

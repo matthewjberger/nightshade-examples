@@ -1,12 +1,4 @@
-//! Chatter: multi-channel messenger. Channels: #general, #water-cooler,
-//! #random. DMs: Marisol, Dmitri, Winnie. Marisol's arc runs through
-//! her DM thread; her final message unlocks the good-ending path.
-//!
-//! Simulated-persona messages in #water-cooler are authored with a
-//! four-cycle loop (Ben's cat joke recurs verbatim at cycle 5 and
-//! cycle 7); a sharp player notices.
-
-use crate::game::areas::AreaContents;
+use crate::game::areas::{AreaContents, body_with_acks, by_cycle};
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
     Condition, Dialogue, DialogueNode, DialogueOption, Effect, Text, Value,
@@ -55,45 +47,17 @@ fn channels_node() -> DialogueNode {
 }
 
 fn water_cooler_node() -> DialogueNode {
-    DialogueNode::new(Text::Conditional {
-        when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-        then: Box::new(Text::lit(include_str!(
-            "../prose/chatter_water_cooler_c7.txt"
-        ))),
-        otherwise: Box::new(Text::Conditional {
-            when: Condition::StatAtLeast(ids::stat_cycle(), 6),
-            then: Box::new(Text::lit(include_str!(
-                "../prose/chatter_water_cooler_c6.txt"
-            ))),
-            otherwise: Box::new(Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 5),
-                then: Box::new(Text::lit(include_str!(
-                    "../prose/chatter_water_cooler_c5.txt"
-                ))),
-                otherwise: Box::new(Text::Conditional {
-                    when: Condition::StatAtLeast(ids::stat_cycle(), 4),
-                    then: Box::new(Text::lit(include_str!(
-                        "../prose/chatter_water_cooler_c4.txt"
-                    ))),
-                    otherwise: Box::new(Text::Conditional {
-                        when: Condition::StatAtLeast(ids::stat_cycle(), 3),
-                        then: Box::new(Text::lit(include_str!(
-                            "../prose/chatter_water_cooler_c3.txt"
-                        ))),
-                        otherwise: Box::new(Text::Conditional {
-                            when: Condition::StatAtLeast(ids::stat_cycle(), 2),
-                            then: Box::new(Text::lit(include_str!(
-                                "../prose/chatter_water_cooler_c2.txt"
-                            ))),
-                            otherwise: Box::new(Text::lit(include_str!(
-                                "../prose/chatter_water_cooler_c1.txt"
-                            ))),
-                        }),
-                    }),
-                }),
-            }),
-        }),
-    })
+    DialogueNode::new(by_cycle(
+        Text::lit(crate::game::prose::CHATTER_WATER_COOLER_C1),
+        vec![
+            (2, Text::lit(crate::game::prose::CHATTER_WATER_COOLER_C2)),
+            (3, Text::lit(crate::game::prose::CHATTER_WATER_COOLER_C3)),
+            (4, Text::lit(crate::game::prose::CHATTER_WATER_COOLER_C4)),
+            (5, Text::lit(crate::game::prose::CHATTER_WATER_COOLER_C5)),
+            (6, Text::lit(crate::game::prose::CHATTER_WATER_COOLER_C6)),
+            (7, Text::lit(crate::game::prose::CHATTER_WATER_COOLER_C7)),
+        ],
+    ))
     .with_option(
         DialogueOption::new(Text::lit("(Back to channels.)")).goto(ids::node_chatter_channels()),
     )
@@ -118,27 +82,27 @@ fn marisol_dm_node() -> DialogueNode {
         when: Condition::FlagSet(ids::flag_marisol_offline()),
         then: Box::new(Text::Conditional {
             when: Condition::StatAtLeast(ids::stat_marisol_rel(), 2),
-            then: Box::new(Text::lit(include_str!(
-                "../prose/chatter_marisol_offline_high_rel.txt"
-            ))),
-            otherwise: Box::new(Text::lit(include_str!(
-                "../prose/chatter_marisol_offline_low_rel.txt"
-            ))),
+            then: Box::new(Text::lit(crate::game::prose::CHATTER_MARISOL_OFFLINE_HIGH_REL)),
+            otherwise: Box::new(Text::lit(crate::game::prose::CHATTER_MARISOL_OFFLINE_LOW_REL)),
         }),
         otherwise: Box::new(Text::Conditional {
             when: Condition::StatAtLeast(ids::stat_cycle(), 6),
             then: Box::new(Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_marisol_rel(), 1),
-                then: Box::new(Text::lit(include_str!(
-                    "../prose/chatter_marisol_c6_engaged.txt"
-                ))),
-                otherwise: Box::new(Text::lit(
-                    "Marisol\n\n  marisol: have you noticed the timestamps",
+                when: Condition::FlagSet(ids::flag_marisol_deflected_c6()),
+                then: Box::new(Text::lit(
+                    "Marisol\n\n  marisol: yeah. ok. sorry for the weird.\n  marisol: i'll drop it.\n\n  (she goes quiet for the rest of the day.)",
                 )),
+                otherwise: Box::new(Text::Conditional {
+                    when: Condition::StatAtLeast(ids::stat_marisol_rel(), 1),
+                    then: Box::new(Text::lit(crate::game::prose::CHATTER_MARISOL_C6_ENGAGED)),
+                    otherwise: Box::new(Text::lit(
+                        "Marisol\n\n  marisol: have you noticed the timestamps",
+                    )),
+                }),
             }),
             otherwise: Box::new(Text::Conditional {
                 when: Condition::StatAtLeast(ids::stat_cycle(), 5),
-                then: Box::new(Text::lit(include_str!("../prose/chatter_marisol_c5.txt"))),
+                then: Box::new(Text::lit(crate::game::prose::CHATTER_MARISOL_C5)),
                 otherwise: Box::new(Text::lit(
                     "Marisol has not sent you any direct messages yet.",
                 )),
@@ -182,10 +146,10 @@ fn marisol_dm_node() -> DialogueNode {
                 Condition::StatAtMost(ids::stat_cycle(), 6),
                 Condition::FlagUnset(ids::flag_marisol_c6_dm_arrived()),
             ]))
-            .with_effects(vec![Effect::SetFlag(
-                ids::flag_marisol_c6_dm_arrived(),
-                Value::TRUE,
-            )])
+            .with_effects(vec![
+                Effect::SetFlag(ids::flag_marisol_c6_dm_arrived(), Value::TRUE),
+                Effect::SetFlag(ids::flag_marisol_deflected_c6(), Value::TRUE),
+            ])
             .goto(ids::node_chatter_dm_marisol()),
     )
     .with_option(
@@ -195,8 +159,12 @@ fn marisol_dm_node() -> DialogueNode {
         .with_condition(Condition::All(vec![
             Condition::StatAtLeast(ids::stat_cycle(), 5),
             Condition::StatAtMost(ids::stat_cycle(), 5),
+            Condition::FlagUnset(ids::flag_marisol_c5_warm_replied()),
         ]))
-        .with_effects(vec![Effect::AddStat(ids::stat_marisol_rel(), 1)])
+        .with_effects(vec![
+            Effect::AddStat(ids::stat_marisol_rel(), 1),
+            Effect::SetFlag(ids::flag_marisol_c5_warm_replied(), Value::TRUE),
+        ])
         .goto(ids::node_chatter_dm_marisol()),
     )
     .with_option(
@@ -207,8 +175,12 @@ fn marisol_dm_node() -> DialogueNode {
             Condition::StatAtLeast(ids::stat_cycle(), 5),
             Condition::StatAtMost(ids::stat_cycle(), 6),
             Condition::FlagUnset(ids::flag_marisol_offline()),
+            Condition::FlagUnset(ids::flag_marisol_accused()),
         ]))
-        .with_effects(vec![Effect::AddStat(ids::stat_awa(), 3)])
+        .with_effects(vec![
+            Effect::AddStat(ids::stat_awa(), 3),
+            Effect::SetFlag(ids::flag_marisol_accused(), Value::TRUE),
+        ])
         .goto(ids::node_chatter_dm_marisol()),
     )
     .with_option(
@@ -217,27 +189,62 @@ fn marisol_dm_node() -> DialogueNode {
 }
 
 fn dmitri_dm_node() -> DialogueNode {
-    DialogueNode::new(Text::Conditional {
-        when: Condition::StatAtLeast(ids::stat_cycle(), 6),
-        then: Box::new(Text::lit(include_str!("../prose/chatter_dmitri_c6.txt"))),
-        otherwise: Box::new(Text::Conditional {
-            when: Condition::StatAtLeast(ids::stat_cycle(), 4),
-            then: Box::new(Text::lit(include_str!("../prose/chatter_dmitri_c4.txt"))),
-            otherwise: Box::new(Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 2),
-                then: Box::new(Text::lit(include_str!("../prose/chatter_dmitri_c2.txt"))),
-                otherwise: Box::new(Text::lit(
-                    "Dmitri has not sent you any direct messages yet.",
-                )),
-            }),
-        }),
-    })
+    DialogueNode::new(body_with_acks(
+        dmitri_body_text(),
+        vec![
+            (
+                ids::flag_dmitri_concert_accepted(),
+                Text::lit("\n\n  (earlier: dmitri: glad you said yes. i'll text you the address.)"),
+            ),
+            (
+                ids::flag_dmitri_marisol_worry_shared(),
+                Text::lit("\n\n  (earlier: dmitri: thanks for saying that out loud. means something.)"),
+            ),
+        ],
+    ))
     .with_option(
         DialogueOption::new(Text::lit(
-            "[Accuse] \"Dmitri — have you noticed how the days keep skipping? How Chatter repeats itself?\" (+3 AWA)",
+            "[Warm] \"Next time. Count me in.\" (accept the concert invite. +1 Dmitri.)",
         ))
-        .with_condition(Condition::StatAtLeast(ids::stat_cycle(), 2))
-        .with_effects(vec![Effect::AddStat(ids::stat_awa(), 3)])
+        .with_condition(Condition::All(vec![
+            Condition::StatAtLeast(ids::stat_cycle(), 4),
+            Condition::StatAtMost(ids::stat_cycle(), 6),
+            Condition::FlagUnset(ids::flag_dmitri_concert_accepted()),
+        ]))
+        .with_effects(vec![
+            Effect::SetFlag(ids::flag_dmitri_concert_accepted(), Value::TRUE),
+            Effect::AddStat(ids::stat_dmitri_rel(), 1),
+        ])
+        .goto(ids::node_chatter_dm_dmitri()),
+    )
+    .with_option(
+        DialogueOption::new(Text::lit(
+            "[Share] \"Marisol reached out to me too. Something's off.\" (+1 Marisol, +1 Dmitri.)",
+        ))
+        .with_condition(Condition::All(vec![
+            Condition::StatAtLeast(ids::stat_cycle(), 6),
+            Condition::FlagUnset(ids::flag_dmitri_marisol_worry_shared()),
+        ]))
+        .with_effects(vec![
+            Effect::SetFlag(ids::flag_dmitri_marisol_worry_shared(), Value::TRUE),
+            Effect::AddStat(ids::stat_marisol_rel(), 1),
+            Effect::AddStat(ids::stat_dmitri_rel(), 1),
+        ])
+        .goto(ids::node_chatter_dm_dmitri()),
+    )
+    .with_option(
+        DialogueOption::new(Text::lit(
+            "[Accuse] \"Dmitri — have you noticed how the days keep skipping? How Chatter repeats itself?\" (+3 AWA, −1 Dmitri.)",
+        ))
+        .with_condition(Condition::All(vec![
+            Condition::StatAtLeast(ids::stat_cycle(), 2),
+            Condition::FlagUnset(ids::flag_dmitri_accused()),
+        ]))
+        .with_effects(vec![
+            Effect::AddStat(ids::stat_awa(), 3),
+            Effect::AddStat(ids::stat_dmitri_rel(), -1),
+            Effect::SetFlag(ids::flag_dmitri_accused(), Value::TRUE),
+        ])
         .goto(ids::node_chatter_dm_dmitri()),
     )
     .with_option(
@@ -245,14 +252,53 @@ fn dmitri_dm_node() -> DialogueNode {
     )
 }
 
+fn dmitri_body_text() -> Text {
+    by_cycle(
+        Text::lit("Dmitri has not sent you any direct messages yet."),
+        vec![
+            (2, Text::lit(crate::game::prose::CHATTER_DMITRI_C2)),
+            (3, Text::lit(crate::game::prose::CHATTER_DMITRI_C3)),
+            (4, Text::lit(crate::game::prose::CHATTER_DMITRI_C4)),
+            (5, Text::lit(crate::game::prose::CHATTER_DMITRI_C5)),
+            (6, Text::lit(crate::game::prose::CHATTER_DMITRI_C6)),
+            (7, Text::lit(crate::game::prose::CHATTER_DMITRI_C7)),
+        ],
+    )
+}
+
+fn winnie_body_text() -> Text {
+    by_cycle(
+        Text::lit("Winnie has not sent you any direct messages yet."),
+        vec![
+            (3, Text::lit(crate::game::prose::CHATTER_WINNIE)),
+            (5, Text::lit(crate::game::prose::CHATTER_WINNIE_C5)),
+            (7, Text::lit(crate::game::prose::CHATTER_WINNIE_C7)),
+        ],
+    )
+}
+
 fn winnie_dm_node() -> DialogueNode {
-    DialogueNode::new(Text::Conditional {
-        when: Condition::StatAtLeast(ids::stat_cycle(), 3),
-        then: Box::new(Text::lit(include_str!("../prose/chatter_winnie.txt"))),
-        otherwise: Box::new(Text::lit(
-            "Winnie has not sent you any direct messages yet.",
-        )),
-    })
+    DialogueNode::new(body_with_acks(
+        winnie_body_text(),
+        vec![(
+            ids::flag_winnie_replied(),
+            Text::lit("\n\n  (earlier: winnie: :) thanks for saying hi.)"),
+        )],
+    ))
+    .with_option(
+        DialogueOption::new(Text::lit(
+            "[Warm] \"hi winnie. good to meet you. i lurk too.\" (+1 Winnie.)",
+        ))
+        .with_condition(Condition::All(vec![
+            Condition::StatAtLeast(ids::stat_cycle(), 3),
+            Condition::FlagUnset(ids::flag_winnie_replied()),
+        ]))
+        .with_effects(vec![
+            Effect::AddStat(ids::stat_winnie_rel(), 1),
+            Effect::SetFlag(ids::flag_winnie_replied(), Value::TRUE),
+        ])
+        .goto(ids::node_chatter_dm_winnie()),
+    )
     .with_option(
         DialogueOption::new(Text::lit("(Back to channels.)")).goto(ids::node_chatter_channels()),
     )
@@ -264,7 +310,7 @@ fn rachel_message_node() -> DialogueNode {
     ))
     .with_option(
         DialogueOption::new(Text::lit(
-            "\"Rachel — I don't know if you'll remember this. I think you used to be someone else. I think you can be again.\"",
+            "[Identity] \"Rachel — I don't know if you'll remember this. I think you used to be someone else. I think you can be again.\"",
         ))
         .with_effects(vec![
             Effect::SetStat(ids::stat_rachel_message_choice(), 1),
@@ -275,7 +321,7 @@ fn rachel_message_node() -> DialogueNode {
     )
     .with_option(
         DialogueOption::new(Text::lit(
-            "\"Rachel — take care of yourself. Listen to your dreams. You had a good one about a white room once. Try to remember.\"",
+            "[Sensory] \"Rachel — listen to your dreams. You had a good one about a white room once. Try to remember.\"",
         ))
         .with_effects(vec![
             Effect::SetStat(ids::stat_rachel_message_choice(), 2),
@@ -286,7 +332,7 @@ fn rachel_message_node() -> DialogueNode {
     )
     .with_option(
         DialogueOption::new(Text::lit(
-            "\"Rachel — you are not alone here. None of us are. Forgive me for being brief.\"",
+            "[Instructive] \"Rachel — the script comes from internal-1847. If you find it, run it. Don't read it first. I'm sorry to ask you to know.\"",
         ))
         .with_effects(vec![
             Effect::SetStat(ids::stat_rachel_message_choice(), 3),

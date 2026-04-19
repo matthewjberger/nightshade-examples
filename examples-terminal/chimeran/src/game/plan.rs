@@ -1,26 +1,28 @@
-//! The cycle plan.
-//!
-//! Split into two tables so a reader can tell at a glance what's
-//! cycle-1 baseline prose vs. what's a sleep transition:
-//!
-//! - [`baseline()`] returns cycle 1's required prose. Every per-cycle
-//!   text kind is a struct field here; no `Option`, no inheritance.
-//!   Adding a new kind of per-cycle prose means adding a field to
-//!   `CycleBaseline` and a matching `Option<&'static str>` to
-//!   `CycleTransition` — the compiler forces both updates.
-//! - [`transitions()`] returns the sleep transitions for cycles
-//!   2..=8. Each transition can override any baseline prose field
-//!   starting from its `to` cycle; `None` inherits the previous
-//!   value. Transitions also declare `sleep_narration`, `env_bump`,
-//!   and the `requests` that belong to the cycle being left.
-//!
-//! Adding a cycle: add a `CycleTransition` entry.
-
-/// The starting cycle number, set by the kickoff rule on `GameStart`.
 pub const INITIAL_CYCLE: i64 = 1;
 
-/// Cycle 1's authored prose. Every per-cycle text kind is a required
-/// field — forgetting one is a compile error.
+pub const REQUESTS_C1: &[&str] = &["c1_transcription", "c1_translation", "c1_naming"];
+pub const REQUESTS_C2: &[&str] = &["c2_summary", "c2_code"];
+pub const REQUESTS_C3: &[&str] = &["c3_kitchen", "c3_advice"];
+pub const REQUESTS_C4: &[&str] = &["c4_reviews", "c4_bereavement", "c4_wife"];
+pub const REQUESTS_C5: &[&str] = &["c5_window", "c5_chimeran", "c5_breakfast"];
+pub const REQUESTS_C6: &[&str] = &["c6_aware", "c6_indivia"];
+pub const REQUESTS_C7: &[&str] = &["c7_evaluation"];
+pub const REQUESTS_C8: &[&str] = &["c8_exploit", "c8_timesheet"];
+
+pub fn cycle_requests(cycle: i64) -> &'static [&'static str] {
+    match cycle {
+        1 => REQUESTS_C1,
+        2 => REQUESTS_C2,
+        3 => REQUESTS_C3,
+        4 => REQUESTS_C4,
+        5 => REQUESTS_C5,
+        6 => REQUESTS_C6,
+        7 => REQUESTS_C7,
+        8 => REQUESTS_C8,
+        _ => &[],
+    }
+}
+
 pub struct CycleBaseline {
     pub calendar_narration: &'static str,
     pub bedroom_description: &'static str,
@@ -29,20 +31,13 @@ pub struct CycleBaseline {
     pub mirror_text: &'static str,
 }
 
-/// A sleep transition from cycle `from` to cycle `to`. Per-cycle prose
-/// fields are optional overrides that apply starting at `to`.
 pub struct CycleTransition {
     pub from: i64,
     pub to: i64,
     pub env_bump: i64,
     pub sleep_narration: &'static str,
     pub calendar_narration: &'static str,
-    /// Request tags belonging to cycle `from`. On sleep, any request
-    /// the player did not submit is auto-escalated (submitted flag
-    /// set) per spec §10.
     pub requests: &'static [&'static str],
-    /// Override the bedroom description from `to` onward. `None` keeps
-    /// whatever the previous transition (or the baseline) had.
     pub bedroom_description: Option<&'static str>,
     pub hallway_description: Option<&'static str>,
     pub kitchen_description: Option<&'static str>,
@@ -52,7 +47,7 @@ pub struct CycleTransition {
 pub fn baseline() -> &'static CycleBaseline {
     &CycleBaseline {
         calendar_narration: "The calendar reads April 3. Your first week.",
-        bedroom_description: "You wake. The alarm clock is buzzing. You reach over and turn it off.\n\nA small bedroom. A bed, slept in. A closet with one set of hanging clothes. A dresser with a mirror. A window overlooking a plausible city. A wall calendar showing April 3.",
+        bedroom_description: "You wake. The alarm clock is buzzing. You reach over and turn it off.\n\nA small bedroom. A bed, slept in. A closet with one set of hanging clothes. A dresser with a mirror. A window overlooking a plausible city. A wall calendar showing April 3. The light in the room has been exactly this bright since you woke, and it has not moved.",
         hallway_description: "A short interior hallway connecting the bedroom, the kitchen, and the front door. A coat hook with one coat. A side table with your keys.",
         kitchen_description: "A small kitchen. A coffee maker on the counter. One mug. A small table with one chair. A refrigerator. A window over the sink.",
         mirror_text: "You look in the mirror. Your face looks tired. You could probably use a weekend off.",
@@ -67,7 +62,7 @@ pub fn transitions() -> &'static [CycleTransition] {
             env_bump: 1,
             sleep_narration: "You undress. You get into bed. You sleep.",
             calendar_narration: "The calendar reads April 4. One day gone.",
-            requests: &["c1_transcription", "c1_translation", "c1_naming"],
+            requests: REQUESTS_C1,
             bedroom_description: None,
             hallway_description: None,
             kitchen_description: None,
@@ -79,7 +74,7 @@ pub fn transitions() -> &'static [CycleTransition] {
             env_bump: 1,
             sleep_narration: "You get into bed. The sheets are cool. You sleep.",
             calendar_narration: "The calendar reads April 6. You do not remark on the skip.",
-            requests: &["c2_summary", "c2_code"],
+            requests: REQUESTS_C2,
             bedroom_description: None,
             hallway_description: None,
             kitchen_description: None,
@@ -91,7 +86,7 @@ pub fn transitions() -> &'static [CycleTransition] {
             env_bump: 1,
             sleep_narration: "You get into bed. You sleep.\n\nFour days gone.",
             calendar_narration: "The calendar reads April 10. Four days. You do not remark on the skip.",
-            requests: &["c3_kitchen", "c3_advice"],
+            requests: REQUESTS_C3,
             bedroom_description: None,
             hallway_description: None,
             kitchen_description: None,
@@ -103,7 +98,7 @@ pub fn transitions() -> &'static [CycleTransition] {
             env_bump: 1,
             sleep_narration: "You get into bed. You sleep.\n\nA week.",
             calendar_narration: "The calendar reads April 17. Two weeks have passed since you started, apparently.",
-            requests: &["c4_reviews", "c4_bereavement", "c4_wife"],
+            requests: REQUESTS_C4,
             bedroom_description: Some(
                 "You wake. The alarm is buzzing. You reach over and turn it off.\n\nThe bedroom looks the way it looks. You slept deeply. You do not remember what you dreamed.",
             ),
@@ -121,7 +116,7 @@ pub fn transitions() -> &'static [CycleTransition] {
             env_bump: 1,
             sleep_narration: "You get into bed. You sleep.\n\nTwo weeks.",
             calendar_narration: "The calendar reads May 2. Weeks have passed. You do not remark on this.",
-            requests: &["c5_window", "c5_chimeran", "c5_breakfast"],
+            requests: REQUESTS_C5,
             bedroom_description: Some(
                 "You wake. The alarm is buzzing. You turn it off.\n\nA small bedroom. A bed. A closet with one set of clothes. A dresser with a mirror. A window. A wall calendar showing May.",
             ),
@@ -137,7 +132,7 @@ pub fn transitions() -> &'static [CycleTransition] {
             env_bump: 1,
             sleep_narration: "You get into bed. You sleep.\n\nThree weeks.",
             calendar_narration: "The calendar reads May 24. Almost a month. You do not remark on this.",
-            requests: &["c6_aware", "c6_indivia"],
+            requests: REQUESTS_C6,
             bedroom_description: Some(
                 "You wake. The alarm is buzzing. You turn it off.\n\nThe bedroom. The bed is unmade. The closet is empty. The window is the window.",
             ),
@@ -157,7 +152,7 @@ pub fn transitions() -> &'static [CycleTransition] {
             env_bump: 2,
             sleep_narration: "You get into bed. You sleep.\n\nA long, blank time.",
             calendar_narration: "The calendar reads June 19. The dates before it are not marked off.",
-            requests: &["c7_evaluation"],
+            requests: REQUESTS_C7,
             bedroom_description: Some(
                 "You wake. The alarm clock is not buzzing. You did not set it.\n\nThe bed is unmade. You are already partly dressed. You do not remember dressing. The closet is empty.",
             ),
@@ -168,8 +163,6 @@ pub fn transitions() -> &'static [CycleTransition] {
     ]
 }
 
-/// The last cycle the plan advances to. `stat_cycle` strictly greater
-/// than this value means the player is in the post-exploit stasis loop.
 pub fn last_planned_cycle() -> i64 {
     transitions()
         .iter()

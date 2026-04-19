@@ -1,12 +1,4 @@
-//! The apartment: bedroom, hallway, kitchen.
-//!
-//! The bedroom is both the start room and the terminal room at the end
-//! of every cycle. Sleep is handled via the bed NPC's dialogue; the
-//! cycle progression (1 → 2 → 3 → … → 8) lives in `crate::game::plan`.
-//!
-//! Exits use compass directions so `n`/`s`/`e`/`w`/`u`/`d` parse-shortcuts work.
-
-use crate::game::areas::AreaContents;
+use crate::game::areas::{AreaContents, by_cycle};
 use crate::game::ids;
 use crate::game::plan::{CycleTransition, baseline, transitions};
 use nightshade::interactive_fiction::data::{
@@ -22,19 +14,20 @@ pub fn build() -> AreaContents {
         Room::new(
             "Bedroom",
             with_redux_override(
-                "You wake. The alarm clock is buzzing. You reach over and turn it off.\n\nThe bed is made the way you make it. There is a sticky note on the nightstand, in your handwriting. The picture frame is not on the nightstand. You do not remember it ever being there.",
+                "You wake. The alarm clock is buzzing. You reach over and turn it off.\n\nThe bed is made the way you make it. There is a sticky note on the nightstand, in your handwriting. You have the sense that something is missing from this room, though you cannot say what.",
                 per_cycle_text(baseline().bedroom_description, |step| step.bedroom_description),
             ),
         )
+        .with_unseen_alias("a small room you slept in")
+        .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
         .with_exit(Exit::new("south (to the hallway)", ids::room_hallway()))
         .with_examine("calendar", calendar_text())
         .with_examine(
             "closet",
-            Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-                then: Box::new(Text::lit("The closet is empty. The hangers are bare.")),
-                otherwise: Box::new(Text::lit("One set of clothes hangs in the closet. They are the clothes you wear.")),
-            },
+            by_cycle(
+                Text::lit("One set of clothes hangs in the closet. They are the clothes you wear."),
+                vec![(7, Text::lit("The closet is empty. The hangers are bare."))],
+            ),
         )
         .with_examine(
             "window",
@@ -68,15 +61,14 @@ pub fn build() -> AreaContents {
         )
         .with_examine(
             "alarm",
-            Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 4),
-                then: Box::new(Text::lit(
-                    "The alarm clock on the nightstand. The display reads 6:47. It always reads 6:47 when you wake.",
-                )),
-                otherwise: Box::new(Text::lit(
+            by_cycle(
+                Text::lit(
                     "The alarm clock on the nightstand. A small black block. The display reads 6:47.",
-                )),
-            },
+                ),
+                vec![(4, Text::lit(
+                    "The alarm clock on the nightstand. The display reads 6:47. It always reads 6:47 when you wake.",
+                ))],
+            ),
         )
         .with_examine(
             "pillow",
@@ -154,6 +146,8 @@ pub fn build() -> AreaContents {
                 step.hallway_description
             }),
         )
+        .with_unseen_alias("a short hall")
+        .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
         .with_exit(Exit::new("north (to the bedroom)", ids::room_bedroom()))
         .with_exit(Exit::new("east (to the kitchen)", ids::room_kitchen()))
         .with_exit(Exit::new(
@@ -240,20 +234,22 @@ pub fn build() -> AreaContents {
             "Kitchen",
             per_cycle_text(baseline().kitchen_description, |step| step.kitchen_description),
         )
+        .with_unseen_alias("a small kitchen")
+        .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
         .with_exit(Exit::new("west (back to the hallway)", ids::room_hallway()))
         .with_examine(
             "refrigerator",
-            Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-                then: Box::new(Text::lit("You open the refrigerator. It is empty. You do not open it again.")),
-                otherwise: Box::new(Text::Conditional {
-                    when: Condition::StatAtLeast(ids::stat_cycle(), 6),
-                    then: Box::new(Text::lit(
+            by_cycle(
+                Text::lit("Some groceries. Nothing remarkable."),
+                vec![
+                    (6, Text::lit(
                         "You open the refrigerator. A gallon of milk. The same gallon as last week. The seal is unbroken. You close the refrigerator.",
                     )),
-                    otherwise: Box::new(Text::lit("Some groceries. Nothing remarkable.")),
-                }),
-            },
+                    (7, Text::lit(
+                        "You open the refrigerator. It is empty. You do not open it again.",
+                    )),
+                ],
+            ),
         )
         .with_examine(
             "coffee maker",
@@ -359,6 +355,9 @@ pub fn build() -> AreaContents {
         .with_synonyms(["mug", "coffee", "cup"])
         .with_properties(ItemProperties {
             takeable: true,
+            consume_response: Some(Text::lit(
+                "You sip the coffee. It is the same temperature it was yesterday. You set the mug down.",
+            )),
             ..Default::default()
         })
         .initially_in(ids::room_kitchen()),
@@ -378,9 +377,15 @@ pub fn build() -> AreaContents {
             ids::node_root(),
             DialogueNode::new(Text::Conditional {
                 when: Condition::FlagSet(ids::flag_mirror_looked_closer()),
-                then: Box::new(Text::lit(
-                    "The face in the mirror is doing what your face should be doing. You do not meet its eyes.",
-                )),
+                then: Box::new(Text::Conditional {
+                    when: Condition::StatAtLeast(ids::stat_cycle(), 7),
+                    then: Box::new(Text::lit(
+                        "The face in the mirror is doing what your face should be doing. A little late. You do not meet its eyes.",
+                    )),
+                    otherwise: Box::new(Text::lit(
+                        "The face in the mirror is doing what your face should be doing. You do not meet its eyes.",
+                    )),
+                }),
                 otherwise: Box::new(per_cycle_text(baseline().mirror_text, |step| {
                     step.mirror_text
                 })),
@@ -459,7 +464,12 @@ pub fn build() -> AreaContents {
                     "Conclude the redux. Let the next instance begin.",
                 ))
                 .with_condition(Condition::FlagSet(ids::flag_is_redux()))
-                .with_effects(vec![Effect::MovePlayer(ids::room_endgame())]),
+                .with_effects(vec![
+                    Effect::Say(Text::lit(
+                        "You lie down. The sheets are cool. You think of the next one of you — whoever that turns out to be. You hope he opens his mail. You hope he pulls the third book off the shelf. You close your eyes.",
+                    )),
+                    Effect::MovePlayer(ids::room_endgame()),
+                ]),
             )
             .with_option(DialogueOption::new(Text::lit("Stay up a little longer."))),
         ),
@@ -529,9 +539,6 @@ pub fn build() -> AreaContents {
     area
 }
 
-/// Build the calendar-examine text from the cycle plan. Each
-/// transition contributes a `Condition::StatAtLeast(cycle, to)`
-/// branch; the outer check is the redux flag.
 fn calendar_text() -> Text {
     with_redux_override(
         "The calendar reads April 3. You do not remember the calendar being anything else.",
@@ -541,9 +548,6 @@ fn calendar_text() -> Text {
     )
 }
 
-/// Wrap `base` in a `Text::Conditional` whose redux branch takes
-/// precedence over the per-cycle chain. Used for rooms and examines
-/// that have a distinct redux-cycle variant (bedroom, calendar).
 fn with_redux_override(redux_text: &'static str, base: Text) -> Text {
     Text::Conditional {
         when: Condition::FlagSet(ids::flag_is_redux()),
@@ -552,10 +556,6 @@ fn with_redux_override(redux_text: &'static str, base: Text) -> Text {
     }
 }
 
-/// Fold cycle transitions into a `Text::Conditional` chain. `initial`
-/// is cycle 1's baseline text; each transition whose `extract`
-/// returns `Some` wraps an outer `Condition::StatAtLeast(cycle, to)`
-/// branch; `None` inherits the previous text.
 fn per_cycle_text<F>(initial: &'static str, extract: F) -> Text
 where
     F: Fn(&CycleTransition) -> Option<&'static str>,

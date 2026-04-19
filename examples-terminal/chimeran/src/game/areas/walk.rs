@@ -1,8 +1,3 @@
-//! The walk from apartment to office: building corridor, elevator,
-//! lobby, street, office floor hallway. Exits use compass directions
-//! (plus `up`/`down` for the elevator) so the standard text-adventure
-//! navigation shortcuts work.
-
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{Condition, Exit, Room, Text};
@@ -24,6 +19,8 @@ pub fn build() -> AreaContents {
                 )),
             },
         )
+        .with_unseen_alias("an apartment corridor")
+        .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
         .with_exit(Exit::new("east (back to your apartment)", ids::room_hallway()))
         .with_exit(Exit::new("down (elevator)", ids::room_elevator()))
         .with_examine(
@@ -84,6 +81,8 @@ pub fn build() -> AreaContents {
                 }),
             },
         )
+        .with_unseen_alias("a cabin that went down")
+        .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
         .with_exit(Exit::new("down (lobby)", ids::room_lobby()))
         .with_exit(Exit::new(
             "up (back up to your floor)",
@@ -165,6 +164,8 @@ pub fn build() -> AreaContents {
                 }),
             },
         )
+        .with_unseen_alias("a lobby")
+        .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
         .with_exit(Exit::new("up (elevator)", ids::room_elevator()))
         .with_exit(Exit::new("south (out to the street)", ids::room_street()))
         .with_examine(
@@ -261,6 +262,8 @@ pub fn build() -> AreaContents {
                 }),
             },
         )
+        .with_unseen_alias("the outside")
+        .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
         .with_exit(Exit::new(
             "north (back inside your building)",
             ids::room_lobby(),
@@ -366,6 +369,8 @@ pub fn build() -> AreaContents {
                 }),
             },
         )
+        .with_unseen_alias("an office hallway")
+        .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
         .with_exit(Exit::new("west (back to the street)", ids::room_street()))
         .with_exit(Exit::new("east (into your office)", ids::room_desk()))
         .with_examine(

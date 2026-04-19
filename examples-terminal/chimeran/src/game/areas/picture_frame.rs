@@ -1,11 +1,4 @@
-//! The picture frame on the desk.
-//!
-//! The frame is a fixture. "Opening" it shows a memory from one of
-//! three pools (A, B, C) based on the current cycle and whether the
-//! player has looked today. Post-exploit, it unlocks a "Who is this"
-//! option that reveals the donor-shoot photograph.
-
-use crate::game::areas::AreaContents;
+use crate::game::areas::{AreaContents, by_cycle, reveal_option};
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
     Condition, Dialogue, DialogueNode, DialogueOption, Effect, EntityLocation, Rule, Text, Trigger,
@@ -23,7 +16,6 @@ pub fn build() -> AreaContents {
             .with_node(ids::node_frame_who_is_this(), frame_who_is_this_node()),
     );
 
-    // Hide the frame on cycle 7+ (face-down cycle 7, absent cycle 8).
     area.add_rule(
         ids::rule_hide_frame_late(),
         Rule::on(
@@ -59,11 +51,12 @@ fn frame_prompt_node() -> DialogueNode {
             )])
             .goto(ids::node_frame_memory()),
     )
-    .with_option(
-        DialogueOption::new(Text::lit("Who is this."))
-            .with_condition(Condition::FlagSet(ids::flag_who_is_this_enabled()))
-            .goto(ids::node_frame_who_is_this()),
-    )
+    .with_option(reveal_option(
+        "Who is this.",
+        ids::flag_who_is_this_enabled(),
+        ids::flag_reveal_who_is_this_seen(),
+        ids::node_frame_who_is_this(),
+    ))
     .with_option(DialogueOption::new(Text::lit("Leave it alone.")))
 }
 
@@ -73,25 +66,19 @@ fn frame_memory_node() -> DialogueNode {
 }
 
 fn memory_text() -> Text {
-    // Cycle 6 fires the scripted C6 memory (the server rack). Cycle 5
-    // mixes pool B with pool C (not-Cameron's memories) — the player
-    // may get either variant. Cycle 4 stays in pool B. Cycles 1-3 use
-    // pool A (warm, internally consistent).
-    Text::Conditional {
-        when: Condition::StatAtLeast(ids::stat_cycle(), 6),
-        then: Box::new(Text::lit(
-            "You are holding your hand on a server rack. It hums through your glove. Someone says, \"Smile for the photo.\" You smile.",
-        )),
-        otherwise: Box::new(Text::Conditional {
-            when: Condition::StatAtLeast(ids::stat_cycle(), 5),
-            then: Box::new(pool_b_and_c_text()),
-            otherwise: Box::new(Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 4),
-                then: Box::new(pool_b_text()),
-                otherwise: Box::new(pool_a_text()),
-            }),
-        }),
-    }
+    by_cycle(
+        pool_a_text(),
+        vec![
+            (3, pool_b_text()),
+            (5, pool_b_and_c_text()),
+            (
+                6,
+                Text::lit(
+                    "You are holding your hand on a server rack. It hums through your glove. Someone says, \"Smile for the photo.\" You smile.",
+                ),
+            ),
+        ],
+    )
 }
 
 fn pool_a_text() -> Text {
@@ -114,23 +101,20 @@ fn pool_a_text() -> Text {
 fn pool_b_text() -> Text {
     Text::OneOf(vec![
         Text::lit(
-            "Your son's seventh birthday. You had rented the pavilion at the park. He opened the telescope first, before the other gifts, and looked at the sky through it even though it was daytime. Your wife laughed. Your son was seven.",
+            "Your son's seventh birthday. You had rented the pavilion at the park. He opened the telescope first, before the other gifts, and looked at the sky through it even though it was daytime. Your wife laughed. Your son was seven.\n\n(Some earlier day it was a daughter. You are almost sure.)",
         ),
         Text::lit(
-            "Your husband's laugh at a movie neither of you had expected to like. A quiet comedy about a failing bookstore. He laughed so hard he had to press his hand to his mouth.",
+            "Your husband's laugh at a movie neither of you had expected to like. A quiet comedy about a failing bookstore. He laughed so hard he had to press his hand to his mouth.\n\n(Some earlier day it was a wife. You are almost sure.)",
         ),
         Text::lit(
-            "Reading to him when he was very small. The same book every night for two months. Something about a train.",
+            "Reading to him when he was very small. The same book every night for two months. Something about a train.\n\n(An earlier book was about the moon and a red balloon. You remember the cadence.)",
         ),
         Text::lit(
-            "Your mother, who taught you to drive. In 1982. She took the morning off work. You remember she had a thermos of tea.",
+            "Your mother, who taught you to drive. In 1982. She took the morning off work. You remember she had a thermos of tea.\n\n(An earlier version was your father, in 1979, with coffee.)",
         ),
     ])
 }
 
-/// Cycle 5 memory pool: union of B (warm/contradictory) and C (not
-/// Cameron's at all — belongs to donor minds in the substrate). The
-/// player may get any variant — some of which belong to someone else.
 fn pool_b_and_c_text() -> Text {
     Text::OneOf(vec![
         Text::lit(
@@ -158,10 +142,6 @@ fn pool_b_and_c_text() -> Text {
 }
 
 fn frame_who_is_this_node() -> DialogueNode {
-    DialogueNode::new(Text::lit(include_str!("../prose/who_is_this.txt")))
-        .with_on_enter(vec![
-            Effect::SetFlag(ids::flag_reveal_who_is_this_seen(), Value::TRUE),
-            Effect::AddStat(ids::stat_exploit_counter(), -1),
-        ])
+    DialogueNode::new(Text::lit(crate::game::prose::WHO_IS_THIS))
         .with_option(DialogueOption::new(Text::lit("(Set the frame face-down.)")))
 }

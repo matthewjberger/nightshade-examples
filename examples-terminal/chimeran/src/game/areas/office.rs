@@ -1,220 +1,272 @@
-//! The desk. Center of the game. The tool suite (Mail, Notepad,
-//! Research, Translator, Code, Reference, Chatter), the picture frame,
-//! and the wall clock are fixtures stationed here; "opening" them
-//! surfaces their dialogue.
-//!
-//! Leaving for the day goes straight to the bedroom.
-
-use crate::game::areas::AreaContents;
+use crate::game::areas::{AreaContents, by_cycle};
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
     Condition, Dialogue, DialogueId, DialogueNode, DialogueOption, Effect, Entity, EntityId, Exit,
     Item, ItemLocation, Room, Rule, Text, Trigger,
 };
 
+fn nameplate_text() -> Text {
+    Text::Conditional {
+        when: Condition::FlagSet(ids::flag_is_redux()),
+        then: Box::new(Text::lit("The nameplate reads CAMERON HALE.")),
+        otherwise: Box::new(by_cycle(
+            Text::lit(
+                "The nameplate reads CAMERON HALE. The letters are a little scuffed at the edges.",
+            ),
+            vec![
+                (
+                    5,
+                    Text::lit(
+                        "The nameplate reads CAMERON HART. You are fairly sure. You do not check a second time.",
+                    ),
+                ),
+                (6, Text::lit("The nameplate reads CAMERON HALE.")),
+                (
+                    7,
+                    Text::lit(
+                        "The nameplate reads CAMERON. The last name is not there. You do not comment on this.",
+                    ),
+                ),
+                (
+                    8,
+                    Text::lit("The nameplate is blank. You do not comment on this."),
+                ),
+            ],
+        )),
+    }
+}
+
+fn trash_can_text() -> Text {
+    by_cycle(
+        Text::lit("The trash can is empty except for a used coffee filter."),
+        vec![
+            (
+                5,
+                Text::lit(
+                    "You look in the trash can. A used coffee filter. A crumpled piece of paper. You do not unfold it.",
+                ),
+            ),
+            (
+                7,
+                Text::lit(
+                    "You look in the trash can. There is a sheet of paper torn in half at an angle. The other half is not there. The half you can read is in your own handwriting. It says, in the middle of a sentence: \"— and yet the timestamps keep\". The other half must be somewhere.",
+                ),
+            ),
+        ],
+    )
+}
+
+fn book_three_text() -> Text {
+    by_cycle(
+        Text::lit(
+            "The third book on your shelf. A technical reference you bought years ago. You flip through it. The pages are clean.",
+        ),
+        vec![
+            (
+                5,
+                Text::lit(
+                    "You pull the third book off the shelf. Between pages 146 and 147: a folded printout. Four lines in your own handwriting:\n\n    internal-1847. a friend.\n    run it when it comes.\n    don't read it first.\n    — you.\n\nYou do not remember writing it. You put the paper back and put the book back.",
+                ),
+            ),
+            (
+                8,
+                Text::lit(
+                    "You pull the third book off the shelf. The folded paper you remember is not inside. The pages are clean. You put the book back.",
+                ),
+            ),
+        ],
+    )
+}
+
+fn office_room_text() -> Text {
+    by_cycle(
+        Text::lit(
+            "Your office. A desk. Monitor and keyboard. A coffee mug, a small stack of papers, a pen cup, a nameplate, a picture frame on the right edge. A wall clock. A window behind the desk. A bookshelf, a locked file cabinet, a trash can.",
+        ),
+        vec![
+            (
+                6,
+                Text::lit(
+                    "Your desk. The monitor. The mug. The papers. The pens. The clock on the wall. Your tools are arranged the way you arrange them.",
+                ),
+            ),
+            (
+                7,
+                Text::lit(
+                    "Your desk. The monitor hums. The mug is still warm. The picture frame is face-down. You do not turn it over.",
+                ),
+            ),
+            (
+                8,
+                Text::lit(
+                    "Your desk. The monitor. The keyboard. The chair. The nameplate. The coffee mug where you left it. The picture frame is not here. The space where it stood is empty. You cannot say what should be there.",
+                ),
+            ),
+        ],
+    )
+}
+
+fn window_text() -> Text {
+    by_cycle(
+        Text::lit("The window behind your desk. A view of the city. Morning, always morning."),
+        vec![(
+            7,
+            Text::lit(
+                "The window behind your desk. The city is behind the glass. The city does not move.",
+            ),
+        )],
+    )
+}
+
+fn bookshelf_text() -> Text {
+    by_cycle(
+        Text::lit("A few books. Professional references. A novel you have been meaning to reread."),
+        vec![
+            (
+                5,
+                Text::lit(
+                    "A few books. Professional references. A novel you have been meaning to reread. The third one from the left sits a little proud of the shelf — you could pull it out if you wanted.",
+                ),
+            ),
+            (
+                8,
+                Text::lit(
+                    "A few books. Professional references. A novel you have been meaning to reread. The shelf is flush — nothing sticks out.",
+                ),
+            ),
+        ],
+    )
+}
+
+fn monitor_text() -> Text {
+    by_cycle(
+        Text::lit(
+            "A wide, quiet monitor. The dock of tool icons along the bottom. The screen glow is even.",
+        ),
+        vec![(
+            7,
+            Text::lit(
+                "The monitor on your desk. Its image is what it always is. The refresh rate does not feel right.",
+            ),
+        )],
+    )
+}
+
+fn diploma_text() -> Text {
+    by_cycle(
+        Text::lit(
+            "A framed diploma. CAMERON HALE. A university whose name you would know if you had to write it down. You don't have to write it down.",
+        ),
+        vec![(
+            7,
+            Text::lit(
+                "A framed diploma on the wall. The lettering is legible but the name has faded. You are fairly sure it is yours.",
+            ),
+        )],
+    )
+}
+
 pub fn build() -> AreaContents {
     let mut area = AreaContents::default();
 
+    let book = book_three_text();
     area.add_room(
         ids::room_desk(),
-        Room::new(
-            "Your Office",
-            Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 8),
-                then: Box::new(Text::lit(
-                    "Your desk. The monitor. The keyboard. The chair. The nameplate. The coffee mug where you left it. The picture frame is not here. The space where it stood is empty. You cannot say what should be there.",
-                )),
-                otherwise: Box::new(Text::Conditional {
-                    when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-                    then: Box::new(Text::lit(
-                        "Your desk. The monitor hums. The mug is still warm. The picture frame is face-down. You do not turn it over.",
-                    )),
-                    otherwise: Box::new(Text::Conditional {
-                        when: Condition::StatAtLeast(ids::stat_cycle(), 6),
-                        then: Box::new(Text::lit(
-                            "Your desk. The monitor. The mug. The papers. The pens. The clock on the wall. Your tools are arranged the way you arrange them.",
-                        )),
-                        otherwise: Box::new(Text::lit(
-                            "Your office. A desk. Monitor and keyboard. A coffee mug, a small stack of papers, a pen cup, a nameplate, a picture frame on the right edge. A wall clock. A window behind the desk. A bookshelf, a locked file cabinet, a trash can.",
-                        )),
-                    }),
-                }),
-            },
-        )
-        .with_exit(Exit::new(
-            "west (leave for the day — the walk home is short, and you go to bed)",
-            ids::room_bedroom(),
-        ))
-        .with_examine(
-            "nameplate",
-            Text::Conditional {
-                when: Condition::FlagSet(ids::flag_is_redux()),
-                then: Box::new(Text::lit("The nameplate reads CAMERON HALE.")),
-                otherwise: Box::new(Text::Conditional {
-                    when: Condition::StatAtLeast(ids::stat_cycle(), 8),
-                    then: Box::new(Text::lit("The nameplate is blank. You do not comment on this.")),
-                    otherwise: Box::new(Text::Conditional {
-                        when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-                        then: Box::new(Text::lit(
-                            "The nameplate reads CAMERON. The last name is not there. You do not comment on this.",
-                        )),
-                        otherwise: Box::new(Text::Conditional {
-                            when: Condition::StatAtLeast(ids::stat_cycle(), 6),
-                            then: Box::new(Text::lit("The nameplate reads CAMERON HALE.")),
-                            otherwise: Box::new(Text::Conditional {
-                                when: Condition::StatAtLeast(ids::stat_cycle(), 5),
-                                then: Box::new(Text::lit(
-                                    "The nameplate reads CAMERON HART. You are fairly sure. You do not check a second time.",
-                                )),
-                                otherwise: Box::new(Text::lit(
-                                    "The nameplate reads CAMERON HALE. The letters are a little scuffed at the edges.",
-                                )),
-                            }),
-                        }),
-                    }),
-                }),
-            },
-        )
-        .with_examine(
-            "window",
-            Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-                then: Box::new(Text::lit(
-                    "The window behind your desk. The city is behind the glass. The city does not move.",
-                )),
-                otherwise: Box::new(Text::lit(
-                    "The window behind your desk. A view of the city. Morning, always morning.",
-                )),
-            },
-        )
-        .with_examine(
-            "papers",
-            Text::lit(
-                "A small stack of papers on the corner of your desk. You have not read them. You should get to them this week.",
+        Room::new("Your Office", office_room_text())
+            .with_unseen_alias("a desk")
+            .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
+            .with_exit(Exit::new(
+                "west (leave for the day — the walk home is short, and you go to bed)",
+                ids::room_bedroom(),
+            ))
+            .with_examine("nameplate", nameplate_text())
+            .with_examine("window", window_text())
+            .with_examine(
+                "papers",
+                Text::lit(
+                    "A small stack of papers on the corner of your desk. You have not read them. You should get to them this week.",
+                ),
+            )
+            .with_examine("bookshelf", bookshelf_text())
+            .with_examine("book three", book.clone())
+            .with_examine("third book", book.clone())
+            .with_examine("book", book.clone())
+            .with_examine("novel", book)
+            .with_examine(
+                "file cabinet",
+                Text::lit(
+                    "The file cabinet is locked. You do not have the key. You have never had the key.",
+                ),
+            )
+            .with_examine("trash can", trash_can_text())
+            .with_examine("monitor", monitor_text())
+            .with_examine(
+                "keyboard",
+                Text::lit(
+                    "A mechanical keyboard. The keys are slightly worn where you use them most. The L key is the most worn.",
+                ),
+            )
+            .with_examine(
+                "desk",
+                Text::lit(
+                    "Your desk. The surface is cleared. Everything you use is within reach of your right hand.",
+                ),
+            )
+            .with_examine(
+                "chair",
+                Text::lit(
+                    "An office chair. You adjusted it once, years ago, and it has not moved since.",
+                ),
+            )
+            .with_examine(
+                "pens",
+                Text::lit(
+                    "A handful of pens in the cup. Two work; the rest are dry.",
+                ),
+            )
+            .with_examine(
+                "pen cup",
+                Text::lit(
+                    "A ceramic cup holding pens. You have always had this cup. You have no memory of acquiring it.",
+                ),
+            )
+            .with_examine(
+                "dock",
+                Text::lit(
+                    "The dock of icons along the bottom of your monitor. Mail. Notepad. Research. Translator. Code. Reference. Chatter. A photograph frame.",
+                ),
+            )
+            .with_examine(
+                "floor",
+                Text::lit(
+                    "Plush office carpet under the chair. A small mat beneath the chair wheels.",
+                ),
+            )
+            .with_examine(
+                "ceiling",
+                Text::lit(
+                    "The office ceiling. A fixture, a vent, a sprinkler head.",
+                ),
+            )
+            .with_examine(
+                "walls",
+                Text::lit(
+                    "Cubicle walls, waist-high. The wall behind you has the clock and a diploma you have never read.",
+                ),
+            )
+            .with_examine("diploma", diploma_text())
+            .with_examine(
+                "light",
+                Text::lit("Overhead fluorescents. Even. Unremarkable."),
+            )
+            .with_examine(
+                "air",
+                Text::lit(
+                    "The air of your office. Slightly cool. It smells very faintly of coffee.",
+                ),
             ),
-        )
-        .with_examine(
-            "bookshelf",
-            Text::lit(
-                "A few books. Professional references. A novel you have been meaning to reread.",
-            ),
-        )
-        .with_examine(
-            "file cabinet",
-            Text::lit("The file cabinet is locked. You do not have the key. You have never had the key."),
-        )
-        .with_examine(
-            "trash can",
-            Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-                then: Box::new(Text::lit(
-                    "You look in the trash can. There is a sheet of paper torn in half at an angle. The other half is not there. The half you can read is in your own handwriting. It says, in the middle of a sentence: \"— and yet the timestamps keep\". The other half must be somewhere.",
-                )),
-                otherwise: Box::new(Text::Conditional {
-                    when: Condition::StatAtLeast(ids::stat_cycle(), 5),
-                    then: Box::new(Text::lit(
-                        "You look in the trash can. A used coffee filter. A crumpled piece of paper. You do not unfold it.",
-                    )),
-                    otherwise: Box::new(Text::lit(
-                        "The trash can is empty except for a used coffee filter.",
-                    )),
-                }),
-            },
-        )
-        .with_examine(
-            "monitor",
-            Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-                then: Box::new(Text::lit(
-                    "The monitor on your desk. Its image is what it always is. The refresh rate does not feel right.",
-                )),
-                otherwise: Box::new(Text::lit(
-                    "A wide, quiet monitor. The dock of tool icons along the bottom. The screen glow is even.",
-                )),
-            },
-        )
-        .with_examine(
-            "keyboard",
-            Text::lit(
-                "A mechanical keyboard. The keys are slightly worn where you use them most. The L key is the most worn.",
-            ),
-        )
-        .with_examine(
-            "desk",
-            Text::lit(
-                "Your desk. The surface is cleared. Everything you use is within reach of your right hand.",
-            ),
-        )
-        .with_examine(
-            "chair",
-            Text::lit(
-                "An office chair. You adjusted it once, years ago, and it has not moved since.",
-            ),
-        )
-        .with_examine(
-            "pens",
-            Text::lit(
-                "A handful of pens in the cup. Two work; the rest are dry.",
-            ),
-        )
-        .with_examine(
-            "pen cup",
-            Text::lit(
-                "A ceramic cup holding pens. You have always had this cup. You have no memory of acquiring it.",
-            ),
-        )
-        .with_examine(
-            "dock",
-            Text::lit(
-                "The dock of icons along the bottom of your monitor. Mail. Notepad. Research. Translator. Code. Reference. Chatter. A photograph frame.",
-            ),
-        )
-        .with_examine(
-            "floor",
-            Text::lit(
-                "Plush office carpet under the chair. A small mat beneath the chair wheels.",
-            ),
-        )
-        .with_examine(
-            "ceiling",
-            Text::lit(
-                "The office ceiling. A fixture, a vent, a sprinkler head.",
-            ),
-        )
-        .with_examine(
-            "walls",
-            Text::lit(
-                "Cubicle walls, waist-high. The wall behind you has the clock and a diploma you have never read.",
-            ),
-        )
-        .with_examine(
-            "diploma",
-            Text::Conditional {
-                when: Condition::StatAtLeast(ids::stat_cycle(), 7),
-                then: Box::new(Text::lit(
-                    "A framed diploma on the wall. The lettering is legible but the name has faded. You are fairly sure it is yours.",
-                )),
-                otherwise: Box::new(Text::lit(
-                    "A framed diploma. CAMERON HALE. A university whose name you would know if you had to write it down. You don't have to write it down.",
-                )),
-            },
-        )
-        .with_examine(
-            "light",
-            Text::lit(
-                "Overhead fluorescents. Even. Unremarkable.",
-            ),
-        )
-        .with_examine(
-            "air",
-            Text::lit(
-                "The air of your office. Slightly cool. It smells very faintly of coffee.",
-            ),
-        ),
     );
 
-    // The tool suite. Seven dialogues live at the desk as NPCs; all have
-    // identical shape so register_tool centralizes the boilerplate.
     register_tool(
         &mut area,
         ids::fixture_mail(),
@@ -265,8 +317,6 @@ pub fn build() -> AreaContents {
         ids::dialogue_chatter(),
     );
 
-    // Picture frame — a fixture at the desk. Hidden post-cycle-6 via a
-    // rule in picture_frame.rs.
     area.add_entity(
         ids::fixture_picture_frame(),
         Entity::object(
@@ -278,10 +328,6 @@ pub fn build() -> AreaContents {
         .starting_in(ids::room_desk()),
     );
 
-    // Wall clock. Opening it surfaces a detail view; each open picks
-    // one variant from the Text::OneOf pool, so successive opens show
-    // the seconds hand in different places — on cycle 4+ the text
-    // calls out the slip.
     area.add_entity(
         ids::fixture_clock(),
         Entity::object(
@@ -315,7 +361,6 @@ pub fn build() -> AreaContents {
         ),
     );
 
-    // Monitor sticky note — cycles 5 and 6.
     area.add_item(
         ids::item_sticky_note_monitor(),
         Item::new(
@@ -347,9 +392,6 @@ pub fn build() -> AreaContents {
     area
 }
 
-/// Every tool in the dock has the same structural shape: a fixture
-/// with a dialogue, stationed in the desk room. register_tool
-/// centralizes the seven near-identical calls.
 fn register_tool(
     area: &mut AreaContents,
     fixture: EntityId,

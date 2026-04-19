@@ -1,6 +1,3 @@
-//! Game-start setup, the terminal sink, and high-level rules that wire
-//! cycle transitions together.
-
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use crate::game::plan::INITIAL_CYCLE;
@@ -29,6 +26,8 @@ pub fn build() -> AreaContents {
                 Effect::SetStat(ids::stat_awa(), 0),
                 Effect::SetStat(ids::stat_marisol_rel(), 0),
                 Effect::SetStat(ids::stat_rachel_rel(), 0),
+                Effect::SetStat(ids::stat_dmitri_rel(), 0),
+                Effect::SetStat(ids::stat_winnie_rel(), 0),
                 Effect::SetStat(ids::stat_stasis_loops(), 0),
                 Effect::SetFlag(ids::flag_is_redux(), Value::FALSE),
             ],

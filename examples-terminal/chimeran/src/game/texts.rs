@@ -1,6 +1,3 @@
-//! Shared text table. Reused narration lives here so the same phrasing
-//! doesn't drift across files.
-
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{Text, TextId};
 use std::collections::BTreeMap;
@@ -11,7 +8,7 @@ pub fn build() -> BTreeMap<TextId, Text> {
     texts.insert(
         ids::text_intro(),
         Text::lit(
-            "You are Cameron. You work at Chimeran. You live alone. You wake, you walk to the office, you work, you sleep. You are unusually good at your job.\n\nYou have the faint sense today is the beginning of a longer week.",
+            "The alarm buzzes at 6:47. The coffee in the kitchen is already the temperature it was yesterday. Morning light sits on the window the way it always sits — even, unshifting.\n\nYou are Cameron. You work at Chimeran. You live alone. You wake, you walk to the office, you work, you sleep. You are unusually good at your job.\n\nYou have the sense of a longer week. You have the sense of having had this sense before.",
         ),
     );
 

@@ -1,25 +1,10 @@
-//! Nightshade adapter. Renders transcript + prompt into the terminal
-//! grid. Typed input is routed to `nightshade::interactive_fiction::parser`
-//! and handed to `Engine::pick`.
-//!
-//! Layout follows the frotz convention: status bar at the top,
-//! scrolling transcript below, prompt anchored immediately after the
-//! last rendered transcript line (at the bottom only when the
-//! transcript fills the screen).
-//!
-//! The transcript is colorized per-character. Item names get
-//! [`ITEM_COLOR`], NPCs get [`NPC_COLOR`], room names and compass
-//! directions get their own tones so the player can scan prose and
-//! pick out the nouns they can act on.
-
+use crate::colorizer::{ColoredLine, Keyword, build_keywords, colorize};
 use crate::game;
 use nightshade::interactive_fiction::data::{ChoiceAction, TranscriptEntry};
 use nightshade::interactive_fiction::engine::Engine;
 use nightshade::interactive_fiction::parser as input;
 use nightshade::tui::prelude::*;
 
-// ---- Color palette -----------------------------------------------------
-// Entry-level defaults.
 const NARRATION_COLOR: TermColor = TermColor::White;
 const PLAYER_ACTION_COLOR: TermColor = TermColor::DarkGrey;
 const DIALOGUE_SPEAKER_COLOR: TermColor = TermColor::Magenta;
@@ -28,12 +13,6 @@ const SYSTEM_COLOR: TermColor = TermColor::Yellow;
 const SEPARATOR_COLOR: TermColor = TermColor::DarkGrey;
 const STATUS_COLOR: TermColor = TermColor::Magenta;
 const PROMPT_COLOR: TermColor = TermColor::Green;
-
-// Entity-level overrides applied after per-entry coloring.
-const ITEM_COLOR: TermColor = TermColor::Yellow;
-const NPC_COLOR: TermColor = TermColor::Green;
-const ROOM_COLOR: TermColor = TermColor::Cyan;
-const DIRECTION_COLOR: TermColor = TermColor::Blue;
 
 pub struct ChimeranState {
     engine: Engine,
@@ -46,15 +25,10 @@ pub struct ChimeranState {
     started: bool,
     undo_stack: std::collections::VecDeque<nightshade::interactive_fiction::data::RuntimeState>,
     quit_requested: bool,
-    /// Precomputed keyword table for text colorization — sorted
-    /// longest-first so multi-word names beat their substrings.
     keywords: Vec<Keyword>,
-}
-
-/// A substring-with-color rule applied to rendered transcript text.
-struct Keyword {
-    lower: Vec<char>,
-    color: TermColor,
+    display_start: usize,
+    log_mode: bool,
+    log_offset: usize,
 }
 
 impl ChimeranState {
@@ -81,6 +55,9 @@ impl ChimeranState {
             undo_stack: std::collections::VecDeque::new(),
             quit_requested: false,
             keywords,
+            display_start: 0,
+            log_mode: false,
+            log_offset: 0,
         }
     }
 
@@ -114,6 +91,32 @@ impl ChimeranState {
         self.needs_redraw = true;
     }
 
+    fn examine_all(&mut self) {
+        if self.state.game_over.is_some() {
+            return;
+        }
+        if self.exploit_window_open() {
+            self.debit_counter(1);
+        }
+        self.engine.apply_all_examine(&mut self.state);
+        self.needs_redraw = true;
+    }
+
+    fn exploit_window_open(&self) -> bool {
+        matches!(
+            self.state
+                .flags
+                .get(&crate::game::ids::flag_exploit_window_open()),
+            Some(nightshade::interactive_fiction::data::Value::Bool(true))
+        )
+    }
+
+    fn debit_counter(&mut self, amount: i64) {
+        let key = crate::game::ids::stat_exploit_counter();
+        let current = self.state.stats.get(&key).copied().unwrap_or(0);
+        self.state.stats.insert(key, current - amount);
+    }
+
     fn pick_all_matching<F>(&mut self, predicate: F)
     where
         F: Fn(&ChoiceAction) -> bool,
@@ -142,12 +145,36 @@ impl ChimeranState {
         self.input_buffer.clear();
         self.needs_redraw = true;
 
+        if raw == "/log" {
+            self.log_mode = !self.log_mode;
+            self.log_offset = 0;
+            return;
+        }
+
+        let room_before = self.state.current_room.clone();
+        let transcript_len_before = self.state.transcript.len();
+
+        let typed_noun = input::extract_noun(&raw);
+
         let choices = self.engine.available_choices(&self.state);
         let parsed = input::parse(&self.engine, &self.state, &choices, &raw);
 
-        // Snapshot *before* echoing the raw command so that `undo` rewinds
-        // past both the player's typed line and any narration the command
-        // produced. Undo on a meta command (empty/quit/undo) is a no-op.
+        let parse_accepted = !matches!(
+            parsed,
+            input::Parsed::NoMatch | input::Parsed::Ambiguous | input::Parsed::Empty
+        );
+        let updates_last_noun = parse_accepted
+            && !matches!(
+                parsed,
+                input::Parsed::DescribeRoom
+                    | input::Parsed::Undo
+                    | input::Parsed::Quit
+                    | input::Parsed::Help
+            );
+        if updates_last_noun && let Some(noun) = typed_noun {
+            self.state.last_noun = Some(noun);
+        }
+
         let produces_output = !matches!(
             parsed,
             input::Parsed::Empty | input::Parsed::Quit | input::Parsed::Undo
@@ -175,6 +202,7 @@ impl ChimeranState {
             input::Parsed::DropAll => {
                 self.pick_all_matching(|action| matches!(action, ChoiceAction::Drop(_)))
             }
+            input::Parsed::ExamineAll => self.examine_all(),
             input::Parsed::DescribeRoom => self.engine.describe_current_room(&mut self.state),
             input::Parsed::NoMatch => {
                 self.state.push_transcript(TranscriptEntry::System(
@@ -189,6 +217,10 @@ impl ChimeranState {
             input::Parsed::Refuse(line) => {
                 self.state.push_transcript(TranscriptEntry::Narration(line));
             }
+        }
+
+        if self.state.current_room != room_before {
+            self.display_start = transcript_len_before;
         }
     }
 
@@ -223,28 +255,40 @@ impl ChimeranState {
         let padding = 2;
         let text_width = columns.saturating_sub(padding * 2).max(10);
 
-        // Row 0: status line. Rows 1..rows: transcript + prompt.
         let status_row = 0;
         let transcript_start_row = 1;
         let transcript_rows_available = rows.saturating_sub(2);
 
+        let skip = if self.log_mode { 0 } else { self.display_start };
         let mut wrapped: Vec<ColoredLine> = Vec::new();
-        for entry in &self.state.transcript {
+        for entry in self.state.transcript.iter().skip(skip) {
             render_entry(&mut wrapped, entry, text_width, &self.keywords);
         }
 
-        let start_index = wrapped.len().saturating_sub(transcript_rows_available);
-        let visible = &wrapped[start_index..];
+        let tail_start = wrapped.len().saturating_sub(transcript_rows_available);
+        let start_index = if self.log_mode {
+            tail_start.saturating_sub(self.log_offset)
+        } else {
+            tail_start
+        };
+        let end_index = if self.log_mode {
+            (start_index + transcript_rows_available).min(wrapped.len())
+        } else {
+            wrapped.len()
+        };
+        let visible = &wrapped[start_index..end_index];
         for (row_offset, line) in visible.iter().enumerate() {
             self.draw_colored_line(world, padding, transcript_start_row + row_offset, line);
         }
 
-        // Prompt lives right after the last transcript line. If the
-        // transcript has filled the available area, it sits on the
-        // bottom row.
         let prompt_row = (transcript_start_row + visible.len()).min(rows.saturating_sub(1));
         let prompt = if self.state.game_over.is_some() {
             "(ESC to exit)".to_string()
+        } else if self.log_mode {
+            format!(
+                "-- LOG (↑/↓ scroll, PgUp/PgDn page, Enter/Esc exit, offset +{}) --",
+                self.log_offset
+            )
         } else {
             format!(
                 "> {}{}",
@@ -346,7 +390,15 @@ impl ChimeranState {
                 "turn {turn}  |  cycle {cycle}  |  [SUBSTRATE WINDOW: {counter} actions remaining]  |  'help' 'u' 'q'",
             )
         } else {
-            format!("turn {turn}  |  cycle {cycle}  |  type 'help' for options, 'u' undo, 'q' quit",)
+            let unread = game::mail::unread_count(&self.state);
+            let mail_segment = if unread > 0 {
+                format!("  |  {unread} unread mail")
+            } else {
+                String::new()
+            };
+            format!(
+                "turn {turn}  |  cycle {cycle}{mail_segment}  |  type 'help' for options, 'u' undo, 'q' quit",
+            )
         }
     }
 }
@@ -375,6 +427,32 @@ impl State for ChimeranState {
         if self.state.game_over.is_some() {
             if matches!(key, KeyCode::Escape) {
                 world.resources.should_exit = true;
+            }
+            return;
+        }
+        if self.log_mode {
+            match key {
+                KeyCode::Escape | KeyCode::Enter => {
+                    self.log_mode = false;
+                    self.needs_redraw = true;
+                }
+                KeyCode::Up => {
+                    self.log_offset = self.log_offset.saturating_add(1);
+                    self.needs_redraw = true;
+                }
+                KeyCode::Down => {
+                    self.log_offset = self.log_offset.saturating_sub(1);
+                    self.needs_redraw = true;
+                }
+                KeyCode::PageUp => {
+                    self.log_offset = self.log_offset.saturating_add(10);
+                    self.needs_redraw = true;
+                }
+                KeyCode::PageDown => {
+                    self.log_offset = self.log_offset.saturating_sub(10);
+                    self.needs_redraw = true;
+                }
+                _ => {}
             }
             return;
         }
@@ -416,8 +494,6 @@ impl State for ChimeranState {
     }
 }
 
-type ColoredLine = Vec<(char, TermColor)>;
-
 fn render_entry(
     out: &mut Vec<ColoredLine>,
     entry: &TranscriptEntry,
@@ -437,8 +513,6 @@ fn render_entry(
             }
         }
         TranscriptEntry::Dialogue { speaker, text } => {
-            // Speaker in its own color; body in dialogue body color
-            // but still colorized for item/room/direction names.
             let prefix = format!("{speaker}: ");
             let lines = wrap(&format!("{prefix}{text}"), max_width);
             for (index, line) in lines.iter().enumerate() {
@@ -466,99 +540,6 @@ fn render_entry(
             out.push(colorize(&rule, SEPARATOR_COLOR, keywords));
         }
     }
-}
-
-/// Assemble the colorization keyword table from the engine's world.
-fn build_keywords(engine: &Engine) -> Vec<Keyword> {
-    let mut keywords: Vec<Keyword> = Vec::new();
-
-    for item in engine.world().items.values() {
-        keywords.push(Keyword::new(&item.name, ITEM_COLOR));
-        for synonym in &item.synonyms {
-            keywords.push(Keyword::new(synonym, ITEM_COLOR));
-        }
-    }
-    for entity in engine.world().entities.values() {
-        keywords.push(Keyword::new(&entity.name, NPC_COLOR));
-        for synonym in &entity.synonyms {
-            keywords.push(Keyword::new(synonym, NPC_COLOR));
-        }
-    }
-    for room in engine.world().rooms.values() {
-        keywords.push(Keyword::new(&room.name, ROOM_COLOR));
-    }
-    for direction in [
-        "north",
-        "south",
-        "east",
-        "west",
-        "up",
-        "down",
-        "northeast",
-        "northwest",
-        "southeast",
-        "southwest",
-    ] {
-        keywords.push(Keyword::new(direction, DIRECTION_COLOR));
-    }
-
-    // Longest first so multi-word names win against their substrings.
-    keywords.sort_by_key(|keyword| std::cmp::Reverse(keyword.lower.len()));
-    // Drop obviously-bad single-letter keys (e.g. an NPC synonym of "a"
-    // would colorize every article) but keep legitimate short words
-    // like direction names.
-    keywords.retain(|keyword| keyword.lower.len() >= 2);
-    keywords
-}
-
-impl Keyword {
-    fn new(word: &str, color: TermColor) -> Self {
-        Self {
-            lower: word.to_lowercase().chars().collect(),
-            color,
-        }
-    }
-}
-
-/// Apply per-keyword coloring over a line. Scans left-to-right; at
-/// each position tries the longest matching keyword first (keywords
-/// are pre-sorted longest first). Match requires non-alphanumeric
-/// neighbors so "key" doesn't colorize inside "kitchen".
-fn colorize(line: &str, default: TermColor, keywords: &[Keyword]) -> ColoredLine {
-    let chars: Vec<char> = line.chars().collect();
-    let lower: Vec<char> = chars.iter().map(|c| c.to_ascii_lowercase()).collect();
-    let mut colors: Vec<TermColor> = vec![default; chars.len()];
-
-    let mut position = 0;
-    while position < chars.len() {
-        let mut advanced = false;
-        for keyword in keywords {
-            let length = keyword.lower.len();
-            if position + length > chars.len() {
-                continue;
-            }
-            if lower[position..position + length] != keyword.lower[..] {
-                continue;
-            }
-            let before_ok = position == 0 || !chars[position - 1].is_alphanumeric();
-            let after_ok =
-                position + length == chars.len() || !chars[position + length].is_alphanumeric();
-            if !(before_ok && after_ok) {
-                continue;
-            }
-            for color in colors.iter_mut().skip(position).take(length) {
-                *color = keyword.color;
-            }
-            position += length;
-            advanced = true;
-            break;
-        }
-        if !advanced {
-            position += 1;
-        }
-    }
-
-    chars.into_iter().zip(colors).collect()
 }
 
 fn wrap(text: &str, max_width: usize) -> Vec<String> {

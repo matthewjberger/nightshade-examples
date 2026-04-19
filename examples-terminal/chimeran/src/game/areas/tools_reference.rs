@@ -1,7 +1,4 @@
-//! Reference: a personal wiki. Post-exploit, it gains an Open Source
-//! Index option that lists the 64 donor minds composing the substrate.
-
-use crate::game::areas::AreaContents;
+use crate::game::areas::{AreaContents, reveal_option};
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
     Condition, Dialogue, DialogueNode, DialogueOption, Effect, Text, Value,
@@ -31,14 +28,32 @@ pub fn build() -> AreaContents {
                         .with_condition(Condition::StatAtLeast(ids::stat_cycle(), 4))
                         .goto(ids::node_reference_bereavement()),
                 )
+                .with_option(reveal_option(
+                    "(+) Composite Substrate Source Index",
+                    ids::flag_source_index_enabled(),
+                    ids::flag_reveal_source_index_seen(),
+                    ids::node_reference_source_index(),
+                ))
                 .with_option(
-                    DialogueOption::new(Text::lit("(+) Composite Substrate Source Index"))
+                    DialogueOption::new(Text::lit("(+) Team instance roster"))
                         .with_condition(Condition::FlagSet(ids::flag_source_index_enabled()))
-                        .with_effects(vec![
-                            Effect::SetFlag(ids::flag_reveal_source_index_seen(), Value::TRUE),
-                            Effect::AddStat(ids::stat_exploit_counter(), -1),
-                        ])
-                        .goto(ids::node_reference_source_index()),
+                        .goto(ids::node_reference_instance_roster()),
+                )
+                .with_option(
+                    DialogueOption::new(Text::lit(
+                        "(an entry you cannot quite click — it appears between pages)",
+                    ))
+                    .with_condition(Condition::All(vec![
+                        Condition::StatAtLeast(ids::stat_marisol_rel(), 2),
+                        Condition::StatAtLeast(ids::stat_cycle(), 7),
+                        Condition::FlagUnset(ids::flag_source_index_enabled()),
+                        Condition::FlagUnset(ids::flag_strange_page_seen()),
+                    ]))
+                    .with_effects(vec![Effect::SetFlag(
+                        ids::flag_strange_page_seen(),
+                        Value::TRUE,
+                    )])
+                    .goto(ids::node_reference_strange_page()),
                 )
                 .with_option(DialogueOption::new(Text::lit("(Close the wiki.)"))),
             )
@@ -74,9 +89,27 @@ pub fn build() -> AreaContents {
             )
             .with_node(
                 ids::node_reference_source_index(),
-                DialogueNode::new(Text::lit(include_str!(
-                    "../prose/source_index.txt"
-                )))
+                DialogueNode::new(Text::lit(crate::game::prose::SOURCE_INDEX))
+                .with_option(
+                    DialogueOption::new(Text::lit("(Back.)"))
+                        .goto(ids::node_reference_home()),
+                ),
+            )
+            .with_node(
+                ids::node_reference_instance_roster(),
+                DialogueNode::new(Text::lit(
+                    "Team Instance Roster (internal)\n\n  CHIMERAN-0009  \"Rachel\"   — donor: Eleanor Voss\n  CHIMERAN-0042  \"Dmitri\"   — donor: (redacted, music/culture)\n  CHIMERAN-0044  \"Winnie\"   — donor: (redacted, design history)\n  CHIMERAN-0046  \"Marisol\"  — donor: Marisol Vega (direct)\n  CHIMERAN-0047  \"Cameron\"  — this instance\n  CHIMERAN-0048  (not yet initialized)\n\n  1,841 other instances active on this rack.\n  You were never supposed to see this page.",
+                ))
+                .with_option(
+                    DialogueOption::new(Text::lit("(Back.)"))
+                        .goto(ids::node_reference_home()),
+                ),
+            )
+            .with_node(
+                ids::node_reference_strange_page(),
+                DialogueNode::new(Text::lit(
+                    "You click the entry. The page renders blank. The URL in the bar is a long string of numbers. You cannot copy it. When you try to close the tab the browser flickers and you are back on the wiki home.\n\n(Something was here. Something you do not have access to yet.)",
+                ))
                 .with_option(
                     DialogueOption::new(Text::lit("(Back.)"))
                         .goto(ids::node_reference_home()),

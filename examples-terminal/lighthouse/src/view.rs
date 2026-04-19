@@ -107,6 +107,14 @@ impl LighthouseState {
         self.needs_redraw = true;
     }
 
+    fn examine_all(&mut self) {
+        if self.state.game_over.is_some() {
+            return;
+        }
+        self.engine.apply_all_examine(&mut self.state);
+        self.needs_redraw = true;
+    }
+
     fn pick_all_matching<F>(&mut self, predicate: F)
     where
         F: Fn(&ChoiceAction) -> bool,
@@ -168,6 +176,7 @@ impl LighthouseState {
             input::Parsed::DropAll => {
                 self.pick_all_matching(|action| matches!(action, ChoiceAction::Drop(_)))
             }
+            input::Parsed::ExamineAll => self.examine_all(),
             input::Parsed::DescribeRoom => self.engine.describe_current_room(&mut self.state),
             input::Parsed::NoMatch => {
                 self.state.push_transcript(TranscriptEntry::System(

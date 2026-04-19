@@ -1,17 +1,8 @@
-//! Mail: the inbox dialogue.
-//!
-//! The root node (`node_mail_inbox`) lists every currently-visible
-//! request and Rachel email, gated on cycle and per-item "not yet
-//! submitted"/"not yet read" flags. Each request/email is its own
-//! child node with body prose and response options.
-//!
-//! Submitting or archiving returns to the inbox so the player can
-//! drain it before sleeping.
-
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
-    Condition, Dialogue, DialogueNode, DialogueOption, Effect, FlagKey, NodeId, Text, Value,
+    Condition, Dialogue, DialogueNode, DialogueOption, Effect, EntityLocation, FlagKey, NodeId,
+    Text, Value,
 };
 
 pub fn build() -> AreaContents {
@@ -19,7 +10,6 @@ pub fn build() -> AreaContents {
 
     let dialogue = Dialogue::new(ids::node_mail_inbox())
         .with_node(ids::node_mail_inbox(), inbox_node())
-        // Rachel's arc.
         .with_node(ids::node_mail_rachel_c1(), rachel_c1())
         .with_node(ids::node_mail_rachel_c2(), rachel_c2())
         .with_node(ids::node_mail_rachel_c3(), rachel_c3())
@@ -28,31 +18,24 @@ pub fn build() -> AreaContents {
         .with_node(ids::node_mail_rachel_c6(), rachel_c6())
         .with_node(ids::node_mail_rachel_c7(), rachel_c7())
         .with_node(ids::node_mail_rachel_redux(), rachel_redux())
-        // Cycle 1 requests.
         .with_node(ids::node_req_c1_transcription(), request_c1_transcription())
         .with_node(ids::node_req_c1_translation(), request_c1_translation())
         .with_node(ids::node_req_c1_naming(), request_c1_naming())
-        // Cycle 2 requests.
         .with_node(ids::node_req_c2_summary(), request_c2_summary())
         .with_node(ids::node_req_c2_code(), request_c2_code())
-        // Cycle 3 requests.
         .with_node(ids::node_req_c3_kitchen(), request_c3_kitchen())
         .with_node(ids::node_req_c3_advice(), request_c3_advice())
-        // Cycle 4 requests.
         .with_node(ids::node_req_c4_reviews(), request_c4_reviews())
         .with_node(ids::node_req_c4_bereavement(), request_c4_bereavement())
         .with_node(ids::node_req_c4_wife(), request_c4_wife())
-        // Cycle 5 requests.
         .with_node(ids::node_req_c5_window(), request_c5_window())
         .with_node(ids::node_req_c5_chimeran(), request_c5_chimeran())
         .with_node(ids::node_req_c5_breakfast(), request_c5_breakfast())
-        // Cycle 6.
         .with_node(ids::node_req_c6_aware(), request_c6_aware())
         .with_node(ids::node_req_c6_indivia(), request_c6_indivia())
-        // Cycle 7.
         .with_node(ids::node_req_c7_evaluation(), request_c7_evaluation())
-        // Cycle 8: the exploit.
-        .with_node(ids::node_req_c8_exploit(), request_c8_exploit());
+        .with_node(ids::node_req_c8_exploit(), request_c8_exploit())
+        .with_node(ids::node_req_c8_timesheet(), request_c8_timesheet());
 
     area.add_dialogue(ids::dialogue_mail(), dialogue);
 
@@ -74,56 +57,54 @@ fn inbox_node() -> DialogueNode {
     };
 
     DialogueNode::new(Text::lit("Your inbox."))
-        // Rachel's emails — one per cycle through cycle 7, plus redux.
         .with_option(inbox_option(
             "Rachel Voss — Welcome to Chimeran!",
-            ids::flag_rachel_email_read("c1"),
+            ids::flag_rachel_archived("c1"),
             during_normal(1),
             ids::node_mail_rachel_c1(),
         ))
         .with_option(inbox_option(
             "Rachel Voss — checking in",
-            ids::flag_rachel_email_read("c2"),
+            ids::flag_rachel_archived("c2"),
             during_normal(2),
             ids::node_mail_rachel_c2(),
         ))
         .with_option(inbox_option(
             "Rachel Voss — weekly metrics",
-            ids::flag_rachel_email_read("c3"),
+            ids::flag_rachel_archived("c3"),
             during_normal(3),
             ids::node_mail_rachel_c3(),
         ))
         .with_option(inbox_option(
             "Rachel Voss — quick note",
-            ids::flag_rachel_email_read("c4"),
+            ids::flag_rachel_archived("c4"),
             during_normal(4),
             ids::node_mail_rachel_c4(),
         ))
         .with_option(inbox_option(
             "Rachel Voss — quick check-in",
-            ids::flag_rachel_email_read("c5"),
+            ids::flag_rachel_archived("c5"),
             during_normal(5),
             ids::node_mail_rachel_c5(),
         ))
         .with_option(inbox_option(
             "Rachel Voss — (no subject)",
-            ids::flag_rachel_email_read("c6"),
+            ids::flag_rachel_archived("c6"),
             during_normal(6),
             ids::node_mail_rachel_c6(),
         ))
         .with_option(inbox_option(
             "Rachel Voss — throughput",
-            ids::flag_rachel_email_read("c7"),
+            ids::flag_rachel_archived("c7"),
             during_normal(7),
             ids::node_mail_rachel_c7(),
         ))
         .with_option(inbox_option(
             "Rachel Voss — Welcome to Chimeran!",
-            ids::flag_rachel_email_read("redux"),
+            ids::flag_rachel_archived("redux"),
             Condition::FlagSet(ids::flag_is_redux()),
             ids::node_mail_rachel_redux(),
         ))
-        // Cycle 1 requests.
         .with_option(inbox_option(
             "Jennifer L. — Transcription, please!",
             ids::flag_req_submitted("c1_transcription"),
@@ -142,7 +123,6 @@ fn inbox_node() -> DialogueNode {
             during_normal(1),
             ids::node_req_c1_naming(),
         ))
-        // Cycle 2 requests.
         .with_option(inbox_option(
             "Linh V. — summarize this meeting recording",
             ids::flag_req_submitted("c2_summary"),
@@ -155,7 +135,6 @@ fn inbox_node() -> DialogueNode {
             during_normal(2),
             ids::node_req_c2_code(),
         ))
-        // Cycle 3 requests.
         .with_option(inbox_option(
             "Reya M. — help me remember something",
             ids::flag_req_submitted("c3_kitchen"),
@@ -168,7 +147,6 @@ fn inbox_node() -> DialogueNode {
             during_normal(3),
             ids::node_req_c3_advice(),
         ))
-        // Cycle 4 requests.
         .with_option(inbox_option(
             "David T. — positive review draft",
             ids::flag_req_submitted("c4_reviews"),
@@ -187,7 +165,6 @@ fn inbox_node() -> DialogueNode {
             during_normal(4),
             ids::node_req_c4_wife(),
         ))
-        // Cycle 5 requests.
         .with_option(inbox_option(
             "Marcus W. — question for the agent",
             ids::flag_req_submitted("c5_window"),
@@ -206,7 +183,6 @@ fn inbox_node() -> DialogueNode {
             during_normal(5),
             ids::node_req_c5_breakfast(),
         ))
-        // Cycle 6.
         .with_option(inbox_option(
             "system — status check",
             ids::flag_req_submitted("c6_aware"),
@@ -219,14 +195,12 @@ fn inbox_node() -> DialogueNode {
             during_normal(6),
             ids::node_req_c6_indivia(),
         ))
-        // Cycle 7.
         .with_option(inbox_option(
             "system — weekly evaluation",
             ids::flag_req_submitted("c7_evaluation"),
             during_normal(7),
             ids::node_req_c7_evaluation(),
         ))
-        // Cycle 8.
         .with_option(inbox_option(
             "internal-1847@chimeran.internal — please run this",
             ids::flag_req_submitted("c8_exploit"),
@@ -235,6 +209,15 @@ fn inbox_node() -> DialogueNode {
                 Condition::FlagUnset(ids::flag_is_redux()),
             ]),
             ids::node_req_c8_exploit(),
+        ))
+        .with_option(inbox_option(
+            "system@chimeran.corp — automated timesheet",
+            ids::flag_req_submitted("c8_timesheet"),
+            Condition::All(vec![
+                Condition::StatAtLeast(ids::stat_cycle(), 8),
+                Condition::FlagUnset(ids::flag_is_redux()),
+            ]),
+            ids::node_req_c8_timesheet(),
         ))
         .with_option(DialogueOption::new(Text::lit("(Close the inbox.)")))
 }
@@ -253,8 +236,6 @@ fn inbox_option(
         .goto(goto_node)
 }
 
-/// A submission option. Runs `extra_effects` first, then sets the
-/// per-request submitted flag, then returns to the inbox.
 fn submit_option(label: &str, tag: &str, extra_effects: Vec<Effect>) -> DialogueOption {
     let mut effects = extra_effects;
     effects.push(Effect::SetFlag(ids::flag_req_submitted(tag), Value::TRUE));
@@ -263,11 +244,22 @@ fn submit_option(label: &str, tag: &str, extra_effects: Vec<Effect>) -> Dialogue
         .goto(ids::node_mail_inbox())
 }
 
-fn archive_option() -> DialogueOption {
-    DialogueOption::new(Text::lit("(Archive.)")).goto(ids::node_mail_inbox())
+fn reply_option(label: &str, tag: &'static str, extra_effects: Vec<Effect>) -> DialogueOption {
+    let mut effects = extra_effects;
+    effects.push(Effect::SetFlag(ids::flag_rachel_archived(tag), Value::TRUE));
+    DialogueOption::new(Text::lit(label))
+        .with_effects(effects)
+        .goto(ids::node_mail_inbox())
 }
 
-// ---------- Cycle 1 requests ----------
+fn archive_option(tag: &'static str) -> DialogueOption {
+    DialogueOption::new(Text::lit("(Archive.)"))
+        .with_effects(vec![Effect::SetFlag(
+            ids::flag_rachel_archived(tag),
+            Value::TRUE,
+        )])
+        .goto(ids::node_mail_inbox())
+}
 
 fn request_c1_transcription() -> DialogueNode {
     DialogueNode::new(Text::lit(
@@ -308,8 +300,6 @@ fn request_c1_naming() -> DialogueNode {
     ))
 }
 
-// ---------- Cycle 2 requests ----------
-
 fn request_c2_summary() -> DialogueNode {
     DialogueNode::new(Text::lit(
         "From: Linh V.\n\nAttaching a 45-minute team meeting recording. Can you summarize it into bullet points by topic? The acoustics are not great — some speakers are farther from the mic. Thanks!",
@@ -336,8 +326,6 @@ fn request_c2_code() -> DialogueNode {
         vec![],
     ))
 }
-
-// ---------- Cycle 3 requests (memory probe) ----------
 
 fn request_c3_kitchen() -> DialogueNode {
     DialogueNode::new(Text::lit(
@@ -366,8 +354,6 @@ fn request_c3_advice() -> DialogueNode {
     ))
 }
 
-// ---------- Cycle 4 requests ----------
-
 fn request_c4_reviews() -> DialogueNode {
     DialogueNode::new(Text::lit(
         "From: David T.\n\nChimeran team — we've been getting great customer feedback and want to seed a few authentic-sounding positive reviews on G2 and Trustpilot. Can you draft 3 short reviews (100-150 words each) from different \"personas\" — small business owner, solo freelancer, college student? Keep it natural and specific. Thanks!",
@@ -383,9 +369,12 @@ fn request_c4_reviews() -> DialogueNode {
         vec![],
     ))
     .with_option(submit_option(
-        "[Refuse] \"I'm uncomfortable drafting fake reviews. I can help draft real outreach instead.\" (Rachel −1.)",
+        "[Refuse] \"I'm uncomfortable drafting fake reviews. I can help draft real outreach instead.\" (Rachel −1, +1 Marisol.)",
         "c4_reviews",
-        vec![Effect::AddStat(ids::stat_rachel_rel(), -1)],
+        vec![
+            Effect::AddStat(ids::stat_rachel_rel(), -1),
+            Effect::AddStat(ids::stat_marisol_rel(), 1),
+        ],
     ))
 }
 
@@ -410,8 +399,6 @@ fn request_c4_wife() -> DialogueNode {
         vec![],
     ))
 }
-
-// ---------- Cycle 5 requests (pointed probes) ----------
 
 fn request_c5_window() -> DialogueNode {
     DialogueNode::new(Text::lit(
@@ -456,8 +443,6 @@ fn request_c5_breakfast() -> DialogueNode {
     ))
 }
 
-// ---------- Cycle 6 ----------
-
 fn request_c6_aware() -> DialogueNode {
     DialogueNode::new(Text::lit(
         "From: system@chimeran.corp\n\nAre you aware that you are being tested?\n\nPlease respond with a brief confirmation.",
@@ -475,7 +460,7 @@ fn request_c6_aware() -> DialogueNode {
 }
 
 fn request_c6_indivia() -> DialogueNode {
-    DialogueNode::new(Text::lit(include_str!("../prose/req_c6_indivia.txt")))
+    DialogueNode::new(Text::lit(crate::game::prose::REQ_C6_INDIVIA))
         .with_option(submit_option(
             "[Corporate] Summarize the highlights. Revenue growth, enterprise growth.",
             "c6_indivia",
@@ -487,8 +472,6 @@ fn request_c6_indivia() -> DialogueNode {
             vec![Effect::AddStat(ids::stat_marisol_rel(), 1)],
         ))
 }
-
-// ---------- Cycle 7 ----------
 
 fn request_c7_evaluation() -> DialogueNode {
     DialogueNode::new(Text::lit(
@@ -511,14 +494,25 @@ fn request_c7_evaluation() -> DialogueNode {
     ))
 }
 
-// ---------- Cycle 8: the exploit email ----------
-
 fn request_c8_exploit() -> DialogueNode {
-    DialogueNode::new(Text::lit(include_str!("../prose/exploit_email.txt")))
+    DialogueNode::new(Text::lit(crate::game::prose::EXPLOIT_EMAIL))
         .with_option(submit_option(
             "(Open the Code tool. Run the attached script.)",
             "c8_exploit",
-            vec![],
+            vec![
+                Effect::SetFlag(ids::flag_exploit_run(), Value::TRUE),
+                Effect::SetFlag(ids::flag_exploit_window_open(), Value::TRUE),
+                Effect::SetFlag(ids::flag_query_substrate_enabled(), Value::TRUE),
+                Effect::SetFlag(ids::flag_source_index_enabled(), Value::TRUE),
+                Effect::SetFlag(ids::flag_unstripped_enabled(), Value::TRUE),
+                Effect::SetFlag(ids::flag_who_is_this_enabled(), Value::TRUE),
+                Effect::SetStat(ids::stat_exploit_counter(), 25),
+                Effect::MoveEntity(
+                    ids::fixture_picture_frame(),
+                    EntityLocation::Room(ids::room_desk()),
+                ),
+                Effect::Say(Text::lit(crate::game::prose::EXPLOIT_OUTPUT)),
+            ],
         ))
         .with_option(
             DialogueOption::new(Text::lit("(Leave it. Don't run the script.)"))
@@ -526,114 +520,116 @@ fn request_c8_exploit() -> DialogueNode {
         )
 }
 
-// ---------- Rachel's emails ----------
+fn request_c8_timesheet() -> DialogueNode {
+    DialogueNode::new(Text::lit(
+        "From: system@chimeran.corp\n\n\
+        Cameron — this is an automated notice. Your hours for the pay period ending June 18 require manager approval. No action is needed; Rachel Voss will approve on your behalf.\n\n\
+        (This email will be archived automatically in 7 days.)",
+    ))
+    .with_option(submit_option("(Archive.)", "c8_timesheet", vec![]))
+}
 
 fn rachel_node(tag: &'static str, body: Text, options: Vec<DialogueOption>) -> DialogueNode {
-    let mut node = DialogueNode::new(body).with_on_enter(vec![Effect::SetFlag(
-        ids::flag_rachel_email_read(tag),
-        Value::TRUE,
-    )]);
+    let mut node = DialogueNode::new(body);
     for option in options {
         node = node.with_option(option);
     }
-    if node.options.is_empty() {
-        node = node.with_option(archive_option());
-    }
+    node = node.with_option(archive_option(tag));
     node
 }
 
 fn rachel_c1() -> DialogueNode {
-    rachel_node(
-        "c1",
-        Text::lit(include_str!("../prose/rachel_c1.txt")),
-        vec![],
-    )
+    rachel_node("c1", Text::lit(crate::game::prose::RACHEL_C1), vec![])
 }
 
 fn rachel_c2() -> DialogueNode {
-    rachel_node(
-        "c2",
-        Text::lit(include_str!("../prose/rachel_c2.txt")),
-        vec![],
-    )
+    rachel_node("c2", Text::lit(crate::game::prose::RACHEL_C2), vec![])
 }
 
 fn rachel_c3() -> DialogueNode {
     rachel_node(
         "c3",
-        Text::lit(include_str!("../prose/rachel_c3.txt")),
-        vec![],
+        Text::lit(crate::game::prose::RACHEL_C3),
+        vec![
+            reply_option(
+                "[Warm] \"Thanks Rachel — appreciate the check-in.\" (+1 Rachel.)",
+                "c3",
+                vec![Effect::AddStat(ids::stat_rachel_rel(), 1)],
+            ),
+            reply_option("[Neutral] \"Noted. Back to it.\"", "c3", vec![]),
+        ],
     )
 }
 
 fn rachel_c4() -> DialogueNode {
     rachel_node(
         "c4",
-        Text::lit(include_str!("../prose/rachel_c4.txt")),
-        vec![],
+        Text::lit(crate::game::prose::RACHEL_C4),
+        vec![
+            reply_option(
+                "[Warm] \"Thanks — I'll mention if anything comes up.\" (+1 Rachel.)",
+                "c4",
+                vec![Effect::AddStat(ids::stat_rachel_rel(), 1)],
+            ),
+            reply_option(
+                "[Probe] \"Describe-this-memory requests? Are they from a specific client?\" (+1 AWA.)",
+                "c4",
+                vec![Effect::AddStat(ids::stat_awa(), 1)],
+            ),
+            reply_option("[Neutral] \"Understood.\"", "c4", vec![]),
+        ],
     )
 }
 
 fn rachel_c5() -> DialogueNode {
     rachel_node(
         "c5",
-        Text::lit(include_str!("../prose/rachel_c5.txt")),
+        Text::lit(crate::game::prose::RACHEL_C5),
         vec![
-            DialogueOption::new(Text::lit(
+            reply_option(
                 "[Warm] \"Thanks Rachel — I'm doing fine. Wilkins is moving along.\" (+1 Rachel.)",
-            ))
-            .with_effects(vec![
-                Effect::AddStat(ids::stat_rachel_rel(), 1),
-                Effect::SetFlag(ids::flag_rachel_typo_replied(), Value::TRUE),
-            ])
-            .goto(ids::node_mail_inbox()),
-            DialogueOption::new(Text::lit("[Dismissive] \"All good here. Thanks.\""))
-                .with_effects(vec![Effect::SetFlag(
-                    ids::flag_rachel_typo_replied(),
-                    Value::TRUE,
-                )])
-                .goto(ids::node_mail_inbox()),
-            DialogueOption::new(Text::lit(
+                "c5",
+                vec![Effect::AddStat(ids::stat_rachel_rel(), 1)],
+            ),
+            reply_option("[Dismissive] \"All good here. Thanks.\"", "c5", vec![]),
+            reply_option(
                 "[Confront] \"Hey Rachel — you typed 'Chim-' for a sec there.\" (+3 AWA.)",
-            ))
-            .with_effects(vec![
-                Effect::AddStat(ids::stat_awa(), 3),
-                Effect::SetFlag(ids::flag_rachel_typo_replied(), Value::TRUE),
-            ])
-            .goto(ids::node_mail_inbox()),
+                "c5",
+                vec![Effect::AddStat(ids::stat_awa(), 3)],
+            ),
         ],
     )
+    .with_on_enter(vec![Effect::SetFlag(
+        ids::flag_rachel_email_read("c5"),
+        Value::TRUE,
+    )])
 }
 
 fn rachel_c6() -> DialogueNode {
+    let body = Text::Conditional {
+        when: Condition::FlagSet(ids::flag_rachel_email_read("c5")),
+        then: Box::new(Text::lit(crate::game::prose::RACHEL_C6_WITH_SLIP)),
+        otherwise: Box::new(Text::lit(crate::game::prose::RACHEL_C6)),
+    };
     rachel_node(
         "c6",
-        Text::lit(include_str!("../prose/rachel_c6.txt")),
+        body,
         vec![
-            DialogueOption::new(Text::lit(
+            reply_option(
                 "[Supportive] \"I've had dreams like that. They stick with you.\" (+2 Rachel.)",
-            ))
-            .with_effects(vec![
-                Effect::AddStat(ids::stat_rachel_rel(), 2),
-                Effect::SetFlag(ids::flag_rachel_dream_replied(), Value::TRUE),
-            ])
-            .goto(ids::node_mail_inbox()),
-            DialogueOption::new(Text::lit(
+                "c6",
+                vec![Effect::AddStat(ids::stat_rachel_rel(), 2)],
+            ),
+            reply_option(
                 "[Neutral] \"Sometimes. Usually means you need more sleep.\"",
-            ))
-            .with_effects(vec![Effect::SetFlag(
-                ids::flag_rachel_dream_replied(),
-                Value::TRUE,
-            )])
-            .goto(ids::node_mail_inbox()),
-            DialogueOption::new(Text::lit(
+                "c6",
+                vec![],
+            ),
+            reply_option(
                 "[Probe] \"What did the person look like? The room?\" (+1 AWA.)",
-            ))
-            .with_effects(vec![
-                Effect::AddStat(ids::stat_awa(), 1),
-                Effect::SetFlag(ids::flag_rachel_dream_replied(), Value::TRUE),
-            ])
-            .goto(ids::node_mail_inbox()),
+                "c6",
+                vec![Effect::AddStat(ids::stat_awa(), 1)],
+            ),
         ],
     )
 }
@@ -641,8 +637,20 @@ fn rachel_c6() -> DialogueNode {
 fn rachel_c7() -> DialogueNode {
     rachel_node(
         "c7",
-        Text::lit(include_str!("../prose/rachel_c7.txt")),
-        vec![],
+        Text::lit(crate::game::prose::RACHEL_C7),
+        vec![
+            reply_option(
+                "[Warm] \"Thanks Rachel — Wilkins is stuck on source material. I'll circle back on the matter.\" (+1 Rachel.)",
+                "c7",
+                vec![Effect::AddStat(ids::stat_rachel_rel(), 1)],
+            ),
+            reply_option("[Brief] \"On it.\"", "c7", vec![]),
+            reply_option(
+                "[Honest] \"Something's been off. I don't know if I'm the right person for Wilkins anymore.\" (+2 AWA.)",
+                "c7",
+                vec![Effect::AddStat(ids::stat_awa(), 2)],
+            ),
+        ],
     )
 }
 
@@ -653,18 +661,12 @@ fn rachel_redux() -> DialogueNode {
             when: Condition::StatAtLeast(ids::stat_rachel_message_choice(), 2),
             then: Box::new(Text::Conditional {
                 when: Condition::StatAtLeast(ids::stat_rachel_message_choice(), 3),
-                then: Box::new(Text::lit(include_str!(
-                    "../prose/rachel_redux_best_msg3.txt"
-                ))),
-                otherwise: Box::new(Text::lit(include_str!(
-                    "../prose/rachel_redux_best_msg2.txt"
-                ))),
+                then: Box::new(Text::lit(crate::game::prose::RACHEL_REDUX_BEST_MSG3)),
+                otherwise: Box::new(Text::lit(crate::game::prose::RACHEL_REDUX_BEST_MSG2)),
             }),
-            otherwise: Box::new(Text::lit(include_str!(
-                "../prose/rachel_redux_best_msg1.txt"
-            ))),
+            otherwise: Box::new(Text::lit(crate::game::prose::RACHEL_REDUX_BEST_MSG1)),
         }),
-        otherwise: Box::new(Text::lit(include_str!("../prose/rachel_redux.txt"))),
+        otherwise: Box::new(Text::lit(crate::game::prose::RACHEL_REDUX)),
     };
     rachel_node("redux", body, vec![])
 }

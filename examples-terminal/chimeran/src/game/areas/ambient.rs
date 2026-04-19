@@ -1,9 +1,3 @@
-//! Ambient observation rules. Each `OnEnter` rule picks one short
-//! flavor line from a `Text::OneOf` pool, with pools varying by the
-//! ENV anomaly stat. Nameplate-surfacing lines are intentionally mixed
-//! into each anomaly tier of the desk pool so the player encounters
-//! the changing nameplate without having to examine it explicitly.
-
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{Condition, Effect, Rule, Text, Trigger};
@@ -98,6 +92,80 @@ pub fn build() -> AreaContents {
                 otherwise: Box::new(Text::lit(
                     "The elevator descends at the rate elevators descend.",
                 )),
+            })],
+        )
+        .with_cooldown(3),
+    );
+
+    area.add_rule(
+        ids::rule_ambient_hallway(),
+        Rule::on(
+            Trigger::OnEnter(Some(ids::room_hallway())),
+            vec![Effect::Say(Text::Conditional {
+                when: Condition::StatAtLeast(ids::stat_env(), 7),
+                then: Box::new(Text::OneOf(vec![
+                    Text::lit(
+                        "The hallway. The coat on the hook is the only coat. It has always been the only coat.",
+                    ),
+                    Text::lit(
+                        "The hallway is the hallway. The keys on the side table are where you left them. You don't remember leaving them.",
+                    ),
+                ])),
+                otherwise: Box::new(Text::Conditional {
+                    when: Condition::StatAtLeast(ids::stat_env(), 4),
+                    then: Box::new(Text::lit(
+                        "The hallway is short. You cross it in four steps. You have taken these four steps before, in this order.",
+                    )),
+                    otherwise: Box::new(Text::lit(
+                        "The hallway smells of the apartment. The light overhead does not flicker.",
+                    )),
+                }),
+            })],
+        )
+        .with_cooldown(3),
+    );
+
+    area.add_rule(
+        ids::rule_ambient_office_floor(),
+        Rule::on(
+            Trigger::OnEnter(Some(ids::room_office_floor())),
+            vec![Effect::Say(Text::Conditional {
+                when: Condition::StatAtLeast(ids::stat_env(), 7),
+                then: Box::new(Text::lit(
+                    "The hallway. None of the doors on either side have ever opened. You are certain of this, and the certainty is new.",
+                )),
+                otherwise: Box::new(Text::Conditional {
+                    when: Condition::StatAtLeast(ids::stat_env(), 4),
+                    then: Box::new(Text::lit(
+                        "The office hallway. A framed print you could not describe. The air is dry.",
+                    )),
+                    otherwise: Box::new(Text::lit(
+                        "The office hallway. Even light. Acoustic tile overhead. Your door is at the end.",
+                    )),
+                }),
+            })],
+        )
+        .with_cooldown(3),
+    );
+
+    area.add_rule(
+        ids::rule_ambient_lobby(),
+        Rule::on(
+            Trigger::OnEnter(Some(ids::room_lobby())),
+            vec![Effect::Say(Text::Conditional {
+                when: Condition::StatAtLeast(ids::stat_env(), 7),
+                then: Box::new(Text::lit(
+                    "The lobby. The desk has never had a person at it. The sign-in sheet has never had a name on it.",
+                )),
+                otherwise: Box::new(Text::Conditional {
+                    when: Condition::StatAtLeast(ids::stat_env(), 4),
+                    then: Box::new(Text::lit(
+                        "The lobby is empty. The potted plant is still there. It does not change.",
+                    )),
+                    otherwise: Box::new(Text::lit(
+                        "The lobby is quiet. Morning light on the tile. The doors are propped.",
+                    )),
+                }),
             })],
         )
         .with_cooldown(3),

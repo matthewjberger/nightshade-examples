@@ -1,11 +1,3 @@
-//! Per-area content bags.
-//!
-//! Each area module contributes rooms, items, rules, entities, dialogues,
-//! and timers anchored to one part of the game. The top-level
-//! `build_world` merges the bags into the final `World`. IDs must be
-//! unique within an area (enforced by `add_*`) and across areas
-//! (enforced by the top-level `merge::merge`).
-
 pub mod ambient;
 pub mod apartment;
 pub mod chatter;
@@ -13,7 +5,6 @@ pub mod cycles;
 pub mod mail;
 pub mod office;
 pub mod picture_frame;
-pub mod redux;
 pub mod reveal;
 pub mod setup;
 pub mod tools_code;
@@ -23,14 +14,54 @@ pub mod tools_research;
 pub mod tools_translator;
 pub mod walk;
 
+use crate::game::ids;
 use nightshade::interactive_fiction::data::{
-    Dialogue, DialogueId, Entity, EntityId, Item, ItemId, Room, RoomId, Rule, RuleId, Timer,
-    TimerId,
+    Condition, Dialogue, DialogueId, DialogueOption, Effect, Entity, EntityId, FlagKey, Item,
+    ItemId, NodeId, Room, RoomId, Rule, RuleId, Text, Timer, TimerId, Value,
 };
 use std::collections::BTreeMap;
 
-/// Content contributed by a single area. Fields default to empty so
-/// individual areas only fill what they own.
+pub fn by_cycle(base: Text, variants: Vec<(i64, Text)>) -> Text {
+    let mut sorted = variants;
+    sorted.sort_by_key(|(cycle, _)| *cycle);
+    let mut current = base;
+    for (cycle, text) in sorted {
+        current = Text::Conditional {
+            when: Condition::StatAtLeast(ids::stat_cycle(), cycle),
+            then: Box::new(text),
+            otherwise: Box::new(current),
+        };
+    }
+    current
+}
+
+pub fn reveal_option(
+    label: &str,
+    enabled_flag: FlagKey,
+    seen_flag: FlagKey,
+    body_node: NodeId,
+) -> DialogueOption {
+    DialogueOption::new(Text::lit(label))
+        .with_condition(Condition::FlagSet(enabled_flag))
+        .with_effects(vec![
+            Effect::SetFlag(seen_flag, Value::TRUE),
+            Effect::AddStat(ids::stat_exploit_counter(), -1),
+        ])
+        .goto(body_node)
+}
+
+pub fn body_with_acks(body: Text, acks: Vec<(FlagKey, Text)>) -> Text {
+    let mut parts = vec![body];
+    for (flag, ack) in acks {
+        parts.push(Text::Conditional {
+            when: Condition::FlagSet(flag),
+            then: Box::new(ack),
+            otherwise: Box::new(Text::empty()),
+        });
+    }
+    Text::Sequence(parts)
+}
+
 #[derive(Default)]
 pub struct AreaContents {
     pub rooms: BTreeMap<RoomId, Room>,
@@ -90,6 +121,5 @@ pub fn all() -> Vec<fn() -> AreaContents> {
         cycles::build,
         ambient::build,
         reveal::build,
-        redux::build,
     ]
 }

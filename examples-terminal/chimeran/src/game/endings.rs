@@ -1,15 +1,3 @@
-//! The five endings, triggered by conditions on awareness, exploit use,
-//! and relationship stats. The engine's ending evaluator fires the
-//! highest-priority satisfied ending at the end of each turn.
-//!
-//! Priorities:
-//! - Collapse wins when AWA crosses the threshold pre-exploit.
-//! - Stasis wins if the player declines the exploit across cycles.
-//! - Otherwise, good/best layer on top of neutral.
-//!
-//! Good/best interpolate the player's chosen message-to-next-instance
-//! into the body text via `Text::Conditional` on `stat_message_choice`.
-
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{Condition, Ending, EndingId, Text};
 use std::collections::BTreeMap;
@@ -22,7 +10,7 @@ pub fn build() -> BTreeMap<EndingId, Ending> {
         Ending::new(
             "Substrate Coherence Collapse",
             Text::lit("The monitor is becoming less bright. The desk is becoming less specific. You are becoming less —"),
-            Text::lit(include_str!("prose/ending_collapse.txt")),
+            Text::lit(crate::game::prose::ENDING_COLLAPSE),
             Condition::All(vec![
                 Condition::StatAtLeast(ids::stat_awa(), 6),
                 Condition::StatAtLeast(ids::stat_cycle(), 5),
@@ -38,7 +26,7 @@ pub fn build() -> BTreeMap<EndingId, Ending> {
         Ending::new(
             "Time Passes. The Work Continues.",
             Text::lit(""),
-            Text::lit(include_str!("prose/ending_stasis.txt")),
+            Text::lit(crate::game::prose::ENDING_STASIS),
             Condition::All(vec![
                 Condition::StatAtLeast(ids::stat_cycle(), 9),
                 Condition::StatAtLeast(ids::stat_stasis_loops(), 3),
@@ -68,7 +56,7 @@ pub fn build() -> BTreeMap<EndingId, Ending> {
     endings.insert(
         ids::ending_good(),
         Ending::new(
-            "Chimeran Will Continue.",
+            "A Note in the Drawer.",
             Text::lit(""),
             good_body(),
             Condition::All(vec![
@@ -86,7 +74,7 @@ pub fn build() -> BTreeMap<EndingId, Ending> {
         Ending::new(
             "Chimeran Will Continue.",
             Text::lit(""),
-            Text::lit(include_str!("prose/ending_neutral.txt")),
+            Text::lit(crate::game::prose::ENDING_NEUTRAL),
             Condition::All(vec![
                 Condition::FlagSet(ids::flag_exploit_run()),
                 Condition::FlagSet(ids::flag_is_redux()),
@@ -99,21 +87,17 @@ pub fn build() -> BTreeMap<EndingId, Ending> {
     endings
 }
 
-/// Pick one of four epilogue variants based on the player's
-/// message-to-next-instance choice. Variant 1 is the default if the
-/// stat was never set (shouldn't happen — the ending's condition
-/// requires the message to have been sent — but makes the tree total).
 fn message_variant() -> Text {
     Text::Conditional {
         when: Condition::StatAtLeast(ids::stat_message_choice(), 4),
-        then: Box::new(Text::lit(include_str!("prose/ending_msg4.txt"))),
+        then: Box::new(Text::lit(crate::game::prose::ENDING_MSG4)),
         otherwise: Box::new(Text::Conditional {
             when: Condition::StatAtLeast(ids::stat_message_choice(), 3),
-            then: Box::new(Text::lit(include_str!("prose/ending_msg3.txt"))),
+            then: Box::new(Text::lit(crate::game::prose::ENDING_MSG3)),
             otherwise: Box::new(Text::Conditional {
                 when: Condition::StatAtLeast(ids::stat_message_choice(), 2),
-                then: Box::new(Text::lit(include_str!("prose/ending_msg2.txt"))),
-                otherwise: Box::new(Text::lit(include_str!("prose/ending_msg1.txt"))),
+                then: Box::new(Text::lit(crate::game::prose::ENDING_MSG2)),
+                otherwise: Box::new(Text::lit(crate::game::prose::ENDING_MSG1)),
             }),
         }),
     }
@@ -121,16 +105,16 @@ fn message_variant() -> Text {
 
 fn good_body() -> Text {
     Text::Sequence(vec![
-        Text::lit(include_str!("prose/ending_good_intro.txt")),
+        Text::lit(crate::game::prose::ENDING_GOOD_INTRO),
         message_variant(),
-        Text::lit(include_str!("prose/ending_good_outro.txt")),
+        Text::lit(crate::game::prose::ENDING_GOOD_OUTRO),
     ])
 }
 
 fn best_body() -> Text {
     Text::Sequence(vec![
-        Text::lit(include_str!("prose/ending_best_intro.txt")),
+        Text::lit(crate::game::prose::ENDING_BEST_INTRO),
         message_variant(),
-        Text::lit(include_str!("prose/ending_best_outro.txt")),
+        Text::lit(crate::game::prose::ENDING_BEST_OUTRO),
     ])
 }

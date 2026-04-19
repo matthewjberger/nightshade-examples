@@ -1,8 +1,4 @@
-//! Research: a web browser. Bookmarks, history, search. Post-exploit,
-//! a Query Substrate mode is added that returns internal Indivia
-//! documents instead of web results.
-
-use crate::game::areas::AreaContents;
+use crate::game::areas::{AreaContents, reveal_option};
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
     Condition, Dialogue, DialogueNode, DialogueOption, Effect, Text, Value,
@@ -39,15 +35,12 @@ pub fn build() -> AreaContents {
                         )])
                         .goto(ids::node_research_misfire()),
                 )
-                .with_option(
-                    DialogueOption::new(Text::lit("(+) Query Substrate"))
-                        .with_condition(Condition::FlagSet(ids::flag_query_substrate_enabled()))
-                        .with_effects(vec![
-                            Effect::SetFlag(ids::flag_reveal_query_substrate_seen(), Value::TRUE),
-                            Effect::AddStat(ids::stat_exploit_counter(), -1),
-                        ])
-                        .goto(ids::node_research_query_substrate()),
-                )
+                .with_option(reveal_option(
+                    "(+) Query Substrate",
+                    ids::flag_query_substrate_enabled(),
+                    ids::flag_reveal_query_substrate_seen(),
+                    ids::node_research_query_substrate(),
+                ))
                 .with_option(DialogueOption::new(Text::lit("(Close the browser.)"))),
             )
             .with_node(
@@ -74,7 +67,7 @@ pub fn build() -> AreaContents {
             )
             .with_node(
                 ids::node_research_misfire(),
-                DialogueNode::new(Text::lit(include_str!("../prose/research_misfire.txt")))
+                DialogueNode::new(Text::lit(crate::game::prose::RESEARCH_MISFIRE))
                     .with_option(
                         DialogueOption::new(Text::lit("(Close the tab.)"))
                             .goto(ids::node_research_home()),
@@ -82,7 +75,7 @@ pub fn build() -> AreaContents {
             )
             .with_node(
                 ids::node_research_query_substrate(),
-                DialogueNode::new(Text::lit(include_str!("../prose/query_substrate.txt")))
+                DialogueNode::new(Text::lit(crate::game::prose::QUERY_SUBSTRATE))
                     .with_option(
                         DialogueOption::new(Text::lit("(Back.)"))
                             .goto(ids::node_research_home()),

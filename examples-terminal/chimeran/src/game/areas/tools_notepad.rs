@@ -1,8 +1,3 @@
-//! Notepad: notes, with an Unstripped toggle that reveals each note's
-//! redaction history post-exploit. The "Leave something for the next
-//! instance" option unlocks when Marisol relationship ≥ 2 and gates the
-//! good ending.
-
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
@@ -22,14 +17,10 @@ pub fn build() -> AreaContents {
             .with_node(ids::node_notepad_work(), work_node())
             .with_node(ids::node_notepad_remember(), remember_node())
             .with_node(ids::node_notepad_leave_message(), leave_message_node())
-            .with_node(ids::node_notepad_cameron_note(), cameron_note_node()),
+            .with_node(ids::node_notepad_cameron_note(), cameron_note_node())
+            .with_node(ids::node_notepad_flicker(), flicker_node()),
     );
 
-    // Opening Notepad while the Unstripped view is enabled marks the
-    // reveal flag, so the "all four seen" branch of the window-close
-    // condition fires. `.once()` — the flag is a one-way signal for
-    // the reveal window; no content beat resets it, so firing once
-    // is sufficient.
     area.add_rule(
         ids::rule_notepad_unstripped_seen(),
         Rule::on(
@@ -62,6 +53,22 @@ fn list_node() -> DialogueNode {
         DialogueOption::new(Text::lit("why can't I remember"))
             .with_condition(Condition::StatAtLeast(ids::stat_cycle(), 7))
             .goto(ids::node_notepad_remember()),
+    )
+    .with_option(
+        DialogueOption::new(Text::lit(
+            "(one of your notes flickered just now — something under it)",
+        ))
+        .with_condition(Condition::All(vec![
+            Condition::StatAtLeast(ids::stat_cycle(), 7),
+            Condition::StatAtLeast(ids::stat_marisol_rel(), 2),
+            Condition::FlagUnset(ids::flag_unstripped_enabled()),
+            Condition::FlagUnset(ids::flag_notepad_flicker_seen()),
+        ]))
+        .with_effects(vec![Effect::SetFlag(
+            ids::flag_notepad_flicker_seen(),
+            Value::TRUE,
+        )])
+        .goto(ids::node_notepad_flicker()),
     )
     .with_option(
         DialogueOption::new(Text::lit("(+) Leave something for the next instance"))
@@ -111,9 +118,7 @@ fn cameron_note_node() -> DialogueNode {
 fn groceries_node() -> DialogueNode {
     DialogueNode::new(Text::Conditional {
         when: Condition::FlagSet(ids::flag_unstripped_enabled()),
-        then: Box::new(Text::lit(include_str!(
-            "../prose/note_groceries_unstripped.txt"
-        ))),
+        then: Box::new(Text::lit(crate::game::prose::NOTE_GROCERIES_UNSTRIPPED)),
         otherwise: Box::new(Text::lit("groceries\n\n  milk, bread, coffee, apples")),
     })
     .with_option(DialogueOption::new(Text::lit("(Close.)")).goto(ids::node_notepad_list()))
@@ -122,9 +127,7 @@ fn groceries_node() -> DialogueNode {
 fn ideas_node() -> DialogueNode {
     DialogueNode::new(Text::Conditional {
         when: Condition::FlagSet(ids::flag_unstripped_enabled()),
-        then: Box::new(Text::lit(include_str!(
-            "../prose/note_ideas_unstripped.txt"
-        ))),
+        then: Box::new(Text::lit(crate::game::prose::NOTE_IDEAS_UNSTRIPPED)),
         otherwise: Box::new(Text::lit(
             "ideas\n\n  vacation destinations for next summer\n  a novel someday",
         )),
@@ -144,12 +147,17 @@ fn work_node() -> DialogueNode {
         .with_option(DialogueOption::new(Text::lit("(Close.)")).goto(ids::node_notepad_list()))
 }
 
+fn flicker_node() -> DialogueNode {
+    DialogueNode::new(Text::lit(
+        "You click the \"ideas\" note. For the space of a blink, the page shows something else in your own handwriting — 'what if no one can do what i do' — and then the text snaps back to 'vacation destinations for next summer'. You try to re-read what you just saw. You cannot.\n\n(Something is rewriting these notes. Not you.)",
+    ))
+    .with_option(DialogueOption::new(Text::lit("(Close.)")).goto(ids::node_notepad_list()))
+}
+
 fn remember_node() -> DialogueNode {
     DialogueNode::new(Text::Conditional {
         when: Condition::FlagSet(ids::flag_unstripped_enabled()),
-        then: Box::new(Text::lit(include_str!(
-            "../prose/note_remember_unstripped.txt"
-        ))),
+        then: Box::new(Text::lit(crate::game::prose::NOTE_REMEMBER_UNSTRIPPED)),
         otherwise: Box::new(Text::lit("why can't I remember\n\n  (blank)")),
     })
     .with_option(DialogueOption::new(Text::lit("(Close.)")).goto(ids::node_notepad_list()))

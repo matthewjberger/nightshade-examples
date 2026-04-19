@@ -1,11 +1,8 @@
-//! Every ID in the game. Rename a content piece by editing one function here.
-
 use nightshade::interactive_fiction::data::{
     DialogueId, EndingId, EntityId, EventName, FlagKey, ItemId, NodeId, RoomId, RuleId, StatKey,
     TextId,
 };
 
-// Rooms ------------------------------------------------------------------
 pub fn room_bedroom() -> RoomId {
     RoomId::new("bedroom")
 }
@@ -37,7 +34,6 @@ pub fn room_endgame() -> RoomId {
     RoomId::new("endgame")
 }
 
-// Items ------------------------------------------------------------------
 pub fn item_coffee_mug() -> ItemId {
     ItemId::new("coffee_mug")
 }
@@ -51,9 +47,6 @@ pub fn item_sticky_note_redux() -> ItemId {
     ItemId::new("sticky_note_redux")
 }
 
-// Fixtures (the tool suite + mirror + bed + picture frame + clock) -------
-// Nothing in chimeran is actually a *character*; every interactable is
-// an object or a UI surface, so they all live in `World.fixtures`.
 pub fn fixture_mail() -> EntityId {
     EntityId::new("mail")
 }
@@ -88,7 +81,6 @@ pub fn fixture_clock() -> EntityId {
     EntityId::new("clock")
 }
 
-// Dialogues --------------------------------------------------------------
 pub fn dialogue_mail() -> DialogueId {
     DialogueId::new("mail")
 }
@@ -123,7 +115,6 @@ pub fn dialogue_clock() -> DialogueId {
     DialogueId::new("clock")
 }
 
-// Dialogue nodes: shared -------------------------------------------------
 pub fn node_root() -> NodeId {
     NodeId::new("root")
 }
@@ -134,7 +125,6 @@ pub fn node_sleep_prompt() -> NodeId {
     NodeId::new("sleep_prompt")
 }
 
-// Request nodes ----------------------------------------------------------
 pub fn node_req_c1_transcription() -> NodeId {
     NodeId::new("req_c1_transcription")
 }
@@ -186,8 +176,10 @@ pub fn node_req_c7_evaluation() -> NodeId {
 pub fn node_req_c8_exploit() -> NodeId {
     NodeId::new("req_c8_exploit")
 }
+pub fn node_req_c8_timesheet() -> NodeId {
+    NodeId::new("req_c8_timesheet")
+}
 
-// Rachel email nodes -----------------------------------------------------
 pub fn node_mail_rachel_c1() -> NodeId {
     NodeId::new("mail_rachel_c1")
 }
@@ -213,7 +205,6 @@ pub fn node_mail_rachel_redux() -> NodeId {
     NodeId::new("mail_rachel_redux")
 }
 
-// Notepad nodes ----------------------------------------------------------
 pub fn node_notepad_list() -> NodeId {
     NodeId::new("notepad_list")
 }
@@ -238,8 +229,10 @@ pub fn node_notepad_leave_message() -> NodeId {
 pub fn node_notepad_cameron_note() -> NodeId {
     NodeId::new("notepad_cameron_note")
 }
+pub fn node_notepad_flicker() -> NodeId {
+    NodeId::new("notepad_flicker")
+}
 
-// Research nodes ---------------------------------------------------------
 pub fn node_research_home() -> NodeId {
     NodeId::new("research_home")
 }
@@ -256,7 +249,6 @@ pub fn node_research_query_substrate() -> NodeId {
     NodeId::new("research_query_substrate")
 }
 
-// Translator / Code / Reference / Chatter nodes --------------------------
 pub fn node_translator_home() -> NodeId {
     NodeId::new("translator_home")
 }
@@ -284,6 +276,12 @@ pub fn node_reference_bereavement() -> NodeId {
 pub fn node_reference_source_index() -> NodeId {
     NodeId::new("reference_source_index")
 }
+pub fn node_reference_instance_roster() -> NodeId {
+    NodeId::new("reference_instance_roster")
+}
+pub fn node_reference_strange_page() -> NodeId {
+    NodeId::new("reference_strange_page")
+}
 pub fn node_chatter_channels() -> NodeId {
     NodeId::new("chatter_channels")
 }
@@ -309,7 +307,6 @@ pub fn node_chatter_rachel_message() -> NodeId {
     NodeId::new("chatter_rachel_message")
 }
 
-// Picture frame nodes ----------------------------------------------------
 pub fn node_frame_prompt() -> NodeId {
     NodeId::new("frame_prompt")
 }
@@ -320,7 +317,6 @@ pub fn node_frame_who_is_this() -> NodeId {
     NodeId::new("frame_who_is_this")
 }
 
-// Endings ----------------------------------------------------------------
 pub fn ending_collapse() -> EndingId {
     EndingId::new("collapse")
 }
@@ -337,7 +333,6 @@ pub fn ending_best() -> EndingId {
     EndingId::new("best")
 }
 
-// Rules ------------------------------------------------------------------
 pub fn rule_kickoff() -> RuleId {
     RuleId::new("kickoff")
 }
@@ -395,8 +390,16 @@ pub fn rule_tool_open_decrement(tool: &str) -> RuleId {
 pub fn rule_notepad_unstripped_seen() -> RuleId {
     RuleId::new("notepad_unstripped_seen")
 }
+pub fn rule_ambient_hallway() -> RuleId {
+    RuleId::new("ambient_hallway")
+}
+pub fn rule_ambient_office_floor() -> RuleId {
+    RuleId::new("ambient_office_floor")
+}
+pub fn rule_ambient_lobby() -> RuleId {
+    RuleId::new("ambient_lobby")
+}
 
-// Events -----------------------------------------------------------------
 pub fn event_substrate_window_closes() -> EventName {
     EventName::new("substrate_window_closes")
 }
@@ -404,7 +407,6 @@ pub fn event_sleep() -> EventName {
     EventName::new("sleep")
 }
 
-// Flags ------------------------------------------------------------------
 pub fn flag_is_redux() -> FlagKey {
     FlagKey::new("is_redux")
 }
@@ -425,12 +427,6 @@ pub fn flag_frame_looked_today() -> FlagKey {
 }
 pub fn flag_mirror_looked_closer() -> FlagKey {
     FlagKey::new("mirror_looked_closer")
-}
-pub fn flag_rachel_typo_replied() -> FlagKey {
-    FlagKey::new("rachel_typo_replied")
-}
-pub fn flag_rachel_dream_replied() -> FlagKey {
-    FlagKey::new("rachel_dream_replied")
 }
 pub fn flag_research_misfire_seen() -> FlagKey {
     FlagKey::new("research_misfire_seen")
@@ -468,16 +464,44 @@ pub fn flag_rachel_message_sent() -> FlagKey {
 pub fn flag_at_desk_arrived_this_cycle() -> FlagKey {
     FlagKey::new("at_desk_arrived_this_cycle")
 }
+pub fn flag_dmitri_accused() -> FlagKey {
+    FlagKey::new("dmitri_accused")
+}
+pub fn flag_marisol_accused() -> FlagKey {
+    FlagKey::new("marisol_accused")
+}
+pub fn flag_marisol_c5_warm_replied() -> FlagKey {
+    FlagKey::new("marisol_c5_warm_replied")
+}
+pub fn flag_marisol_deflected_c6() -> FlagKey {
+    FlagKey::new("marisol_deflected_c6")
+}
+pub fn flag_dmitri_concert_accepted() -> FlagKey {
+    FlagKey::new("dmitri_concert_accepted")
+}
+pub fn flag_dmitri_marisol_worry_shared() -> FlagKey {
+    FlagKey::new("dmitri_marisol_worry_shared")
+}
+pub fn flag_strange_page_seen() -> FlagKey {
+    FlagKey::new("strange_page_seen")
+}
+pub fn flag_winnie_replied() -> FlagKey {
+    FlagKey::new("winnie_replied")
+}
+pub fn flag_notepad_flicker_seen() -> FlagKey {
+    FlagKey::new("notepad_flicker_seen")
+}
 
-// Per-request submission flag + per-Rachel-email read flag.
 pub fn flag_req_submitted(tag: &str) -> FlagKey {
     FlagKey::new(format!("req_submitted_{tag}"))
 }
 pub fn flag_rachel_email_read(tag: &str) -> FlagKey {
     FlagKey::new(format!("rachel_read_{tag}"))
 }
+pub fn flag_rachel_archived(tag: &str) -> FlagKey {
+    FlagKey::new(format!("rachel_archived_{tag}"))
+}
 
-// Stats ------------------------------------------------------------------
 pub fn stat_cycle() -> StatKey {
     StatKey::new("cycle")
 }
@@ -505,8 +529,13 @@ pub fn stat_message_choice() -> StatKey {
 pub fn stat_rachel_message_choice() -> StatKey {
     StatKey::new("rachel_message_choice")
 }
+pub fn stat_dmitri_rel() -> StatKey {
+    StatKey::new("dmitri_rel")
+}
+pub fn stat_winnie_rel() -> StatKey {
+    StatKey::new("winnie_rel")
+}
 
-// Shared texts -----------------------------------------------------------
 pub fn text_intro() -> TextId {
     TextId::new("intro")
 }

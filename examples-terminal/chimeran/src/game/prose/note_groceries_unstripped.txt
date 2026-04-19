@@ -1,0 +1,11 @@
+groceries
+  Visible: "milk, bread, coffee, apples"
+  Original (redacted by simulation/coherence_repair, CYCLE 3, 09:47):
+
+    the coffee is the same temperature every morning
+    rachel's emails use the same sentence structure
+      every time
+    the clock above my monitor ticks differently
+      when i'm looking at it
+    dmitri referred to a concert last night but
+      there are no concert listings anywhere

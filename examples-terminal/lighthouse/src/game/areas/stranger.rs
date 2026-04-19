@@ -5,16 +5,16 @@
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
-    Condition, Dialogue, DialogueNode, DialogueOption, Effect, Npc, NpcLocation, Rule, Text, Timer,
-    Trigger, Value,
+    Condition, Dialogue, DialogueNode, DialogueOption, Effect, Entity, EntityLocation, Rule, Text,
+    Timer, Trigger, Value,
 };
 
 pub fn build() -> AreaContents {
     let mut area = AreaContents::default();
 
-    area.add_npc(
+    area.add_entity(
         ids::npc_stranger(),
-        Npc::new(
+        Entity::character(
             "the stranger",
             Text::lit(
                 "A man in a dark oilskin, soaked through. He smiles with his mouth but not his eyes.",
@@ -117,7 +117,7 @@ pub fn build() -> AreaContents {
         Rule::on(
             Trigger::Named(ids::event_stranger_arrives()),
             vec![
-                Effect::MoveNpc(ids::npc_stranger(), NpcLocation::Room(ids::room_shore())),
+                Effect::MoveEntity(ids::npc_stranger(), EntityLocation::Room(ids::room_shore())),
                 Effect::Say(Text::lit(
                     "A stranger comes up out of the shingle, oilskins black with rain.",
                 )),
@@ -133,16 +133,16 @@ pub fn build() -> AreaContents {
         Rule::on(
             Trigger::TurnStart,
             vec![Effect::If {
-                when: Condition::NpcIn(ids::npc_stranger(), ids::room_shore()),
-                then: vec![Effect::MoveNpc(
+                when: Condition::EntityIn(ids::npc_stranger(), ids::room_shore()),
+                then: vec![Effect::MoveEntity(
                     ids::npc_stranger(),
-                    NpcLocation::Room(ids::room_cliff_path()),
+                    EntityLocation::Room(ids::room_cliff_path()),
                 )],
                 otherwise: vec![Effect::If {
-                    when: Condition::NpcIn(ids::npc_stranger(), ids::room_cliff_path()),
-                    then: vec![Effect::MoveNpc(
+                    when: Condition::EntityIn(ids::npc_stranger(), ids::room_cliff_path()),
+                    then: vec![Effect::MoveEntity(
                         ids::npc_stranger(),
-                        NpcLocation::Room(ids::room_shore()),
+                        EntityLocation::Room(ids::room_shore()),
                     )],
                     otherwise: vec![],
                 }],

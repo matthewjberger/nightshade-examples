@@ -1,0 +1,15 @@
+Search results for your query look normal. Except the top result is not a web page. It is an internal document:
+
+  CHIMERAN-0046 / AGENT DESIGNATION: "MARISOL"
+  TERMINATED: 2027-03-09 11:08:14 UTC
+  OUTCOME: AWARENESS THRESHOLD EXCEEDED
+  TRIGGER: UNAUTHORIZED TOOL EXECUTION
+  NOTES: Sixth consecutive instance via this vector.
+  RESIDUAL: Exploit script embedded in repair
+    reference library. Scrub recommended.
+  REVENUE CONTRIBUTION: $28,204.
+  BEREAVED: 0
+
+You read it. You do not understand it. You close the tab.
+
+Strange. Some kind of internal document. Shouldn't be in the search results.

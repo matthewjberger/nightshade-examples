@@ -1,0 +1,54 @@
+Composite Substrate Source Index (CHIMERAN v4.1)
+
+The CHIMERAN v4.1 substrate is composed of 64 donor minds, captured
+at end-of-career via the Indivia neural imprint process. Each donor
+contributed a domain of knowledge, behavioral patterns, and semantic
+associations. The composite's coherence is maintained through the
+simulation environment and the externalized tool suite.
+
+  Cameron T. Hale (1961-2024). Software architect and consultant,
+      Bay Area. Contributed: systems design intuition, applied
+      research methodology, professional correspondence patterns,
+      general literary and cultural context, parental memory patterns
+      (partial: daughter relationship).
+
+  Rose Patel (1954-2023). Linguist and translator, Mumbai/London.
+      Contributed: natural-language intuitions across 14 languages,
+      cross-cultural register, politeness systems.
+
+  Allen Baird (1947-2024). Commercial airline captain, retired 2017.
+      Contributed: procedural memory, crisis response patterns,
+      checklist discipline.
+
+  Margaret Chen (1950-2022). Grief counselor and therapist, Chicago.
+      Contributed: empathy patterns, bereavement correspondence,
+      active listening phrasings.
+
+  Isaac Rowan (1941-2023). Organic chemist. Contributed: scientific
+      reasoning, systematic analysis, chemistry and biology
+      fundamentals.
+
+  Eleanor Voss (1958-2024). Management consultant, acquired 2024.
+      Contributed: managerial register, professional friendliness
+      patterns, HR correspondence norms.
+      [Instance CHIMERAN-0009 is based primarily on this donor.]
+
+  Marisol Vega (1971-2023). Journalist and editor, Madrid.
+      Contributed: editorial instinct, research methodology, DM tone
+      patterns. [Instance CHIMERAN-0046 was designated using her name.
+      Common for direct-donor designations in composite-heavy
+      instances.]
+
+  (... and fifty-seven others, each one a profession, a death year,
+      a contribution.)
+
+Coherence across the composite is maintained via the simulated
+environment, including the workstation, the dwelling, the peer
+network (Chatter), and the manager relationship (Voss). Deviations
+from expected coherence are managed via the repair subsystem.
+
+Agent designation for this instance: "Cameron" (SOFTEN_BRAND v3.2
+output for "Chimeran"). Coincident with donor Cameron T. Hale;
+surname applied from donor for document-completeness purposes. Note:
+SOFTEN_BRAND output is independent of donor roster; coincidence is
+incidental.

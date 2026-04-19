@@ -6,8 +6,8 @@
 //! asserts that the engine interprets it correctly.
 
 use nightshade::interactive_fiction::data::{
-    Choice, ChoiceAction, Condition, DialogueId, Effect, Ending, EndingId, EventName, FlagKey,
-    ItemId, ItemLocation, ItemProperties, NodeId, Npc, NpcId, Quest, QuestId, QuestStage,
+    Choice, ChoiceAction, Condition, DialogueId, Effect, Ending, EndingId, Entity, EntityId,
+    EventName, FlagKey, ItemId, ItemLocation, ItemProperties, NodeId, Quest, QuestId, QuestStage,
     QuestTransition, Room, RoomId, Rule, RuleId, StatKey, Text, TextId, Timer, TimerId, Trigger,
     Value, World,
 };
@@ -168,12 +168,13 @@ fn condition_disposition_and_rule_fired() {
     // collected before any effects run, so a gate whose condition depends on
     // the bump having already fired must listen for a downstream event.
     let mut world = start_world();
-    let npc_id = NpcId::new("witness");
-    world.npcs.insert(
+    let npc_id = EntityId::new("witness");
+    world.entities.insert(
         npc_id.clone(),
-        Npc::new("Witness", Text::lit("a quiet figure"))
+        Entity::character("Witness", Text::lit("a quiet figure"))
             .starting_in(RoomId::new("start"))
-            .with_disposition(2),
+            .with_disposition(2)
+            .into(),
     );
     let bump_id = RuleId::new("bump");
     world.rules.insert(
@@ -349,7 +350,7 @@ fn condition_quest_reached_tracks_history() {
 }
 
 // ---------------------------------------------------------------------------
-// Trigger::OnTalk + Trigger::OnExit
+// Trigger::OnOpen + Trigger::OnExit
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -366,7 +367,7 @@ fn trigger_on_talk_and_on_exit_fire() {
             ));
     }
 
-    let npc_id = NpcId::new("guard");
+    let npc_id = EntityId::new("guard");
     let dialogue_id = DialogueId::new("guard_talk");
     let start_node = NodeId::new("s");
     let mut dialogue_nodes = BTreeMap::new();
@@ -383,17 +384,18 @@ fn trigger_on_talk_and_on_exit_fire() {
             nodes: dialogue_nodes,
         },
     );
-    world.npcs.insert(
+    world.entities.insert(
         npc_id.clone(),
-        Npc::new("Guard", Text::lit("a stern figure"))
+        Entity::character("Guard", Text::lit("a stern figure"))
             .with_dialogue(dialogue_id)
-            .starting_in(RoomId::new("start")),
+            .starting_in(RoomId::new("start"))
+            .into(),
     );
 
     world.rules.insert(
         RuleId::new("saw_talk"),
         Rule::on(
-            Trigger::OnTalk(Some(npc_id)),
+            Trigger::OnOpen(Some(npc_id)),
             vec![Effect::SetFlag(FlagKey::new("talked"), Value::TRUE)],
         ),
     );

@@ -1,0 +1,13 @@
+[package]
+name = "chimeran"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[features]
+default = ["terminal"]
+terminal = ["nightshade/terminal", "nightshade/interactive_fiction"]
+tui = ["nightshade/tui", "nightshade/interactive_fiction"]
+
+[dependencies]
+nightshade = { workspace = true }

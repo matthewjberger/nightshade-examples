@@ -5,7 +5,8 @@
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
-    Condition, Effect, Exit, Item, ItemLocation, ItemProperties, Room, Rule, Text, Trigger, Value,
+    Condition, Effect, ExamineTarget, Exit, Item, ItemLocation, ItemProperties, Room, Rule, Text,
+    Trigger, Value,
 };
 
 pub fn build() -> AreaContents {
@@ -118,7 +119,7 @@ pub fn build() -> AreaContents {
     area.add_rule(
         ids::rule_log_examined(),
         Rule::on(
-            Trigger::OnExamine(Some(ids::item_ledger())),
+            Trigger::OnExamine(Some(ExamineTarget::Item(ids::item_ledger()))),
             vec![Effect::SetFlag(ids::flag_read_second_ledger(), Value::TRUE)],
         )
         .once(),

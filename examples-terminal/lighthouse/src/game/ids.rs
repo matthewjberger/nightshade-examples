@@ -5,8 +5,8 @@
 //! validator catches typos from string drift.
 
 use nightshade::interactive_fiction::data::{
-    ConditionId, DialogueId, EndingId, EventName, FlagKey, ItemId, NodeId, NpcId, QuestId, RoomId,
-    RuleId, TextId, TimerId,
+    ConditionId, DialogueId, EndingId, EntityId, EventName, FlagKey, ItemId, NodeId, QuestId,
+    RoomId, RuleId, TextId, TimerId,
 };
 
 // Rooms -----------------------------------------------------------------
@@ -71,8 +71,8 @@ pub fn item_keeper_remains() -> ItemId {
 }
 
 // NPCs ------------------------------------------------------------------
-pub fn npc_stranger() -> NpcId {
-    NpcId::new("stranger")
+pub fn npc_stranger() -> EntityId {
+    EntityId::new("stranger")
 }
 
 // Dialogues -------------------------------------------------------------

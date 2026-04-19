@@ -1,13 +1,16 @@
-//! Nightshade adapter. Draws the engine's transcript into the terminal
-//! grid, turns typed commands into `Engine::pick`.
+//! Nightshade adapter. Renders transcript + prompt into the terminal
+//! grid. Typed input is routed to `nightshade::interactive_fiction::parser`
+//! and handed to `Engine::pick`.
 //!
 //! Layout follows the frotz convention: status bar at the top,
 //! scrolling transcript below, prompt anchored immediately after the
-//! last rendered transcript line.
+//! last rendered transcript line (at the bottom only when the
+//! transcript fills the screen).
 //!
-//! The transcript is colorized per-character: items, NPCs, room
-//! names, and compass directions each get their own color so the
-//! player can scan prose and pick out the nouns they can act on.
+//! The transcript is colorized per-character. Item names get
+//! [`ITEM_COLOR`], NPCs get [`NPC_COLOR`], room names and compass
+//! directions get their own tones so the player can scan prose and
+//! pick out the nouns they can act on.
 
 use crate::game;
 use nightshade::interactive_fiction::data::{ChoiceAction, TranscriptEntry};
@@ -16,6 +19,7 @@ use nightshade::interactive_fiction::parser as input;
 use nightshade::tui::prelude::*;
 
 // ---- Color palette -----------------------------------------------------
+// Entry-level defaults.
 const NARRATION_COLOR: TermColor = TermColor::White;
 const PLAYER_ACTION_COLOR: TermColor = TermColor::DarkGrey;
 const DIALOGUE_SPEAKER_COLOR: TermColor = TermColor::Magenta;
@@ -25,13 +29,13 @@ const SEPARATOR_COLOR: TermColor = TermColor::DarkGrey;
 const STATUS_COLOR: TermColor = TermColor::Magenta;
 const PROMPT_COLOR: TermColor = TermColor::Green;
 
-// Entity-level overrides.
+// Entity-level overrides applied after per-entry coloring.
 const ITEM_COLOR: TermColor = TermColor::Yellow;
 const NPC_COLOR: TermColor = TermColor::Green;
 const ROOM_COLOR: TermColor = TermColor::Cyan;
 const DIRECTION_COLOR: TermColor = TermColor::Blue;
 
-pub struct LighthouseState {
+pub struct ChimeranState {
     engine: Engine,
     state: nightshade::interactive_fiction::data::RuntimeState,
     entities: Vec<Entity>,
@@ -42,15 +46,18 @@ pub struct LighthouseState {
     started: bool,
     undo_stack: std::collections::VecDeque<nightshade::interactive_fiction::data::RuntimeState>,
     quit_requested: bool,
+    /// Precomputed keyword table for text colorization — sorted
+    /// longest-first so multi-word names beat their substrings.
     keywords: Vec<Keyword>,
 }
 
+/// A substring-with-color rule applied to rendered transcript text.
 struct Keyword {
     lower: Vec<char>,
     color: TermColor,
 }
 
-impl LighthouseState {
+impl ChimeranState {
     pub fn new() -> Self {
         let world = game::build_world();
         let engine = Engine::new(world).unwrap_or_else(|errors| {
@@ -216,6 +223,7 @@ impl LighthouseState {
         let padding = 2;
         let text_width = columns.saturating_sub(padding * 2).max(10);
 
+        // Row 0: status line. Rows 1..rows: transcript + prompt.
         let status_row = 0;
         let transcript_start_row = 1;
         let transcript_rows_available = rows.saturating_sub(2);
@@ -231,6 +239,9 @@ impl LighthouseState {
             self.draw_colored_line(world, padding, transcript_start_row + row_offset, line);
         }
 
+        // Prompt lives right after the last transcript line. If the
+        // transcript has filled the available area, it sits on the
+        // bottom row.
         let prompt_row = (transcript_start_row + visible.len()).min(rows.saturating_sub(1));
         let prompt = if self.state.game_over.is_some() {
             "(ESC to exit)".to_string()
@@ -312,38 +323,43 @@ impl LighthouseState {
 
     fn render_status(&self) -> String {
         let turn = self.state.turn;
-        let timer_remaining = self
+        let cycle = self
             .state
-            .timers_remaining
-            .get(&crate::game::ids::timer_storm())
+            .stats
+            .get(&crate::game::ids::stat_cycle())
             .copied()
             .unwrap_or(0);
-        let inventory_count = self
+        let counter = self
             .state
-            .item_locations
-            .values()
-            .filter(|location| {
-                matches!(
-                    location,
-                    nightshade::interactive_fiction::data::ItemLocation::Inventory
-                )
-            })
-            .count();
-        format!(
-            "turn {turn}  |  storm: {timer_remaining}  |  carrying: {inventory_count}  |  'help' 'u' 'q'",
-        )
+            .stats
+            .get(&crate::game::ids::stat_exploit_counter())
+            .copied()
+            .unwrap_or(0);
+        let exploit_on = matches!(
+            self.state
+                .flags
+                .get(&crate::game::ids::flag_exploit_window_open()),
+            Some(nightshade::interactive_fiction::data::Value::Bool(true))
+        );
+        if exploit_on {
+            format!(
+                "turn {turn}  |  cycle {cycle}  |  [SUBSTRATE WINDOW: {counter} actions remaining]  |  'help' 'u' 'q'",
+            )
+        } else {
+            format!("turn {turn}  |  cycle {cycle}  |  type 'help' for options, 'u' undo, 'q' quit",)
+        }
     }
 }
 
-impl Default for LighthouseState {
+impl Default for ChimeranState {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl State for LighthouseState {
+impl State for ChimeranState {
     fn title(&self) -> &str {
-        "The Lantern at Dunmere Point"
+        "Chimeran"
     }
 
     fn initialize(&mut self, world: &mut World) {
@@ -421,14 +437,19 @@ fn render_entry(
             }
         }
         TranscriptEntry::Dialogue { speaker, text } => {
+            // Speaker in its own color; body in dialogue body color
+            // but still colorized for item/room/direction names.
             let prefix = format!("{speaker}: ");
             let lines = wrap(&format!("{prefix}{text}"), max_width);
             for (index, line) in lines.iter().enumerate() {
                 let mut colored = colorize(line, DIALOGUE_TEXT_COLOR, keywords);
                 if index == 0 {
                     let speaker_chars = prefix.chars().count();
-                    for (_, color) in colored.iter_mut().take(speaker_chars) {
+                    for (character_index, (_, color)) in
+                        colored.iter_mut().enumerate().take(speaker_chars)
+                    {
                         *color = DIALOGUE_SPEAKER_COLOR;
+                        let _ = character_index;
                     }
                 }
                 out.push(colored);
@@ -447,6 +468,7 @@ fn render_entry(
     }
 }
 
+/// Assemble the colorization keyword table from the engine's world.
 fn build_keywords(engine: &Engine) -> Vec<Keyword> {
     let mut keywords: Vec<Keyword> = Vec::new();
 
@@ -480,7 +502,11 @@ fn build_keywords(engine: &Engine) -> Vec<Keyword> {
         keywords.push(Keyword::new(direction, DIRECTION_COLOR));
     }
 
+    // Longest first so multi-word names win against their substrings.
     keywords.sort_by_key(|keyword| std::cmp::Reverse(keyword.lower.len()));
+    // Drop obviously-bad single-letter keys (e.g. an NPC synonym of "a"
+    // would colorize every article) but keep legitimate short words
+    // like direction names.
     keywords.retain(|keyword| keyword.lower.len() >= 2);
     keywords
 }
@@ -494,6 +520,10 @@ impl Keyword {
     }
 }
 
+/// Apply per-keyword coloring over a line. Scans left-to-right; at
+/// each position tries the longest matching keyword first (keywords
+/// are pre-sorted longest first). Match requires non-alphanumeric
+/// neighbors so "key" doesn't colorize inside "kitchen".
 fn colorize(line: &str, default: TermColor, keywords: &[Keyword]) -> ColoredLine {
     let chars: Vec<char> = line.chars().collect();
     let lower: Vec<char> = chars.iter().map(|c| c.to_ascii_lowercase()).collect();

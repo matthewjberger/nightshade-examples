@@ -4,7 +4,8 @@
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
-    Condition, Effect, Exit, Item, ItemLocation, ItemProperties, Room, Rule, Text, Trigger, Value,
+    Condition, Effect, ExamineTarget, Exit, Item, ItemLocation, ItemProperties, Room, Rule, Text,
+    Trigger, Value,
 };
 
 pub fn build() -> AreaContents {
@@ -170,7 +171,7 @@ pub fn build() -> AreaContents {
     area.add_rule(
         ids::rule_read_log_hint(),
         Rule::on(
-            Trigger::OnExamine(Some(ids::item_keeper_log())),
+            Trigger::OnExamine(Some(ExamineTarget::Item(ids::item_keeper_log()))),
             vec![Effect::Say(Text::lit(
                 "You re-read the last line. 'Look to the cellar.' That settles it.",
             ))],

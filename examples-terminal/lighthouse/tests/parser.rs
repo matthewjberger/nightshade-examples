@@ -4,7 +4,9 @@
 //! room features.
 
 use lighthouse::game;
-use nightshade::interactive_fiction::data::{Choice, ChoiceAction, ItemId, ItemLocation};
+use nightshade::interactive_fiction::data::{
+    Choice, ChoiceAction, ExamineTarget, ItemId, ItemLocation,
+};
 use nightshade::interactive_fiction::engine::Engine;
 use nightshade::interactive_fiction::parser::{Parsed, parse};
 
@@ -120,7 +122,7 @@ fn examine_keyword_room_feature() {
     let choices = engine.available_choices(&state);
     let index = choices
         .iter()
-        .position(|choice| matches!(&choice.action, ChoiceAction::ExamineKeyword(k) if k == "sea"))
+        .position(|choice| matches!(&choice.action, ChoiceAction::Examine(ExamineTarget::Keyword(k)) if k == "sea"))
         .expect("sea keyword");
     assert_eq!(
         parse(&engine, &state, &choices, "look at the sea"),

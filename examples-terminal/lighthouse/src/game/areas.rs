@@ -20,7 +20,8 @@ pub mod stranger;
 pub mod tower;
 
 use nightshade::interactive_fiction::data::{
-    Dialogue, DialogueId, Item, ItemId, Npc, NpcId, Room, RoomId, Rule, RuleId, Timer, TimerId,
+    Dialogue, DialogueId, Entity, EntityId, Item, ItemId, Room, RoomId, Rule, RuleId, Timer,
+    TimerId,
 };
 use std::collections::BTreeMap;
 
@@ -39,7 +40,7 @@ pub struct AreaContents {
     pub rooms: BTreeMap<RoomId, Room>,
     pub items: BTreeMap<ItemId, Item>,
     pub rules: BTreeMap<RuleId, Rule>,
-    pub npcs: BTreeMap<NpcId, Npc>,
+    pub entities: BTreeMap<EntityId, Entity>,
     pub dialogues: BTreeMap<DialogueId, Dialogue>,
     pub timers: BTreeMap<TimerId, Timer>,
 }
@@ -61,9 +62,10 @@ impl AreaContents {
         insert_unique(&mut self.rules, id, rule, "rule");
     }
 
-    /// Register an NPC. Panics on duplicate id within the area.
-    pub fn add_npc(&mut self, id: NpcId, npc: Npc) {
-        insert_unique(&mut self.npcs, id, npc, "NPC");
+    /// Register an entity (character or object). Accepts the entity
+    /// directly or either of the typed builders via `impl Into<Entity>`.
+    pub fn add_entity(&mut self, id: EntityId, entity: impl Into<Entity>) {
+        insert_unique(&mut self.entities, id, entity.into(), "entity");
     }
 
     /// Register a dialogue. Panics on duplicate id within the area.

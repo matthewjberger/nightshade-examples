@@ -1,12 +1,6 @@
-//! Scripted playthrough.
-//!
-//! Drives the engine by submitting choice indices and asserts on the final
-//! runtime state. Also round-trips the runtime state through bincode mid-run
-//! to catch any Serialize/Deserialize regression.
-
-use lighthouse::data::{Choice, ChoiceAction, ItemLocation, RuntimeState};
-use lighthouse::engine::{Engine, save};
 use lighthouse::game;
+use nightshade::interactive_fiction::data::{Choice, ChoiceAction, ItemLocation, RuntimeState};
+use nightshade::interactive_fiction::engine::Engine;
 
 fn build_engine() -> Engine {
     let world = game::build_world();
@@ -98,8 +92,10 @@ fn good_ending_via_lighting_lantern() {
     assert!(matches!(
         state
             .flags
-            .get(&lighthouse::data::FlagKey::new("lantern_is_lit")),
-        Some(lighthouse::data::Value::Bool(true))
+            .get(&nightshade::interactive_fiction::data::FlagKey::new(
+                "lantern_is_lit"
+            )),
+        Some(nightshade::interactive_fiction::data::Value::Bool(true))
     ));
 
     // Pick up the oil can.
@@ -115,13 +111,6 @@ fn good_ending_via_lighting_lantern() {
             .flags
             .contains_key(&lighthouse::game::ids::flag_found_keeper())
     );
-
-    // Round-trip the state through bincode in the middle of play.
-    let bytes = save::save(&state).expect("save");
-    let loaded = save::load(&bytes).expect("load");
-    assert_eq!(loaded.current_room, state.current_room);
-    assert_eq!(loaded.turn, state.turn);
-    state = loaded;
 
     // Back up.
     let go_up = pick_labeled(&engine, &state, "Go up");
@@ -289,7 +278,7 @@ fn dialogue_confront_stranger_with_note() {
             state
                 .flags
                 .get(&lighthouse::game::ids::flag_offer_refused()),
-            Some(lighthouse::data::Value::Bool(true))
+            Some(nightshade::interactive_fiction::data::Value::Bool(true))
         ),
         "refusal flag should be set after confronting the stranger"
     );
@@ -302,27 +291,6 @@ fn dialogue_confront_stranger_with_note() {
             <= -5,
         "stranger's disposition should plunge after being confronted"
     );
-}
-
-#[test]
-fn save_roundtrip_preserves_state() {
-    let engine = build_engine();
-    let mut state = fresh_state(&engine);
-    let take_key = pick_labeled(&engine, &state, "Take the iron key");
-    engine.pick(&mut state, take_key);
-    let bytes = save::save(&state).expect("save");
-    let loaded = save::load(&bytes).expect("load");
-    assert_eq!(loaded.current_room, state.current_room);
-    assert_eq!(loaded.turn, state.turn);
-    assert_eq!(loaded.item_locations, state.item_locations);
-
-    // Rejects bad magic.
-    let mut bogus = bytes.clone();
-    bogus[0] = b'X';
-    assert!(matches!(
-        save::load(&bogus),
-        Err(lighthouse::engine::save::SaveError::BadMagic)
-    ));
 }
 
 #[test]

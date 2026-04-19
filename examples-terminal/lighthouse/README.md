@@ -131,22 +131,18 @@ Each fire emits a `TranscriptEntry::System` line like
 - Text is composable: `Text::Ref` pulls from a shared table,
   `Text::Conditional` branches on a condition, `Text::OneOf` picks a random
   variant, `Text::Flag`/`Text::Stat` interpolate current values.
-- Saves are versioned. `engine::save::save` prepends a magic + `u16`
-  version; `load` returns a typed `SaveError` on mismatch.
+- Every data type derives `Serialize`/`Deserialize`, so save/load is the
+  consumer's choice of format (bincode, postcard, JSON, RON, ...).
 
 ## Tests
 
-28 total, split across two suites:
-
-- `tests/playthrough.rs` — scripted happy-path, alt-ending, save round-trip,
-  dialogue branch, and storm-timer expiration playthroughs.
+- `tests/playthrough.rs` — scripted happy-path, alt-ending, dialogue branch,
+  and storm-timer expiration playthroughs.
 - `tests/feature_coverage.rs` — isolated tests for every engine feature
   (`Condition::{Chance,DispositionAtLeast,ItemIsSomewhere,QuestReached,
   RuleFired}`, `Effect::{ClearTranscript,FireRule,ScheduleEvent,OfferChoices}`,
-  `Text::{Flag,Stat,Ref}`, timer cancel-on, validator error paths, save
-  round-trip).
-- In-module unit tests in `src/view/input.rs` cover the typed-command
-  parser.
+  `Text::{Flag,Stat,Ref}`, timer cancel-on, validator error paths).
+- `tests/parser.rs` — typed-command parser driven by the lighthouse content.
 
 ```
 cargo test -p lighthouse

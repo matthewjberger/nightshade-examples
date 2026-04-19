@@ -5,13 +5,13 @@
 //! `Condition`, `Effect`, `Trigger`, `Text`, `Value`, or `ChoiceAction` and
 //! asserts that the engine interprets it correctly.
 
-use lighthouse::data::{
+use nightshade::interactive_fiction::data::{
     Choice, ChoiceAction, Condition, DialogueId, Effect, Ending, EndingId, EventName, FlagKey,
     ItemId, ItemLocation, ItemProperties, NodeId, Npc, NpcId, Quest, QuestId, QuestStage,
     QuestTransition, Room, RoomId, Rule, RuleId, StatKey, Text, TextId, Timer, TimerId, Trigger,
     Value, World,
 };
-use lighthouse::engine::Engine;
+use nightshade::interactive_fiction::engine::Engine;
 use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
@@ -31,13 +31,13 @@ fn start_world() -> World {
     world
 }
 
-fn run(world: World) -> (Engine, lighthouse::data::RuntimeState) {
+fn run(world: World) -> (Engine, nightshade::interactive_fiction::data::RuntimeState) {
     let engine = Engine::new(world).expect("validate");
     let state = engine.start_state();
     (engine, state)
 }
 
-fn started(world: World) -> (Engine, lighthouse::data::RuntimeState) {
+fn started(world: World) -> (Engine, nightshade::interactive_fiction::data::RuntimeState) {
     let (engine, mut state) = run(world);
     engine.start(&mut state);
     (engine, state)
@@ -68,7 +68,9 @@ fn effect_clear_transcript_empties_the_log() {
         .transcript
         .iter()
         .filter_map(|entry| match entry {
-            lighthouse::data::TranscriptEntry::Narration(text) => Some(text.as_str()),
+            nightshade::interactive_fiction::data::TranscriptEntry::Narration(text) => {
+                Some(text.as_str())
+            }
             _ => None,
         })
         .collect();
@@ -214,17 +216,24 @@ fn condition_item_is_somewhere() {
     let absent = ItemId::new("absent");
     world.items.insert(
         placed.clone(),
-        lighthouse::data::Item::new("placed", Text::lit("p"), Text::lit("placed")).with_properties(
-            ItemProperties {
-                takeable: true,
-                ..Default::default()
-            },
-        ),
+        nightshade::interactive_fiction::data::Item::new(
+            "placed",
+            Text::lit("p"),
+            Text::lit("placed"),
+        )
+        .with_properties(ItemProperties {
+            takeable: true,
+            ..Default::default()
+        }),
     );
     world.items.insert(
         absent.clone(),
-        lighthouse::data::Item::new("absent", Text::lit("a"), Text::lit("absent"))
-            .with_properties(ItemProperties::default()),
+        nightshade::interactive_fiction::data::Item::new(
+            "absent",
+            Text::lit("a"),
+            Text::lit("absent"),
+        )
+        .with_properties(ItemProperties::default()),
     );
     world.rules.insert(
         RuleId::new("check"),
@@ -351,7 +360,10 @@ fn trigger_on_talk_and_on_exit_fire() {
     if let Some(start_room) = world.rooms.get_mut(&RoomId::new("start")) {
         start_room
             .exits
-            .push(lighthouse::data::Exit::new("go", other.clone()));
+            .push(nightshade::interactive_fiction::data::Exit::new(
+                "go",
+                other.clone(),
+            ));
     }
 
     let npc_id = NpcId::new("guard");
@@ -360,12 +372,13 @@ fn trigger_on_talk_and_on_exit_fire() {
     let mut dialogue_nodes = BTreeMap::new();
     dialogue_nodes.insert(
         start_node.clone(),
-        lighthouse::data::DialogueNode::new(Text::lit("hello."))
-            .with_option(lighthouse::data::DialogueOption::new(Text::lit("(end)"))),
+        nightshade::interactive_fiction::data::DialogueNode::new(Text::lit("hello.")).with_option(
+            nightshade::interactive_fiction::data::DialogueOption::new(Text::lit("(end)")),
+        ),
     );
     world.dialogues.insert(
         dialogue_id.clone(),
-        lighthouse::data::Dialogue {
+        nightshade::interactive_fiction::data::Dialogue {
             start: start_node,
             nodes: dialogue_nodes,
         },
@@ -611,13 +624,15 @@ fn validator_catches_bad_exit_condition() {
     let other_id = RoomId::new("other");
     world.rooms.insert(other_id.clone(), room("other"));
     if let Some(start) = world.rooms.get_mut(&start_id) {
-        start
-            .exits
-            .push(lighthouse::data::Exit::new("go", other_id).gated(
+        start.exits.push(
+            nightshade::interactive_fiction::data::Exit::new("go", other_id).gated(
                 // Condition::Ref points at a condition ID that does not exist.
-                Condition::Ref(lighthouse::data::ConditionId::new("missing_condition")),
+                Condition::Ref(nightshade::interactive_fiction::data::ConditionId::new(
+                    "missing_condition",
+                )),
                 Text::lit("locked"),
-            ));
+            ),
+        );
     }
     let errors = Engine::new(world).err().expect("should fail");
     assert!(
@@ -644,7 +659,7 @@ fn validator_catches_bad_ending_reference() {
     assert!(
         errors.iter().any(|error| matches!(
             error,
-            lighthouse::engine::ValidationError::EndingRefMissing(id) if id.as_str() == "bogus_id"
+            nightshade::interactive_fiction::engine::ValidationError::EndingRefMissing(id) if id.as_str() == "bogus_id"
         )),
         "validator should flag missing ending reference, got: {errors:?}"
     );

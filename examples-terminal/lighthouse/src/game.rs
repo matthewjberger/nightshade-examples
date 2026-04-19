@@ -19,7 +19,7 @@ pub mod merge;
 pub mod quests;
 pub mod texts;
 
-use crate::data::{Text, World};
+use nightshade::interactive_fiction::data::{Text, World};
 
 /// Assemble the complete `World` from every area's contribution plus the
 /// cross-area central content. Duplicate IDs across areas panic via

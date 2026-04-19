@@ -1,9 +1,9 @@
 //! The shore, the cliff path, and the "gone" sink — plus the driftwood and
 //! cottage key the player finds on the shingle.
 
-use crate::data::{Condition, Exit, Item, ItemProperties, Room, Text};
 use crate::game::areas::AreaContents;
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{Condition, Exit, Item, ItemProperties, Room, Text};
 
 pub fn build() -> AreaContents {
     let mut area = AreaContents::default();

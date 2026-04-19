@@ -1,7 +1,7 @@
 //! Shared text table entries referenced via `Text::Ref`.
 
-use crate::data::{Text, TextId};
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{Text, TextId};
 use std::collections::BTreeMap;
 
 pub fn build() -> BTreeMap<TextId, Text> {

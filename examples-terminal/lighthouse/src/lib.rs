@@ -1,13 +1,9 @@
-//! The Lantern at Dunmere Point — a data-driven text adventure on Nightshade.
+//! The Lantern at Dunmere Point — a data-driven text adventure.
 //!
-//! Layers:
-//!
-//! - [`data`] — pure data types (rooms, items, rules, effects, ...)
-//! - [`engine`] — interpreter over `(World, RuntimeState)`
-//! - [`game`] — the specific adventure's authored `World`
-//! - [`view`] — Nightshade `State` implementation that renders the engine
+//! The interactive-fiction engine lives in
+//! `nightshade::interactive_fiction` behind the `interactive_fiction`
+//! feature. This crate is the adventure content plus the Nightshade TUI
+//! adapter that hosts it.
 
-pub mod data;
-pub mod engine;
 pub mod game;
 pub mod view;

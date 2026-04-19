@@ -1,8 +1,8 @@
 //! Game-start setup: the kickoff rule that begins both timers.
 
-use crate::data::{Effect, Rule, Text, Trigger, Value};
 use crate::game::areas::AreaContents;
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{Effect, Rule, Text, Trigger, Value};
 
 pub fn build() -> AreaContents {
     let mut area = AreaContents::default();

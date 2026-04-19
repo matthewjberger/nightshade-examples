@@ -2,11 +2,11 @@
 //! ledger, the wreckers' note, and — once found — the keeper's remains),
 //! and the rules that fire when the player arrives with a light.
 
-use crate::data::{
-    Condition, Effect, Exit, Item, ItemLocation, ItemProperties, Room, Rule, Text, Trigger, Value,
-};
 use crate::game::areas::AreaContents;
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{
+    Condition, Effect, Exit, Item, ItemLocation, ItemProperties, Room, Rule, Text, Trigger, Value,
+};
 
 pub fn build() -> AreaContents {
     let mut area = AreaContents::default();

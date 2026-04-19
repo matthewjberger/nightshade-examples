@@ -4,7 +4,7 @@
 //! through a function here. This is the single place to rename a room ID; the
 //! validator catches typos from string drift.
 
-use crate::data::{
+use nightshade::interactive_fiction::data::{
     ConditionId, DialogueId, EndingId, EventName, FlagKey, ItemId, NodeId, NpcId, QuestId, RoomId,
     RuleId, TextId, TimerId,
 };

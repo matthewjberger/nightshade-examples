@@ -1,7 +1,7 @@
 //! Endings.
 
-use crate::data::{Condition, Ending, EndingId, Text};
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{Condition, Ending, EndingId, Text};
 use std::collections::BTreeMap;
 
 pub fn build() -> BTreeMap<EndingId, Ending> {

@@ -3,8 +3,8 @@
 //! Stand-alone conditions that appear in more than one rule, quest, or
 //! timer live here so they can be authored once and reused by ID.
 
-use crate::data::{Condition, ConditionId};
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{Condition, ConditionId};
 use std::collections::BTreeMap;
 
 pub fn build() -> BTreeMap<ConditionId, Condition> {

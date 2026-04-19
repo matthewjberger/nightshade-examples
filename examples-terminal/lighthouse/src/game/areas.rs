@@ -19,7 +19,7 @@ pub mod storm;
 pub mod stranger;
 pub mod tower;
 
-use crate::data::{
+use nightshade::interactive_fiction::data::{
     Dialogue, DialogueId, Item, ItemId, Npc, NpcId, Room, RoomId, Rule, RuleId, Timer, TimerId,
 };
 use std::collections::BTreeMap;

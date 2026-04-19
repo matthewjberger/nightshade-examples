@@ -6,10 +6,8 @@ publish = false
 
 [features]
 default = ["terminal"]
-terminal = ["nightshade/terminal"]
-tui = ["nightshade/tui"]
+terminal = ["nightshade/terminal", "nightshade/interactive_fiction"]
+tui = ["nightshade/tui", "nightshade/interactive_fiction"]
 
 [dependencies]
 nightshade = { workspace = true }
-serde = { version = "1", features = ["derive"] }
-bincode = "1.3"

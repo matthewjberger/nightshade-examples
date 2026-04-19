@@ -1,9 +1,11 @@
 //! The tower: its three rooms, the tower key the player finds inside,
 //! every puzzle rule tied to the lens, and the hidden-passage backup path.
 
-use crate::data::{Condition, Effect, Exit, Item, Room, Rule, Text, Trigger, Value};
 use crate::game::areas::AreaContents;
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{
+    Condition, Effect, Exit, Item, Room, Rule, Text, Trigger, Value,
+};
 
 pub fn build() -> AreaContents {
     let mut area = AreaContents::default();

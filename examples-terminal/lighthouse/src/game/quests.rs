@@ -1,7 +1,9 @@
 //! The central quest graph.
 
-use crate::data::{Condition, Quest, QuestId, QuestStage, QuestTransition, Text};
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{
+    Condition, Quest, QuestId, QuestStage, QuestTransition, Text,
+};
 use std::collections::BTreeMap;
 
 pub fn build() -> BTreeMap<QuestId, Quest> {

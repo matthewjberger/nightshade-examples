@@ -1,9 +1,9 @@
 //! The storm: the countdown timer that ends the run if the player dawdles,
 //! and the ambient weather rules that fire while it runs.
 
-use crate::data::{Condition, Effect, Rule, Text, Timer, Trigger};
 use crate::game::areas::AreaContents;
 use crate::game::ids;
+use nightshade::interactive_fiction::data::{Condition, Effect, Rule, Text, Timer, Trigger};
 
 pub fn build() -> AreaContents {
     let mut area = AreaContents::default();

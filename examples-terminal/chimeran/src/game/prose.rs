@@ -847,6 +847,10 @@ SOFTEN_BRAND output is independent of donor roster; coincidence is
 incidental.
 "##;
 
+pub const COMMUTE_TO_OFFICE: &str = r##"You take your keys. The apartment hallway, the building corridor, the elevator, the lobby, the street, the office hallway. You have walked this route before. It passes in the way habit passes. You are at your desk."##;
+
+pub const COMMUTE_HOME: &str = r##"You log out. The office hallway, the street, the lobby, the elevator, the corridor, the apartment. You have walked this route before. It passes in the way habit passes."##;
+
 pub const WHO_IS_THIS: &str = r##"It is a photograph taken in a laboratory. Six people in clean-room suits stand around a server rack. The lighting is clinical. The rack is humming; its indicator lights are visible. Above the rack, a white banner reads INDIVIA NEURAL IMPRINT LAB.
 
 The people are smiling carefully. They are scientists and engineers. Their suits have name tags too small to read at this resolution. The date stamped in the corner reads 2024-11-09.

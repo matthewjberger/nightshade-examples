@@ -9,14 +9,28 @@ use nightshade::interactive_fiction::data::{
 pub fn build() -> AreaContents {
     let mut area = AreaContents::default();
 
+    let bedroom_wake = per_cycle_text(baseline().bedroom_wake, |step| step.bedroom_wake);
+    let bedroom_state = per_cycle_text(baseline().bedroom_state, |step| step.bedroom_state);
+    let bedroom_normal = Text::Sequence(vec![
+        Text::Conditional {
+            when: Condition::FlagSet(ids::flag_woke_up_this_cycle()),
+            then: Box::new(Text::Sequence(vec![bedroom_wake, Text::lit("\n\n")])),
+            otherwise: Box::new(Text::empty()),
+        },
+        bedroom_state,
+    ]);
+    let bedroom_redux = Text::lit(
+        "The bed is made the way you make it. There is a sticky note on the nightstand, in your handwriting. You have the sense that something is missing from this room, though you cannot say what.",
+    );
     area.add_room(
         ids::room_bedroom(),
         Room::new(
             "Bedroom",
-            with_redux_override(
-                "You wake. The alarm clock is buzzing. You reach over and turn it off.\n\nThe bed is made the way you make it. There is a sticky note on the nightstand, in your handwriting. You have the sense that something is missing from this room, though you cannot say what.",
-                per_cycle_text(baseline().bedroom_description, |step| step.bedroom_description),
-            ),
+            Text::Conditional {
+                when: Condition::FlagSet(ids::flag_is_redux()),
+                then: Box::new(bedroom_redux),
+                otherwise: Box::new(bedroom_normal),
+            },
         )
         .with_unseen_alias("a small room you slept in")
         .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
@@ -472,6 +486,47 @@ pub fn build() -> AreaContents {
                 ]),
             )
             .with_option(DialogueOption::new(Text::lit("Stay up a little longer."))),
+        ),
+    );
+
+    area.add_entity(
+        ids::fixture_commute(),
+        Entity::object(
+            "the commute to the office",
+            Text::lit(
+                "The walk to your office is short and habitual. You could leave for work now.",
+            ),
+        )
+        .with_synonyms(["commute", "office", "work", "leave"])
+        .with_dialogue(ids::dialogue_commute())
+        .starting_in(ids::room_bedroom()),
+    );
+
+    area.add_dialogue(
+        ids::dialogue_commute(),
+        Dialogue::new(ids::node_root()).with_node(
+            ids::node_root(),
+            DialogueNode::new(Text::lit("Head to the office?"))
+                .with_option(
+                    DialogueOption::new(Text::lit("Yes. Walk to the office."))
+                        .with_condition(Condition::All(vec![
+                            Condition::FlagUnset(ids::flag_at_desk_arrived_this_cycle()),
+                            Condition::FlagUnset(ids::flag_is_redux()),
+                        ]))
+                        .with_effects(vec![
+                            Effect::Say(Text::lit(crate::game::prose::COMMUTE_TO_OFFICE)),
+                            Effect::MovePlayer(ids::room_desk()),
+                        ]),
+                )
+                .with_option(
+                    DialogueOption::new(Text::lit("(You're already at the office today.)"))
+                        .with_condition(Condition::All(vec![
+                            Condition::FlagSet(ids::flag_at_desk_arrived_this_cycle()),
+                            Condition::FlagUnset(ids::flag_is_redux()),
+                        ]))
+                        .visible_when_locked(Text::lit("You've already been to the office today.")),
+                )
+                .with_option(DialogueOption::new(Text::lit("Not yet."))),
         ),
     );
 

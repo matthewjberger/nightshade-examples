@@ -80,6 +80,12 @@ pub fn fixture_picture_frame() -> EntityId {
 pub fn fixture_clock() -> EntityId {
     EntityId::new("clock")
 }
+pub fn fixture_commute() -> EntityId {
+    EntityId::new("commute")
+}
+pub fn fixture_leave_for_day() -> EntityId {
+    EntityId::new("leave_for_day")
+}
 
 pub fn dialogue_mail() -> DialogueId {
     DialogueId::new("mail")
@@ -113,6 +119,12 @@ pub fn dialogue_sleep() -> DialogueId {
 }
 pub fn dialogue_clock() -> DialogueId {
     DialogueId::new("clock")
+}
+pub fn dialogue_commute() -> DialogueId {
+    DialogueId::new("commute")
+}
+pub fn dialogue_go_home() -> DialogueId {
+    DialogueId::new("go_home")
 }
 
 pub fn node_root() -> NodeId {
@@ -399,6 +411,9 @@ pub fn rule_ambient_office_floor() -> RuleId {
 pub fn rule_ambient_lobby() -> RuleId {
     RuleId::new("ambient_lobby")
 }
+pub fn rule_clear_wake_flag() -> RuleId {
+    RuleId::new("clear_wake_flag")
+}
 
 pub fn event_substrate_window_closes() -> EventName {
     EventName::new("substrate_window_closes")
@@ -490,6 +505,9 @@ pub fn flag_winnie_replied() -> FlagKey {
 }
 pub fn flag_notepad_flicker_seen() -> FlagKey {
     FlagKey::new("notepad_flicker_seen")
+}
+pub fn flag_woke_up_this_cycle() -> FlagKey {
+    FlagKey::new("woke_up_this_cycle")
 }
 
 pub fn flag_req_submitted(tag: &str) -> FlagKey {

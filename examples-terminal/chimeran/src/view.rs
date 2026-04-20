@@ -151,6 +151,12 @@ impl ChimeranState {
             return;
         }
 
+        if raw == "/map" {
+            let map = game::map::render(&self.state);
+            self.state.push_transcript(TranscriptEntry::System(map));
+            return;
+        }
+
         let room_before = self.state.current_room.clone();
         let transcript_len_before = self.state.transcript.len();
 
@@ -256,8 +262,12 @@ impl ChimeranState {
         let text_width = columns.saturating_sub(padding * 2).max(10);
 
         let status_row = 0;
-        let transcript_start_row = 1;
-        let transcript_rows_available = rows.saturating_sub(2);
+        let transcript_start_row = if self.log_mode { 0 } else { 1 };
+        let transcript_rows_available = if self.log_mode {
+            rows.saturating_sub(1)
+        } else {
+            rows.saturating_sub(2)
+        };
 
         let skip = if self.log_mode { 0 } else { self.display_start };
         let mut wrapped: Vec<ColoredLine> = Vec::new();
@@ -298,8 +308,10 @@ impl ChimeranState {
         };
         self.draw_text(world, padding, prompt_row, &prompt, PROMPT_COLOR);
 
-        let status = self.render_status();
-        self.draw_text(world, padding, status_row, &status, STATUS_COLOR);
+        if !self.log_mode {
+            let status = self.render_status();
+            self.draw_text(world, padding, status_row, &status, STATUS_COLOR);
+        }
     }
 
     fn draw_text(

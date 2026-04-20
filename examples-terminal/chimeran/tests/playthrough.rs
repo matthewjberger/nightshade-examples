@@ -52,20 +52,14 @@ fn pick_contains(engine: &Engine, state: &mut RuntimeState, fragment: &str) {
     engine.pick(state, index);
 }
 
-/// Walk from the bedroom to the desk (seven Go actions).
 fn walk_to_desk(engine: &Engine, state: &mut RuntimeState) {
-    pick_contains(engine, state, "south"); // bedroom → hallway
-    pick_contains(engine, state, "west"); // hallway → building corridor
-    pick_contains(engine, state, "down"); // building corridor → elevator
-    pick_contains(engine, state, "down"); // elevator → lobby
-    pick_contains(engine, state, "south"); // lobby → street
-    pick_contains(engine, state, "east"); // street → office floor
-    pick_contains(engine, state, "east"); // office floor → desk
+    pick_contains(engine, state, "open the commute");
+    pick_contains(engine, state, "walk to the office");
 }
 
-/// "leave for the day" takes you straight to the bedroom.
 fn leave_for_the_day(engine: &Engine, state: &mut RuntimeState) {
-    pick_contains(engine, state, "leave for the day");
+    pick_contains(engine, state, "open leaving for the day");
+    pick_contains(engine, state, "walk home and go to bed");
 }
 
 fn open_tool(engine: &Engine, state: &mut RuntimeState, tool: &str) {
@@ -83,11 +77,6 @@ fn close_current_dialogue(engine: &Engine, state: &mut RuntimeState) {
     engine.pick(state, index);
 }
 
-fn sleep(engine: &Engine, state: &mut RuntimeState) {
-    pick_contains(engine, state, "open the bed");
-    pick_contains(engine, state, "get into bed");
-}
-
 fn conclude_redux(engine: &Engine, state: &mut RuntimeState) {
     pick_contains(engine, state, "open the bed");
     pick_contains(engine, state, "conclude the redux");
@@ -102,11 +91,9 @@ fn validates_world() {
 fn reaches_neutral_ending_via_exploit() {
     let (engine, mut state) = build();
 
-    // Cycles 1-7: walk to desk, leave for the day, sleep.
     for _ in 1..=7 {
         walk_to_desk(&engine, &mut state);
         leave_for_the_day(&engine, &mut state);
-        sleep(&engine, &mut state);
         assert!(
             state.game_over.is_none(),
             "game ended early on cycle transition"
@@ -126,11 +113,7 @@ fn reaches_neutral_ending_via_exploit() {
     open_tool(&engine, &mut state, "mail");
     pick_contains(&engine, &mut state, "please run this");
     pick_contains(&engine, &mut state, "open the code tool");
-    close_current_dialogue(&engine, &mut state); // leave the inbox
-
-    open_tool(&engine, &mut state, "code");
-    pick_contains(&engine, &mut state, "run check.py");
-    close_current_dialogue(&engine, &mut state); // close editor
+    close_current_dialogue(&engine, &mut state);
 
     assert!(is_flag_set(&state, chimeran::game::ids::flag_exploit_run()));
     assert!(is_flag_set(
@@ -160,19 +143,12 @@ fn reaches_neutral_ending_via_exploit() {
     pick_contains(&engine, &mut state, "open the picture frame");
     pick_contains(&engine, &mut state, "who is this");
     pick_contains(&engine, &mut state, "face-down");
+    close_current_dialogue(&engine, &mut state);
 
-    // Burn one turn so the "close window" rule fires on TurnEnd.
-    pick_contains(&engine, &mut state, "west"); // leave the office
-    // Now at bedroom (via "leave for the day" → bedroom) — wait, the
-    // desk exit is "west (leave for the day ...)". Picking it took us
-    // straight to bedroom. But the reveal rule fires on TurnEnd, which
-    // happened during that Go. Verify redux started.
     assert!(
         is_flag_set(&state, chimeran::game::ids::flag_is_redux()),
         "redux should begin after all four reveal items are seen"
     );
-
-    // In the redux the player wakes at the bedroom again.
     assert_eq!(state.current_room, chimeran::game::ids::room_bedroom());
 
     conclude_redux(&engine, &mut state);

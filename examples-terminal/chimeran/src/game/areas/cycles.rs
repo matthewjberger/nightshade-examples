@@ -20,8 +20,9 @@ pub fn build() -> AreaContents {
             vec![
                 Effect::AddStat(ids::stat_cycle(), 1),
                 Effect::AddStat(ids::stat_stasis_loops(), 1),
+                Effect::SetFlag(ids::flag_woke_up_this_cycle(), Value::TRUE),
                 Effect::Say(Text::lit("You sleep.\n\nTime passes.")),
-                Effect::DescribeRoom,
+                Effect::MovePlayer(ids::room_bedroom()),
             ],
         )
         .with_condition(Condition::All(vec![
@@ -40,6 +41,17 @@ pub fn build() -> AreaContents {
         .once(),
     );
 
+    area.add_rule(
+        ids::rule_clear_wake_flag(),
+        Rule::on(
+            Trigger::OnExit(Some(ids::room_bedroom())),
+            vec![Effect::SetFlag(
+                ids::flag_woke_up_this_cycle(),
+                Value::FALSE,
+            )],
+        ),
+    );
+
     area
 }
 
@@ -49,10 +61,11 @@ fn sleep_rule(transition: &CycleTransition) -> Rule {
         effects.push(Effect::SetFlag(ids::flag_req_submitted(tag), Value::TRUE));
     }
     effects.push(Effect::AddStat(ids::stat_env(), transition.env_bump));
+    effects.push(Effect::SetFlag(ids::flag_woke_up_this_cycle(), Value::TRUE));
     effects.push(Effect::Say(Text::lit(
         transition.sleep_narration.to_string(),
     )));
-    effects.push(Effect::DescribeRoom);
+    effects.push(Effect::MovePlayer(ids::room_bedroom()));
     Rule::on(Trigger::Named(ids::event_sleep()), effects).with_condition(Condition::All(vec![
         Condition::StatAtLeast(ids::stat_cycle(), transition.from),
         Condition::StatAtMost(ids::stat_cycle(), transition.from),

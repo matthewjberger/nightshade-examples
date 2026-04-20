@@ -2,6 +2,7 @@ pub mod areas;
 pub mod endings;
 pub mod ids;
 pub mod mail;
+pub mod map;
 pub mod plan;
 pub mod prose;
 pub mod texts;

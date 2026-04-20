@@ -2,7 +2,7 @@ use crate::game::areas::{AreaContents, by_cycle};
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
     Condition, Dialogue, DialogueId, DialogueNode, DialogueOption, Effect, Entity, EntityId, Exit,
-    Item, ItemLocation, Room, Rule, Text, Trigger,
+    Item, ItemLocation, Room, Rule, Text, Trigger, Value,
 };
 
 fn nameplate_text() -> Text {
@@ -176,8 +176,8 @@ pub fn build() -> AreaContents {
             .with_unseen_alias("a desk")
             .with_alias_when(Condition::StatAtLeast(ids::stat_env(), 6))
             .with_exit(Exit::new(
-                "west (leave for the day — the walk home is short, and you go to bed)",
-                ids::room_bedroom(),
+                "west (into the office hallway)",
+                ids::room_office_floor(),
             ))
             .with_examine("nameplate", nameplate_text())
             .with_examine("window", window_text())
@@ -337,6 +337,47 @@ pub fn build() -> AreaContents {
         .with_synonyms(["clock", "wall clock"])
         .with_dialogue(ids::dialogue_clock())
         .starting_in(ids::room_desk()),
+    );
+
+    area.add_entity(
+        ids::fixture_leave_for_day(),
+        Entity::object(
+            "leaving for the day",
+            Text::lit("You could close up the workday and walk home."),
+        )
+        .with_synonyms([
+            "home", "leave", "go home", "done", "end day", "bed", "sleep",
+        ])
+        .with_dialogue(ids::dialogue_go_home())
+        .starting_in(ids::room_desk()),
+    );
+
+    area.add_dialogue(
+        ids::dialogue_go_home(),
+        Dialogue::new(ids::node_root()).with_node(
+            ids::node_root(),
+            DialogueNode::new(Text::Conditional {
+                when: Condition::FlagSet(ids::flag_at_desk_arrived_this_cycle()),
+                then: Box::new(Text::lit("End the day?")),
+                otherwise: Box::new(Text::lit(
+                    "You haven't really done the day's work yet. Leaving now would feel wrong.",
+                )),
+            })
+            .with_option(
+                DialogueOption::new(Text::lit("Yes. Walk home and go to bed."))
+                    .with_condition(Condition::All(vec![
+                        Condition::FlagSet(ids::flag_at_desk_arrived_this_cycle()),
+                        Condition::FlagUnset(ids::flag_is_redux()),
+                    ]))
+                    .with_effects(vec![
+                        Effect::Say(Text::lit(crate::game::prose::COMMUTE_HOME)),
+                        Effect::SetFlag(ids::flag_at_desk_arrived_this_cycle(), Value::FALSE),
+                        Effect::SetFlag(ids::flag_frame_looked_today(), Value::FALSE),
+                        Effect::TriggerEvent(ids::event_sleep()),
+                    ]),
+            )
+            .with_option(DialogueOption::new(Text::lit("Stay a little longer."))),
+        ),
     );
 
     area.add_dialogue(

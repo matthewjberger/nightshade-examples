@@ -1,7 +1,7 @@
 use crate::game::areas::AreaContents;
 use crate::game::ids;
 use nightshade::interactive_fiction::data::{
-    Condition, Effect, EntityId, ItemLocation, Rule, Text, Trigger, Value,
+    Condition, Effect, EntityId, EntityLocation, ItemLocation, Rule, Text, Trigger, Value,
 };
 
 pub fn build() -> AreaContents {
@@ -70,6 +70,8 @@ pub fn build() -> AreaContents {
                 Effect::MovePlayer(ids::room_bedroom()),
                 Effect::MoveItem(ids::item_sticky_note_hallway(), ItemLocation::Nowhere),
                 Effect::MoveItem(ids::item_sticky_note_monitor(), ItemLocation::Nowhere),
+                Effect::MoveEntity(ids::fixture_commute(), EntityLocation::Nowhere),
+                Effect::MoveEntity(ids::fixture_leave_for_day(), EntityLocation::Nowhere),
             ],
         )
         .once(),

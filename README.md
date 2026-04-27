@@ -158,6 +158,23 @@ Run examples in VR with OpenXR support:
 just run-openxr prefabs
 ```
 
+### Steam Deck (and other Linux x86_64 targets)
+
+Cross-compile any example to `x86_64-unknown-linux-gnu`. The build step only requires Docker; the deploy and SSH recipes additionally require a Steam Deck reachable as `steamdeck.local`.
+
+```bash
+just init-steamdeck                  # one-time: install cross + Linux toolchain
+just build-steamdeck alpha_blending  # cross-compile only (needs Docker)
+```
+
+Deck-specific recipes (require SSH access to `steamdeck.local`):
+
+```bash
+just deploy-steamdeck alpha_blending # build + scp to ~/Downloads
+just deploy-steamdeck-quick prefabs  # build + scp as ~/Downloads/game (chmod +x)
+just steamdeck-ssh                   # SSH into the deck
+```
+
 ## Notes
 
 - `steam` and `multiplayer_pong` require the Steam SDK

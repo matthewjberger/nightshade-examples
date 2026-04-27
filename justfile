@@ -753,6 +753,30 @@ run $example="alpha_blending":
 run-openxr $example="prefabs":
     cargo run -r -p {{example}} --features openxr
 
+# Install Steam Deck tooling
+init-steamdeck:
+    cargo install --locked cross
+    rustup toolchain install --force-non-host stable-x86_64-unknown-linux-gnu
+
+# Build an example for Steam Deck (Linux x86_64)
+build-steamdeck $example="prefabs":
+    cross build --release --target x86_64-unknown-linux-gnu -p {{example}}
+
+# Build and deploy an example to Steam Deck
+deploy-steamdeck $example="prefabs":
+    just build-steamdeck {{example}}
+    scp ./target/x86_64-unknown-linux-gnu/release/{{example}} deck@steamdeck.local:~/Downloads
+
+# Build and deploy an example to Steam Deck as ~/Downloads/game (chmod +x)
+deploy-steamdeck-quick $example="prefabs":
+    just build-steamdeck {{example}}
+    scp ./target/x86_64-unknown-linux-gnu/release/{{example}} deck@steamdeck.local:~/Downloads/game
+    ssh deck@steamdeck.local "chmod +x ~/Downloads/game"
+
+# SSH into Steam Deck
+steamdeck-ssh:
+    ssh deck@steamdeck.local
+
 # Build an example for WASM
 [windows]
 build-wasm $example="alpha_blending":
